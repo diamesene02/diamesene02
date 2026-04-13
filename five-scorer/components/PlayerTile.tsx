@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useCallback } from "react";
 import { cn } from "@/lib/cn";
 
 type Props = {
@@ -11,43 +12,63 @@ type Props = {
 };
 
 export default function PlayerTile({ name, goals, tint, onGoal, onUndo }: Props) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongRef = useRef(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const startPress = useCallback(() => {
+    didLongRef.current = false;
+    btnRef.current?.classList.add("long-pressing");
+    timerRef.current = setTimeout(() => {
+      didLongRef.current = true;
+      btnRef.current?.classList.remove("long-pressing");
+      if (goals > 0) {
+        if (navigator.vibrate) navigator.vibrate(30);
+        onUndo();
+      }
+    }, 500);
+  }, [goals, onUndo]);
+
+  const endPress = useCallback((e: React.PointerEvent) => {
+    clearTimeout(timerRef.current!);
+    btnRef.current?.classList.remove("long-pressing");
+    if (!didLongRef.current) onGoal();
+    e.preventDefault();
+  }, [onGoal]);
+
+  const cancelPress = useCallback(() => {
+    clearTimeout(timerRef.current!);
+    btnRef.current?.classList.remove("long-pressing");
+  }, []);
+
   return (
     <div
       className={cn(
-        "flex items-stretch overflow-hidden rounded-xl border",
+        "flex items-center gap-2 rounded-lg px-2 py-1",
         tint === "pitch"
-          ? "border-pitch-600/40 bg-pitch-900/30"
-          : "border-blue-500/40 bg-blue-900/30"
+          ? "border-l-[3px] border-l-pitch-500 bg-pitch-900/30"
+          : "border-l-[3px] border-l-blue-500 bg-blue-900/30"
       )}
     >
-      <button
-        onClick={onGoal}
-        className={cn(
-          "big-touch flex-1 px-4 py-4 text-left transition active:scale-[0.98]",
-          tint === "pitch" ? "hover:bg-pitch-800/60" : "hover:bg-blue-800/60"
-        )}
-      >
-        <div className="text-lg font-bold">{name}</div>
-        <div className="text-xs uppercase text-gray-300">
-          {goals} but{goals > 1 ? "s" : ""}
+      <div className="flex-1 truncate text-sm font-bold">{name}</div>
+      {goals > 0 && (
+        <div className="min-w-[20px] text-center text-base font-extrabold text-amber-400">
+          {goals}
         </div>
-      </button>
+      )}
       <button
-        onClick={onUndo}
-        aria-label="Annuler un but"
-        disabled={goals === 0}
-        className="big-touch w-16 shrink-0 bg-black/40 text-2xl font-bold text-gray-300 hover:bg-black/60 disabled:opacity-30"
-      >
-        −
-      </button>
-      <button
-        onClick={onGoal}
-        aria-label="Ajouter un but"
+        ref={btnRef}
+        aria-label="Ajouter un but (maintenir pour annuler)"
+        onPointerDown={startPress}
+        onPointerUp={endPress}
+        onPointerLeave={cancelPress}
+        onPointerCancel={cancelPress}
         className={cn(
-          "big-touch w-20 shrink-0 text-3xl font-black",
+          "rounded-lg px-3 py-2 text-lg font-extrabold text-white transition-colors touch-manipulation",
+          "[&.long-pressing]:!bg-red-600",
           tint === "pitch"
-            ? "bg-pitch-600 hover:bg-pitch-700"
-            : "bg-blue-600 hover:bg-blue-700"
+            ? "bg-pitch-600 active:bg-pitch-700"
+            : "bg-blue-600 active:bg-blue-700"
         )}
       >
         +1

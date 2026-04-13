@@ -12,10 +12,10 @@ import { kickSync } from "@/lib/sync";
 export default function LiveMatch({ matchId }: { matchId: string }) {
   const router = useRouter();
 
-  // Live view straight from Dexie. Re-renders on every local mutation.
   const data = useLiveQuery(() => getLocalMatch(matchId), [matchId]);
 
   const [mvpOpen, setMvpOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +45,6 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
 
   const { match, teamA, teamB } = data;
 
-  // If the match was finished elsewhere, redirect to the recap.
   if (match.status === "FINISHED") {
     router.replace(`/matches/${matchId}`);
     return null;
@@ -84,19 +83,26 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
 
   return (
     <main className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-4 bg-black/60 px-4 py-3 backdrop-blur">
+      {/* Header: scores + Fin button */}
+      <header className="sticky top-0 z-10 flex items-center gap-4 bg-black/70 px-4 py-2 backdrop-blur">
         <div className="flex-1 text-center">
           <div className="text-xs uppercase text-pitch-500">{match.teamAName}</div>
-          <div className="text-score leading-none">{match.scoreA}</div>
+          <div className="text-5xl font-black leading-none">{match.scoreA}</div>
         </div>
         <div className="flex flex-col items-center gap-1">
-          <div className="text-3xl text-gray-500">—</div>
+          <div className="text-2xl text-gray-500">&mdash;</div>
           <SyncBadge />
         </div>
         <div className="flex-1 text-center">
           <div className="text-xs uppercase text-blue-400">{match.teamBName}</div>
-          <div className="text-score leading-none">{match.scoreB}</div>
+          <div className="text-5xl font-black leading-none">{match.scoreB}</div>
         </div>
+        <button
+          onClick={() => setConfirmOpen(true)}
+          className="shrink-0 rounded-lg border border-red-800 bg-red-900/30 px-3 py-1.5 text-xs font-bold text-red-300 active:bg-red-600 active:text-white"
+        >
+          Fin
+        </button>
       </header>
 
       {error && (
@@ -108,8 +114,12 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
         </div>
       )}
 
-      <div className="grid flex-1 grid-cols-2 gap-2 p-2">
-        <section className="space-y-2">
+      {/* Player tiles — landscape: 2 team columns, portrait: 2-col grid */}
+      <div className="live-container flex-1">
+        <section>
+          <div className="team-label hidden px-2 text-[11px] font-bold uppercase tracking-wide text-pitch-400">
+            {match.teamAName}
+          </div>
           {teamA.map((p) => (
             <PlayerTile
               key={p.id}
@@ -121,7 +131,10 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
             />
           ))}
         </section>
-        <section className="space-y-2">
+        <section>
+          <div className="team-label hidden px-2 text-[11px] font-bold uppercase tracking-wide text-blue-400">
+            {match.teamBName}
+          </div>
           {teamB.map((p) => (
             <PlayerTile
               key={p.id}
@@ -135,14 +148,31 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
         </section>
       </div>
 
-      <footer className="sticky bottom-0 bg-black/70 p-3 backdrop-blur">
-        <button
-          onClick={() => setMvpOpen(true)}
-          className="big-touch w-full rounded-xl bg-red-600 py-4 text-lg font-bold hover:bg-red-700"
+      {/* Confirm dialog */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmOpen(false); }}
         >
-          Terminer le match
-        </button>
-      </footer>
+          <div className="rounded-2xl border border-gray-700 bg-gray-900 p-6 text-center">
+            <h2 className="mb-4 text-lg font-bold">Terminer ce match ?</h2>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 rounded-lg bg-gray-800 px-4 py-3 font-bold"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => { setConfirmOpen(false); setMvpOpen(true); }}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-bold"
+              >
+                Terminer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {mvpOpen && (
         <MvpPicker
