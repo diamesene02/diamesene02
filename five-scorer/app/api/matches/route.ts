@@ -15,6 +15,8 @@ export async function GET() {
 }
 
 type CreateBody = {
+  id?: string;
+  playedAt?: string; // ISO
   teamAName?: string;
   teamBName?: string;
   teamA: string[]; // player IDs
@@ -40,18 +42,53 @@ export async function POST(req: Request) {
     );
   }
 
-  const match = await prisma.match.create({
-    data: {
-      teamAName: body.teamAName?.trim() || "Équipe A",
-      teamBName: body.teamBName?.trim() || "Équipe B",
-      players: {
-        create: [
-          ...body.teamA.map((playerId) => ({ playerId, team: "A" as const })),
-          ...body.teamB.map((playerId) => ({ playerId, team: "B" as const })),
-        ],
-      },
-    },
-    include: { players: { include: { player: true } } },
+  const teamAName = body.teamAName?.trim() || "Équipe A";
+  const teamBName = body.teamBName?.trim() || "Équipe B";
+  const playedAt = body.playedAt ? new Date(body.playedAt) : undefined;
+
+  // Upsert match (idempotent — safe to retry from an offline outbox).
+  const match = await prisma.$transaction(async (tx) => {
+    const upserted = body.id
+      ? await tx.match.upsert({
+          where: { id: body.id },
+          create: {
+            id: body.id,
+            teamAName,
+            teamBName,
+            ...(playedAt ? { playedAt } : {}),
+          },
+          update: { teamAName, teamBName },
+        })
+      : await tx.match.create({
+          data: {
+            teamAName,
+            teamBName,
+            ...(playedAt ? { playedAt } : {}),
+          },
+        });
+
+    // Reset compos (idempotent).
+    await tx.matchPlayer.deleteMany({ where: { matchId: upserted.id } });
+    await tx.matchPlayer.createMany({
+      data: [
+        ...body.teamA.map((playerId) => ({
+          matchId: upserted.id,
+          playerId,
+          team: "A" as const,
+        })),
+        ...body.teamB.map((playerId) => ({
+          matchId: upserted.id,
+          playerId,
+          team: "B" as const,
+        })),
+      ],
+    });
+
+    return tx.match.findUnique({
+      where: { id: upserted.id },
+      include: { players: { include: { player: true } } },
+    });
   });
+
   return NextResponse.json({ match }, { status: 201 });
 }
