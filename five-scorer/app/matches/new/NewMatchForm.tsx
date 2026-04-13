@@ -1,34 +1,82 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLiveQuery } from "dexie-react-hooks";
 import { cn } from "@/lib/cn";
-
-type Player = {
-  id: string;
-  name: string;
-  isGuest: boolean;
-};
+import { getDb, type LocalPlayer } from "@/lib/db";
+import {
+  addLocalGuest,
+  createMatch,
+  saveRoster,
+} from "@/lib/localMatch";
+import { kickSync } from "@/lib/sync";
+import SyncBadge from "@/components/SyncBadge";
 
 type Assignment = "none" | "A" | "B";
 
-export default function NewMatchForm({ players: initial }: { players: Player[] }) {
+// Server-rendered roster is an optimistic first paint; the client then
+// reads from Dexie so the page also works when opened offline.
+export default function NewMatchForm({
+  initialPlayers,
+}: {
+  initialPlayers: LocalPlayer[];
+}) {
   const router = useRouter();
-  const [players, setPlayers] = useState<Player[]>(initial);
-  const [teamAName, setTeamAName] = useState("Équipe A");
-  const [teamBName, setTeamBName] = useState("Équipe B");
+
+  // Keep Dexie roster hydrated from the server on each visit when online.
+  useEffect(() => {
+    // Store the initial roster (server-rendered) into Dexie right away so
+    // subsequent offline visits still have players to pick from.
+    if (initialPlayers.length > 0) {
+      void saveRoster(initialPlayers);
+    }
+    // Also fetch fresh when available (the server roster may have changed
+    // since this page was last statically cached by the SW).
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      fetch("/api/players")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { players?: LocalPlayer[] } | null) => {
+          if (data?.players) void saveRoster(data.players);
+        })
+        .catch(() => {});
+    }
+  }, [initialPlayers]);
+
+  const players =
+    useLiveQuery(
+      async () => {
+        const db = getDb();
+        return db.roster.toArray();
+      },
+      [],
+      initialPlayers
+    ) ?? initialPlayers;
+
+  const [teamAName, setTeamAName] = useState("Blanc");
+  const [teamBName, setTeamBName] = useState("Noir");
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
   const [guestName, setGuestName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Sort: non-guests first, then alpha
+  const sortedPlayers = useMemo(
+    () =>
+      [...players].sort((a, b) => {
+        if (a.isGuest !== b.isGuest) return a.isGuest ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      }),
+    [players]
+  );
+
   const teamA = useMemo(
-    () => players.filter((p) => assignments[p.id] === "A"),
-    [players, assignments]
+    () => sortedPlayers.filter((p) => assignments[p.id] === "A"),
+    [sortedPlayers, assignments]
   );
   const teamB = useMemo(
-    () => players.filter((p) => assignments[p.id] === "B"),
-    [players, assignments]
+    () => sortedPlayers.filter((p) => assignments[p.id] === "B"),
+    [sortedPlayers, assignments]
   );
 
   function cycle(playerId: string) {
@@ -43,18 +91,8 @@ export default function NewMatchForm({ players: initial }: { players: Player[] }
   async function addGuest() {
     const name = guestName.trim();
     if (!name) return;
-    const res = await fetch("/api/players", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, isGuest: true }),
-    });
-    if (!res.ok) {
-      setError("Impossible d'ajouter l'invité");
-      return;
-    }
-    const { player } = (await res.json()) as { player: Player };
-    setPlayers((ps) => [...ps, player]);
-    setAssignments((a) => ({ ...a, [player.id]: "A" }));
+    const id = await addLocalGuest(name);
+    setAssignments((a) => ({ ...a, [id]: "A" }));
     setGuestName("");
   }
 
@@ -65,28 +103,30 @@ export default function NewMatchForm({ players: initial }: { players: Player[] }
     }
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/matches", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    try {
+      const matchId = await createMatch({
         teamAName,
         teamBName,
         teamA: teamA.map((p) => p.id),
         teamB: teamB.map((p) => p.id),
-      }),
-    });
-    if (!res.ok) {
+      });
+      void kickSync(); // best-effort network push
+      router.replace(`/matches/${matchId}/live`);
+    } catch (e) {
       setLoading(false);
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(data.error || "Erreur");
-      return;
+      setError(e instanceof Error ? e.message : "Erreur");
     }
-    const { match } = (await res.json()) as { match: { id: string } };
-    router.replace(`/matches/${match.id}/live`);
   }
 
   return (
     <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase text-gray-400">
+          {players.length} joueurs connus
+        </div>
+        <SyncBadge />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs uppercase text-gray-400">Nom équipe A</span>
@@ -111,7 +151,7 @@ export default function NewMatchForm({ players: initial }: { players: Player[] }
           Joueurs — tape pour assigner : Aucun → A → B
         </h2>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {players.map((p) => {
+          {sortedPlayers.map((p) => {
             const a = assignments[p.id] ?? "none";
             return (
               <button

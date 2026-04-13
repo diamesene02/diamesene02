@@ -1,104 +1,109 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLiveMatch, type LivePlayer } from "@/stores/liveMatch";
+import { useLiveQuery } from "dexie-react-hooks";
 import PlayerTile from "@/components/PlayerTile";
 import MvpPicker from "@/components/MvpPicker";
+import SyncBadge from "@/components/SyncBadge";
+import { getLocalMatch, scoreGoal, undoLastGoalOf, finishMatch } from "@/lib/localMatch";
+import { kickSync } from "@/lib/sync";
 
-type Props = {
-  matchId: string;
-  teamAName: string;
-  teamBName: string;
-  initialScoreA: number;
-  initialScoreB: number;
-  teamA: LivePlayer[];
-  teamB: LivePlayer[];
-};
-
-export default function LiveMatch(props: Props) {
+export default function LiveMatch({ matchId }: { matchId: string }) {
   const router = useRouter();
-  const { scoreA, scoreB, teamA, teamB, init, applyGoal, setScores } =
-    useLiveMatch();
+
+  // Live view straight from Dexie. Re-renders on every local mutation.
+  const data = useLiveQuery(() => getLocalMatch(matchId), [matchId]);
+
+  const [mvpOpen, setMvpOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    init({
-      matchId: props.matchId,
-      scoreA: props.initialScoreA,
-      scoreB: props.initialScoreB,
-      teamA: props.teamA,
-      teamB: props.teamB,
-    });
-  }, [init, props.matchId, props.initialScoreA, props.initialScoreB, props.teamA, props.teamB]);
+  if (data === undefined) {
+    return (
+      <main className="grid min-h-screen place-items-center text-gray-400">
+        Chargement…
+      </main>
+    );
+  }
+  if (data === null) {
+    return (
+      <main className="mx-auto max-w-md p-6 text-center">
+        <h1 className="mb-2 text-xl font-bold">Match introuvable</h1>
+        <p className="mb-6 text-sm text-gray-400">
+          Ce match n&apos;existe pas dans la mémoire locale de ce téléphone.
+        </p>
+        <button
+          onClick={() => router.replace("/")}
+          className="rounded-lg bg-white/10 px-4 py-2"
+        >
+          Retour
+        </button>
+      </main>
+    );
+  }
 
-  async function addGoal(playerId: string, team: "A" | "B") {
-    applyGoal(playerId, team, 1);
+  const { match, teamA, teamB } = data;
+
+  // If the match was finished elsewhere, redirect to the recap.
+  if (match.status === "FINISHED") {
+    router.replace(`/matches/${matchId}`);
+    return null;
+  }
+
+  async function addGoal(playerId: string) {
     try {
-      const res = await fetch(`/api/matches/${props.matchId}/goals`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scorerId: playerId }),
-      });
-      if (!res.ok) throw new Error();
-      const data = (await res.json()) as { scoreA: number; scoreB: number };
-      setScores(data.scoreA, data.scoreB);
-    } catch {
-      applyGoal(playerId, team, -1);
-      setError("Impossible d'enregistrer le but — réessaie.");
+      await scoreGoal(matchId, playerId);
+      void kickSync();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
     }
   }
 
-  async function removeGoal(playerId: string, team: "A" | "B") {
-    applyGoal(playerId, team, -1);
+  async function removeGoal(playerId: string) {
     try {
-      const res = await fetch(
-        `/api/matches/${props.matchId}/goals?scorerId=${playerId}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) throw new Error();
-      const data = (await res.json()) as { scoreA: number; scoreB: number };
-      setScores(data.scoreA, data.scoreB);
-    } catch {
-      applyGoal(playerId, team, 1);
-      setError("Annulation impossible.");
+      const removedId = await undoLastGoalOf(matchId, playerId);
+      if (!removedId) setError("Aucun but à annuler pour ce joueur");
+      else void kickSync();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
     }
   }
 
-  async function finishMatch(mvpId: string | null) {
+  async function onFinish(mvpId: string | null) {
     setFinishing(true);
-    const res = await fetch(`/api/matches/${props.matchId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "FINISHED", mvpId }),
-    });
-    setFinishing(false);
-    if (!res.ok) {
-      setError("Impossible de terminer le match");
-      return;
+    try {
+      await finishMatch(matchId, mvpId);
+      void kickSync();
+      router.replace(`/matches/${matchId}`);
+    } catch (e) {
+      setFinishing(false);
+      setError(e instanceof Error ? e.message : "Erreur");
     }
-    router.replace(`/matches/${props.matchId}`);
   }
-
-  const [mvpOpen, setMvpOpen] = useState(false);
 
   return (
     <main className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 flex items-center justify-between gap-4 bg-black/60 px-4 py-3 backdrop-blur">
         <div className="flex-1 text-center">
-          <div className="text-xs uppercase text-pitch-500">{props.teamAName}</div>
-          <div className="text-score leading-none">{scoreA}</div>
+          <div className="text-xs uppercase text-pitch-500">{match.teamAName}</div>
+          <div className="text-score leading-none">{match.scoreA}</div>
         </div>
-        <div className="text-3xl text-gray-500">—</div>
+        <div className="flex flex-col items-center gap-1">
+          <div className="text-3xl text-gray-500">—</div>
+          <SyncBadge />
+        </div>
         <div className="flex-1 text-center">
-          <div className="text-xs uppercase text-blue-400">{props.teamBName}</div>
-          <div className="text-score leading-none">{scoreB}</div>
+          <div className="text-xs uppercase text-blue-400">{match.teamBName}</div>
+          <div className="text-score leading-none">{match.scoreB}</div>
         </div>
       </header>
 
       {error && (
-        <div className="bg-red-900/40 px-4 py-2 text-sm text-red-200">
+        <div
+          className="bg-red-900/40 px-4 py-2 text-sm text-red-200"
+          onClick={() => setError(null)}
+        >
           {error}
         </div>
       )}
@@ -111,8 +116,8 @@ export default function LiveMatch(props: Props) {
               name={p.name}
               goals={p.goals}
               tint="pitch"
-              onGoal={() => addGoal(p.id, "A")}
-              onUndo={() => removeGoal(p.id, "A")}
+              onGoal={() => addGoal(p.id)}
+              onUndo={() => removeGoal(p.id)}
             />
           ))}
         </section>
@@ -123,8 +128,8 @@ export default function LiveMatch(props: Props) {
               name={p.name}
               goals={p.goals}
               tint="blue"
-              onGoal={() => addGoal(p.id, "B")}
-              onUndo={() => removeGoal(p.id, "B")}
+              onGoal={() => addGoal(p.id)}
+              onUndo={() => removeGoal(p.id)}
             />
           ))}
         </section>
@@ -143,7 +148,7 @@ export default function LiveMatch(props: Props) {
         <MvpPicker
           players={[...teamA, ...teamB]}
           onCancel={() => setMvpOpen(false)}
-          onConfirm={finishMatch}
+          onConfirm={onFinish}
           busy={finishing}
         />
       )}

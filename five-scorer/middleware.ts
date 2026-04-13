@@ -15,6 +15,7 @@ function isPublic(pathname: string): boolean {
   if (pathname.startsWith("/icons")) return true;
   if (pathname === "/manifest.webmanifest") return true;
   if (pathname === "/favicon.ico") return true;
+  if (pathname === "/sw.js") return true;
   return PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`)
   );
@@ -41,6 +42,6 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     // Protect everything except static assets
-    "/((?!_next/static|_next/image|favicon.ico|icons|manifest.webmanifest).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icons|manifest.webmanifest|sw.js).*)",
   ],
 };

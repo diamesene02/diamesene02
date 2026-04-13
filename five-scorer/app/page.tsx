@@ -1,21 +1,32 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import SyncBadge from "@/components/SyncBadge";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [recentMatches, liveMatch] = await Promise.all([
+  // Tolerate the DB being unreachable (e.g. rendering offline on the phone
+  // via the service-worker cache): we still want to show the action button.
+  const recentQuery = () =>
     prisma.match.findMany({
       where: { status: "FINISHED" },
       orderBy: { playedAt: "desc" },
       take: 5,
       include: { mvp: true },
-    }),
+    });
+  const liveQuery = () =>
     prisma.match.findFirst({
       where: { status: "LIVE" },
       orderBy: { playedAt: "desc" },
-    }),
-  ]);
+    });
+
+  let recentMatches: Awaited<ReturnType<typeof recentQuery>> = [];
+  let liveMatch: Awaited<ReturnType<typeof liveQuery>> = null;
+  try {
+    [recentMatches, liveMatch] = await Promise.all([recentQuery(), liveQuery()]);
+  } catch {
+    // Ignored — server unreachable; SW will still serve cached HTML.
+  }
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-8">
@@ -24,7 +35,8 @@ export default async function HomePage() {
           <h1 className="text-3xl font-black tracking-tight">Five Scorer</h1>
           <p className="text-sm text-gray-400">Les Five hebdo, en live.</p>
         </div>
-        <nav className="flex gap-2 text-sm">
+        <nav className="flex items-center gap-2 text-sm">
+          <SyncBadge />
           <Link
             href="/stats/scorers"
             className="rounded-lg bg-white/5 px-3 py-2 hover:bg-white/10"
