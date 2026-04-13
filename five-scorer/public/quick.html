@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+<title>Five Scorer (quick)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; padding:0; background:#0b1220; color:#fff; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  body { min-height:100vh; overflow-x:hidden; }
+  .wrap { padding: 12px; padding-bottom: 96px; max-width: 100%; }
+  h1 { margin:4px 0 8px; font-size:18px; letter-spacing:.5px; color:#9ca3af; text-transform:uppercase; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row > * { flex:1; }
+  input,button,select { font-size:16px; background:#111827; color:#fff; border:1px solid #1f2937; border-radius:10px; padding:12px; outline:none; }
+  input:focus { border-color:#22c55e; }
+  .pill { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; font-size:12px; background:#064e3b; color:#a7f3d0; border:1px solid #065f46; }
+  .big { padding:18px 16px; font-size:18px; font-weight:800; border-radius:14px; border:0; width:100%; }
+  .btn-primary { background:#16a34a; color:#fff; }
+  .btn-red { background:#dc2626; color:#fff; }
+  .btn-ghost { background:#1f2937; color:#e5e7eb; }
+  .step { display:none; }
+  .step.active { display:block; }
+  .players { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px; }
+  .pcard { border:1px solid #1f2937; background:#111827; padding:12px; border-radius:12px; text-align:left; color:#fff; }
+  .pcard.A { border-color:#16a34a; background:rgba(22,163,74,0.2); }
+  .pcard.B { border-color:#3b82f6; background:rgba(59,130,246,0.2); }
+  .pcard .nm { font-weight:700; font-size:16px; }
+  .pcard .as { font-size:12px; color:#9ca3af; margin-top:2px; }
+  header.score { position:sticky; top:0; z-index:10; background:rgba(0,0,0,0.8); backdrop-filter: blur(6px); display:flex; align-items:center; justify-content:space-between; padding:10px 12px; gap:10px; border-bottom:1px solid #1f2937; }
+  .score .col { flex:1; text-align:center; }
+  .score .nm { font-size:11px; text-transform:uppercase; letter-spacing:.6px; }
+  .score .nA { color:#86efac; } .score .nB { color:#93c5fd; }
+  .score .val { font-size:44px; line-height:1; font-weight:900; }
+  .score .sep { color:#4b5563; font-size:24px; }
+  .live-grid { display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:8px; }
+  .tile { border-radius:12px; padding:10px; border:1px solid #1f2937; background:#111827; }
+  .tile.A { border-color:#16a34a; }
+  .tile.B { border-color:#3b82f6; }
+  .tile .tn { font-weight:700; font-size:15px; min-height:20px; }
+  .tile .tg { color:#fbbf24; font-weight:800; font-size:22px; margin:4px 0 6px; }
+  .tile .tr { display:flex; gap:6px; }
+  .tile .tr button { flex:1; padding:14px 0; font-size:18px; font-weight:800; border:0; border-radius:10px; }
+  .tile .plus { background:#16a34a; color:#fff; }
+  .tile .minus { background:#374151; color:#e5e7eb; }
+  footer.bar { position:fixed; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); padding:10px 12px; display:flex; gap:8px; }
+  footer.bar button { flex:1; }
+  .muted { color:#9ca3af; font-size:13px; }
+  .event-list { max-height: 30vh; overflow:auto; border:1px solid #1f2937; border-radius:10px; padding:6px; }
+  .event-list .ev { font-size:13px; padding:4px 6px; display:flex; justify-content:space-between; border-bottom:1px dashed #1f2937; }
+  .event-list .ev:last-child { border-bottom:0; }
+  .tag { font-size:10px; padding:2px 6px; border-radius:999px; background:#1f2937; color:#e5e7eb; }
+  .tag.A { background:#065f46; color:#a7f3d0; }
+  .tag.B { background:#1e3a8a; color:#93c5fd; }
+  .section-title { font-size:12px; color:#9ca3af; text-transform:uppercase; letter-spacing:.5px; margin: 10px 2px 4px; }
+  textarea { width:100%; min-height:140px; font-family: ui-monospace, Menlo, monospace; font-size:12px; }
+  .mvp-row { display:grid; grid-template-columns: repeat(2,1fr); gap:6px; }
+  .mvp-row button { padding:12px; border-radius:10px; border:1px solid #1f2937; background:#111827; color:#fff; font-weight:600; font-size:14px; }
+  .mvp-row button.sel { background:#fbbf24; color:#000; border-color:#fbbf24; }
+</style>
+</head>
+<body>
+
+<div id="step-setup" class="step active wrap">
+  <h1>⚽ Five Scorer (quick)</h1>
+  <p class="muted">Saisie offline des buteurs. Données locales (ne ferme pas l'onglet en plein match).</p>
+
+  <div class="row" style="margin-top:8px">
+    <input id="teamAName" placeholder="Nom équipe A" value="Blanc" />
+    <input id="teamBName" placeholder="Nom équipe B" value="Noir" />
+  </div>
+
+  <div class="section-title">Joueurs — tape pour assigner (Aucun → A → B)</div>
+  <div id="playerGrid" class="players"></div>
+
+  <div class="section-title">Ajouter un joueur (invité)</div>
+  <div class="row">
+    <input id="guestName" placeholder="Nom" />
+    <button id="addGuest" class="btn-ghost" style="border-radius:10px; padding:12px 14px;">+ Ajouter</button>
+  </div>
+
+  <div class="section-title">Équipes en cours</div>
+  <div class="muted" id="tallies">—</div>
+
+  <div style="height:12px"></div>
+  <button id="startBtn" class="big btn-primary">Lancer le match</button>
+</div>
+
+<div id="step-live" class="step">
+  <header class="score">
+    <div class="col"><div class="nm nA" id="liveA">Blanc</div><div class="val" id="scoreA">0</div></div>
+    <div class="sep">—</div>
+    <div class="col"><div class="nm nB" id="liveB">Noir</div><div class="val" id="scoreB">0</div></div>
+  </header>
+
+  <div class="wrap" style="padding-top:6px">
+    <div class="live-grid" id="liveGrid"></div>
+
+    <div class="section-title">Derniers événements</div>
+    <div class="event-list" id="events"></div>
+  </div>
+
+  <footer class="bar">
+    <button id="undoLast" class="big btn-ghost">← Undo dernier</button>
+    <button id="finishBtn" class="big btn-red">Terminer</button>
+  </footer>
+</div>
+
+<div id="step-mvp" class="step wrap">
+  <h1>MVP du match ?</h1>
+  <div class="mvp-row" id="mvpGrid"></div>
+  <div style="height:12px"></div>
+  <div class="row">
+    <button id="skipMvp" class="big btn-ghost">Pas de MVP</button>
+    <button id="confirmMvp" class="big btn-primary">Valider</button>
+  </div>
+</div>
+
+<div id="step-done" class="step wrap">
+  <h1>Récap</h1>
+  <div class="pill" id="finalScore"></div>
+  <div class="section-title">Buteurs</div>
+  <div id="scorersList"></div>
+  <div class="section-title">À copier-coller (résumé structuré)</div>
+  <textarea id="exportBox" readonly></textarea>
+  <div style="height:8px"></div>
+  <button id="copyBtn" class="big btn-primary">📋 Copier le résumé</button>
+  <div style="height:8px"></div>
+  <button id="resetBtn" class="big btn-ghost">Nouveau match</button>
+</div>
+
+<script>
+  // ===== Données persistées en localStorage =====
+  const LS_KEY = 'five-scorer-quick-v1';
+  const ROSTER = [
+    "Christophe","Halim","Philippe","Thierry","Olivier",
+    "Marc","Hicham","Diame","Erkan","Oussama","Petit Nico",
+    "Antoine","Nicolas","Benjamin"
+  ];
+
+  const state = load() || {
+    phase: 'setup',
+    teamAName: 'Blanc',
+    teamBName: 'Noir',
+    players: ROSTER.map(n => ({ id: slug(n), name: n })),
+    assignments: {}, // id -> 'A' | 'B'
+    events: [],      // { id, playerId, team, t }
+    mvpId: null,
+    startedAt: null,
+    endedAt: null,
+  };
+
+  function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  function load() { try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { return null; } }
+  function slug(s) { return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+  function nid() { return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  // ===== Navigation =====
+  function goto(phase) {
+    state.phase = phase; save();
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step-' + phase).classList.add('active');
+    if (phase === 'setup') renderSetup();
+    if (phase === 'live')  renderLive();
+    if (phase === 'mvp')   renderMvp();
+    if (phase === 'done')  renderDone();
+    window.scrollTo(0,0);
+  }
+
+  // ===== Setup =====
+  function renderSetup() {
+    document.getElementById('teamAName').value = state.teamAName;
+    document.getElementById('teamBName').value = state.teamBName;
+    const grid = document.getElementById('playerGrid');
+    grid.innerHTML = '';
+    state.players.sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
+      const a = state.assignments[p.id];
+      const div = document.createElement('button');
+      div.className = 'pcard' + (a ? ' ' + a : '');
+      div.innerHTML = '<div class="nm">'+escapeHtml(p.name)+'</div><div class="as">'+(a ? (a==='A'?state.teamAName:state.teamBName) : '—')+'</div>';
+      div.onclick = () => {
+        const cur = state.assignments[p.id];
+        const next = !cur ? 'A' : cur === 'A' ? 'B' : null;
+        if (next) state.assignments[p.id] = next; else delete state.assignments[p.id];
+        save(); renderSetup();
+      };
+      grid.appendChild(div);
+    });
+    updateTallies();
+  }
+
+  function updateTallies() {
+    const a = Object.entries(state.assignments).filter(([,v])=>v==='A').length;
+    const b = Object.entries(state.assignments).filter(([,v])=>v==='B').length;
+    document.getElementById('tallies').textContent = state.teamAName+' : '+a+' · '+state.teamBName+' : '+b;
+  }
+
+  document.getElementById('teamAName').addEventListener('input', e => { state.teamAName = e.target.value; save(); updateTallies(); });
+  document.getElementById('teamBName').addEventListener('input', e => { state.teamBName = e.target.value; save(); updateTallies(); });
+
+  document.getElementById('addGuest').onclick = () => {
+    const n = document.getElementById('guestName').value.trim();
+    if (!n) return;
+    const id = 'guest-' + nid();
+    state.players.push({ id, name: n });
+    state.assignments[id] = 'A';
+    document.getElementById('guestName').value = '';
+    save(); renderSetup();
+  };
+
+  document.getElementById('startBtn').onclick = () => {
+    const a = Object.entries(state.assignments).filter(([,v])=>v==='A').length;
+    const b = Object.entries(state.assignments).filter(([,v])=>v==='B').length;
+    if (!a || !b) { alert("Chaque équipe doit avoir au moins un joueur."); return; }
+    state.startedAt = new Date().toISOString();
+    goto('live');
+  };
+
+  // ===== Live =====
+  function renderLive() {
+    document.getElementById('liveA').textContent = state.teamAName;
+    document.getElementById('liveB').textContent = state.teamBName;
+    refreshScores();
+    const grid = document.getElementById('liveGrid');
+    grid.innerHTML = '';
+    const ids = Object.keys(state.assignments);
+    const order = ids.map(id => ({ id, team: state.assignments[id], name: state.players.find(p => p.id === id)?.name || '?' }))
+                     .sort((a,b) => a.team.localeCompare(b.team) || a.name.localeCompare(b.name));
+    order.forEach(p => {
+      const goals = countGoals(p.id);
+      const tile = document.createElement('div');
+      tile.className = 'tile ' + p.team;
+      tile.innerHTML = `
+        <div class="tn">${escapeHtml(p.name)} <span class="tag ${p.team}">${p.team === 'A' ? state.teamAName : state.teamBName}</span></div>
+        <div class="tg">${goals}</div>
+        <div class="tr">
+          <button class="plus" data-id="${p.id}" data-act="+">+1</button>
+          <button class="minus" data-id="${p.id}" data-act="-">−</button>
+        </div>`;
+      grid.appendChild(tile);
+    });
+    grid.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.dataset.id, act = btn.dataset.act;
+        if (act === '+') addGoal(id); else undoOf(id);
+      };
+    });
+    renderEvents();
+  }
+  function refreshScores() {
+    let a=0,b=0;
+    state.events.forEach(ev => { if (ev.team === 'A') a++; else b++; });
+    document.getElementById('scoreA').textContent = a;
+    document.getElementById('scoreB').textContent = b;
+  }
+  function countGoals(pid) { return state.events.filter(e => e.playerId === pid).length; }
+  function addGoal(pid) {
+    const team = state.assignments[pid];
+    if (!team) return;
+    state.events.push({ id: nid(), playerId: pid, team, t: new Date().toISOString() });
+    save(); renderLive();
+  }
+  function undoOf(pid) {
+    for (let i=state.events.length-1; i>=0; i--) if (state.events[i].playerId === pid) { state.events.splice(i,1); break; }
+    save(); renderLive();
+  }
+  function renderEvents() {
+    const el = document.getElementById('events');
+    if (!state.events.length) { el.innerHTML = '<div class="muted" style="padding:8px">Aucun but pour l\'instant.</div>'; return; }
+    el.innerHTML = state.events.slice().reverse().map(ev => {
+      const p = state.players.find(x => x.id === ev.playerId);
+      return '<div class="ev"><span><span class="tag '+ev.team+'">'+(ev.team==='A'?state.teamAName:state.teamBName)+'</span> '+escapeHtml(p?p.name:'?')+'</span><span class="muted">'+hhmm(ev.t)+'</span></div>';
+    }).join('');
+  }
+  function hhmm(iso) { const d = new Date(iso); return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
+
+  document.getElementById('undoLast').onclick = () => {
+    state.events.pop(); save(); renderLive();
+  };
+  document.getElementById('finishBtn').onclick = () => goto('mvp');
+
+  // ===== MVP =====
+  function renderMvp() {
+    const grid = document.getElementById('mvpGrid');
+    const ids = Object.keys(state.assignments);
+    grid.innerHTML = '';
+    ids.map(id => ({ id, name: state.players.find(p => p.id === id)?.name || '?' }))
+       .sort((a,b) => a.name.localeCompare(b.name))
+       .forEach(p => {
+         const b = document.createElement('button');
+         b.textContent = p.name;
+         if (state.mvpId === p.id) b.classList.add('sel');
+         b.onclick = () => { state.mvpId = state.mvpId === p.id ? null : p.id; save(); renderMvp(); };
+         grid.appendChild(b);
+       });
+  }
+  document.getElementById('skipMvp').onclick = () => { state.mvpId = null; state.endedAt = new Date().toISOString(); save(); goto('done'); };
+  document.getElementById('confirmMvp').onclick = () => { state.endedAt = new Date().toISOString(); save(); goto('done'); };
+
+  // ===== Done =====
+  function renderDone() {
+    let a=0,b=0;
+    const perPlayer = {};
+    state.events.forEach(ev => {
+      if (ev.team === 'A') a++; else b++;
+      perPlayer[ev.playerId] = (perPlayer[ev.playerId] || 0) + 1;
+    });
+    document.getElementById('finalScore').textContent = state.teamAName + ' ' + a + ' — ' + b + ' ' + state.teamBName;
+    const sl = document.getElementById('scorersList');
+    const rows = Object.entries(perPlayer)
+      .sort((x,y) => y[1]-x[1])
+      .map(([id, n]) => {
+        const p = state.players.find(pp => pp.id === id);
+        const team = state.assignments[id];
+        return '<div class="ev"><span><span class="tag '+team+'">'+(team==='A'?state.teamAName:state.teamBName)+'</span> '+escapeHtml(p?p.name:'?')+'</span><strong>'+n+'</strong></div>';
+      }).join('');
+    sl.innerHTML = '<div class="event-list">'+(rows||'<div class="muted" style="padding:8px">Aucun but.</div>')+'</div>';
+
+    const mvpName = state.mvpId ? (state.players.find(p=>p.id===state.mvpId)?.name || null) : null;
+    const summary = {
+      playedAt: state.startedAt,
+      endedAt: state.endedAt,
+      teamA: { name: state.teamAName, score: a,
+        players: Object.entries(state.assignments).filter(([,v])=>v==='A').map(([id])=>state.players.find(p=>p.id===id)?.name) },
+      teamB: { name: state.teamBName, score: b,
+        players: Object.entries(state.assignments).filter(([,v])=>v==='B').map(([id])=>state.players.find(p=>p.id===id)?.name) },
+      mvp: mvpName,
+      goals: state.events.map(ev => ({
+        scorer: state.players.find(p=>p.id===ev.playerId)?.name,
+        team: ev.team,
+        at: ev.t
+      }))
+    };
+    document.getElementById('exportBox').value = JSON.stringify(summary, null, 2);
+  }
+  document.getElementById('copyBtn').onclick = async () => {
+    const txt = document.getElementById('exportBox').value;
+    try { await navigator.clipboard.writeText(txt); alert('Copié ✅'); }
+    catch { document.getElementById('exportBox').select(); alert('Sélectionné — Copie à la main (Cmd/Ctrl+C)'); }
+  };
+  document.getElementById('resetBtn').onclick = () => {
+    if (!confirm('Nouveau match ? Le précédent sera effacé.')) return;
+    localStorage.removeItem(LS_KEY);
+    location.reload();
+  };
+
+  function escapeHtml(s) { return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // boot
+  goto(state.phase || 'setup');
+</script>
+</body>
+</html>
