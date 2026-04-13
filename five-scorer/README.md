@@ -14,19 +14,28 @@ historique, classement des buteurs, stats par joueur et élection du MVP.
 
 ## Démarrage
 
+### Express — une commande
+
+Avec Docker (ou Postgres déjà lancé en local, ou Homebrew) :
+
+```bash
+pnpm install
+pnpm bootstrap   # crée la DB, génère .env (PIN=1234), migrate + seed
+pnpm dev
+```
+
+Ouvre http://localhost:3000, PIN = `1234`.
+
+### Manuel (si tu veux contrôler chaque étape)
+
 ```bash
 pnpm install
 cp .env.example .env
 # Éditer .env : DATABASE_URL, DIRECT_URL, SCORING_PIN_HASH, SESSION_SECRET
 
-# Générer le hash PIN (ex. 1234) :
-node -e "console.log(require('bcryptjs').hashSync('1234', 10))"
-# ⚠️ Le hash bcrypt contient des « $ » que dotenv-expand (utilisé par
-# Next.js) interprète comme des variables. Dans .env, échapper chaque
-# « $ » par « \$ » :
-#   SCORING_PIN_HASH="\$2a\$10\$abc...."
-# Ou bien utiliser ce one-liner qui imprime le hash déjà échappé :
+# Générer le hash PIN (ex. 1234) — /!\ échapper les $ pour dotenv-expand :
 node -e "console.log(require('bcryptjs').hashSync('1234',10).replace(/\\\$/g,'\\\\\$'))"
+# Copier le résultat dans SCORING_PIN_HASH="..."
 
 pnpm prisma migrate dev --name init
 pnpm prisma db seed
