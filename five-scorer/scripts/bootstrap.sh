@@ -27,6 +27,12 @@ if [ ! -d node_modules ]; then
   pnpm install
 fi
 
+# pnpm 10 bloque les build scripts par défaut → le post-install `prisma generate`
+# ne tourne pas et on obtient `Cannot find module '.prisma/client/default'`
+# au runtime. On force la génération du client ici (idempotent).
+echo "🔧 prisma generate"
+pnpm prisma generate >/dev/null
+
 # --- 2. Démarrer Postgres ---
 start_pg_docker() {
   if ! docker ps --format '{{.Names}}' | grep -q '^five-scorer-pg$'; then
