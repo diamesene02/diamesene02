@@ -21,6 +21,12 @@ cp .env.example .env
 
 # Générer le hash PIN (ex. 1234) :
 node -e "console.log(require('bcryptjs').hashSync('1234', 10))"
+# ⚠️ Le hash bcrypt contient des « $ » que dotenv-expand (utilisé par
+# Next.js) interprète comme des variables. Dans .env, échapper chaque
+# « $ » par « \$ » :
+#   SCORING_PIN_HASH="\$2a\$10\$abc...."
+# Ou bien utiliser ce one-liner qui imprime le hash déjà échappé :
+node -e "console.log(require('bcryptjs').hashSync('1234',10).replace(/\\\$/g,'\\\\\$'))"
 
 pnpm prisma migrate dev --name init
 pnpm prisma db seed
