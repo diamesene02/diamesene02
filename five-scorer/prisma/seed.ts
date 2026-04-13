@@ -16,6 +16,9 @@ const CORE_ROSTER: { name: string; nickname?: string }[] = [
   { name: "Erkan" },
   { name: "Oussama" },
   { name: "Petit Nico" },
+  { name: "Antoine" },
+  { name: "Nicolas" },
+  { name: "Benjamin" },
 ];
 
 function slugify(s: string): string {
