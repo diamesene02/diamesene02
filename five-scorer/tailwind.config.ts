@@ -17,9 +17,23 @@ const config: Config = {
           800: "#166534",
           900: "#14532d",
         },
+        ink: {
+          0: "var(--ink-0)",
+          1: "var(--ink-1)",
+          2: "var(--ink-2)",
+        },
+        bg: {
+          0: "var(--bg-0)",
+          1: "var(--bg-1)",
+          2: "var(--bg-2)",
+        },
+      },
+      fontFamily: {
+        sans: ["Space Grotesk", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "SF Mono", "Menlo", "monospace"],
       },
       fontSize: {
-        score: ["8rem", { lineHeight: "1", fontWeight: "900" }],
+        score: ["4.5rem", { lineHeight: "1", fontWeight: "800" }],
       },
     },
   },

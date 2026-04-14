@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import PlayerTile from "@/components/PlayerTile";
@@ -9,15 +9,58 @@ import SyncBadge from "@/components/SyncBadge";
 import { getLocalMatch, scoreGoal, undoLastGoalOf, finishMatch } from "@/lib/localMatch";
 import { kickSync } from "@/lib/sync";
 
+function useMatchClock(startTs: number | null) {
+  const [text, setText] = useState("00:00");
+  useEffect(() => {
+    if (!startTs) return;
+    const tick = () => {
+      const s = Math.floor((Date.now() - startTs) / 1000);
+      const mm = String(Math.floor(s / 60)).padStart(2, "0");
+      const ss = String(s % 60).padStart(2, "0");
+      setText(`${mm}:${ss}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startTs]);
+  return text;
+}
+
 export default function LiveMatch({ matchId }: { matchId: string }) {
   const router = useRouter();
-
   const data = useLiveQuery(() => getLocalMatch(matchId), [matchId]);
 
   const [mvpOpen, setMvpOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const startTs = useRef<number | null>(null);
+  if (data && !startTs.current) {
+    startTs.current = new Date(data.match.playedAt).getTime();
+  }
+  const clock = useMatchClock(startTs.current);
+
+  // Score-pop animation on change
+  const scoreARef = useRef<HTMLSpanElement>(null);
+  const scoreBRef = useRef<HTMLSpanElement>(null);
+  const prevScoreRef = useRef<{ a: number; b: number } | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    const prev = prevScoreRef.current;
+    const curr = { a: data.match.scoreA, b: data.match.scoreB };
+    if (prev) {
+      if (curr.a > prev.a && scoreARef.current) {
+        scoreARef.current.classList.add("goaled");
+        setTimeout(() => scoreARef.current?.classList.remove("goaled"), 600);
+      }
+      if (curr.b > prev.b && scoreBRef.current) {
+        scoreBRef.current.classList.add("goaled");
+        setTimeout(() => scoreBRef.current?.classList.remove("goaled"), 600);
+      }
+    }
+    prevScoreRef.current = curr;
+  }, [data]);
 
   if (data === undefined) {
     return (
@@ -49,6 +92,9 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
     router.replace(`/matches/${matchId}`);
     return null;
   }
+
+  const aLead = match.scoreA > match.scoreB;
+  const bLead = match.scoreB > match.scoreA;
 
   async function addGoal(playerId: string) {
     try {
@@ -83,26 +129,38 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
 
   return (
     <main className="flex min-h-screen flex-col">
-      {/* Header: scores + Fin button */}
-      <header className="sticky top-0 z-10 flex items-center gap-4 bg-black/70 px-4 py-2 backdrop-blur">
-        <div className="flex-1 text-center">
-          <div className="text-xs uppercase text-pitch-500">{match.teamAName}</div>
-          <div className="text-5xl font-black leading-none">{match.scoreA}</div>
+      {/* Topbar: LIVE dot + clock | sync dot + Fin */}
+      <header className="live-topbar">
+        <div className="live-topbar-left">
+          <span className="live-dot" />
+          <span>LIVE</span>
+          <span className="match-clock">{clock}</span>
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <div className="text-2xl text-gray-500">&mdash;</div>
-          <SyncBadge />
+        <div className="flex items-center gap-2">
+          <SyncBadge compact />
+          <button onClick={() => setConfirmOpen(true)} className="btn-fin">
+            Fin
+          </button>
         </div>
-        <div className="flex-1 text-center">
-          <div className="text-xs uppercase text-blue-400">{match.teamBName}</div>
-          <div className="text-5xl font-black leading-none">{match.scoreB}</div>
+      </header>
+
+      {/* Scorebar hero */}
+      <header className="scorebar">
+        <div className="scorebar-team A">
+          <div className="team-chip A">{match.teamAName}</div>
         </div>
-        <button
-          onClick={() => setConfirmOpen(true)}
-          className="shrink-0 rounded-lg border border-red-800 bg-red-900/30 px-3 py-1.5 text-xs font-bold text-red-300 active:bg-red-600 active:text-white"
-        >
-          Fin
-        </button>
+        <div className="scoreboard">
+          <span ref={scoreARef} className={`score${aLead ? " leading A" : ""}`}>
+            {match.scoreA}
+          </span>
+          <span className="sep">:</span>
+          <span ref={scoreBRef} className={`score${bLead ? " leading B" : ""}`}>
+            {match.scoreB}
+          </span>
+        </div>
+        <div className="scorebar-team B">
+          <div className="team-chip B">{match.teamBName}</div>
+        </div>
       </header>
 
       {error && (
@@ -114,10 +172,10 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
         </div>
       )}
 
-      {/* Player tiles — landscape: 2 team columns, portrait: 2-col grid */}
+      {/* Player tiles */}
       <div className="live-container flex-1">
         <section>
-          <div className="team-label hidden px-2 text-[11px] font-bold uppercase tracking-wide text-pitch-400">
+          <div className="team-label hidden px-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--a-400)]">
             {match.teamAName}
           </div>
           {teamA.map((p) => (
@@ -132,7 +190,7 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
           ))}
         </section>
         <section>
-          <div className="team-label hidden px-2 text-[11px] font-bold uppercase tracking-wide text-blue-400">
+          <div className="team-label hidden px-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--b-400)]">
             {match.teamBName}
           </div>
           {teamB.map((p) => (
@@ -151,21 +209,26 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
       {/* Confirm dialog */}
       {confirmOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-          onClick={(e) => { if (e.target === e.currentTarget) setConfirmOpen(false); }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmOpen(false);
+          }}
         >
-          <div className="rounded-2xl border border-gray-700 bg-gray-900 p-6 text-center">
+          <div className="rounded-2xl border border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-6 text-center shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
             <h2 className="mb-4 text-lg font-bold">Terminer ce match ?</h2>
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmOpen(false)}
-                className="flex-1 rounded-lg bg-gray-800 px-4 py-3 font-bold"
+                className="flex-1 rounded-lg bg-[color:var(--bg-2)] px-4 py-3 font-bold"
               >
                 Annuler
               </button>
               <button
-                onClick={() => { setConfirmOpen(false); setMvpOpen(true); }}
-                className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-bold"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setMvpOpen(true);
+                }}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-bold text-white"
               >
                 Terminer
               </button>
