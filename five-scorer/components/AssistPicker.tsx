@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-
 type Teammate = { id: string; name: string };
 
+// Stays open until the user picks, skips, or taps outside.
+// Previously had a 5s auto-dismiss that was too aggressive.
 export default function AssistPicker({
   scorerName,
   scorerTeam,
@@ -17,11 +17,6 @@ export default function AssistPicker({
   onPick: (playerId: string) => void;
   onSkip: () => void;
 }) {
-  useEffect(() => {
-    const t = setTimeout(onSkip, 5000);
-    return () => clearTimeout(t);
-  }, [onSkip]);
-
   const teamCls = scorerTeam === "A" ? "A" : "B";
 
   return (

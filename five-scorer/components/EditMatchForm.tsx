@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { computeMvp } from "@/lib/mvp";
 
 type Match = {
   id: string;
@@ -195,6 +196,26 @@ export default function EditMatchForm({
   const teamA = players.filter((p) => p.team === "A");
   const teamB = players.filter((p) => p.team === "B");
 
+  // Compute suggested MVP from current goal/assist state
+  const suggestedMvp = useMemo(() => {
+    const goalCount: Record<string, number> = {};
+    const assistCount: Record<string, number> = {};
+    goals.forEach((g) => {
+      goalCount[g.scorerId] = (goalCount[g.scorerId] ?? 0) + 1;
+      if (g.assistId) assistCount[g.assistId] = (assistCount[g.assistId] ?? 0) + 1;
+    });
+    return computeMvp({
+      match: { scoreA, scoreB },
+      players: players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        goals: goalCount[p.id] ?? 0,
+        assists: assistCount[p.id] ?? 0,
+      })),
+    });
+  }, [players, goals, scoreA, scoreB]);
+
   return (
     <div className="space-y-5">
       {error && (
@@ -266,9 +287,21 @@ export default function EditMatchForm({
 
       {/* MVP */}
       <section className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-4 space-y-3">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
-          MVP
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
+            MVP
+          </h2>
+          {suggestedMvp && (
+            <button
+              type="button"
+              onClick={() => setMvpId(suggestedMvp.id)}
+              className="rounded-full bg-[color:var(--lime)] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0a1400] shadow-[0_0_12px_var(--lime-glow)] hover:brightness-110"
+              title={`Score: ${suggestedMvp.score} (${suggestedMvp.goals}B · ${suggestedMvp.assists}P)`}
+            >
+              🎯 MVP auto → {suggestedMvp.name}
+            </button>
+          )}
+        </div>
         <select
           value={mvpId ?? ""}
           onChange={(e) => setMvpId(e.target.value || null)}
@@ -278,6 +311,7 @@ export default function EditMatchForm({
           {[...teamA, ...teamB].map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} · {p.team === "A" ? teamAName : teamBName}
+              {suggestedMvp?.id === p.id ? " ⭐" : ""}
             </option>
           ))}
         </select>
