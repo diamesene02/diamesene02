@@ -85,13 +85,13 @@ export default async function HomePage() {
             </div>
           </Link>
         ) : (
-          <section className="aurora relative mt-6 overflow-hidden rounded-3xl border border-[color:var(--stroke)] p-8">
+          <section className="aurora edge-top relative mt-6 overflow-hidden rounded-3xl border border-[color:var(--stroke)] p-8">
             <div className="relative z-[1] flex flex-col items-start gap-4">
               <span className="kicker">La maison du Five du jeudi</span>
               <h1 className="display-xl">
-                Marque vite.
+                Marque <em>vite</em>.
                 <br />
-                <span className="text-[color:var(--lime)]">Regarde mieux.</span>
+                Regarde <span className="text-[color:var(--lime)]">mieux</span>.
               </h1>
               <p className="max-w-lg text-base text-[color:var(--ink-1)]">
                 Score en live, stats qui tiennent, partage qui claque.
@@ -121,7 +121,7 @@ export default async function HomePage() {
             </div>
             <Link
               href={`/matches/${hero.id}`}
-              className="group block overflow-hidden rounded-3xl border border-[color:var(--stroke)] bg-gradient-to-br from-[color:var(--bg-1)] to-[color:var(--bg-0)] p-6 transition-colors hover:border-[color:var(--stroke-hi)]"
+              className="edge-top group block overflow-hidden rounded-3xl border border-[color:var(--stroke)] bg-gradient-to-br from-[color:var(--bg-1)] to-[color:var(--bg-0)] p-6 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] transition-colors hover:border-[color:var(--stroke-hi)]"
             >
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
                 <div className="text-right">
