@@ -95,6 +95,49 @@ export default function EditMatchForm({
     }
   }
 
+  async function addGoal(scorerId: string, assistId: string | null, minute: number | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/matches/${initial.id}/goals`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          scorerId,
+          assistId,
+          minute,
+          createdAt: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Échec de l'ajout");
+      }
+      const j = await res.json();
+      const scorer = players.find((p) => p.id === scorerId)!;
+      const assister = assistId ? players.find((p) => p.id === assistId) : null;
+      setGoals((gs) => [
+        ...gs,
+        {
+          id: j.goal.id,
+          scorerId,
+          scorerName: scorer.name,
+          assistId: assistId,
+          assistName: assister?.name ?? null,
+          team: scorer.team,
+          minute,
+        },
+      ]);
+      if (typeof j.scoreA === "number") setScoreA(j.scoreA);
+      if (typeof j.scoreB === "number") setScoreB(j.scoreB);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateAssist(goalId: string, assistId: string | null) {
     try {
       await fetch(`/api/matches/${initial.id}/goals`, {
@@ -240,13 +283,38 @@ export default function EditMatchForm({
         </select>
       </section>
 
+      {/* Add goal */}
+      <section className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-4 space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
+          ⚽ Ajouter un but
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          <AddGoalColumn
+            teamLabel={teamAName}
+            teamClass="A"
+            players={teamA}
+            teammates={teamA}
+            onAdd={addGoal}
+            busy={busy}
+          />
+          <AddGoalColumn
+            teamLabel={teamBName}
+            teamClass="B"
+            players={teamB}
+            teammates={teamB}
+            onAdd={addGoal}
+            busy={busy}
+          />
+        </div>
+      </section>
+
       {/* Goals */}
       <section className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-4 space-y-3">
         <h2 className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
           Buts ({goals.length})
         </h2>
         {goals.length === 0 ? (
-          <p className="text-sm text-[color:var(--ink-2)]">Aucun but enregistré.</p>
+          <p className="text-sm text-[color:var(--ink-2)]">Aucun but enregistré. Utilise le bloc ci-dessus pour en ajouter.</p>
         ) : (
           <ul className="space-y-2">
             {goals.map((g) => {
@@ -301,7 +369,7 @@ export default function EditMatchForm({
         </button>
       </div>
 
-      <section className="rounded-xl border border-red-900/40 bg-red-950/20 p-4 space-y-3">
+      <section className="rounded-xl border border-red-900/40 bg-red-950/20 p-4 space-y-3 mt-4">
         <h2 className="text-xs font-bold uppercase tracking-widest text-red-400">
           Zone danger
         </h2>
@@ -322,6 +390,95 @@ export default function EditMatchForm({
           🗑 Supprimer le match définitivement
         </button>
       </section>
+    </div>
+  );
+}
+
+function AddGoalColumn({
+  teamLabel,
+  teamClass,
+  players,
+  teammates,
+  onAdd,
+  busy,
+}: {
+  teamLabel: string;
+  teamClass: "A" | "B";
+  players: Player[];
+  teammates: Player[];
+  onAdd: (scorerId: string, assistId: string | null, minute: number | null) => void;
+  busy: boolean;
+}) {
+  const [scorerId, setScorerId] = useState<string>("");
+  const [assistId, setAssistId] = useState<string>("");
+  const [minute, setMinute] = useState<string>("");
+
+  const accent = teamClass === "A" ? "var(--a-400)" : "var(--b-400)";
+  const border =
+    teamClass === "A"
+      ? "border-[color:var(--a-500)]/40"
+      : "border-[color:var(--b-500)]/40";
+
+  function submit() {
+    if (!scorerId) return;
+    const m = minute.trim() === "" ? null : parseInt(minute);
+    onAdd(scorerId, assistId || null, Number.isNaN(m as number) ? null : m);
+    setScorerId("");
+    setAssistId("");
+    setMinute("");
+  }
+
+  return (
+    <div className={`rounded-lg border bg-[color:var(--bg-2)] p-3 space-y-2 ${border}`}>
+      <div
+        className="text-[10px] font-bold uppercase tracking-widest"
+        style={{ color: accent }}
+      >
+        {teamLabel}
+      </div>
+      <select
+        value={scorerId}
+        onChange={(e) => setScorerId(e.target.value)}
+        className="w-full rounded border border-[color:var(--stroke)] bg-[color:var(--bg-1)] px-2 py-1.5 text-sm font-bold"
+      >
+        <option value="">— Buteur —</option>
+        {players.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <select
+        value={assistId}
+        onChange={(e) => setAssistId(e.target.value)}
+        className="w-full rounded border border-[color:var(--stroke)] bg-[color:var(--bg-1)] px-2 py-1.5 text-xs"
+      >
+        <option value="">Pas de passe</option>
+        {teammates
+          .filter((p) => p.id !== scorerId)
+          .map((p) => (
+            <option key={p.id} value={p.id}>
+              p. {p.name}
+            </option>
+          ))}
+      </select>
+      <div className="flex gap-1">
+        <input
+          type="number"
+          placeholder="Min."
+          value={minute}
+          onChange={(e) => setMinute(e.target.value)}
+          className="w-16 rounded border border-[color:var(--stroke)] bg-[color:var(--bg-1)] px-2 py-1.5 text-xs font-mono"
+          min={0}
+        />
+        <button
+          onClick={submit}
+          disabled={!scorerId || busy}
+          className="flex-1 rounded bg-[color:var(--a-500)] px-2 py-1.5 text-xs font-bold text-white disabled:opacity-30"
+        >
+          + Ajouter
+        </button>
+      </div>
     </div>
   );
 }

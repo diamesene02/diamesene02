@@ -187,23 +187,48 @@ export async function renderShareCard({
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png", 0.92));
 }
 
-export async function shareMatchImage(data: Parameters<typeof renderShareCard>[0]): Promise<void> {
+export async function shareMatchImage(
+  data: Parameters<typeof renderShareCard>[0],
+  publicUrl?: string
+): Promise<void> {
   const blob = await renderShareCard(data);
   if (!blob) return;
   const file = new File([blob], `five-scorer-${Date.now()}.png`, { type: "image/png" });
-  const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+  const nav = navigator as Navigator & {
+    canShare?: (d: { files?: File[]; url?: string; text?: string }) => boolean;
+  };
+
+  // 1. Try sharing the image as a file (best UX on supported mobiles)
   if (nav.canShare && nav.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: "Match Five Scorer" });
       return;
-    } catch { /* fall through */ }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+    }
   }
+
+  // 2. Try sharing just the public URL (works everywhere share is supported)
+  if (publicUrl && nav.canShare && nav.canShare({ url: publicUrl })) {
+    try {
+      await navigator.share({ title: "Match Five Scorer", url: publicUrl });
+      return;
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+    }
+  }
+
+  // 3. Fallback: open the image in a new tab so the user can save/share manually
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = file.name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const win = window.open(url, "_blank");
+  if (!win) {
+    // popup blocked → download
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }

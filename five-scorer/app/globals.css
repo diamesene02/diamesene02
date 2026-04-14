@@ -47,8 +47,114 @@
   --live: #EF4444;
   --live-pulse: rgba(239,68,68,0.35);
 
+  /* Signature brand accent — electric lime */
+  --lime: #D4FF3A;
+  --lime-glow: rgba(212,255,58,0.45);
+  --lime-dim: rgba(212,255,58,0.08);
+
   --font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Stadium aurora: subtle animated gradient for heroes */
+.aurora {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.aurora::before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  background:
+    radial-gradient(600px circle at 15% 20%, rgba(34,197,94,0.18), transparent 50%),
+    radial-gradient(500px circle at 85% 30%, rgba(56,189,248,0.16), transparent 55%),
+    radial-gradient(400px circle at 50% 90%, rgba(212,255,58,0.10), transparent 60%);
+  animation: auroraDrift 24s ease-in-out infinite alternate;
+  filter: blur(8px);
+}
+@keyframes auroraDrift {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  50%  { transform: translate(-3%, 2%) rotate(4deg); }
+  100% { transform: translate(2%, -3%) rotate(-3deg); }
+}
+
+/* Pitch lines motif for ambient background */
+.pitch-motif {
+  background-image:
+    linear-gradient(var(--stroke) 1px, transparent 1px),
+    linear-gradient(90deg, var(--stroke) 1px, transparent 1px);
+  background-size: 60px 60px;
+  background-position: -1px -1px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, black 0%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, black 0%, transparent 80%);
+}
+
+/* Sculpted number: outlined display + filled layer */
+.num-sculpt {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "ss02","tnum";
+  letter-spacing: -0.06em;
+  color: var(--ink-0);
+}
+.num-sculpt[data-win="true"] {
+  color: var(--lime);
+  text-shadow: 0 0 60px var(--lime-glow), 0 4px 0 rgba(0,0,0,0.4);
+}
+
+/* Editorial kicker (small label above hero) */
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.kicker::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  background: var(--ink-2);
+}
+
+/* Signature brand pill */
+.brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: var(--lime);
+  color: #0a1400;
+  box-shadow: 0 0 24px var(--lime-glow);
+}
+
+/* Hero display heading */
+.display-xl {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: clamp(48px, 10vw, 96px);
+  line-height: 0.92;
+  letter-spacing: -0.04em;
+}
+.display-md {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: clamp(32px, 6vw, 56px);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
 }
 
 html,
@@ -213,8 +319,17 @@ button {
   min-width: 1ch;
   text-align: center;
 }
-.scoreboard .score.leading.A { color: var(--a-400); text-shadow: 0 0 28px var(--a-glow); }
-.scoreboard .score.leading.B { color: var(--b-400); text-shadow: 0 0 28px var(--b-glow); }
+.scoreboard .score {
+  letter-spacing: -0.06em;
+}
+.scoreboard .score.leading.A {
+  color: var(--lime);
+  text-shadow: 0 0 32px var(--lime-glow), 0 2px 0 rgba(0,0,0,0.4);
+}
+.scoreboard .score.leading.B {
+  color: var(--lime);
+  text-shadow: 0 0 32px var(--lime-glow), 0 2px 0 rgba(0,0,0,0.4);
+}
 .scoreboard .sep { color: var(--ink-2); font-size: 44px; font-weight: 500; }
 
 /* Goal celebration */
@@ -504,11 +619,29 @@ button {
   font-weight: 700;
 }
 .recap-hero {
-  background: linear-gradient(180deg, var(--bg-1), var(--bg-0));
+  position: relative;
+  background:
+    radial-gradient(400px circle at 50% 0%, rgba(212,255,58,0.06), transparent 60%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-0));
   border: 1px solid var(--stroke);
-  border-radius: 20px;
-  padding: 16px;
+  border-radius: 24px;
+  padding: 20px 16px 24px;
+  overflow: hidden;
 }
+.recap-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--stroke) 1px, transparent 1px),
+    linear-gradient(90deg, var(--stroke) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.18;
+  mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, black, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, black, transparent 70%);
+  pointer-events: none;
+}
+.recap-hero > * { position: relative; z-index: 1; }
 .recap-teams {
   display: flex;
   justify-content: space-between;
@@ -536,7 +669,8 @@ button {
   letter-spacing: -0.04em;
   color: var(--ink-1);
 }
-.score-num.win { color: var(--gold); text-shadow: 0 0 32px var(--gold-glow); }
+.score-num { letter-spacing: -0.06em; }
+.score-num.win { color: var(--lime); text-shadow: 0 0 32px var(--lime-glow), 0 3px 0 rgba(0,0,0,0.4); }
 .score-num.lose { color: var(--ink-2); }
 .score-sep { color: var(--ink-2); font-size: 48px; font-weight: 500; }
 
@@ -632,10 +766,13 @@ button {
   border: 1px solid var(--stroke);
 }
 .btn.primary {
-  background: linear-gradient(135deg, var(--a-500), var(--a-400));
-  color: white;
-  box-shadow: 0 4px 20px -4px var(--a-glow);
+  background: var(--lime);
+  color: #0a1400;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  box-shadow: 0 8px 28px -10px var(--lime-glow), inset 0 1px 0 rgba(255,255,255,0.4);
 }
+.btn.primary:hover { filter: brightness(1.05); }
 
 /* ========================= REDUCED MOTION ========================= */
 @media (prefers-reduced-motion: reduce) {

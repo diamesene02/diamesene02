@@ -75,20 +75,37 @@ export default function RecapView({
     .filter((p) => assistCount[p.id])
     .sort((a, b) => assistCount[b.id] - assistCount[a.id]);
 
+  const publicUrl =
+    publicShareUrl ||
+    (typeof window !== "undefined" ? `${window.location.origin}/r/${match.id}` : "");
+
   async function onShareImage() {
-    await shareMatchImage({ match, mvpName, teamA, teamB, goals });
+    try {
+      await shareMatchImage({ match, mvpName, teamA, teamB, goals }, publicUrl);
+    } catch (e) {
+      console.error("share image failed", e);
+    }
   }
 
-  async function onCopyLink() {
-    const url =
-      publicShareUrl ||
-      (typeof window !== "undefined" ? `${window.location.origin}/r/${match.id}` : "");
+  async function onShareLink() {
+    const nav = navigator as Navigator & {
+      canShare?: (d: { url?: string; text?: string }) => boolean;
+    };
+    const title = `${match.teamAName} ${match.scoreA} — ${match.scoreB} ${match.teamBName}`;
+    if (nav.canShare && nav.canShare({ url: publicUrl })) {
+      try {
+        await navigator.share({ title, text: title, url: publicUrl });
+        return;
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+      }
+    }
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(publicUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      /* ignore */
+      prompt("Lien du match :", publicUrl);
     }
   }
 
@@ -198,15 +215,15 @@ export default function RecapView({
       {showActions && (
         <>
           <div className="flex gap-2">
-            <button onClick={onShareImage} className="btn ghost big flex-1">
-              📤 Partager image
+            <button onClick={onShareLink} className="btn primary big flex-1">
+              {copied ? "✓ Lien copié" : "🔗 Partager lien"}
             </button>
-            <button onClick={onCopyLink} className="btn ghost big flex-1">
-              {copied ? "✓ Lien copié" : "🔗 Copier lien"}
+            <button onClick={onShareImage} className="btn ghost big flex-1">
+              📸 Image
             </button>
           </div>
           {onRematch && (
-            <button onClick={onRematch} className="btn primary big w-full">
+            <button onClick={onRematch} className="btn ghost big w-full">
               🔄 Rematch
             </button>
           )}
