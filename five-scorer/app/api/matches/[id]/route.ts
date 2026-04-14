@@ -28,6 +28,9 @@ type PatchBody = {
   mvpId?: string | null;
   teamAName?: string;
   teamBName?: string;
+  // Optional bulk-override scores (will also trigger a recompute when goals edited separately)
+  scoreA?: number;
+  scoreB?: number;
 };
 
 export async function PATCH(req: Request, { params }: Ctx) {
@@ -46,6 +49,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
       ...(body.mvpId !== undefined ? { mvpId: body.mvpId } : {}),
       ...(body.teamAName ? { teamAName: body.teamAName } : {}),
       ...(body.teamBName ? { teamBName: body.teamBName } : {}),
+      ...(body.scoreA !== undefined ? { scoreA: body.scoreA } : {}),
+      ...(body.scoreB !== undefined ? { scoreB: body.scoreB } : {}),
     },
   });
   return NextResponse.json({ match });

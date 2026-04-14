@@ -26,9 +26,17 @@ export default async function MatchRecapPage({
 
   return (
     <main className="recap-wrap mx-auto max-w-xl p-4">
-      <Link href="/" className="text-sm text-[color:var(--ink-2)] hover:text-white">
-        ← Accueil
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/" className="text-sm text-[color:var(--ink-2)] hover:text-white">
+          ← Accueil
+        </Link>
+        <Link
+          href={`/matches/${match.id}/edit`}
+          className="rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-1.5 text-xs font-bold text-[color:var(--ink-1)] hover:text-white"
+        >
+          ✏ Éditer
+        </Link>
+      </div>
       <RecapView
         match={{
           id: match.id,
