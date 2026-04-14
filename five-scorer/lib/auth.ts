@@ -3,8 +3,10 @@ import { getIronSession, type SessionOptions } from "iron-session";
 import bcrypt from "bcryptjs";
 
 export type ScoringSession = {
-  unlocked?: boolean;
+  unlocked?: boolean;       // scorer PIN ok (can score live matches)
+  admin?: boolean;          // admin PIN ok (can edit/delete finished matches)
   unlockedAt?: number;
+  adminAt?: number;
 };
 
 const SESSION_COOKIE = "five_scorer_session";
@@ -39,8 +41,23 @@ export async function isUnlocked(): Promise<boolean> {
   return Boolean(session.unlocked);
 }
 
+export async function isAdmin(): Promise<boolean> {
+  const session = await getSession();
+  return Boolean(session.admin);
+}
+
 export function verifyPin(pin: string): boolean {
   const hash = process.env.SCORING_PIN_HASH;
+  if (!hash) return false;
+  try {
+    return bcrypt.compareSync(pin, hash);
+  } catch {
+    return false;
+  }
+}
+
+export function verifyAdminPin(pin: string): boolean {
+  const hash = process.env.ADMIN_PIN_HASH;
   if (!hash) return false;
   try {
     return bcrypt.compareSync(pin, hash);

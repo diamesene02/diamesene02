@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isUnlocked } from "@/lib/auth";
+import { isAdmin, isUnlocked } from "@/lib/auth";
 import type { Team } from "@prisma/client";
+
+// Helper: does mutating this match require admin?
+async function requiresAdmin(matchId: string): Promise<boolean> {
+  const m = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { status: true },
+  });
+  return m?.status === "FINISHED";
+}
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -39,6 +48,15 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  // Retroactive goal add on a finished match requires admin.
+  if (await requiresAdmin(id)) {
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: "Admin requis pour ajouter un but à un match terminé" },
+        { status: 403 }
+      );
+    }
+  }
   const body = (await req.json().catch(() => null)) as PostBody | null;
   const scorerId = body?.scorerId;
   if (!scorerId) {
@@ -97,6 +115,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  if (await requiresAdmin(id)) {
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: "Admin requis pour éditer un but d'un match terminé" },
+        { status: 403 }
+      );
+    }
+  }
   const body = (await req.json().catch(() => null)) as PatchBody | null;
   if (!body?.goalId) {
     return NextResponse.json({ error: "goalId requis" }, { status: 400 });
@@ -120,6 +146,14 @@ export async function DELETE(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  if (await requiresAdmin(id)) {
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: "Admin requis pour supprimer un but d'un match terminé" },
+        { status: 403 }
+      );
+    }
+  }
   const url = new URL(req.url);
   const goalId = url.searchParams.get("goalId") ?? undefined;
   const scorerId = url.searchParams.get("scorerId") ?? undefined;

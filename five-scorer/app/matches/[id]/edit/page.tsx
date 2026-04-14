@@ -1,7 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import EditMatchForm from "@/components/EditMatchForm";
+import { isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,11 @@ export default async function EditMatchPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // Admin gate: only the admin role can reach this page.
+  if (!(await isAdmin())) {
+    redirect(`/admin?next=/matches/${id}/edit`);
+  }
   const match = await prisma.match.findUnique({
     where: { id },
     include: {

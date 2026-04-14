@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isUnlocked } from "@/lib/auth";
+import { isAdmin, isUnlocked } from "@/lib/auth";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -42,6 +42,37 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!body) {
     return NextResponse.json({ error: "Payload invalide" }, { status: 400 });
   }
+
+  // Admin-only guard: editing a FINISHED match (score override, mvp change,
+  // team rename, reopening) requires the admin role. Finishing a LIVE match
+  // from the mobile scorer uses status: "FINISHED" only — that's allowed for
+  // the scorer.
+  const existing = await prisma.match.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
+  }
+
+  const isReopen = body.status === "LIVE";
+  const isEditOnFinished =
+    existing.status === "FINISHED" &&
+    (body.teamAName !== undefined ||
+      body.teamBName !== undefined ||
+      body.scoreA !== undefined ||
+      body.scoreB !== undefined ||
+      body.mvpId !== undefined);
+
+  if (isReopen || isEditOnFinished) {
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: "Admin requis pour modifier un match terminé" },
+        { status: 403 }
+      );
+    }
+  }
+
   const match = await prisma.match.update({
     where: { id },
     data: {
@@ -57,8 +88,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
-  if (!(await isUnlocked())) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // Deletion always requires admin — never exposed to the scorer role.
+  if (!(await isAdmin())) {
+    return NextResponse.json(
+      { error: "Admin requis pour supprimer un match" },
+      { status: 403 }
+    );
   }
   const { id } = await params;
   await prisma.match.delete({ where: { id } });
