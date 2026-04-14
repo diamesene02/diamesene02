@@ -41,7 +41,7 @@ export default async function HomePage() {
             href="/stats/scorers"
             className="rounded-lg bg-white/5 px-3 py-2 hover:bg-white/10"
           >
-            Buteurs
+            Classement
           </Link>
           <Link
             href="/matches/history"

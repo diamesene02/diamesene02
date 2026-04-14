@@ -6,10 +6,17 @@ import type { Team } from "@prisma/client";
 type Ctx = { params: Promise<{ id: string }> };
 
 type PostBody = {
-  id?: string; // client-generated goal ID (offline-first)
+  id?: string;
   scorerId: string;
+  assistId?: string | null;
+  team?: "A" | "B";
   minute?: number;
-  createdAt?: string; // ISO, preserves order when synced from outbox
+  createdAt?: string;
+};
+
+type PatchBody = {
+  goalId: string;
+  assistId: string | null;
 };
 
 async function recomputeScore(matchId: string) {
@@ -74,14 +81,34 @@ export async function POST(req: Request, { params }: Ctx) {
       ...(body?.id ? { id: body.id } : {}),
       matchId: id,
       scorerId,
+      assistId: body?.assistId ?? null,
       team: participation.team as Team,
       minute: body?.minute ?? null,
       ...(body?.createdAt ? { createdAt: new Date(body.createdAt) } : {}),
     },
-    include: { scorer: true },
+    include: { scorer: true, assist: true },
   });
   const scores = await recomputeScore(id);
   return NextResponse.json({ goal, ...scores }, { status: 201 });
+}
+
+export async function PATCH(req: Request, { params }: Ctx) {
+  if (!(await isUnlocked())) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const { id } = await params;
+  const body = (await req.json().catch(() => null)) as PatchBody | null;
+  if (!body?.goalId) {
+    return NextResponse.json({ error: "goalId requis" }, { status: 400 });
+  }
+
+  await prisma.goal
+    .update({
+      where: { id: body.goalId, matchId: id },
+      data: { assistId: body.assistId ?? null },
+    })
+    .catch(() => null); // idempotent
+  return NextResponse.json({ goalId: body.goalId, assistId: body.assistId });
 }
 
 // DELETE:

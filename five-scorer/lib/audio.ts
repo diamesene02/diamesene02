@@ -4,6 +4,33 @@
 let ctx: AudioContext | null = null;
 let unlocked = false;
 
+const SOUND_KEY = "fs-sound-enabled";
+
+export function isSoundEnabled(): boolean {
+  if (typeof localStorage === "undefined") return true;
+  try {
+    const v = localStorage.getItem(SOUND_KEY);
+    return v === null ? true : v === "1";
+  } catch {
+    return true;
+  }
+}
+
+export function setSoundEnabled(on: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(SOUND_KEY, on ? "1" : "0");
+  } catch {
+    /* noop */
+  }
+}
+
+export function toggleSound(): boolean {
+  const next = !isSoundEnabled();
+  setSoundEnabled(next);
+  return next;
+}
+
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
@@ -66,10 +93,12 @@ function playTone({
 }
 
 export function playGoalSound(): void {
+  if (!isSoundEnabled()) return;
   playTone({ freq: 440, glideTo: 880, duration: 0.14, type: "triangle", gain: 0.28 });
   playTone({ freq: 1320, duration: 0.12, type: "sine", gain: 0.18, delay: 0.09 });
 }
 
 export function playUndoSound(): void {
+  if (!isSoundEnabled()) return;
   playTone({ freq: 520, glideTo: 260, duration: 0.16, type: "sawtooth", gain: 0.18 });
 }

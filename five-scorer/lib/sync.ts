@@ -82,6 +82,15 @@ async function replayOp(op: OutboxOp): Promise<void> {
       await throwIfBad(res, "removeGoal");
       return;
     }
+    case "updateGoalAssist": {
+      const res = await fetch(`/api/matches/${op.matchId}/goals`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(op.payload),
+      });
+      await throwIfBad(res, "updateGoalAssist");
+      return;
+    }
     case "finishMatch": {
       const res = await fetch(`/api/matches/${op.matchId}`, {
         method: "PATCH",

@@ -1,20 +1,42 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import PlayerTile from "@/components/PlayerTile";
 import MvpPicker from "@/components/MvpPicker";
 import SyncBadge from "@/components/SyncBadge";
-import { getLocalMatch, scoreGoal, undoLastGoalOf, finishMatch } from "@/lib/localMatch";
+import AssistPicker from "@/components/AssistPicker";
+import {
+  getLocalMatch,
+  scoreGoal,
+  setAssist,
+  undoLastGoalOf,
+  finishMatch,
+} from "@/lib/localMatch";
 import { kickSync } from "@/lib/sync";
+import { isSoundEnabled, toggleSound } from "@/lib/audio";
 
-function useMatchClock(startTs: number | null) {
+function useMatchClock(startTs: number | null, paused: boolean) {
   const [text, setText] = useState("00:00");
+  const pausedMsRef = useRef(0);
+  const pausedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!startTs) return;
+    if (paused && pausedAtRef.current == null) {
+      pausedAtRef.current = Date.now();
+    } else if (!paused && pausedAtRef.current != null) {
+      pausedMsRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+  }, [paused, startTs]);
+
   useEffect(() => {
     if (!startTs) return;
     const tick = () => {
-      const s = Math.floor((Date.now() - startTs) / 1000);
+      if (paused) return;
+      const s = Math.floor((Date.now() - startTs - pausedMsRef.current) / 1000);
       const mm = String(Math.floor(s / 60)).padStart(2, "0");
       const ss = String(s % 60).padStart(2, "0");
       setText(`${mm}:${ss}`);
@@ -22,7 +44,8 @@ function useMatchClock(startTs: number | null) {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [startTs]);
+  }, [startTs, paused]);
+
   return text;
 }
 
@@ -34,14 +57,25 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
+  const [assistPicker, setAssistPicker] = useState<{
+    goalId: string;
+    scorerId: string;
+    scorerName: string;
+    scorerTeam: "A" | "B";
+  } | null>(null);
+
+  useEffect(() => {
+    setSoundOn(isSoundEnabled());
+  }, []);
 
   const startTs = useRef<number | null>(null);
   if (data && !startTs.current) {
     startTs.current = new Date(data.match.playedAt).getTime();
   }
-  const clock = useMatchClock(startTs.current);
+  const clock = useMatchClock(startTs.current, paused);
 
-  // Score-pop animation on change
   const scoreARef = useRef<HTMLSpanElement>(null);
   const scoreBRef = useRef<HTMLSpanElement>(null);
   const prevScoreRef = useRef<{ a: number; b: number } | null>(null);
@@ -61,6 +95,55 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
     }
     prevScoreRef.current = curr;
   }, [data]);
+
+  const addGoal = useCallback(
+    async (playerId: string, playerName: string, team: "A" | "B") => {
+      try {
+        const goalId = await scoreGoal(matchId, playerId);
+        void kickSync();
+        setAssistPicker({ goalId, scorerId: playerId, scorerName: playerName, scorerTeam: team });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erreur");
+      }
+    },
+    [matchId]
+  );
+
+  const removeGoal = useCallback(
+    async (playerId: string) => {
+      try {
+        const removedId = await undoLastGoalOf(matchId, playerId);
+        if (!removedId) setError("Aucun but à annuler pour ce joueur");
+        else void kickSync();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erreur");
+      }
+    },
+    [matchId]
+  );
+
+  async function onPickAssist(assistId: string) {
+    if (!assistPicker) return;
+    try {
+      await setAssist(assistPicker.goalId, assistId);
+      void kickSync();
+    } catch {
+      /* non-blocking */
+    }
+    setAssistPicker(null);
+  }
+
+  async function onFinish(mvpId: string | null) {
+    setFinishing(true);
+    try {
+      await finishMatch(matchId, mvpId);
+      void kickSync();
+      router.replace(`/matches/${matchId}`);
+    } catch (e) {
+      setFinishing(false);
+      setError(e instanceof Error ? e.message : "Erreur");
+    }
+  }
 
   if (data === undefined) {
     return (
@@ -87,7 +170,6 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
   }
 
   const { match, teamA, teamB } = data;
-
   if (match.status === "FINISHED") {
     router.replace(`/matches/${matchId}`);
     return null;
@@ -95,48 +177,37 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
 
   const aLead = match.scoreA > match.scoreB;
   const bLead = match.scoreB > match.scoreA;
-
-  async function addGoal(playerId: string) {
-    try {
-      await scoreGoal(matchId, playerId);
-      void kickSync();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    }
-  }
-
-  async function removeGoal(playerId: string) {
-    try {
-      const removedId = await undoLastGoalOf(matchId, playerId);
-      if (!removedId) setError("Aucun but à annuler pour ce joueur");
-      else void kickSync();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    }
-  }
-
-  async function onFinish(mvpId: string | null) {
-    setFinishing(true);
-    try {
-      await finishMatch(matchId, mvpId);
-      void kickSync();
-      router.replace(`/matches/${matchId}`);
-    } catch (e) {
-      setFinishing(false);
-      setError(e instanceof Error ? e.message : "Erreur");
-    }
-  }
+  const scorerTeammates = assistPicker
+    ? (assistPicker.scorerTeam === "A" ? teamA : teamB).filter((p) => p.id !== assistPicker.scorerId)
+    : [];
 
   return (
     <main className="flex min-h-screen flex-col">
-      {/* Topbar: LIVE dot + clock | sync dot + Fin */}
+      {/* Topbar */}
       <header className="live-topbar">
         <div className="live-topbar-left">
-          <span className="live-dot" />
-          <span>LIVE</span>
+          <span
+            className="live-dot"
+            style={paused ? { animation: "none", opacity: 0.3 } : undefined}
+          />
+          <span>{paused ? "PAUSE" : "LIVE"}</span>
           <span className="match-clock">{clock}</span>
+          <button
+            onClick={() => setPaused((p) => !p)}
+            className="icon-btn"
+            title={paused ? "Reprendre" : "Pause"}
+          >
+            {paused ? "\u25B6" : "\u23F8"}
+          </button>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSoundOn(toggleSound())}
+            className="icon-btn"
+            title="Son"
+          >
+            {soundOn ? "\uD83D\uDD0A" : "\uD83D\uDD07"}
+          </button>
           <SyncBadge compact />
           <button onClick={() => setConfirmOpen(true)} className="btn-fin">
             Fin
@@ -144,7 +215,7 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
         </div>
       </header>
 
-      {/* Scorebar hero */}
+      {/* Scorebar */}
       <header className="scorebar">
         <div className="scorebar-team A">
           <div className="team-chip A">{match.teamAName}</div>
@@ -172,7 +243,6 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
         </div>
       )}
 
-      {/* Player tiles */}
       <div className="live-container flex-1">
         <section>
           <div className="team-label hidden px-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--a-400)]">
@@ -184,7 +254,7 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
               name={p.name}
               goals={p.goals}
               tint="pitch"
-              onGoal={() => addGoal(p.id)}
+              onGoal={() => addGoal(p.id, p.name, "A")}
               onUndo={() => removeGoal(p.id)}
             />
           ))}
@@ -199,14 +269,23 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
               name={p.name}
               goals={p.goals}
               tint="blue"
-              onGoal={() => addGoal(p.id)}
+              onGoal={() => addGoal(p.id, p.name, "B")}
               onUndo={() => removeGoal(p.id)}
             />
           ))}
         </section>
       </div>
 
-      {/* Confirm dialog */}
+      {assistPicker && scorerTeammates.length > 0 && (
+        <AssistPicker
+          scorerName={assistPicker.scorerName}
+          scorerTeam={assistPicker.scorerTeam}
+          teammates={scorerTeammates}
+          onPick={onPickAssist}
+          onSkip={() => setAssistPicker(null)}
+        />
+      )}
+
       {confirmOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur"
@@ -214,7 +293,7 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
             if (e.target === e.currentTarget) setConfirmOpen(false);
           }}
         >
-          <div className="rounded-2xl border border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-6 text-center shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
+          <div className="rounded-2xl border border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-6 text-center">
             <h2 className="mb-4 text-lg font-bold">Terminer ce match ?</h2>
             <div className="flex gap-3">
               <button

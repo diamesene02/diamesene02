@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/pin",
   "/stats",
   "/matches/history",
+  "/r",
 ];
 
 function isPublic(pathname: string): boolean {

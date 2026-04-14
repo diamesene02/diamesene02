@@ -27,6 +27,7 @@ model Player {
 
   matches       MatchPlayer[]
   goals         Goal[]        @relation("PlayerGoals")
+  assists       Goal[]        @relation("PlayerAssists")
   mvpOfMatches  Match[]       @relation("MatchMvp")
 
   @@index([name])
@@ -68,14 +69,17 @@ model Goal {
   id        String   @id @default(cuid())
   matchId   String
   scorerId  String
+  assistId  String?
   team      Team
   minute    Int?
   createdAt DateTime @default(now())
 
-  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  scorer Player @relation("PlayerGoals", fields: [scorerId], references: [id], onDelete: Cascade)
+  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  scorer   Player  @relation("PlayerGoals", fields: [scorerId], references: [id], onDelete: Cascade)
+  assist   Player? @relation("PlayerAssists", fields: [assistId], references: [id], onDelete: SetNull)
 
   @@index([matchId])
   @@index([scorerId])
+  @@index([assistId])
   @@index([createdAt])
 }
