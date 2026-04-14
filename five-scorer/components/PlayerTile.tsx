@@ -2,6 +2,12 @@
 
 import { memo, useCallback, useRef } from "react";
 import { cn } from "@/lib/cn";
+import { unlockAudio, playGoalSound, playUndoSound } from "@/lib/audio";
+
+// Module-level guard: suppress taps for a short window after a long-press
+// fires, so the release doesn't accidentally add a goal after undoing.
+let suppressTapUntil = 0;
+const SUPPRESS_TAP_MS = 700;
 
 type Props = {
   name: string;
@@ -22,14 +28,17 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
   const didLongRef = useRef(false);
   const btnRef = useRef<HTMLButtonElement>(null);
 
-  const startPress = useCallback(() => {
+  const startPress = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     didLongRef.current = false;
     btnRef.current?.classList.add("long-pressing");
+    try { btnRef.current?.setPointerCapture(e.pointerId); } catch {}
     timerRef.current = setTimeout(() => {
       didLongRef.current = true;
+      suppressTapUntil = Date.now() + SUPPRESS_TAP_MS;
       btnRef.current?.classList.remove("long-pressing");
       if (goals > 0) {
         if (navigator.vibrate) navigator.vibrate(30);
+        playUndoSound();
         onUndo();
       }
     }, 500);
@@ -39,8 +48,11 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
     (e: React.PointerEvent) => {
       if (timerRef.current) clearTimeout(timerRef.current);
       btnRef.current?.classList.remove("long-pressing");
-      if (!didLongRef.current) {
+      const suppressed = Date.now() < suppressTapUntil;
+      if (!didLongRef.current && !suppressed) {
+        unlockAudio();
         if (navigator.vibrate) navigator.vibrate(12);
+        playGoalSound();
         onGoal();
       }
       e.preventDefault();

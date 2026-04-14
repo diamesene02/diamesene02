@@ -243,9 +243,29 @@ button {
 }
 
 @media (orientation: landscape) {
-  .scoreboard .score { font-size: 56px; }
-  .scoreboard .sep { font-size: 36px; }
-  .scorebar { padding: 8px 16px; top: 36px; }
+  .live-topbar { padding: 3px 12px; min-height: 26px; }
+  .live-topbar-left { font-size: 10px; gap: 6px; }
+  .live-dot { width: 6px; height: 6px; }
+  .match-clock { font-size: 11px; }
+  .btn-fin { font-size: 10px; padding: 3px 9px; }
+  .sync-dot { width: 8px; height: 8px; }
+
+  .scorebar { padding: 4px 12px; top: 26px; gap: 12px; }
+  .scoreboard { gap: 8px; }
+  .scoreboard .score { font-size: 40px; }
+  .scoreboard .sep { font-size: 26px; }
+  .team-chip { font-size: 10px; padding: 3px 8px; }
+
+  .fs-tile { min-height: 44px; border-radius: 8px; }
+  .fs-tile-body { padding: 0 8px; gap: 6px; }
+  .fs-tile-name { font-size: 13px; }
+  .fs-tile-goals { font-size: 14px; }
+  .fs-tile-ball { width: 10px; height: 10px; }
+  .fs-tile-plus { flex-basis: 48px; font-size: 15px; }
+
+  .live-container { gap: 3px; padding: 3px; }
+  .live-container > section { gap: 2px; }
+  .team-label { font-size: 9px !important; padding: 0 8px !important; line-height: 14px; }
 }
 
 /* ========================= PLAYER TILE ========================= */
