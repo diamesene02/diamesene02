@@ -51,6 +51,12 @@ export default async function HomePage() {
               Classement
             </Link>
             <Link
+              href="/stats/seasons"
+              className="rounded-lg border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[color:var(--gold)] backdrop-blur hover:brightness-110"
+            >
+              Saisons
+            </Link>
+            <Link
               href="/matches/history"
               className="rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)]/60 px-3 py-1.5 text-xs font-bold uppercase tracking-wider backdrop-blur hover:border-[color:var(--stroke-hi)]"
             >

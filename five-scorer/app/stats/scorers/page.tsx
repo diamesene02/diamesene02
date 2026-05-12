@@ -13,12 +13,20 @@ export default async function LeaderboardPage() {
       </div>
 
       <div className="relative mx-auto max-w-3xl px-5 pb-16 pt-6">
-        <Link
-          href="/"
-          className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)] hover:text-white"
-        >
-          ← Accueil
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)] hover:text-white"
+          >
+            ← Accueil
+          </Link>
+          <Link
+            href="/stats/seasons"
+            className="text-xs font-bold uppercase tracking-widest text-[color:var(--gold)] hover:brightness-110"
+          >
+            Saisons →
+          </Link>
+        </div>
 
         <header className="mt-6 mb-8">
           <span className="kicker">Saison en cours</span>

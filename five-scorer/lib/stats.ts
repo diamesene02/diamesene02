@@ -63,6 +63,8 @@ export type PlayerStats = {
   draws: number;
   losses: number;
   mvpCount: number;
+  /** Current streak — consecutive same-result FINISHED matches counting back from the most recent. */
+  streak: { type: "W" | "L" | "D"; count: number } | null;
   recentMatches: { id: string; playedAt: string; score: string; result: "W" | "D" | "L" | "?" }[];
 };
 
@@ -90,13 +92,26 @@ export async function getPlayerStats(
   let wins = 0;
   let draws = 0;
   let losses = 0;
+  // appearances is ordered desc by playedAt — i.e. most-recent FINISHED
+  // match first. The current streak is the run of identical results at
+  // the front of that list. `streakLive` flips to false on the first
+  // mismatch so we stop growing the count.
+  let streak: { type: "W" | "L" | "D"; count: number } | null = null;
+  let streakLive = true;
   for (const ap of appearances) {
     if (ap.match.status !== "FINISHED") continue;
     const diff = ap.match.scoreA - ap.match.scoreB;
     const onA = ap.team === "A";
-    if (diff === 0) draws++;
-    else if ((diff > 0 && onA) || (diff < 0 && !onA)) wins++;
-    else losses++;
+    const result: "W" | "L" | "D" =
+      diff === 0 ? "D" : (diff > 0 && onA) || (diff < 0 && !onA) ? "W" : "L";
+    if (result === "W") wins++;
+    else if (result === "L") losses++;
+    else draws++;
+    if (streakLive) {
+      if (streak === null) streak = { type: result, count: 1 };
+      else if (streak.type === result) streak.count++;
+      else streakLive = false;
+    }
   }
 
   const recentMatches = appearances.slice(0, 5).map((ap) => {
@@ -122,6 +137,7 @@ export async function getPlayerStats(
     draws,
     losses,
     mvpCount,
+    streak,
     recentMatches,
   };
 }

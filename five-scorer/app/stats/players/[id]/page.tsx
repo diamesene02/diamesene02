@@ -13,7 +13,7 @@ export default async function PlayerStatsPage({
   const stats = await getPlayerStats(id);
   if (!stats) notFound();
 
-  const { player, matchesPlayed, goals, wins, draws, losses, mvpCount, recentMatches } =
+  const { player, matchesPlayed, goals, wins, draws, losses, mvpCount, streak, recentMatches } =
     stats;
   const finished = wins + draws + losses;
   const winRate = finished === 0 ? 0 : Math.round((wins / finished) * 100);
@@ -43,6 +43,27 @@ export default async function PlayerStatsPage({
           {mvpCount > 0 && (
             <span className="rounded-full bg-[color:var(--gold)] px-3 py-1 font-bold text-[#1f1500]">
               ⭐ {mvpCount} MVP
+            </span>
+          )}
+          {streak && streak.count >= 2 && (
+            <span
+              className={`rounded-full px-3 py-1 font-bold ${
+                streak.type === "W"
+                  ? "bg-[color:var(--a-500)]/20 text-[color:var(--a-400)]"
+                  : streak.type === "L"
+                    ? "bg-[color:var(--b-500)]/20 text-[color:var(--b-400)]"
+                    : "bg-[color:var(--ink-2)]/20 text-[color:var(--ink-1)]"
+              }`}
+              title={
+                streak.type === "W"
+                  ? `${streak.count} victoires d'affilée`
+                  : streak.type === "L"
+                    ? `${streak.count} défaites d'affilée`
+                    : `${streak.count} nuls d'affilée`
+              }
+            >
+              {streak.type === "W" ? "🔥" : streak.type === "L" ? "❄" : "➖"}{" "}
+              {streak.count} {streak.type === "W" ? "V" : streak.type === "L" ? "D" : "N"} d&apos;affilée
             </span>
           )}
         </div>
