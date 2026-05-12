@@ -87,7 +87,7 @@ export default async function HomePage() {
         ) : (
           <section className="aurora edge-top relative mt-6 overflow-hidden rounded-3xl border border-[color:var(--stroke)] p-8">
             <div className="relative z-[1] flex flex-col items-start gap-4">
-              <span className="kicker">La maison du Five du jeudi</span>
+              <span className="kicker">La maison du Five du lundi</span>
               <h1 className="display-xl">
                 Marque <em>vite</em>.
                 <br />
