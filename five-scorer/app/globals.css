@@ -4,9 +4,9 @@
 
 /* ========================= FONTS ========================= */
 @font-face {
-  font-family: "Space Grotesk";
-  src: url("/fonts/space-grotesk.woff2") format("woff2-variations");
-  font-weight: 400 700;
+  font-family: "Archivo";
+  src: url("/fonts/archivo.woff2") format("woff2-variations");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -18,50 +18,74 @@
   font-display: swap;
 }
 
-/* ========================= TOKENS ========================= */
+/* ========================= TOKENS — Direction B "Terrain" =========================
+   Tactic-board / pitch aesthetic. White field markings, amber/red team accents,
+   pitch-green surfaces, monospace stencil scoreboard. Aligned with the mobile APK. */
 :root {
   color-scheme: dark;
 
-  --bg-0: #07090F;
-  --bg-1: #0D1220;
-  --bg-2: #151B2D;
-  --stroke: #1F2740;
-  --stroke-hi: #2A3354;
+  /* Pitch surfaces (was deep blue) */
+  --pitch:        #0E3B1F;
+  --pitch-deep:   #0A2A16;
+  --pitch-hi:     #15572D;
+  --panel:        #0B0E0A;
+  --panel-hi:     #161D14;
+  --panel-line:   #2A2F26;
 
-  --ink-0: #F5F7FA;
-  --ink-1: #A7B0C4;
-  --ink-2: #5C6484;
+  /* Legacy bg-* aliases (kept so existing utility classes keep working) */
+  --bg-0:   var(--pitch-deep);
+  --bg-1:   var(--panel);
+  --bg-2:   var(--panel-hi);
+  --stroke: var(--panel-line);
+  --stroke-hi: rgba(255,255,255,0.20);
 
-  --a-500: #22C55E;
-  --a-400: #4ADE80;
-  --a-glow: rgba(34,197,94,0.45);
-  --a-wash: rgba(34,197,94,0.10);
+  /* White field lines */
+  --line:        rgba(255, 255, 255, 0.62);
+  --line-soft:   rgba(255, 255, 255, 0.20);
+  --line-faint:  rgba(255, 255, 255, 0.08);
 
-  --b-500: #38BDF8;
-  --b-400: #7DD3FC;
-  --b-glow: rgba(56,189,248,0.45);
-  --b-wash: rgba(56,189,248,0.10);
+  /* Ink */
+  --ink-0: #F4F7EE;
+  --ink-1: rgba(244, 247, 238, 0.72);
+  --ink-2: rgba(244, 247, 238, 0.45);
+  --chalk: #FFFFFF;
 
-  --gold: #F5B301;
-  --gold-glow: rgba(245,179,1,0.55);
-  --live: #EF4444;
-  --live-pulse: rgba(239,68,68,0.35);
+  /* Team A — Amber (home) */
+  --a-500:  #F9A825;
+  --a-400:  #FFB84D;
+  --a-glow: rgba(249, 168, 37, 0.65);
+  --a-wash: rgba(249, 168, 37, 0.10);
+  --a-ink:  #1F1500;
 
-  /* Signature brand accent — electric lime */
-  --lime: #D4FF3A;
-  --lime-glow: rgba(212,255,58,0.45);
-  --lime-dim: rgba(212,255,58,0.08);
+  /* Team B — Red (away) */
+  --b-500:  #EF3F32;
+  --b-400:  #FF6052;
+  --b-glow: rgba(239, 63, 50, 0.55);
+  --b-wash: rgba(239, 63, 50, 0.10);
+  --b-ink:  #FFF5F4;
 
-  --font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Status */
+  --live:        #EF3F32;
+  --live-pulse:  rgba(239, 63, 50, 0.45);
+  --gold:        #F9D423;
+  --gold-glow:   rgba(249, 212, 35, 0.55);
+
+  /* Brand signature — re-aliased to gold (was lime). Many components
+     reference --lime to mean "winning highlight"; gold reads as trophy/MVP
+     and matches the mobile broadcast palette. */
+  --lime:      var(--gold);
+  --lime-glow: var(--gold-glow);
+  --lime-dim:  rgba(249, 212, 35, 0.08);
+
+  --font-ui:   "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-/* Stadium aurora: subtle animated gradient for heroes */
+/* Terrain hero: amber/red wash + pitch mowing stripes for heroes */
 .aurora {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  /* inner highlight edge + deep shadow foot */
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.06),
     inset 0 -1px 0 rgba(0,0,0,0.4),
@@ -73,10 +97,10 @@
   inset: -30%;
   z-index: -1;
   background:
-    radial-gradient(600px circle at 15% 20%, rgba(34,197,94,0.18), transparent 50%),
-    radial-gradient(500px circle at 85% 30%, rgba(56,189,248,0.16), transparent 55%),
-    radial-gradient(400px circle at 50% 90%, rgba(212,255,58,0.10), transparent 60%);
-  animation: auroraDrift 24s ease-in-out infinite alternate;
+    radial-gradient(700px circle at 12% 22%, var(--a-wash), transparent 55%),
+    radial-gradient(600px circle at 88% 28%, var(--b-wash), transparent 55%),
+    radial-gradient(500px circle at 50% 95%, rgba(249, 212, 35, 0.08), transparent 60%);
+  animation: auroraDrift 28s ease-in-out infinite alternate;
   filter: blur(8px);
 }
 @keyframes auroraDrift {
@@ -85,13 +109,14 @@
   100% { transform: translate(2%, -3%) rotate(-3deg); }
 }
 
-/* Pitch lines motif for ambient background */
+/* Pitch mowing stripes motif for ambient panels — horizontal bands */
 .pitch-motif {
   background-image:
-    linear-gradient(var(--stroke) 1px, transparent 1px),
-    linear-gradient(90deg, var(--stroke) 1px, transparent 1px);
-  background-size: 60px 60px;
-  background-position: -1px -1px;
+    repeating-linear-gradient(
+      0deg,
+      var(--pitch) 0 60px,
+      color-mix(in srgb, var(--pitch) 88%, var(--pitch-hi)) 60px 120px
+    );
   mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, black 0%, transparent 80%);
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, black 0%, transparent 80%);
 }
@@ -165,7 +190,7 @@
 html,
 body {
   height: 100%;
-  background-color: var(--bg-0);
+  background-color: var(--pitch-deep);
   color: var(--ink-0);
   font-family: var(--font-ui);
   -webkit-tap-highlight-color: transparent;
@@ -174,8 +199,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* ========================= STADIUM LIGHT + GRAIN ====================== */
-/* Directional glow from top-right — gives the whole page ambient depth */
+/* ========================= PITCH BACKGROUND ============================
+   Striped mowing pattern + soft top spotlight for ambient depth.
+   Identical to the mobile APK's body::before/::after. */
 body::before {
   content: "";
   position: fixed;
@@ -183,19 +209,23 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(900px 700px at 95% -10%, rgba(212,255,58,0.06), transparent 55%),
-    radial-gradient(1000px 800px at -10% 100%, rgba(56,189,248,0.04), transparent 60%);
+    repeating-linear-gradient(
+      0deg,
+      var(--pitch) 0 60px,
+      color-mix(in srgb, var(--pitch) 88%, var(--pitch-hi)) 60px 120px
+    );
 }
-/* Film grain for texture — breaks the flat-panel feel */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.35;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.95  0 0 0 0 0.95  0 0 0 0.55 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+  background-image: radial-gradient(
+    circle at 50% 20%,
+    rgba(255, 255, 255, 0.06),
+    transparent 60%
+  );
 }
 /* Keep content above the noise layer */
 main, header, section, nav, footer { position: relative; z-index: 2; }
@@ -258,8 +288,8 @@ main, header, section, nav, footer { position: relative; z-index: 2; }
   font-style: italic;
   font-weight: 400;
   font-family: "Georgia", serif;
-  color: var(--lime);
-  text-shadow: 0 0 40px var(--lime-glow);
+  color: var(--a-500);
+  text-shadow: 0 0 40px var(--a-glow);
   letter-spacing: -0.02em;
   padding-right: 6px;
 }

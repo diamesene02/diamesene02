@@ -8,14 +8,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Brand action color — was green (team A on the old web), now amber
+        // to match the "Terrain" mobile palette. Used for focus rings + primary
+        // CTAs (PIN gate, new match form, MVP picker).
         pitch: {
-          50: "#f0fdf4",
-          400: "#4ade80",
-          500: "#22c55e",
-          600: "#16a34a",
-          700: "#15803d",
-          800: "#166534",
-          900: "#14532d",
+          50:  "#FFF5DC",
+          400: "#FFB84D",
+          500: "#F9A825",
+          600: "#E0931F",
+          700: "#B57717",
+          800: "#8B5C12",
+          900: "#1F1500",
         },
         ink: {
           0: "var(--ink-0)",
@@ -29,7 +32,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Space Grotesk", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        sans: ["Archivo", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "SF Mono", "Menlo", "monospace"],
       },
       fontSize: {
