@@ -13,6 +13,11 @@ export async function POST(req: Request) {
   const session = await getSession();
   session.admin = true;
   session.adminAt = Date.now();
+  // Admin strictly implies scorer access — without this, all mutating
+  // API routes (which gate on isUnlocked() first) return 401 even though
+  // the admin PIN was accepted.
+  session.unlocked = true;
+  session.unlockedAt = Date.now();
   await session.save();
   return NextResponse.json({ ok: true });
 }
