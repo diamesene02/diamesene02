@@ -28,7 +28,8 @@ export default async function EditMatchPage({
       },
     },
   });
-  if (!match) notFound();
+  // Deleted matches must be restored from /admin/trash before editing.
+  if (!match || match.deletedAt) notFound();
 
   return (
     <main className="mx-auto max-w-2xl p-4 space-y-4">

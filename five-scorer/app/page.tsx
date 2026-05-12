@@ -7,14 +7,14 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const recentQuery = () =>
     prisma.match.findMany({
-      where: { status: "FINISHED" },
+      where: { status: "FINISHED", deletedAt: null },
       orderBy: { playedAt: "desc" },
       take: 5,
       include: { mvp: true, goals: { include: { scorer: true } } },
     });
   const liveQuery = () =>
     prisma.match.findFirst({
-      where: { status: "LIVE" },
+      where: { status: "LIVE", deletedAt: null },
       orderBy: { playedAt: "desc" },
     });
 

@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HistoryPage() {
   const matches = await prisma.match.findMany({
+    where: { deletedAt: null },
     orderBy: { playedAt: "desc" },
     include: { mvp: true },
     take: 100,

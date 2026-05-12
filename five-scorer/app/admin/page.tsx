@@ -43,6 +43,12 @@ export default async function AdminPage({
               )}
               <AdminLogoutBtn className={next ? "btn ghost big flex-1" : "btn ghost big w-full"} />
             </div>
+            <Link
+              href="/admin/trash"
+              className="btn ghost big w-full block"
+            >
+              🗑 Corbeille
+            </Link>
           </div>
         ) : (
           <AdminPinForm next={next} />

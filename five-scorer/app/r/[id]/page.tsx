@@ -11,9 +11,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   const match = await prisma.match.findUnique({
     where: { id },
-    select: { teamAName: true, teamBName: true, scoreA: true, scoreB: true, playedAt: true },
+    select: { teamAName: true, teamBName: true, scoreA: true, scoreB: true, playedAt: true, deletedAt: true },
   });
-  if (!match) return { title: "Match · Five Scorer" };
+  if (!match || match.deletedAt) return { title: "Match · Five Scorer" };
   const title = `${match.teamAName} ${match.scoreA} — ${match.scoreB} ${match.teamBName}`;
   const date = new Date(match.playedAt).toLocaleDateString("fr-FR", {
     day: "2-digit",
@@ -43,7 +43,8 @@ export default async function PublicRecap({ params }: Params) {
       },
     },
   });
-  if (!match) notFound();
+  // Soft-deleted matches are invisible to the public share endpoint.
+  if (!match || match.deletedAt) notFound();
 
   return (
     <main className="recap-wrap mx-auto max-w-xl p-4">

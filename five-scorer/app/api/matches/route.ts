@@ -4,6 +4,7 @@ import { isUnlocked } from "@/lib/auth";
 
 export async function GET() {
   const matches = await prisma.match.findMany({
+    where: { deletedAt: null },
     orderBy: { playedAt: "desc" },
     include: {
       mvp: true,

@@ -6,6 +6,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
+  const admin = await isAdmin();
   const match = await prisma.match.findUnique({
     where: { id },
     include: {
@@ -17,7 +18,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       },
     },
   });
-  if (!match) {
+  if (!match || (match.deletedAt && !admin)) {
     return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
   }
   return NextResponse.json({ match });
@@ -31,6 +32,8 @@ type PatchBody = {
   // Optional bulk-override scores (will also trigger a recompute when goals edited separately)
   scoreA?: number;
   scoreB?: number;
+  /** Admin-only: pass true to restore a soft-deleted match. */
+  restore?: boolean;
 };
 
 export async function PATCH(req: Request, { params }: Ctx) {
@@ -73,6 +76,21 @@ export async function PATCH(req: Request, { params }: Ctx) {
     }
   }
 
+  // Restore is admin-only and exclusive with other updates
+  if (body.restore) {
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: "Admin requis pour restaurer un match" },
+        { status: 403 }
+      );
+    }
+    const match = await prisma.match.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
+    return NextResponse.json({ match });
+  }
+
   const match = await prisma.match.update({
     where: { id },
     data: {
@@ -87,7 +105,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   return NextResponse.json({ match });
 }
 
-export async function DELETE(_req: Request, { params }: Ctx) {
+export async function DELETE(req: Request, { params }: Ctx) {
   // Deletion always requires admin — never exposed to the scorer role.
   if (!(await isAdmin())) {
     return NextResponse.json(
@@ -96,6 +114,20 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     );
   }
   const { id } = await params;
-  await prisma.match.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  const url = new URL(req.url);
+  const purge = url.searchParams.get("purge") === "1";
+
+  if (purge) {
+    // Hard delete from /admin/trash. Cascades to Goal + MatchPlayer via the
+    // schema's onDelete: Cascade.
+    await prisma.match.delete({ where: { id } });
+    return NextResponse.json({ ok: true, purged: true });
+  }
+
+  // Default: soft-delete. Goes to /admin/trash, restorable.
+  await prisma.match.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+  return NextResponse.json({ ok: true, softDeleted: true });
 }

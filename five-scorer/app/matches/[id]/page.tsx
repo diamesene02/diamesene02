@@ -23,9 +23,10 @@ export default async function MatchRecapPage({
       },
     },
   });
-  if (!match) notFound();
-
   const admin = await isAdmin();
+  // Soft-deleted matches are hidden from everyone except admins (who can
+  // see them and restore from /admin/trash).
+  if (!match || (match.deletedAt && !admin)) notFound();
 
   return (
     <main className="recap-wrap mx-auto max-w-xl p-4">

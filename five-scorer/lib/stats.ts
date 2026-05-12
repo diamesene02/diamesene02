@@ -9,13 +9,16 @@ export type ScorerRow = {
 };
 
 export async function getTopScorers(limit = 50): Promise<ScorerRow[]> {
+  // Soft-deleted matches contribute neither goals nor caps to the leaderboard.
   const [goalGroups, mpGroups] = await Promise.all([
     prisma.goal.groupBy({
       by: ["scorerId"],
+      where: { match: { deletedAt: null } },
       _count: { _all: true },
     }),
     prisma.matchPlayer.groupBy({
       by: ["playerId"],
+      where: { match: { deletedAt: null } },
       _count: { _all: true },
     }),
   ]);
@@ -74,12 +77,14 @@ export async function getPlayerStats(
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return null;
 
+  // Filter deletedAt: null everywhere so trashed matches don't pollute the
+  // player's personal stats.
   const [matchesPlayed, goals, mvpCount, appearances] = await Promise.all([
-    prisma.matchPlayer.count({ where: { playerId } }),
-    prisma.goal.count({ where: { scorerId: playerId } }),
-    prisma.match.count({ where: { mvpId: playerId, status: "FINISHED" } }),
+    prisma.matchPlayer.count({ where: { playerId, match: { deletedAt: null } } }),
+    prisma.goal.count({ where: { scorerId: playerId, match: { deletedAt: null } } }),
+    prisma.match.count({ where: { mvpId: playerId, status: "FINISHED", deletedAt: null } }),
     prisma.matchPlayer.findMany({
-      where: { playerId },
+      where: { playerId, match: { deletedAt: null } },
       include: {
         match: {
           select: { id: true, playedAt: true, scoreA: true, scoreB: true, status: true },

@@ -46,7 +46,7 @@ export async function getSeasons(): Promise<SeasonSummary[]> {
   // Pull everything in a single round-trip. Five is hobby-scale so the
   // dataset is tiny (a few hundred matches max).
   const matches = await prisma.match.findMany({
-    where: { status: "FINISHED" },
+    where: { status: "FINISHED", deletedAt: null },
     include: {
       mvp: { select: { id: true, name: true } },
       players: { include: { player: { select: { id: true, name: true } } } },

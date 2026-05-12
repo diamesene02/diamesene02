@@ -42,6 +42,9 @@ model Match {
   status     MatchStatus @default(LIVE)
   mvpId      String?
   mvp        Player?     @relation("MatchMvp", fields: [mvpId], references: [id])
+  /// Soft-delete timestamp. NULL = active. NOT NULL = in admin trash,
+  /// hidden from every public-facing query; restorable from /admin/trash.
+  deletedAt  DateTime?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
@@ -50,6 +53,7 @@ model Match {
 
   @@index([playedAt])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model MatchPlayer {
