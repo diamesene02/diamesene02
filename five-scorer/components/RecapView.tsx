@@ -177,10 +177,7 @@ export default function RecapView({
                   </span>{" "}
                   {p.name}
                 </span>
-                <strong className="goal-dots">
-                  {"•".repeat(Math.min(goalCount[p.id], 5))}
-                  {goalCount[p.id] > 5 ? ` +${goalCount[p.id] - 5}` : ""}
-                </strong>
+                <strong className="goal-count">{goalCount[p.id]}</strong>
               </div>
             ))}
           </div>

@@ -802,10 +802,15 @@ button {
 .event-list .ev:last-child { border-bottom: 0; }
 
 .podium-medal { display: inline-block; margin-right: 4px; }
-.goal-dots {
+.goal-count {
   font-family: var(--font-mono);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
   color: var(--gold);
-  letter-spacing: 0.2em;
+  font-size: 16px;
+  min-width: 24px;
+  text-align: right;
+  display: inline-block;
 }
 .muted { color: var(--ink-1); font-size: 13px; }
 .pad { padding: 12px; }
