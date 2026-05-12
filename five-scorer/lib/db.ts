@@ -37,7 +37,6 @@ export type LocalGoal = {
   id: string;
   matchId: string;
   scorerId: string;
-  assistId?: string | null;
   team: "A" | "B";
   minute: number | null;
   createdAt: string; // ISO
@@ -68,7 +67,6 @@ export type OutboxOp =
       payload: {
         id: string;
         scorerId: string;
-        assistId?: string | null;
         team?: "A" | "B";
         minute: number | null;
         createdAt: string;
@@ -78,11 +76,6 @@ export type OutboxOp =
       kind: "removeGoal";
       matchId: string;
       payload: { goalId: string };
-    }
-  | {
-      kind: "updateGoalAssist";
-      matchId: string;
-      payload: { goalId: string; assistId: string | null };
     }
   | {
       kind: "finishMatch";

@@ -17,15 +17,9 @@ type Ctx = { params: Promise<{ id: string }> };
 type PostBody = {
   id?: string;
   scorerId: string;
-  assistId?: string | null;
   team?: "A" | "B";
   minute?: number;
   createdAt?: string;
-};
-
-type PatchBody = {
-  goalId: string;
-  assistId: string | null;
 };
 
 async function recomputeScore(matchId: string) {
@@ -99,42 +93,14 @@ export async function POST(req: Request, { params }: Ctx) {
       ...(body?.id ? { id: body.id } : {}),
       matchId: id,
       scorerId,
-      assistId: body?.assistId ?? null,
       team: participation.team as Team,
       minute: body?.minute ?? null,
       ...(body?.createdAt ? { createdAt: new Date(body.createdAt) } : {}),
     },
-    include: { scorer: true, assist: true },
+    include: { scorer: true },
   });
   const scores = await recomputeScore(id);
   return NextResponse.json({ goal, ...scores }, { status: 201 });
-}
-
-export async function PATCH(req: Request, { params }: Ctx) {
-  if (!(await isUnlocked())) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const { id } = await params;
-  if (await requiresAdmin(id)) {
-    if (!(await isAdmin())) {
-      return NextResponse.json(
-        { error: "Admin requis pour éditer un but d'un match terminé" },
-        { status: 403 }
-      );
-    }
-  }
-  const body = (await req.json().catch(() => null)) as PatchBody | null;
-  if (!body?.goalId) {
-    return NextResponse.json({ error: "goalId requis" }, { status: 400 });
-  }
-
-  await prisma.goal
-    .update({
-      where: { id: body.goalId, matchId: id },
-      data: { assistId: body.assistId ?? null },
-    })
-    .catch(() => null); // idempotent
-  return NextResponse.json({ goalId: body.goalId, assistId: body.assistId });
 }
 
 // DELETE:

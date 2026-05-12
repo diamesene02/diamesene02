@@ -106,7 +106,7 @@ export async function createMatch(input: CreateMatchInput): Promise<string> {
 export async function scoreGoal(
   matchId: string,
   scorerId: string,
-  opts: { minute?: number | null; assistId?: string | null } = {}
+  opts: { minute?: number | null } = {}
 ): Promise<string> {
   const db = getDb();
   const goalId = newId();
@@ -125,7 +125,6 @@ export async function scoreGoal(
       if (!match) throw new Error("Match introuvable");
       if (match.status === "FINISHED") throw new Error("Match terminé");
 
-      // Compute minute from match start
       const started = new Date(match.playedAt).getTime();
       const minute = opts.minute ?? Math.max(0, Math.floor((Date.now() - started) / 60000));
 
@@ -133,7 +132,6 @@ export async function scoreGoal(
         id: goalId,
         matchId,
         scorerId,
-        assistId: opts.assistId ?? null,
         team: mp.team,
         minute,
         createdAt,
@@ -150,7 +148,6 @@ export async function scoreGoal(
         payload: {
           id: goalId,
           scorerId,
-          assistId: opts.assistId ?? null,
           team: mp.team,
           minute,
           createdAt,
@@ -160,18 +157,6 @@ export async function scoreGoal(
   );
 
   return goalId;
-}
-
-export async function setAssist(goalId: string, assistId: string | null): Promise<void> {
-  const db = getDb();
-  const goal = await db.goals.get(goalId);
-  if (!goal) return;
-  await db.goals.update(goalId, { assistId });
-  await enqueue({
-    kind: "updateGoalAssist",
-    matchId: goal.matchId,
-    payload: { goalId, assistId },
-  });
 }
 
 // Remove the most recent goal of that scorer (undo button). Returns the
@@ -243,15 +228,11 @@ export async function getLocalMatch(matchId: string) {
   if (!match) return null;
 
   const goalCount: Record<string, number> = {};
-  const assistCount: Record<string, number> = {};
   for (const g of goals) {
     goalCount[g.scorerId] = (goalCount[g.scorerId] ?? 0) + 1;
-    if (g.assistId) assistCount[g.assistId] = (assistCount[g.assistId] ?? 0) + 1;
   }
 
-  // Union of match players + any assist IDs (usually a subset already)
-  const assistIds = Array.from(new Set(goals.map((g) => g.assistId).filter(Boolean) as string[]));
-  const allIds = Array.from(new Set([...mps.map((mp) => mp.playerId), ...assistIds]));
+  const allIds = Array.from(new Set(mps.map((mp) => mp.playerId)));
   const roster = await db.roster.bulkGet(allIds);
   const rosterById = new Map<string, { id: string; name: string }>();
   roster.forEach((p) => {
@@ -264,7 +245,6 @@ export async function getLocalMatch(matchId: string) {
       id: mp.playerId,
       name: rosterById.get(mp.playerId)?.name ?? "?",
       goals: goalCount[mp.playerId] ?? 0,
-      assists: assistCount[mp.playerId] ?? 0,
     }));
   const teamB = mps
     .filter((mp) => mp.team === "B")
@@ -272,13 +252,11 @@ export async function getLocalMatch(matchId: string) {
       id: mp.playerId,
       name: rosterById.get(mp.playerId)?.name ?? "?",
       goals: goalCount[mp.playerId] ?? 0,
-      assists: assistCount[mp.playerId] ?? 0,
     }));
 
   const enrichedGoals = goals.map((g) => ({
     ...g,
     scorerName: rosterById.get(g.scorerId)?.name ?? "?",
-    assistName: g.assistId ? rosterById.get(g.assistId)?.name ?? null : null,
   }));
 
   return { match: match satisfies LocalMatch, teamA, teamB, goals: enrichedGoals };

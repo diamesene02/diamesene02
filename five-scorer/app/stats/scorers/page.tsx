@@ -26,7 +26,7 @@ export default async function LeaderboardPage() {
             Classement<span className="text-[color:var(--lime)]">.</span>
           </h1>
           <p className="mt-2 text-sm text-[color:var(--ink-1)]">
-            Buts + passes décisives, tous matchs confondus.
+            Buts marqués, tous matchs confondus.
           </p>
         </header>
 
@@ -55,10 +55,10 @@ export default async function LeaderboardPage() {
                       className="num-sculpt mt-1 text-3xl"
                       data-win={i === 0 ? "true" : "false"}
                     >
-                      {s.ga}
+                      {s.goals}
                     </div>
                     <div className="text-[9px] uppercase tracking-widest text-[color:var(--ink-2)]">
-                      G+A
+                      Buts
                     </div>
                   </Link>
                 );
@@ -67,20 +67,18 @@ export default async function LeaderboardPage() {
 
             {/* Full list */}
             <div className="overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]/60 backdrop-blur">
-              <div className="grid grid-cols-[32px_1fr_40px_40px_40px_48px] items-center gap-2 border-b border-[color:var(--stroke)] bg-[color:var(--bg-2)]/50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
+              <div className="grid grid-cols-[32px_1fr_48px_56px] items-center gap-2 border-b border-[color:var(--stroke)] bg-[color:var(--bg-2)]/50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
                 <span />
                 <span>Joueur</span>
                 <span className="text-right">MP</span>
-                <span className="text-right">⚽</span>
-                <span className="text-right">🅿</span>
-                <span className="text-right text-[color:var(--lime)]">G+A</span>
+                <span className="text-right text-[color:var(--lime)]">Buts</span>
               </div>
               <ol>
                 {rows.map((s, i) => (
                   <li key={s.playerId}>
                     <Link
                       href={`/stats/players/${s.playerId}`}
-                      className="grid grid-cols-[32px_1fr_40px_40px_40px_48px] items-center gap-2 border-b border-[color:var(--stroke)] px-3 py-3 text-sm transition-colors last:border-b-0 hover:bg-white/[0.03]"
+                      className="grid grid-cols-[32px_1fr_48px_56px] items-center gap-2 border-b border-[color:var(--stroke)] px-3 py-3 text-sm transition-colors last:border-b-0 hover:bg-white/[0.03]"
                     >
                       <span className="text-right font-mono text-xs text-[color:var(--ink-2)]">
                         {i < 3 ? ["🥇", "🥈", "🥉"][i] : `#${i + 1}`}
@@ -96,12 +94,8 @@ export default async function LeaderboardPage() {
                       <span className="text-right font-mono text-xs text-[color:var(--ink-1)]">
                         {s.matchesPlayed}
                       </span>
-                      <span className="text-right font-mono font-bold">{s.goals}</span>
-                      <span className="text-right font-mono text-[color:var(--ink-1)]">
-                        {s.assists}
-                      </span>
                       <span className="text-right font-mono font-black text-[color:var(--lime)]">
-                        {s.ga}
+                        {s.goals}
                       </span>
                     </Link>
                   </li>

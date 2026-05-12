@@ -19,8 +19,6 @@ type Goal = {
   id: string;
   scorerId: string;
   scorerName: string;
-  assistId: string | null;
-  assistName: string | null;
   team: "A" | "B";
   minute: number | null;
 };
@@ -96,7 +94,7 @@ export default function EditMatchForm({
     }
   }
 
-  async function addGoal(scorerId: string, assistId: string | null, minute: number | null) {
+  async function addGoal(scorerId: string, minute: number | null) {
     setBusy(true);
     setError(null);
     try {
@@ -105,7 +103,6 @@ export default function EditMatchForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           scorerId,
-          assistId,
           minute,
           createdAt: new Date().toISOString(),
         }),
@@ -116,15 +113,12 @@ export default function EditMatchForm({
       }
       const j = await res.json();
       const scorer = players.find((p) => p.id === scorerId)!;
-      const assister = assistId ? players.find((p) => p.id === assistId) : null;
       setGoals((gs) => [
         ...gs,
         {
           id: j.goal.id,
           scorerId,
           scorerName: scorer.name,
-          assistId: assistId,
-          assistName: assister?.name ?? null,
           team: scorer.team,
           minute,
         },
@@ -136,29 +130,6 @@ export default function EditMatchForm({
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function updateAssist(goalId: string, assistId: string | null) {
-    try {
-      await fetch(`/api/matches/${initial.id}/goals`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ goalId, assistId }),
-      });
-      setGoals((gs) =>
-        gs.map((g) =>
-          g.id === goalId
-            ? {
-                ...g,
-                assistId,
-                assistName: assistId ? players.find((p) => p.id === assistId)?.name ?? null : null,
-              }
-            : g
-        )
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
     }
   }
 
@@ -196,13 +167,10 @@ export default function EditMatchForm({
   const teamA = players.filter((p) => p.team === "A");
   const teamB = players.filter((p) => p.team === "B");
 
-  // Compute suggested MVP from current goal/assist state
   const suggestedMvp = useMemo(() => {
     const goalCount: Record<string, number> = {};
-    const assistCount: Record<string, number> = {};
     goals.forEach((g) => {
       goalCount[g.scorerId] = (goalCount[g.scorerId] ?? 0) + 1;
-      if (g.assistId) assistCount[g.assistId] = (assistCount[g.assistId] ?? 0) + 1;
     });
     return computeMvp({
       match: { scoreA, scoreB },
@@ -211,7 +179,6 @@ export default function EditMatchForm({
         name: p.name,
         team: p.team,
         goals: goalCount[p.id] ?? 0,
-        assists: assistCount[p.id] ?? 0,
       })),
     });
   }, [players, goals, scoreA, scoreB]);
@@ -296,7 +263,7 @@ export default function EditMatchForm({
               type="button"
               onClick={() => setMvpId(suggestedMvp.id)}
               className="rounded-full bg-[color:var(--lime)] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0a1400] shadow-[0_0_12px_var(--lime-glow)] hover:brightness-110"
-              title={`Score: ${suggestedMvp.score} (${suggestedMvp.goals}B · ${suggestedMvp.assists}P)`}
+              title={`Score: ${suggestedMvp.score} (${suggestedMvp.goals}B)`}
             >
               🎯 MVP auto → {suggestedMvp.name}
             </button>
@@ -327,7 +294,6 @@ export default function EditMatchForm({
             teamLabel={teamAName}
             teamClass="A"
             players={teamA}
-            teammates={teamA}
             onAdd={addGoal}
             busy={busy}
           />
@@ -335,7 +301,6 @@ export default function EditMatchForm({
             teamLabel={teamBName}
             teamClass="B"
             players={teamB}
-            teammates={teamB}
             onAdd={addGoal}
             busy={busy}
           />
@@ -351,43 +316,28 @@ export default function EditMatchForm({
           <p className="text-sm text-[color:var(--ink-2)]">Aucun but enregistré. Utilise le bloc ci-dessus pour en ajouter.</p>
         ) : (
           <ul className="space-y-2">
-            {goals.map((g) => {
-              const teammates = players.filter((p) => p.team === g.team && p.id !== g.scorerId);
-              return (
-                <li
-                  key={g.id}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
-                    g.team === "A"
-                      ? "border-[color:var(--a-500)]/30 bg-[color:var(--a-500)]/5"
-                      : "border-[color:var(--b-500)]/30 bg-[color:var(--b-500)]/5"
-                  }`}
+            {goals.map((g) => (
+              <li
+                key={g.id}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                  g.team === "A"
+                    ? "border-[color:var(--a-500)]/30 bg-[color:var(--a-500)]/5"
+                    : "border-[color:var(--b-500)]/30 bg-[color:var(--b-500)]/5"
+                }`}
+              >
+                <span className="font-mono text-xs text-[color:var(--ink-1)] min-w-[32px]">
+                  {g.minute != null ? `${g.minute}'` : "—"}
+                </span>
+                <span className="flex-1 text-sm font-bold">{g.scorerName}</span>
+                <button
+                  onClick={() => deleteGoal(g.id)}
+                  disabled={busy}
+                  className="rounded bg-red-900/40 px-2 py-1 text-xs font-bold text-red-300 hover:bg-red-900/60 disabled:opacity-50"
                 >
-                  <span className="font-mono text-xs text-[color:var(--ink-1)] min-w-[32px]">
-                    {g.minute != null ? `${g.minute}'` : "—"}
-                  </span>
-                  <span className="flex-1 text-sm font-bold">{g.scorerName}</span>
-                  <select
-                    value={g.assistId ?? ""}
-                    onChange={(e) => updateAssist(g.id, e.target.value || null)}
-                    className="rounded border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2 py-1 text-xs"
-                  >
-                    <option value="">Pas de passe</option>
-                    {teammates.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        p. {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => deleteGoal(g.id)}
-                    disabled={busy}
-                    className="rounded bg-red-900/40 px-2 py-1 text-xs font-bold text-red-300 hover:bg-red-900/60 disabled:opacity-50"
-                  >
-                    ✕
-                  </button>
-                </li>
-              );
-            })}
+                  ✕
+                </button>
+              </li>
+            ))}
           </ul>
         )}
       </section>
@@ -432,19 +382,16 @@ function AddGoalColumn({
   teamLabel,
   teamClass,
   players,
-  teammates,
   onAdd,
   busy,
 }: {
   teamLabel: string;
   teamClass: "A" | "B";
   players: Player[];
-  teammates: Player[];
-  onAdd: (scorerId: string, assistId: string | null, minute: number | null) => void;
+  onAdd: (scorerId: string, minute: number | null) => void;
   busy: boolean;
 }) {
   const [scorerId, setScorerId] = useState<string>("");
-  const [assistId, setAssistId] = useState<string>("");
   const [minute, setMinute] = useState<string>("");
 
   const accent = teamClass === "A" ? "var(--a-400)" : "var(--b-400)";
@@ -456,9 +403,8 @@ function AddGoalColumn({
   function submit() {
     if (!scorerId) return;
     const m = minute.trim() === "" ? null : parseInt(minute);
-    onAdd(scorerId, assistId || null, Number.isNaN(m as number) ? null : m);
+    onAdd(scorerId, Number.isNaN(m as number) ? null : m);
     setScorerId("");
-    setAssistId("");
     setMinute("");
   }
 
@@ -481,20 +427,6 @@ function AddGoalColumn({
             {p.name}
           </option>
         ))}
-      </select>
-      <select
-        value={assistId}
-        onChange={(e) => setAssistId(e.target.value)}
-        className="w-full rounded border border-[color:var(--stroke)] bg-[color:var(--bg-1)] px-2 py-1.5 text-xs"
-      >
-        <option value="">Pas de passe</option>
-        {teammates
-          .filter((p) => p.id !== scorerId)
-          .map((p) => (
-            <option key={p.id} value={p.id}>
-              p. {p.name}
-            </option>
-          ))}
       </select>
       <div className="flex gap-1">
         <input

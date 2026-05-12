@@ -23,7 +23,7 @@ export default async function EditMatchPage({
       mvp: true,
       players: { include: { player: true } },
       goals: {
-        include: { scorer: true, assist: true },
+        include: { scorer: true },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -65,8 +65,6 @@ export default async function EditMatchPage({
           id: g.id,
           scorerId: g.scorerId,
           scorerName: g.scorer.name,
-          assistId: g.assistId,
-          assistName: g.assist?.name ?? null,
           team: g.team,
           minute: g.minute,
         }))}

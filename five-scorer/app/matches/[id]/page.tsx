@@ -18,7 +18,7 @@ export default async function MatchRecapPage({
       mvp: true,
       players: { include: { player: true } },
       goals: {
-        include: { scorer: true, assist: true },
+        include: { scorer: true },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -67,7 +67,6 @@ export default async function MatchRecapPage({
             id: mp.playerId,
             name: mp.player.name,
             goals: match.goals.filter((g) => g.scorerId === mp.playerId).length,
-            assists: match.goals.filter((g) => g.assistId === mp.playerId).length,
             team: "A" as const,
           }))}
         teamB={match.players
@@ -76,18 +75,15 @@ export default async function MatchRecapPage({
             id: mp.playerId,
             name: mp.player.name,
             goals: match.goals.filter((g) => g.scorerId === mp.playerId).length,
-            assists: match.goals.filter((g) => g.assistId === mp.playerId).length,
             team: "B" as const,
           }))}
         goals={match.goals.map((g) => ({
           id: g.id,
           scorerId: g.scorerId,
-          assistId: g.assistId,
           team: g.team,
           minute: g.minute,
           createdAt: g.createdAt.toISOString(),
           scorerName: g.scorer.name,
-          assistName: g.assist?.name ?? null,
         }))}
         showLiveResumeLink={match.status === "LIVE"}
       />

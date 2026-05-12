@@ -6,11 +6,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import PlayerTile from "@/components/PlayerTile";
 import MvpPicker from "@/components/MvpPicker";
 import SyncBadge from "@/components/SyncBadge";
-import AssistPicker from "@/components/AssistPicker";
 import {
   getLocalMatch,
   scoreGoal,
-  setAssist,
   undoLastGoalOf,
   finishMatch,
 } from "@/lib/localMatch";
@@ -59,12 +57,6 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
-  const [assistPicker, setAssistPicker] = useState<{
-    goalId: string;
-    scorerId: string;
-    scorerName: string;
-    scorerTeam: "A" | "B";
-  } | null>(null);
 
   useEffect(() => {
     setSoundOn(isSoundEnabled());
@@ -97,11 +89,10 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
   }, [data]);
 
   const addGoal = useCallback(
-    async (playerId: string, playerName: string, team: "A" | "B") => {
+    async (playerId: string) => {
       try {
-        const goalId = await scoreGoal(matchId, playerId);
+        await scoreGoal(matchId, playerId);
         void kickSync();
-        setAssistPicker({ goalId, scorerId: playerId, scorerName: playerName, scorerTeam: team });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur");
       }
@@ -121,17 +112,6 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
     },
     [matchId]
   );
-
-  async function onPickAssist(assistId: string) {
-    if (!assistPicker) return;
-    try {
-      await setAssist(assistPicker.goalId, assistId);
-      void kickSync();
-    } catch {
-      /* non-blocking */
-    }
-    setAssistPicker(null);
-  }
 
   async function onFinish(mvpId: string | null) {
     setFinishing(true);
@@ -177,9 +157,6 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
 
   const aLead = match.scoreA > match.scoreB;
   const bLead = match.scoreB > match.scoreA;
-  const scorerTeammates = assistPicker
-    ? (assistPicker.scorerTeam === "A" ? teamA : teamB).filter((p) => p.id !== assistPicker.scorerId)
-    : [];
 
   return (
     <main className="flex min-h-screen flex-col">
@@ -254,7 +231,7 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
               name={p.name}
               goals={p.goals}
               tint="pitch"
-              onGoal={() => addGoal(p.id, p.name, "A")}
+              onGoal={() => addGoal(p.id)}
               onUndo={() => removeGoal(p.id)}
             />
           ))}
@@ -269,22 +246,12 @@ export default function LiveMatch({ matchId }: { matchId: string }) {
               name={p.name}
               goals={p.goals}
               tint="blue"
-              onGoal={() => addGoal(p.id, p.name, "B")}
+              onGoal={() => addGoal(p.id)}
               onUndo={() => removeGoal(p.id)}
             />
           ))}
         </section>
       </div>
-
-      {assistPicker && scorerTeammates.length > 0 && (
-        <AssistPicker
-          scorerName={assistPicker.scorerName}
-          scorerTeam={assistPicker.scorerTeam}
-          teammates={scorerTeammates}
-          onPick={onPickAssist}
-          onSkip={() => setAssistPicker(null)}
-        />
-      )}
 
       {confirmOpen && (
         <div

@@ -13,7 +13,7 @@ export default async function PlayerStatsPage({
   const stats = await getPlayerStats(id);
   if (!stats) notFound();
 
-  const { player, matchesPlayed, goals, assists, wins, draws, losses, mvpCount, recentMatches } =
+  const { player, matchesPlayed, goals, wins, draws, losses, mvpCount, recentMatches } =
     stats;
   const finished = wins + draws + losses;
   const winRate = finished === 0 ? 0 : Math.round((wins / finished) * 100);
@@ -50,8 +50,7 @@ export default async function PlayerStatsPage({
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat label="Buts" value={goals} big highlight />
-        <Stat label="Passes déc." value={assists} big />
-        <Stat label="G+A / match" value={avgGoals} big />
+        <Stat label="Buts / match" value={avgGoals} big />
         <Stat label="Victoires" value={wins} tone="win" />
         <Stat label="Nuls" value={draws} />
         <Stat label="Défaites" value={losses} tone="lose" />

@@ -1,7 +1,7 @@
 // Canvas renderer for match recap shareable image (1080x1080).
 
-type Player = { id: string; name: string; goals: number; team: "A" | "B"; assists?: number };
-type Goal = { id: string; scorerId: string; assistId?: string | null; team: "A" | "B"; minute: number | null; createdAt: string };
+type Player = { id: string; name: string; goals: number; team: "A" | "B" };
+type Goal = { id: string; scorerId: string; team: "A" | "B"; minute: number | null; createdAt: string };
 type Match = {
   playedAt: string;
   teamAName: string;
@@ -120,12 +120,9 @@ export async function renderShareCard({
     ctx.fillText(mvpText, 540, 534);
   }
 
-  // Scorers
   const goalCount: Record<string, number> = {};
-  const assistCount: Record<string, number> = {};
   goals.forEach((g) => {
     goalCount[g.scorerId] = (goalCount[g.scorerId] ?? 0) + 1;
-    if (g.assistId) assistCount[g.assistId] = (assistCount[g.assistId] ?? 0) + 1;
   });
   const allPlayers = [...teamA, ...teamB];
   const scorers = allPlayers
@@ -155,28 +152,6 @@ export async function renderShareCard({
     const teamName = p.team === "A" ? match.teamAName : match.teamBName;
     ctx.fillText(teamName, 760, y);
   });
-
-  // Passes
-  const assisters = allPlayers
-    .filter((p) => assistCount[p.id])
-    .sort((a, b) => assistCount[b.id] - assistCount[a.id])
-    .slice(0, 3);
-  if (assisters.length) {
-    const aY = startY + 50 + 5 * 60 + 30;
-    ctx.fillStyle = TOK.ink1;
-    ctx.font = '700 22px "Space Grotesk", system-ui, sans-serif';
-    ctx.fillText("PASSES", 140, aY);
-    assisters.forEach((p, i) => {
-      const y = aY + 40 + i * 36;
-      ctx.font = '600 24px "Space Grotesk", system-ui, sans-serif';
-      ctx.fillStyle = TOK.ink0;
-      ctx.fillText(p.name, 140, y);
-      ctx.textAlign = "right";
-      ctx.fillStyle = TOK.ink1;
-      ctx.fillText(`${assistCount[p.id]} passe${assistCount[p.id] > 1 ? "s" : ""}`, 940, y);
-      ctx.textAlign = "left";
-    });
-  }
 
   // Watermark
   ctx.fillStyle = TOK.ink2;

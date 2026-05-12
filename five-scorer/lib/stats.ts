@@ -5,20 +5,13 @@ export type ScorerRow = {
   name: string;
   isGuest: boolean;
   goals: number;
-  assists: number;
   matchesPlayed: number;
-  ga: number; // goals + assists
 };
 
 export async function getTopScorers(limit = 50): Promise<ScorerRow[]> {
-  const [goalGroups, assistGroups, mpGroups] = await Promise.all([
+  const [goalGroups, mpGroups] = await Promise.all([
     prisma.goal.groupBy({
       by: ["scorerId"],
-      _count: { _all: true },
-    }),
-    prisma.goal.groupBy({
-      by: ["assistId"],
-      where: { assistId: { not: null } },
       _count: { _all: true },
     }),
     prisma.matchPlayer.groupBy({
@@ -27,20 +20,14 @@ export async function getTopScorers(limit = 50): Promise<ScorerRow[]> {
     }),
   ]);
 
-  const stats = new Map<string, { goals: number; assists: number; mp: number }>();
+  const stats = new Map<string, { goals: number; mp: number }>();
   goalGroups.forEach((g) => {
-    const s = stats.get(g.scorerId) || { goals: 0, assists: 0, mp: 0 };
+    const s = stats.get(g.scorerId) || { goals: 0, mp: 0 };
     s.goals = g._count._all;
     stats.set(g.scorerId, s);
   });
-  assistGroups.forEach((a) => {
-    if (!a.assistId) return;
-    const s = stats.get(a.assistId) || { goals: 0, assists: 0, mp: 0 };
-    s.assists = a._count._all;
-    stats.set(a.assistId, s);
-  });
   mpGroups.forEach((m) => {
-    const s = stats.get(m.playerId) || { goals: 0, assists: 0, mp: 0 };
+    const s = stats.get(m.playerId) || { goals: 0, mp: 0 };
     s.mp = m._count._all;
     stats.set(m.playerId, s);
   });
@@ -60,13 +47,11 @@ export async function getTopScorers(limit = 50): Promise<ScorerRow[]> {
         name: p.name,
         isGuest: p.isGuest,
         goals: s.goals,
-        assists: s.assists,
         matchesPlayed: s.mp,
-        ga: s.goals + s.assists,
       } satisfies ScorerRow;
     })
     .filter((x): x is ScorerRow => x !== null)
-    .sort((a, b) => b.ga - a.ga || b.goals - a.goals || a.name.localeCompare(b.name))
+    .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name))
     .slice(0, limit);
 }
 
@@ -74,7 +59,6 @@ export type PlayerStats = {
   player: { id: string; name: string; isGuest: boolean };
   matchesPlayed: number;
   goals: number;
-  assists: number;
   wins: number;
   draws: number;
   losses: number;
@@ -88,10 +72,9 @@ export async function getPlayerStats(
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return null;
 
-  const [matchesPlayed, goals, assists, mvpCount, appearances] = await Promise.all([
+  const [matchesPlayed, goals, mvpCount, appearances] = await Promise.all([
     prisma.matchPlayer.count({ where: { playerId } }),
     prisma.goal.count({ where: { scorerId: playerId } }),
-    prisma.goal.count({ where: { assistId: playerId } }),
     prisma.match.count({ where: { mvpId: playerId, status: "FINISHED" } }),
     prisma.matchPlayer.findMany({
       where: { playerId },
@@ -135,7 +118,6 @@ export async function getPlayerStats(
     player: { id: player.id, name: player.name, isGuest: player.isGuest },
     matchesPlayed,
     goals,
-    assists,
     wins,
     draws,
     losses,

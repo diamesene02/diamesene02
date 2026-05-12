@@ -8,19 +8,16 @@ type Player = {
   id: string;
   name: string;
   goals: number;
-  assists: number;
   team: "A" | "B";
 };
 
 type Goal = {
   id: string;
   scorerId: string;
-  assistId: string | null;
   team: "A" | "B";
   minute: number | null;
   createdAt: string;
   scorerName: string;
-  assistName: string | null;
 };
 
 type Match = {
@@ -61,19 +58,14 @@ export default function RecapView({
   const winB = match.scoreB > match.scoreA;
 
   const goalCount: Record<string, number> = {};
-  const assistCount: Record<string, number> = {};
   goals.forEach((g) => {
     goalCount[g.scorerId] = (goalCount[g.scorerId] ?? 0) + 1;
-    if (g.assistId) assistCount[g.assistId] = (assistCount[g.assistId] ?? 0) + 1;
   });
 
   const all = [...teamA, ...teamB];
   const scorers = all
     .filter((p) => goalCount[p.id])
     .sort((a, b) => goalCount[b.id] - goalCount[a.id]);
-  const assisters = all
-    .filter((p) => assistCount[p.id])
-    .sort((a, b) => assistCount[b.id] - assistCount[a.id]);
 
   const publicUrl =
     publicShareUrl ||
@@ -164,9 +156,6 @@ export default function RecapView({
                 </span>
                 <span className="timeline-ball">⚽</span>
                 <span className="timeline-scorer">{g.scorerName}</span>
-                {g.assistName && (
-                  <span className="timeline-assist">(p. {g.assistName})</span>
-                )}
               </div>
             ))}
           </div>
@@ -192,20 +181,6 @@ export default function RecapView({
                   {"•".repeat(Math.min(goalCount[p.id], 5))}
                   {goalCount[p.id] > 5 ? ` +${goalCount[p.id] - 5}` : ""}
                 </strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {assisters.length > 0 && (
-        <div>
-          <div className="section-title">Passes décisives</div>
-          <div className="event-list">
-            {assisters.map((p) => (
-              <div key={p.id} className="ev">
-                <span>{p.name}</span>
-                <strong>{assistCount[p.id]}</strong>
               </div>
             ))}
           </div>
