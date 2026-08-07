@@ -27,7 +27,7 @@
 
 | Project | Description | Stack |
 |---------|-------------|-------|
-| [**Gunoor**](https://dsene.dev) | P2P car rental marketplace for Senegal | Next.js, Prisma, Wave, Stripe |
+| [**Gunoor**](https://apps.apple.com/app/id6760973626) ([Android](https://play.google.com/store/apps/details?id=sn.gunoor.app)) | P2P car rental marketplace, live in Senegal on both stores | Next.js 15, Prisma/Postgres, Expo, Naboopay (Wave & Orange Money), Stripe |
 | [**Samacours**](https://dsene.dev) | Education platform for Senegalese students | Flutter, Firebase |
 | [**ClubStats Pro**](https://dsene.dev) | E-sport club management with Discord integration | Next.js, Supabase |
 | [**AI Workflows**](https://diamesene.gumroad.com) | 3 n8n automation workflows (Prospection, Content, Cold Email) | n8n, Claude API |
