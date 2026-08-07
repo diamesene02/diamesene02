@@ -38,16 +38,6 @@
 - ✍️ **AI Content Factory** — 1 LinkedIn post → 5 content pieces
 - 📧 **AI Cold Email Outreach** — Personalized cold emails with web scraping + AI
 
-### 📊 GitHub Stats
-
-<div align="center">
-
-![GitHub stats](https://github-readme-stats.vercel.app/api?username=diamesene02&show_icons=true&theme=dark&hide_border=true&bg_color=0d1117&title_color=F59E0B&icon_color=F59E0B&text_color=c9d1d9)
-
-![Top Langs](https://github-readme-stats.vercel.app/api/top-langs/?username=diamesene02&layout=compact&theme=dark&hide_border=true&bg_color=0d1117&title_color=F59E0B&text_color=c9d1d9)
-
-</div>
-
 ---
 
 <div align="center">
