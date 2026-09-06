@@ -1,0 +1,13 @@
+# Bruit macOS
+.DS_Store
+
+# L'app Android est un dépôt à part
+# (github.com/diamesene02/five-scorer-android)
+five-scorer-android/
+
+# Artefacts de build incrémental TypeScript
+**/tsconfig.tsbuildinfo
+
+# Espaces de travail locaux de l'agent (launch.json reste versionné)
+**/.claude/worktrees/
+**/.claude/settings.local.json
