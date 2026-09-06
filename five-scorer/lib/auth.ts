@@ -12,9 +12,25 @@ const googleConfigured =
   Boolean(process.env.GOOGLE_CLIENT_ID) &&
   Boolean(process.env.GOOGLE_CLIENT_SECRET);
 
+/// L'URL sur laquelle l'app se croit servie — elle sert de base aux
+/// redirections après connexion et aux callbacks OAuth.
+///
+/// En production c'est l'URL canonique, réglée dans BETTER_AUTH_URL. Mais
+/// chaque déploiement de prévisualisation a la sienne : sans ce garde-fou,
+/// se connecter depuis une pull request renverrait l'utilisateur vers la
+/// production, et on testerait autre chose que ce qu'on croit tester.
+/// VERCEL_ENV et VERCEL_URL sont fournies par la plateforme (les variables
+/// système doivent être activées dans les réglages du projet).
+function resolveBaseUrl(): string | undefined {
+  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return process.env.BETTER_AUTH_URL;
+}
+
 export const auth = betterAuth({
   appName: "Five Scorer",
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: resolveBaseUrl(),
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   emailAndPassword: {
