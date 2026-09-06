@@ -72,6 +72,14 @@ export async function POST(req: Request, { params }: Ctx) {
     );
   }
 
+  // L'identifiant vient du client et part dans un `where` : sans ce contrôle,
+  // un objet passe pour un filtre Prisma. `{ "id": { "not": null } }` faisait
+  // correspondre n'importe quel événement du match, l'API répondait 200
+  // « deduped » — et le but qu'on venait de taper n'était jamais écrit.
+  if (body.id !== undefined && !estId(body.id)) {
+    return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
+  }
+
   // Idempotence : si l'ID client existe déjà, renvoyer l'état courant.
   if (body.id) {
     // findFirst scopé au match, et non findUnique par id : sinon un id
@@ -87,6 +95,9 @@ export async function POST(req: Request, { params }: Ctx) {
   }
 
   // Les joueurs référencés doivent appartenir au club.
+  if (!estIdOuVide(body.playerId) || !estIdOuVide(body.assistPlayerId)) {
+    return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
+  }
   const refs = [body.playerId, body.assistPlayerId].filter((x): x is string =>
     Boolean(x),
   );

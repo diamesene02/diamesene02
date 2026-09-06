@@ -194,7 +194,8 @@ export default async function ClubHomePage({
                         name: p.player.name,
                         nickname: p.player.nickname,
                         skill: p.player.skill,
-                        isGk: p.isGk,
+                        estGardien: p.player.isGk,
+                        gardienCeMatch: p.isGk,
                         isGuest: p.player.isGuest,
                         team: p.team as "A" | "B",
                       }))}

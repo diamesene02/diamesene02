@@ -16,11 +16,18 @@ type Props = {
   tint: "pitch" | "blue";
   /// Vient de changer de camp : un éclair de contour pour que l'œil suive.
   justMoved?: boolean;
+  /// « score » : la tuile compte les buts, et RIEN d'autre. « compo » : le
+  /// match est en pause de correction, la tuile ne sert plus qu'à faire
+  /// changer un joueur de camp. Les deux ne coexistent jamais.
+  ///
+  /// La séparation est délibérée. Marquer un but s'est fait pendant des mois
+  /// en appuyant sur la tuile du joueur ; brancher « changer d'équipe » sur
+  /// la même surface, c'était rendre le geste le plus fréquent du match
+  /// ambigu — un appui censé compter un but ouvrant une fenêtre à la place.
+  mode?: "score" | "compo";
   onGoal: () => void;
   onUndo: () => void;
-  /// Tap sur le nom → proposer de le faire passer dans l'autre équipe. Le
-  /// glissé a été écarté : les doigts mouillés perdent le contact capacitif,
-  /// et un balayage horizontal se bat avec le défilement vertical de la liste.
+  /// Appelé au tap en mode compo uniquement.
   onMove?: () => void;
 };
 
@@ -36,6 +43,7 @@ function PlayerTileImpl({
   goals,
   tint,
   justMoved,
+  mode = "score",
   onGoal,
   onUndo,
   onMove,
@@ -101,20 +109,32 @@ function PlayerTileImpl({
 
   const teamCls = tint === "pitch" ? "A" : "B";
 
+  // ── Mode correction de compo ───────────────────────────────────────────
+  // La tuile entière devient une seule cible, et rien n'y compte de but. La
+  // flèche pointe vers la colonne d'en face : la destination se lit avant le
+  // geste, pas après.
+  if (mode === "compo") {
+    return (
+      <button
+        type="button"
+        onClick={onMove}
+        className={cn("fs-tile fs-tile-compo", teamCls, justMoved && "arrive")}
+        aria-label={`${name} — envoyer dans l'autre équipe`}
+      >
+        <div className="fs-tile-accent" />
+        <div className="fs-tile-body">
+          <span className="fs-tile-name">{name}</span>
+          <span className="fs-tile-fleche">
+            <Icon name="chevron" size={16} />
+          </span>
+        </div>
+      </button>
+    );
+  }
+
   const body = (
     <div className="fs-tile-body">
-      {onMove ? (
-        <button
-          type="button"
-          onClick={onMove}
-          className="fs-tile-name fs-tile-name-btn"
-          aria-label={`${name} — changer d'équipe`}
-        >
-          {name}
-        </button>
-      ) : (
-        <div className="fs-tile-name">{name}</div>
-      )}
+      <div className="fs-tile-name">{name}</div>
       <div className="fs-tile-goals-wrap">
         {goals > 0 && <BallIcon />}
         <span className="fs-tile-goals">{goals > 0 ? goals : ""}</span>

@@ -778,26 +778,102 @@
     background: var(--loss);
   }
 
-  /* Le nom devient la poignée du changement de camp. Zone de frappe pleine
-     hauteur : c'est le seul endroit de la tuile qui n'ajoute pas de but, il
-     doit donc être atteignable sans viser. */
-  .fs-tile-name-btn {
+  /* ═══════════════════ CORRECTION DE COMPOSITION ═══════════════════
+     Un mode, pas un geste caché. Le nom du joueur avait d'abord servi de
+     poignée : c'était le remettre en concurrence avec le but, alors que
+     pendant des mois taper la tuile d'un joueur voulait dire « il a marqué ».
+     Ici les tuiles changent de métier en bloc, l'annoncent par un bandeau, et
+     ne comptent plus rien tant qu'il est affiché. */
+  .compo-bandeau {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s3);
+    background: var(--pitch-2);
+    border-bottom: 1px solid var(--rule-hi);
+  }
+  .compo-bandeau-titre {
+    font-stretch: 88%;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-1);
+  }
+  .compo-bandeau-aide {
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--ink-2);
+  }
+  .compo-fini {
+    flex: 0 0 auto;
     min-height: var(--tap-min);
-    padding: 0;
+    padding: 0 var(--s4, 16px);
     border: 0;
-    background: none;
-    font-family: inherit;
-    text-align: left;
+    border-radius: 999px;
+    background: var(--ink-1);
+    color: var(--pitch-0);
+    font-family: var(--font);
+    font-stretch: 88%;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     cursor: pointer;
   }
-  .fs-tile.B .fs-tile-name-btn {
-    justify-content: flex-end;
-    text-align: right;
+  /* La tuile en mode correction : une seule cible, pas de bouton de but, et
+     une flèche qui montre la destination avant qu'on tape. */
+  .fs-tile-compo {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    font-family: var(--font);
+    cursor: pointer;
   }
-  .fs-tile-name-btn:active {
+  .fs-tile-compo .fs-tile-body {
+    padding: 0 var(--s3);
+  }
+  .fs-tile-compo:active {
+    background: var(--pitch-3);
+  }
+  .fs-tile-fleche {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
     color: var(--ink-2);
+  }
+  /* La flèche pointe vers la colonne d'en face. */
+  .fs-tile-compo.B .fs-tile-fleche {
+    transform: rotate(180deg);
+  }
+  /* Point d'entrée fermé : une bande discrète, jamais une tuile. Elle ne
+     dispute rien au score — encre sourde, hauteur minimale — mais reste
+     lisible en toutes lettres, parce qu'on la cherche au coup d'envoi, quand
+     dix personnes attendent. */
+  .compo-entree {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 34px;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: none;
+    color: var(--ink-3);
+    font-family: var(--font);
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  }
+  .compo-entree:active {
+    background: var(--pitch-1);
+    color: var(--ink-1);
   }
 
   /* Le joueur vient de changer de colonne. Sans marque, la tuile disparaît

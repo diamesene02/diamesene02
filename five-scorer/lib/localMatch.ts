@@ -422,6 +422,11 @@ export async function movePlayerTeam(
       const match = await db.matches.get(matchId);
       if (!match) throw new Error("Match introuvable");
       if (match.status === "FINISHED") throw new Error("Match terminé");
+      // Sur un match contre un adversaire extérieur, l'équipe B n'est pas une
+      // équipe du club : y envoyer un joueur le retire de l'écran sans retour.
+      if (match.kind === "EXTERNAL" && team === "B") {
+        throw new Error("Pas d'équipe B à composer sur ce match");
+      }
       const part = await db.participants.get(pKey(matchId, playerId));
       if (!part) throw new Error("Joueur non inscrit à ce match");
       if (part.team === team) return; // déjà du bon côté

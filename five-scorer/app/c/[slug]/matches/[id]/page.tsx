@@ -30,9 +30,31 @@ export default async function MatchRecapPage({
       events: { orderBy: { createdAt: "asc" }, include: { player: true } },
       motmVotes: true,
       rsvps: { select: { playerId: true, status: true } },
+      matchDay: { select: { id: true, date: true } },
     },
   });
   if (!match) notFound();
+
+  // Rejouer, c'est créer un match AUJOURD'HUI. Il ne doit donc hériter ni de
+  // la saison ni de la soirée du match rejoué s'il regarde un vieux récap :
+  // sinon le match du soir se retrouve classé dans une saison close, ou
+  // rattaché à une soirée d'il y a trois semaines.
+  const [saisonActive, matchEnCours] = await Promise.all([
+    prisma.season.findFirst({
+      where: { clubId: ctx.club.id, isActive: true },
+      orderBy: { startsAt: "desc" },
+      select: { id: true },
+    }),
+    prisma.match.findFirst({
+      where: { clubId: ctx.club.id, status: "LIVE" },
+      select: { id: true },
+    }),
+  ]);
+  const soireeEnCours =
+    match.matchDay &&
+    Math.abs(match.matchDay.date.getTime() - Date.now()) < 12 * 3600_000
+      ? match.matchDay.id
+      : null;
 
   // ── Match programmé / annulé : vue convocation, pas de récap ──────────────
   if (match.status === "SCHEDULED" || match.status === "CANCELED") {
@@ -191,6 +213,11 @@ export default async function MatchRecapPage({
             : "?",
     }));
 
+  // Les joueurs archivés depuis ne sont pas reconduits — l'accueil le faisait
+  // déjà, le récap non : rejouer y réenrôlait des gens partis du club, et
+  // saveRoster les réinjectait dans le cache local de l'appareil.
+  const rejouables = match.participants.filter((p) => !p.player.isArchived);
+
   const votesByPlayer = new Map<string, number>();
   for (const v of match.motmVotes) {
     votesByPlayer.set(v.playerId, (votesByPlayer.get(v.playerId) ?? 0) + 1);
@@ -228,27 +255,33 @@ export default async function MatchRecapPage({
 
       {/* Une soirée, c'est plusieurs matchs. Le suivant part d'ici, avec la
           composition qu'on vient de jouer — pas de l'écran de création. */}
-      {match.status === "FINISHED" && ctx.canScore && players.length > 0 && (
-        <RematchButton
-          clubId={ctx.club.id}
-          slug={slug}
-          teamAName={match.teamAName}
-          teamBName={match.teamBName}
-          kind={match.kind === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"}
-          opponentId={match.opponentId}
-          matchDayId={match.matchDayId}
-          seasonId={match.seasonId}
-          players={match.participants.map((p) => ({
-            id: p.player.id,
-            name: p.player.name,
-            nickname: p.player.nickname,
-            skill: p.player.skill,
-            isGk: p.isGk,
-            isGuest: p.player.isGuest,
-            team: p.team as "A" | "B",
-          }))}
-        />
-      )}
+      {/* Pas de « on rejoue » tant qu'un match tourne : deux matchs LIVE en
+          même temps, c'est deux tableaux d'affichage pour un seul terrain. */}
+      {match.status === "FINISHED" &&
+        ctx.canScore &&
+        !matchEnCours &&
+        rejouables.length > 0 && (
+          <RematchButton
+            clubId={ctx.club.id}
+            slug={slug}
+            teamAName={match.teamAName}
+            teamBName={match.teamBName}
+            kind={match.kind === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"}
+            opponentId={match.opponentId}
+            matchDayId={soireeEnCours}
+            seasonId={saisonActive?.id ?? null}
+            players={rejouables.map((p) => ({
+              id: p.player.id,
+              name: p.player.name,
+              nickname: p.player.nickname,
+              skill: p.player.skill,
+              estGardien: p.player.isGk,
+              gardienCeMatch: p.isGk,
+              isGuest: p.player.isGuest,
+              team: p.team as "A" | "B",
+            }))}
+          />
+        )}
 
       {showVoting && (
         <div className="mt-6">

@@ -11,7 +11,13 @@ type Joueur = {
   name: string;
   nickname?: string | null;
   skill: number;
-  isGk: boolean;
+  /// Gardien attitré du club — attribut permanent du joueur.
+  estGardien: boolean;
+  /// Gardien DANS le match qu'on rejoue — rôle d'un soir. Les deux étaient
+  /// confondus : le rôle du match était recopié dans le cache roster et
+  /// écrasait le statut permanent, si bien qu'un joueur de champ ayant pris
+  /// les gants une fois devenait gardien attitré pour le générateur d'équipes.
+  gardienCeMatch: boolean;
   isGuest: boolean;
   team: "A" | "B";
 };
@@ -75,7 +81,7 @@ export default function RematchButton({
           name: p.name,
           nickname: p.nickname ?? null,
           skill: p.skill,
-          isGk: p.isGk,
+          isGk: p.estGardien,
           isGuest: p.isGuest,
         })),
       );
@@ -89,10 +95,10 @@ export default function RematchButton({
         teamBName,
         teamA: players
           .filter((p) => p.team === "A")
-          .map((p) => ({ playerId: p.id, isGk: p.isGk })),
+          .map((p) => ({ playerId: p.id, isGk: p.gardienCeMatch })),
         teamB: players
           .filter((p) => p.team === "B")
-          .map((p) => ({ playerId: p.id, isGk: p.isGk })),
+          .map((p) => ({ playerId: p.id, isGk: p.gardienCeMatch })),
       });
       void kickSync();
       router.replace(`/c/${slug}/matches/${matchId}/live`);

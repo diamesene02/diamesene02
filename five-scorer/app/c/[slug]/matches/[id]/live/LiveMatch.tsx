@@ -43,10 +43,22 @@ type Settings = {
   matchDurationMin: number;
 };
 
-type SheetMode =
-  // Corriger la compo en cours de match : tap sur le nom → « passer chez X ».
-  | { kind: "move"; player: LivePlayer; from: "A" | "B" }
-  | { kind: "card"; team: "A" | "B"; card: "YELLOW_CARD" | "RED_CARD" };
+type SheetMode = {
+  kind: "card";
+  team: "A" | "B";
+  card: "YELLOW_CARD" | "RED_CARD";
+};
+
+/// Les deux questions qu'on peut poser APRÈS un but, sans jamais retenir le
+/// score. Un seul état pour les deux : elles s'affichent au même endroit, en
+/// bas de l'écran. Deux états séparés laissaient la seconde barre recouvrir la
+/// première — même position, même z-index, fond opaque — et la question cachée
+/// expirait sous l'autre sans que personne la voie.
+type Invite =
+  | { kind: "passe"; eventId: string; team: "A" | "B"; scorerId: string }
+  | { kind: "csc"; eventId: string; conceding: "A" | "B" };
+
+const DUREE_INVITE_MS = 15000;
 
 export default function LiveMatch({
   slug,
@@ -69,29 +81,23 @@ export default function LiveMatch({
   const [halftimeJustSet, setHalftimeJustSet] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
-  const [assistFor, setAssistFor] = useState<{
-    eventId: string;
-    team: "A" | "B";
-    scorerId: string;
-  } | null>(null);
-  const assistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Contre son camp : le but est déjà au tableau, on cherche seulement le nom.
-  const [cscFor, setCscFor] = useState<{
-    eventId: string;
-    conceding: "A" | "B";
-  } | null>(null);
-  const cscTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Tuile qui vient de changer de camp : un éclair d'contour pour que l'œil
+  const [invite, setInvite] = useState<Invite | null>(null);
+  const inviteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mode correction de composition : les tuiles cessent de compter des buts et
+  // ne servent plus qu'à faire changer un joueur de camp. Voir PlayerTile.
+  const [compoMode, setCompoMode] = useState(false);
+  // Tuile qui vient de changer de camp : un éclair de contour pour que l'œil
   // suive le déplacement d'une colonne à l'autre.
   const [justMoved, setJustMoved] = useState<string | null>(null);
+  const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setSoundOn(isSoundEnabled());
   }, []);
   useEffect(
     () => () => {
-      if (assistTimer.current) clearTimeout(assistTimer.current);
-      if (cscTimer.current) clearTimeout(cscTimer.current);
+      if (inviteTimer.current) clearTimeout(inviteTimer.current);
+      if (moveTimer.current) clearTimeout(moveTimer.current);
     },
     []
   );
@@ -209,16 +215,19 @@ export default function LiveMatch({
     prevScoreRef.current = curr;
   }, [data]);
 
-  const openAssistPrompt = useCallback(
-    (eventId: string, team: "A" | "B", scorerId: string) => {
-      if (!settings.trackAssists) return;
-      if (assistTimer.current) clearTimeout(assistTimer.current);
-      setAssistFor({ eventId, team, scorerId });
-      // Assez long pour célébrer le but avant de saisir la passe.
-      assistTimer.current = setTimeout(() => setAssistFor(null), 15000);
-    },
-    [settings.trackAssists]
-  );
+  /// Le seul chemin qui pose une invite. Poser la nouvelle efface forcément
+  /// l'ancienne : une seule barre peut exister à la fois.
+  const ouvrirInvite = useCallback((i: Invite) => {
+    if (inviteTimer.current) clearTimeout(inviteTimer.current);
+    setInvite(i);
+    // Assez long pour célébrer le but avant de répondre.
+    inviteTimer.current = setTimeout(() => setInvite(null), DUREE_INVITE_MS);
+  }, []);
+
+  const fermerInvite = useCallback(() => {
+    if (inviteTimer.current) clearTimeout(inviteTimer.current);
+    setInvite(null);
+  }, []);
 
   const addGoal = useCallback(
     async (playerId: string, team: "A" | "B") => {
@@ -229,13 +238,17 @@ export default function LiveMatch({
           playerId,
           minute: liveMinute(),
         });
-        openAssistPrompt(eventId, team, playerId);
+        if (settings.trackAssists) {
+          ouvrirInvite({ kind: "passe", eventId, team, scorerId: playerId });
+        } else {
+          fermerInvite();
+        }
         void kickSync();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur");
       }
     },
-    [matchId, openAssistPrompt, liveMinute]
+    [matchId, ouvrirInvite, fermerInvite, settings.trackAssists, liveMinute]
   );
 
   const removeGoal = useCallback(
@@ -244,7 +257,7 @@ export default function LiveMatch({
         const removedId = await undoLastGoalOf(matchId, playerId);
         if (!removedId) setError("Aucun but à annuler pour ce joueur");
         else {
-          setAssistFor((a) => (a?.eventId === removedId ? null : a));
+          setInvite((i) => (i?.eventId === removedId ? null : i));
           void kickSync();
         }
       } catch (e) {
@@ -271,14 +284,25 @@ export default function LiveMatch({
 
   const undoOpponentGoal = useCallback(async () => {
     if (!data) return;
+    // Le rang « Contre son camp » fait monter le compteur de B exactement
+    // comme le gros « +1 But ». Ne chercher que les GOAL, c'était laisser le
+    // bouton d'annulation le plus proche du geste incapable de le défaire :
+    // il supprimait un vrai but adverse plus ancien, et le score retombait à
+    // la bonne valeur — donc rien ne signalait l'erreur.
     const last = [...data.events]
       .reverse()
-      .find((e) => e.team === "B" && e.type === "GOAL" && !e.playerId);
+      .find(
+        (e) =>
+          e.team === "B" &&
+          (e.type === "GOAL" || e.type === "OWN_GOAL") &&
+          !e.playerId
+      );
     if (!last) {
       setError("Aucun but adverse à annuler");
       return;
     }
     await removeEvent(matchId, last.id);
+    setInvite((i) => (i?.eventId === last.id ? null : i));
     void kickSync();
   }, [data, matchId]);
 
@@ -300,39 +324,45 @@ export default function LiveMatch({
           playerId: null,
           minute: liveMinute(),
         });
-        if (assistTimer.current) clearTimeout(assistTimer.current);
-        setAssistFor(null);
-        if (cscTimer.current) clearTimeout(cscTimer.current);
-        setCscFor({ eventId, conceding });
-        cscTimer.current = setTimeout(() => setCscFor(null), 15000);
+        ouvrirInvite({ kind: "csc", eventId, conceding });
         void kickSync();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur");
       }
     },
-    [matchId, liveMinute]
+    [matchId, ouvrirInvite, liveMinute]
   );
 
-  async function pickCscScorer(playerId: string | null) {
-    if (!cscFor) return;
-    if (cscTimer.current) clearTimeout(cscTimer.current);
-    if (playerId) {
-      await setEventScorer(matchId, cscFor.eventId, playerId);
+  /// Réponse à l'invite du bas d'écran — passe décisive ou auteur d'un csc.
+  async function repondreInvite(playerId: string | null) {
+    if (!invite) return;
+    const courante = invite;
+    fermerInvite();
+    if (!playerId) return;
+    try {
+      if (courante.kind === "passe") {
+        await setEventAssist(matchId, courante.eventId, playerId);
+      } else {
+        await setEventScorer(matchId, courante.eventId, playerId);
+      }
       void kickSync();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
     }
-    setCscFor(null);
   }
 
-  async function confirmMove() {
-    if (sheet?.kind !== "move") return;
-    const to = sheet.from === "A" ? "B" : "A";
-    const playerId = sheet.player.id;
-    setSheet(null);
+  /// Fait passer un joueur dans l'autre camp. Appelé uniquement depuis le mode
+  /// correction de compo : hors de ce mode, aucune tuile n'expose ce geste.
+  async function deplacerJoueur(playerId: string, depuis: "A" | "B") {
     try {
-      await movePlayerTeam(matchId, playerId, to);
+      await movePlayerTeam(matchId, playerId, depuis === "A" ? "B" : "A");
       if (navigator.vibrate) navigator.vibrate(18);
+      if (moveTimer.current) clearTimeout(moveTimer.current);
       setJustMoved(playerId);
-      setTimeout(() => setJustMoved((id) => (id === playerId ? null : id)), 400);
+      moveTimer.current = setTimeout(
+        () => setJustMoved((id) => (id === playerId ? null : id)),
+        400
+      );
       void kickSync();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
@@ -355,16 +385,6 @@ export default function LiveMatch({
     } finally {
       setSheet(null);
     }
-  }
-
-  async function pickAssist(assistPlayerId: string | null) {
-    if (!assistFor) return;
-    if (assistTimer.current) clearTimeout(assistTimer.current);
-    if (assistPlayerId) {
-      await setEventAssist(matchId, assistFor.eventId, assistPlayerId);
-      void kickSync();
-    }
-    setAssistFor(null);
   }
 
   async function onFinish(mvpId: string | null) {
@@ -421,16 +441,20 @@ export default function LiveMatch({
   const sheetPlayers: LivePlayer[] =
     sheet?.kind === "card" ? (sheet.team === "A" ? teamA : teamB) : [];
   // L'auteur d'un csc est forcément dans l'équipe qui a encaissé contre elle.
-  const cscCandidates: LivePlayer[] = cscFor
-    ? cscFor.conceding === "A"
-      ? teamA
-      : teamB
-    : [];
-  const assistCandidates: LivePlayer[] = assistFor
-    ? (assistFor.team === "A" ? teamA : teamB).filter(
-        (p) => p.id !== assistFor.scorerId
-      )
-    : [];
+  // Une passe vient d'un coéquipier du buteur ; l'auteur d'un csc est dans
+  // l'équipe qui l'a concédé.
+  const inviteCandidats: LivePlayer[] = !invite
+    ? []
+    : invite.kind === "passe"
+      ? (invite.team === "A" ? teamA : teamB).filter(
+          (p) => p.id !== invite.scorerId
+        )
+      : invite.conceding === "A"
+        ? teamA
+        : teamB;
+  const inviteTitre =
+    invite?.kind === "passe" ? "Passe ?" : "Qui l'a mis ?";
+  const inviteRefus = invite?.kind === "passe" ? "Sans passe" : "Sans préciser";
 
   // Chaque type d'événement a sa marque dessinée — plus d'emoji, dont le
   // rendu change d'un téléphone à l'autre et qui ignore la couleur du texte.
@@ -469,28 +493,26 @@ export default function LiveMatch({
             className="live-dot"
             style={paused ? { animation: "none", opacity: 0.3 } : undefined}
           />
-          <span>{paused ? "PAUSE" : "LIVE"}</span>
+          {/* Le mot ne s'affiche qu'à l'arrêt. En marche, la pastille qui
+              bat le dit déjà ; l'écrire en plus coûtait 38 px sur une barre
+              qui n'en avait pas. */}
+          {paused && <span>PAUSE</span>}
           <span className="rounded border border-[color:var(--stroke)] px-1 text-[9px] font-black uppercase tracking-wider text-[color:var(--ink-1)]">
             {period === 2 ? "2de" : "1re"}
           </span>
+          {/* Un seul chrono. Le temps additionnel était affiché à part, dans
+              un second compteur : à deux, ils poussaient « MT », les
+              événements et le son les uns sur les autres — trois boutons
+              superposés dès qu'un match dépassait son temps, c'est-à-dire
+              presque toujours. Passé la limite, le chrono cesse d'être
+              plafonné et passe au rouge : on lit le temps réel, et qu'on est
+              au-delà, d'un seul coup d'œil. */}
           <span
             className="match-clock"
             style={overtime ? { color: "var(--live)" } : undefined}
           >
-            {fmt(Math.min(elapsedMs, limitMs))}
+            {fmt(overtime ? elapsedMs : Math.min(elapsedMs, limitMs))}
           </span>
-          {overtime && (
-            <span
-              className="font-mono text-[10px] font-black"
-              style={{ color: "var(--live)" }}
-            >
-              +{fmt(elapsedMs - limitMs)}
-            </span>
-          )}
-          {/* La durée réglementaire n'est plus affichée en permanence : le
-              chrono passe au rouge et affiche le temps additionnel une fois
-              la limite franchie, ce qui suffit — et la barre tient sur une
-              ligne à 375 px, bouton « Fin » compris. */}
           <button
             onClick={toggleClock}
             className={cn("icon-btn", paused && halftimeJustSet && "w-auto px-2")}
@@ -576,6 +598,40 @@ export default function LiveMatch({
         </div>
       )}
 
+      {/* Bandeau du mode correction. Il occupe la largeur, annonce ce que font
+          les tuiles, et porte la seule sortie — impossible de croire qu'on est
+          encore en train de marquer. */}
+      {/* Corriger la compo est un moment distinct du match. Il a sa propre
+          bande, sous le tableau d'affichage : jamais sur une tuile de joueur.
+          C'est ce qui permet de garder la tuile entièrement dédiée au but — le
+          geste le plus répété du match ne doit jamais ouvrir autre chose. */}
+      {!external &&
+        (compoMode ? (
+          <div className="compo-bandeau">
+            <div>
+              <div className="compo-bandeau-titre">
+                Corriger la composition
+              </div>
+              <div className="compo-bandeau-aide">
+                Tape un joueur pour l&apos;envoyer dans l&apos;autre équipe.
+                Aucun but ne se compte tant que ce bandeau est là.
+              </div>
+            </div>
+            <button onClick={() => setCompoMode(false)} className="compo-fini">
+              Terminé
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setCompoMode(true)}
+            className="compo-entree"
+            aria-label="Corriger la composition des équipes"
+          >
+            Corriger la composition
+            <Icon name="chevron" size={13} />
+          </button>
+        ))}
+
       <div className="live-container flex-1 overflow-y-auto pb-28">
         <section>
           <div className="team-label hidden px-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--a-400)]">
@@ -588,21 +644,26 @@ export default function LiveMatch({
               goals={p.goals}
               tint="pitch"
               justMoved={justMoved === p.id}
+              mode={compoMode ? "compo" : "score"}
               onGoal={() => addGoal(p.id, "A")}
               onUndo={() => removeGoal(p.id)}
-              onMove={() => setSheet({ kind: "move", player: p, from: "A" })}
+              onMove={() => deplacerJoueur(p.id, "A")}
             />
           ))}
-          <CscRow
-            team="A"
-            opponent={match.teamBName}
-            onTap={() => addOwnGoal("A")}
-          />
-          <TeamToolbar
-            team="A"
-            trackCards={settings.trackCards}
-            onCard={(card) => setSheet({ kind: "card", team: "A", card })}
-          />
+          {!compoMode && (
+            <>
+              <CscRow
+                team="A"
+                opponent={match.teamBName}
+                onTap={() => addOwnGoal("A")}
+              />
+              <TeamToolbar
+                team="A"
+                trackCards={settings.trackCards}
+                onCard={(card) => setSheet({ kind: "card", team: "A", card })}
+              />
+            </>
+          )}
         </section>
         <section>
           <div className="team-label hidden px-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--b-400)]">
@@ -625,7 +686,7 @@ export default function LiveMatch({
                 onClick={undoOpponentGoal}
                 className="rounded-xl border border-[color:var(--stroke)] py-2.5 text-xs font-bold uppercase tracking-wider text-[color:var(--ink-2)] hover:text-white"
               >
-                − Annuler le dernier
+                Annuler le dernier
               </button>
               <CscRow
                 team="B"
@@ -642,74 +703,54 @@ export default function LiveMatch({
                   goals={p.goals}
                   tint="blue"
                   justMoved={justMoved === p.id}
+                  mode={compoMode ? "compo" : "score"}
                   onGoal={() => addGoal(p.id, "B")}
                   onUndo={() => removeGoal(p.id)}
-                  onMove={() => setSheet({ kind: "move", player: p, from: "B" })}
+                  onMove={() => deplacerJoueur(p.id, "B")}
                 />
               ))}
-              <CscRow
-                team="B"
-                opponent={match.teamAName}
-                onTap={() => addOwnGoal("B")}
-              />
-              <TeamToolbar
-                team="B"
-                trackCards={settings.trackCards}
-                onCard={(card) => setSheet({ kind: "card", team: "B", card })}
-              />
+              {!compoMode && (
+                <>
+                  <CscRow
+                    team="B"
+                    opponent={match.teamAName}
+                    onTap={() => addOwnGoal("B")}
+                  />
+                  <TeamToolbar
+                    team="B"
+                    trackCards={settings.trackCards}
+                    onCard={(card) => setSheet({ kind: "card", team: "B", card })}
+                  />
+                </>
+              )}
             </>
           )}
         </section>
       </div>
 
-      {/* Prompt passe décisive — non bloquant, disparaît tout seul */}
-      {assistFor && (
+      {/* Une seule barre d'invite, jamais deux : passe décisive ou auteur d'un
+          csc. Non bloquante — elle s'efface toute seule si personne ne répond,
+          et le score n'a jamais attendu la réponse. */}
+      {invite && inviteCandidats.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-[70] border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-3">
           <div className="mx-auto flex max-w-3xl items-center gap-2 overflow-x-auto">
             <span className="shrink-0 text-xs font-black uppercase tracking-wider text-[color:var(--ink-1)]">
-              Passe ?
+              {inviteTitre}
             </span>
-            {assistCandidates.map((p) => (
+            {inviteCandidats.map((p) => (
               <button
                 key={p.id}
-                onClick={() => pickAssist(p.id)}
+                onClick={() => repondreInvite(p.id)}
                 className="shrink-0 rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 py-2 text-sm font-bold hover:border-[color:var(--lime)]"
               >
                 {p.name}
               </button>
             ))}
             <button
-              onClick={() => pickAssist(null)}
+              onClick={() => repondreInvite(null)}
               className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold uppercase text-[color:var(--ink-2)]"
             >
-              Sans passe <Icon name="close" size={12} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Contre son camp : le but est déjà compté, on ne cherche que le nom.
-          Non bloquant — la barre s'efface toute seule si personne n'avoue. */}
-      {cscFor && cscCandidates.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-[70] border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-3">
-          <div className="mx-auto flex max-w-3xl items-center gap-2 overflow-x-auto">
-            <span className="shrink-0 text-xs font-black uppercase tracking-wider text-[color:var(--ink-1)]">
-              Qui l&apos;a mis ?
-            </span>
-            {cscCandidates.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => pickCscScorer(p.id)}
-                className="shrink-0 rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 py-2 text-sm font-bold hover:border-[color:var(--lime)]"
-              >
-                {p.name}
-              </button>
-            ))}
-            <button
-              onClick={() => pickCscScorer(null)}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold uppercase text-[color:var(--ink-2)]"
-            >
-              Sans préciser <Icon name="close" size={12} />
+              {inviteRefus} <Icon name="close" size={12} />
             </button>
           </div>
         </div>
@@ -810,64 +851,32 @@ export default function LiveMatch({
           }}
         >
           <div className="w-full rounded-t-3xl border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-5">
-            {sheet.kind === "move" ? (
-              <>
-                <div className="mb-1 text-sm font-extrabold uppercase tracking-wider">
-                  {sheet.player.name}
-                </div>
-                <p className="mb-4 text-sm text-[color:var(--ink-2)]">
-                  Les buts déjà marqués restent acquis à{" "}
-                  {sheet.from === "A" ? match.teamAName : match.teamBName}.
-                </p>
-                <button
-                  onClick={confirmMove}
-                  className={cn(
-                    "big-touch w-full rounded-xl px-4 py-4 text-left font-black uppercase tracking-wider",
-                    sheet.from === "A"
-                      ? "bg-[color:var(--bib-b)] text-[color:var(--pitch-0)]"
-                      : "bg-[color:var(--bib-a)] text-[color:var(--pitch-0)]"
-                  )}
-                >
-                  Passer chez{" "}
-                  {sheet.from === "A" ? match.teamBName : match.teamAName}
-                </button>
-                <button
-                  onClick={() => setSheet(null)}
-                  className="mt-2 w-full rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-wider text-[color:var(--ink-2)]"
-                >
-                  Annuler
-                </button>
-              </>
-            ) : (
-              <>
                 <div className="mb-3 flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider">
-                  <Icon
-                    name="card"
-                    size={16}
-                    filled
-                    className={
-                      sheet.card === "YELLOW_CARD"
-                        ? "text-[color:var(--gold)]"
-                        : "text-[color:var(--loss)]"
-                    }
-                  />
-                  {sheet.card === "YELLOW_CARD"
-                    ? "Carton jaune pour…"
-                    : "Carton rouge pour…"}
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {sheetPlayers.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => onSheetPick(p.id)}
-                      className="big-touch rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-3 text-left font-bold hover:border-[color:var(--stroke-hi)]"
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+                <Icon
+                  name="card"
+                  size={16}
+                  filled
+                  className={
+                    sheet.card === "YELLOW_CARD"
+                      ? "text-[color:var(--gold)]"
+                      : "text-[color:var(--loss)]"
+                  }
+                />
+                {sheet.card === "YELLOW_CARD"
+                  ? "Carton jaune pour…"
+                  : "Carton rouge pour…"}
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {sheetPlayers.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => onSheetPick(p.id)}
+                    className="big-touch rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-3 text-left font-bold hover:border-[color:var(--stroke-hi)]"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
           </div>
         </div>
       )}

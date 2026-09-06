@@ -35,7 +35,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   const match = await prisma.match.findFirst({
     where: { id: matchId, clubId },
-    select: { status: true },
+    select: { status: true, kind: true },
   });
   if (!match) {
     return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
@@ -49,17 +49,26 @@ export async function PATCH(req: Request, { params }: Ctx) {
     );
   }
 
+  // Match contre un adversaire extérieur : l'équipe B n'est pas une équipe du
+  // club, c'est l'adversaire. Y envoyer un de nos joueurs le faisait
+  // disparaître de l'écran sans retour possible, et lib/stats.ts comptait
+  // ensuite une victoire du club comme une défaite pour lui.
+  if (match.kind === "EXTERNAL" && body.team === "B") {
+    return NextResponse.json(
+      { error: "Pas d'équipe B à composer sur un match contre un adversaire" },
+      { status: 400 },
+    );
+  }
+
   // Le joueur doit être inscrit à CE match : sans ce contrôle, la route
   // servirait à sonder l'existence de joueurs d'autres clubs.
   const updated = await prisma.matchParticipant.updateMany({
     where: { matchId, playerId: body.playerId },
     data: { team: body.team },
   });
-  if (updated.count === 0) {
-    return NextResponse.json(
-      { error: "Joueur non inscrit à ce match" },
-      { status: 404 },
-    );
-  }
-  return NextResponse.json({ ok: true });
+  // Joueur absent de la feuille : rien à écrire, et surtout rien à réessayer.
+  // Un 4xx ici bloquerait DÉFINITIVEMENT toute la chaîne d'opérations du match
+  // dans la file hors-ligne (lib/sync.ts) — buts compris — pour un changement
+  // de camp devenu sans objet. On répond donc 200 en le disant.
+  return NextResponse.json({ ok: true, applique: updated.count > 0 });
 }
