@@ -27,7 +27,7 @@
 
 | Project | Description | Stack |
 |---------|-------------|-------|
-| [**Gunoor**](https://dsene.dev) | P2P car rental marketplace for Senegal | Next.js, Prisma, Wave, Stripe |
+| [**Gunoor**](https://apps.apple.com/app/id6760973626) ([Android](https://play.google.com/store/apps/details?id=sn.gunoor.app)) | P2P car rental marketplace, live in Senegal on both stores | Next.js 15, Prisma/Postgres, Expo, Naboopay (Wave & Orange Money), Stripe |
 | [**Samacours**](https://dsene.dev) | Education platform for Senegalese students | Flutter, Firebase |
 | [**ClubStats Pro**](https://dsene.dev) | E-sport club management with Discord integration | Next.js, Supabase |
 | [**AI Workflows**](https://diamesene.gumroad.com) | 3 n8n automation workflows (Prospection, Content, Cold Email) | n8n, Claude API |
@@ -37,16 +37,6 @@
 - 🔍 **LinkedIn AI Prospector** — Automated LinkedIn prospection with Claude IA
 - ✍️ **AI Content Factory** — 1 LinkedIn post → 5 content pieces
 - 📧 **AI Cold Email Outreach** — Personalized cold emails with web scraping + AI
-
-### 📊 GitHub Stats
-
-<div align="center">
-
-![GitHub stats](https://github-readme-stats.vercel.app/api?username=diamesene02&show_icons=true&theme=dark&hide_border=true&bg_color=0d1117&title_color=F59E0B&icon_color=F59E0B&text_color=c9d1d9)
-
-![Top Langs](https://github-readme-stats.vercel.app/api/top-langs/?username=diamesene02&layout=compact&theme=dark&hide_border=true&bg_color=0d1117&title_color=F59E0B&text_color=c9d1d9)
-
-</div>
 
 ---
 
