@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
+import CompoSoiree from "@/components/CompoSoiree";
 import { getLeaderboard } from "@/lib/stats";
 import Icon from "@/components/Icon";
 import MoneyPanel from "./MoneyPanel";
@@ -23,6 +24,7 @@ export default async function SessionDetailPage({
     where: { id, clubId },
     include: {
       rsvps: { select: { playerId: true, status: true, hasPaid: true } },
+      lineup: { select: { playerId: true, team: true } },
       matches: {
         orderBy: { playedAt: "asc" },
         include: { mvp: true, opponent: true },
@@ -35,7 +37,7 @@ export default async function SessionDetailPage({
     prisma.player.findMany({
       where: { clubId, isArchived: false },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, skill: true, isGk: true },
     }),
     prisma.player.findFirst({
       where: { clubId, userId: ctx.user.id },
@@ -132,6 +134,38 @@ export default async function SessionDetailPage({
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Les équipes de la soirée, préparées à l'avance.
+          C'est le bloc qui répond à la douleur rapportée : « à l'heure du
+          match on oublie de faire la feuille de match, on perd du temps ». Les
+          équipes sont connues trois à quatre jours avant — elles ont désormais
+          où être écrites, et le coup d'envoi n'a plus rien à saisir. */}
+      <section className="mt-8 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-6">
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          <span className="kicker">Les équipes</span>
+          <span
+            className="text-[11px] font-black uppercase tracking-wider"
+            style={{
+              color:
+                md.lineup.length > 0 ? "var(--win)" : "var(--ink-3)",
+            }}
+          >
+            {md.lineup.length > 0 ? "Prête" : "À faire"}
+          </span>
+        </div>
+        <CompoSoiree
+          slug={slug}
+          matchDayId={md.id}
+          peutModifier={ctx.canScore}
+          joueurs={players}
+          compoInitiale={md.lineup.map((l) => ({
+            playerId: l.playerId,
+            team: l.team as "A" | "B",
+          }))}
+          nomAInitial={md.teamAName}
+          nomBInitial={md.teamBName}
+        />
       </section>
 
       {/* Présences */}

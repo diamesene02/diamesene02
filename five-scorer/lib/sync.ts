@@ -136,6 +136,15 @@ async function replayOp(op: OutboxOp): Promise<void> {
       await throwIfBad(res, "setScorer");
       return;
     }
+    case "addParticipant": {
+      const res = await fetch(`${base}/matches/${op.matchId}/lineup`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(op.payload),
+      });
+      await throwIfBad(res, "addParticipant");
+      return;
+    }
     case "movePlayer": {
       const res = await fetch(`${base}/matches/${op.matchId}/lineup`, {
         method: "PATCH",

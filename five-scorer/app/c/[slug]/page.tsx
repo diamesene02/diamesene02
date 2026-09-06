@@ -46,10 +46,32 @@ export default async function ClubHomePage({
         },
       }),
       prisma.matchDay.findFirst({
-        where: { clubId, date: { gte: new Date(Date.now() - 12 * 3600_000) } },
+        where: {
+          clubId,
+          date: { gte: new Date(Date.now() - 12 * 3600_000) },
+          // Une soirée annulée n'est pas la prochaine soirée.
+          canceledAt: null,
+        },
         orderBy: { date: "asc" },
         include: {
           rsvps: { include: { player: { select: { id: true, name: true } } } },
+          lineup: {
+            where: { player: { isArchived: false } },
+            select: {
+              team: true,
+              isGk: true,
+              player: {
+                select: {
+                  id: true,
+                  name: true,
+                  nickname: true,
+                  skill: true,
+                  isGk: true,
+                  isGuest: true,
+                },
+              },
+            },
+          },
         },
       }),
       // Prochains matchs programmés (convocations en cours).
@@ -101,21 +123,83 @@ export default async function ClubHomePage({
       }),
     ]);
 
-  // Les joueurs archivés depuis ne sont pas reconduits : une compo recopiée
-  // telle quelle ferait revenir des gens qui ont quitté le club.
-  const compoPrete = (lastLineup?.participants ?? []).filter(
-    (p) => !p.player.isArchived,
-  );
-  const compoA = compoPrete.filter((p) => p.team === "A").length;
-  const compoB = compoPrete.filter((p) => p.team === "B").length;
-  const coupDEnvoiPret = compoA > 0 && compoB > 0;
   // Rattacher le match à la soirée en cours, oui — à celle de la semaine
   // prochaine, non. On ne recolle que si on est effectivement dedans.
   const soireeEnCours =
     nextMatchDay &&
     Math.abs(nextMatchDay.date.getTime() - Date.now()) < 12 * 3600_000
-      ? nextMatchDay.id
+      ? nextMatchDay
       : null;
+
+  // D'où vient la compo du coup d'envoi, dans l'ordre :
+  //   1. celle PRÉPARÉE pour la soirée du jour — le club connaît ses équipes
+  //      trois à quatre jours avant, c'est la seule source qui soit juste ;
+  //   2. à défaut, celle du dernier match joué, clairement annoncée comme telle.
+  // Les joueurs archivés depuis ne sont jamais reconduits.
+  // La compo à utiliser et le rattachement à la soirée sont deux questions
+  // distinctes. On prend la compo dès qu'elle est préparée pour la prochaine
+  // soirée — c'est l'intention la plus à jour du club, même la veille. On ne
+  // RATTACHE le match à cette soirée, en revanche, que si on est dedans.
+  const compoSoiree = (nextMatchDay?.lineup ?? []).map((l) => ({
+    id: l.player.id,
+    name: l.player.name,
+    nickname: l.player.nickname,
+    skill: l.player.skill,
+    estGardien: l.player.isGk,
+    gardienCeMatch: l.isGk,
+    isGuest: l.player.isGuest,
+    team: l.team as "A" | "B",
+  }));
+  const compoDernierMatch = (lastLineup?.participants ?? [])
+    .filter((p) => !p.player.isArchived)
+    .map((p) => ({
+      id: p.player.id,
+      name: p.player.name,
+      nickname: p.player.nickname,
+      skill: p.player.skill,
+      estGardien: p.player.isGk,
+      gardienCeMatch: p.isGk,
+      isGuest: p.player.isGuest,
+      team: p.team as "A" | "B",
+    }));
+
+  const sourcePreparee = compoSoiree.length > 0;
+  const compoPrete = sourcePreparee ? compoSoiree : compoDernierMatch;
+  const compoA = compoPrete.filter((p) => p.team === "A").length;
+  const compoB = compoPrete.filter((p) => p.team === "B").length;
+  const coupDEnvoiPret = compoA > 0 && compoB > 0;
+  const nomA = sourcePreparee
+    ? (nextMatchDay?.teamAName ?? "Blanc")
+    : (lastLineup?.teamAName ?? "Blanc");
+  const nomB = sourcePreparee
+    ? (nextMatchDay?.teamBName ?? "Noir")
+    : (lastLineup?.teamBName ?? "Noir");
+
+  // La compo se décide trois à quatre jours avant. À partir de cinq jours, si
+  // elle n'est pas faite, on le dit — c'est l'oubli qui coûtait le temps au
+  // coup d'envoi, et c'est le seul moment où le rappel sert encore à quelque
+  // chose.
+  const joursAvant = nextMatchDay
+    ? Math.ceil(
+        (nextMatchDay.date.getTime() - Date.now()) / (24 * 3600_000),
+      )
+    : null;
+  // « ce soir », « demain », ou le jour nommé : le bouton dit de quelle soirée
+  // vient la compo qu'il s'apprête à utiliser.
+  const quandCourt =
+    joursAvant == null || joursAvant <= 0
+      ? "ce soir"
+      : joursAvant === 1
+        ? "demain"
+        : (nextMatchDay?.date.toLocaleDateString("fr-FR", {
+            weekday: "long",
+          }) ?? "la prochaine soirée");
+  const compoAFaire =
+    nextMatchDay != null &&
+    nextMatchDay.lineup.length === 0 &&
+    joursAvant != null &&
+    joursAvant <= 5 &&
+    ctx.canScore;
 
   const hero = recentMatches[0];
   const rest = recentMatches.slice(1);
@@ -126,8 +210,54 @@ export default async function ClubHomePage({
       month: "short",
     });
 
+  const quandFr = (d: Date) =>
+    d.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+
   return (
     <main>
+      {/* Le rappel qui règle la douleur d'origine : « à l'heure du match on
+          oublie de faire la feuille de match ». La compo se décide trois à
+          quatre jours avant ; à cinq jours, si elle n'est pas là, on le dit —
+          avant le lundi, pas au coup d'envoi. */}
+      {compoAFaire && nextMatchDay && (
+        <Link href={`/c/${slug}/sessions/${nextMatchDay.id}`} className="rappel">
+          <span className="rappel-pastille" />
+          <span className="rappel-corps">
+            <span className="rappel-titre">
+              {joursAvant != null && joursAvant <= 0
+                ? "C'est aujourd'hui"
+                : joursAvant === 1
+                  ? "Demain"
+                  : `Dans ${joursAvant} jours`}{" "}
+              — les équipes ne sont pas faites
+            </span>
+            <span className="rappel-aide">
+              {quandFr(nextMatchDay.date)}
+              {nextMatchDay.location ? ` · ${nextMatchDay.location}` : ""} —
+              préparer la compo maintenant
+            </span>
+          </span>
+          <Icon name="chevron" size={16} />
+        </Link>
+      )}
+
+      {/* Aucun calendrier : la cause racine de tout le reste. */}
+      {!nextMatchDay && ctx.canManage && (
+        <Link href={`/c/${slug}/saison`} className="rappel">
+          <span className="rappel-pastille" style={{ background: "var(--ink-3)" }} />
+          <span className="rappel-corps">
+            <span className="rappel-titre">Aucune soirée au calendrier</span>
+            <span className="rappel-aide">
+              Pose la saison d&apos;un coup — tous les lundis, fériés exclus
+            </span>
+          </span>
+          <Icon name="chevron" size={16} />
+        </Link>
+      )}
       {/* Match en cours */}
       {liveMatch ? (
         <Link
@@ -170,35 +300,30 @@ export default async function ClubHomePage({
                 l'œil sait où aller, la grille tient au millimètre. */}
             {ctx.canScore && (
               <div className="mt-2 w-full">
-                {/* À l'heure du match, la feuille n'est pas faite et on la
-                    fait debout, au bord du terrain, pendant que dix personnes
-                    attendent. Le coup d'envoi part donc de la dernière compo
-                    jouée — annoncée avant le tap, et corrigeable une fois le
-                    match lancé (tap sur un nom → changer de camp). L'écran de
-                    composition reste là pour qui veut tout revoir. */}
-                {coupDEnvoiPret && lastLineup ? (
+                {/* Le coup d'envoi ne saisit plus rien. Il part de la compo
+                    PRÉPARÉE pour la soirée du jour — le club décide ses
+                    équipes trois à quatre jours avant — et retombe sur celle
+                    du dernier match seulement à défaut. Dans les deux cas la
+                    source est annoncée avant le tap : un lancement en un geste
+                    ne doit pas être un lancement à l'aveugle. */}
+                {coupDEnvoiPret ? (
                   <>
                     <RematchButton
                       clubId={clubId}
                       slug={slug}
-                      teamAName={lastLineup.teamAName}
-                      teamBName={lastLineup.teamBName}
+                      teamAName={nomA}
+                      teamBName={nomB}
                       kind="INTERNAL"
                       opponentId={null}
-                      matchDayId={soireeEnCours}
+                      matchDayId={soireeEnCours?.id ?? null}
                       seasonId={activeSeason?.id ?? null}
                       label="Coup d'envoi"
-                      hint={`${lastLineup.teamAName} ${compoA} vs ${compoB} ${lastLineup.teamBName} — la compo de la dernière fois`}
-                      players={compoPrete.map((p) => ({
-                        id: p.player.id,
-                        name: p.player.name,
-                        nickname: p.player.nickname,
-                        skill: p.player.skill,
-                        estGardien: p.player.isGk,
-                        gardienCeMatch: p.isGk,
-                        isGuest: p.player.isGuest,
-                        team: p.team as "A" | "B",
-                      }))}
+                      hint={`${nomA} ${compoA} vs ${compoB} ${nomB} — ${
+                        sourcePreparee
+                          ? `la compo préparée pour ${quandCourt}`
+                          : "la compo de la dernière fois"
+                      }`}
+                      players={compoPrete}
                     />
                     <Link
                       href={`/c/${slug}/matches/new`}

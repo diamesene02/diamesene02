@@ -178,16 +178,20 @@ export async function POST(req: Request, { params }: Ctx) {
       await tx.matchParticipant.deleteMany({ where: { matchId: upserted.id } });
       await tx.matchParticipant.createMany({
         data: [
+          // `initialTeam` est écrite ici et nulle part ailleurs : c'est la
+          // seule écriture de la composition, donc le coup d'envoi.
           ...body.teamA.map((t) => ({
             matchId: upserted.id,
             playerId: t.playerId,
             team: "A" as const,
+            initialTeam: "A" as const,
             isGk: Boolean(t.isGk),
           })),
           ...body.teamB.map((t) => ({
             matchId: upserted.id,
             playerId: t.playerId,
             team: "B" as const,
+            initialTeam: "B" as const,
             isGk: Boolean(t.isGk),
           })),
         ],

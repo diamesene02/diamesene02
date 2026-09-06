@@ -128,6 +128,15 @@ export type OutboxOp =
       payload: { eventId: string; scorerPlayerId: string | null };
     }
   | {
+      /// Inscrit un joueur arrivé après le coup d'envoi. Sans elle, la saisie
+      /// de ses buts était refusée (« Joueur non inscrit à ce match ») et la
+      /// seule issue était de terminer le match et de tout ressaisir.
+      kind: "addParticipant";
+      clubId: string;
+      matchId: string;
+      payload: { playerId: string; team: "A" | "B"; isGk: boolean };
+    }
+  | {
       /// Corrige la composition d'un match en cours : un joueur change de camp.
       /// Rejouable — le serveur écrit l'appartenance voulue, pas un delta.
       kind: "movePlayer";

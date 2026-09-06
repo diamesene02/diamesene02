@@ -157,6 +157,19 @@ export default async function SessionsPage({
           </Link>
         )}
       </div>
+      {/* Poser toute la saison d'un coup : la voie normale pour un club qui
+          joue toutes les semaines. Créer les soirées une par une reste
+          possible juste au-dessus, pour les dates hors calendrier. */}
+      {ctx.canManage && (
+        <Link
+          href={`/c/${slug}/saison`}
+          className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[color:var(--ink-2)] hover:text-[color:var(--ink-1)]"
+        >
+          <Icon name="calendar" size={15} />
+          Poser toute la saison
+          <Icon name="chevron" size={14} />
+        </Link>
+      )}
 
       {matchDays.length === 0 ? (
         <div className="mt-10 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-8 text-center">

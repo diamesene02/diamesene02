@@ -12,9 +12,12 @@ import {
   addEvent,
   finishMatch,
   getLocalMatch,
+  ajouterJoueurAuMatch,
+  joueursAbsentsDuMatch,
   movePlayerTeam,
   removeEvent,
   setEventAssist,
+  saveRoster,
   setEventScorer,
   undoLastGoalOf,
   type LivePlayer,
@@ -60,13 +63,27 @@ type Invite =
 
 const DUREE_INVITE_MS = 15000;
 
+type FicheJoueur = {
+  id: string;
+  name: string;
+  nickname: string | null;
+  skill: number;
+  isGk: boolean;
+  isGuest: boolean;
+};
+
 export default function LiveMatch({
   slug,
   matchId,
+  clubId,
+  vivier: vivierClub,
   settings,
 }: {
   slug: string;
   matchId: string;
+  clubId: string;
+  /// Tous les joueurs actifs du club, pour amorcer le cache local.
+  vivier: FicheJoueur[];
   settings: Settings;
 }) {
   const router = useRouter();
@@ -90,10 +107,19 @@ export default function LiveMatch({
   // suive le déplacement d'une colonne à l'autre.
   const [justMoved, setJustMoved] = useState<string | null>(null);
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Le retardataire : les joueurs du club absents de la feuille de ce match.
+  const [vivier, setVivier] = useState<{ id: string; name: string }[]>([]);
+  const [ajoutOuvert, setAjoutOuvert] = useState(false);
 
   useEffect(() => {
     setSoundOn(isSoundEnabled());
   }, []);
+
+  // Amorçage du cache local, à chaque ouverture : c'est le seul moment où l'on
+  // est sûr d'avoir le réseau.
+  useEffect(() => {
+    if (vivierClub.length > 0) void saveRoster(clubId, vivierClub);
+  }, [clubId, vivierClub]);
   useEffect(
     () => () => {
       if (inviteTimer.current) clearTimeout(inviteTimer.current);
@@ -157,6 +183,20 @@ export default function LiveMatch({
     if (overtime && !wasOverRef.current) playFullTimeSound();
     wasOverRef.current = overtime;
   }, [data, overtime]);
+
+  useEffect(() => {
+    if (!compoMode) {
+      setAjoutOuvert(false);
+      return;
+    }
+    let vivant = true;
+    void joueursAbsentsDuMatch(matchId).then((v) => {
+      if (vivant) setVivier(v);
+    });
+    return () => {
+      vivant = false;
+    };
+  }, [compoMode, matchId, data]);
 
   const toggleClock = useCallback(async () => {
     const c = clockRef.current;
@@ -368,6 +408,23 @@ export default function LiveMatch({
       if (navigator.vibrate) navigator.vibrate(18);
       if (moveTimer.current) clearTimeout(moveTimer.current);
       setJustMoved(playerId);
+      moveTimer.current = setTimeout(
+        () => setJustMoved((id) => (id === playerId ? null : id)),
+        400
+      );
+      void kickSync();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    }
+  }
+
+  async function faireEntrer(playerId: string, team: "A" | "B") {
+    setAjoutOuvert(false);
+    try {
+      await ajouterJoueurAuMatch(matchId, playerId, team);
+      if (navigator.vibrate) navigator.vibrate(18);
+      setJustMoved(playerId);
+      if (moveTimer.current) clearTimeout(moveTimer.current);
       moveTimer.current = setTimeout(
         () => setJustMoved((id) => (id === playerId ? null : id)),
         400
@@ -642,6 +699,54 @@ export default function LiveMatch({
             <Icon name="chevron" size={13} />
           </button>
         ))}
+
+      {/* Le retardataire. Il arrive à la 10e minute et n'était sur aucune
+          feuille : ses buts étaient refusés, et la seule issue était de
+          terminer le match pour tout ressaisir. */}
+      {compoMode && !external && vivier.length > 0 && (
+        <div className="compo-ajout">
+          {ajoutOuvert ? (
+            <>
+              <div className="compo-ajout-titre">
+                Il arrive en retard — dans quelle équipe ?
+              </div>
+              <ul className="compo-ajout-liste">
+                {vivier.map((v) => (
+                  <li key={v.id}>
+                    <span className="compo-ajout-nom">{v.name}</span>
+                    <button
+                      onClick={() => faireEntrer(v.id, "A")}
+                      className="compo-ajout-camp A"
+                    >
+                      {match.teamAName}
+                    </button>
+                    <button
+                      onClick={() => faireEntrer(v.id, "B")}
+                      className="compo-ajout-camp B"
+                    >
+                      {match.teamBName}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => setAjoutOuvert(false)}
+                className="compo-ajout-fermer"
+              >
+                Fermer
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setAjoutOuvert(true)}
+              className="compo-ajout-ouvrir"
+            >
+              <Icon name="plus" size={14} />
+              Faire entrer un joueur
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="live-container flex-1 overflow-y-auto pb-28">
         <section>

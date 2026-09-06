@@ -618,6 +618,125 @@
     }
   }
 
+  /* Un rappel en tête d'accueil. Assez présent pour être vu en passant, assez
+     sobre pour ne pas hurler chaque semaine — il ne s'affiche que dans les
+     cinq jours qui précèdent une soirée sans compo. */
+  .rappel {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    margin-bottom: var(--s4, 16px);
+    padding: var(--s3);
+    border: 1px solid var(--rule-hi);
+    border-radius: var(--r-lg, 18px);
+    background: var(--pitch-1);
+    color: var(--ink-1);
+  }
+  .rappel-pastille {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+  .rappel-corps {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+  .rappel-titre {
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink-1);
+  }
+  .rappel-aide {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--ink-2);
+  }
+
+  /* ═══════════════════ COMPO PRÉPARÉE ═══════════════════
+     La liste des joueurs d'une soirée, remplie au pouce trois jours avant.
+     Un tap fait le tour des trois états ; la barre latérale porte la couleur
+     de la chasuble, comme les tuiles de l'écran live — une seule grammaire
+     dans toute l'application. */
+  .compo-ligne {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    width: 100%;
+    min-height: var(--tap-min);
+    padding: 0 var(--s3) 0 0;
+    border: 0;
+    border-radius: var(--r-md);
+    background: var(--pitch-1);
+    font-family: var(--font);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .compo-ligne:active {
+    background: var(--pitch-2);
+  }
+  .compo-barre {
+    width: 4px;
+    flex: 0 0 4px;
+    align-self: stretch;
+    border-radius: var(--r-md) 0 0 var(--r-md);
+    background: var(--rule);
+  }
+  .compo-ligne.A .compo-barre {
+    background: var(--bib-a);
+  }
+  .compo-ligne.B .compo-barre {
+    background: var(--bib-b);
+  }
+  .compo-nom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    font-stretch: 96%;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .compo-ligne.A .compo-nom,
+  .compo-ligne.B .compo-nom {
+    color: var(--ink-1);
+  }
+  .compo-gk {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--ink-3);
+  }
+  .compo-camp {
+    flex: 0 0 auto;
+    max-width: 40%;
+    font-stretch: 88%;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .compo-ligne.A .compo-camp {
+    color: var(--bib-a-ink);
+  }
+  .compo-ligne.B .compo-camp {
+    color: var(--bib-b-ink);
+  }
+
   /* Le groupe de droite porte « Fin » et la synchro : il ne cède jamais. */
   .live-topbar-right {
     display: flex;
@@ -862,6 +981,94 @@
     text-transform: uppercase;
     cursor: pointer;
   }
+  /* Faire entrer un joueur en cours de match. Vit dans le bandeau de
+     correction, jamais ailleurs : c'est le même moment que le reste des
+     retouches de composition. */
+  .compo-ajout {
+    padding: var(--s2) var(--s3) var(--s3);
+    border-bottom: 1px solid var(--rule);
+    background: var(--pitch-1);
+  }
+  .compo-ajout-ouvrir,
+  .compo-ajout-fermer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: var(--tap-min);
+    border: 1px dashed var(--rule-hi);
+    border-radius: var(--r-md);
+    background: none;
+    color: var(--ink-2);
+    font-family: var(--font);
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .compo-ajout-fermer {
+    margin-top: var(--s2);
+    border-style: solid;
+  }
+  .compo-ajout-titre {
+    margin-bottom: var(--s2);
+    font-stretch: 88%;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-1);
+  }
+  .compo-ajout-liste {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .compo-ajout-liste li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .compo-ajout-nom {
+    flex: 1;
+    min-width: 0;
+    font-stretch: 96%;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .compo-ajout-camp {
+    flex: 0 0 auto;
+    max-width: 34%;
+    min-height: var(--tap-min);
+    padding: 0 var(--s3);
+    border: 0;
+    border-radius: 999px;
+    color: var(--pitch-0);
+    font-family: var(--font);
+    font-stretch: 88%;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .compo-ajout-camp.A {
+    background: var(--bib-a);
+  }
+  .compo-ajout-camp.B {
+    background: var(--bib-b);
+  }
+
   /* La tuile en mode correction : une seule cible, pas de bouton de but, et
      une flèche qui montre la destination avant qu'on tape. */
   .fs-tile-compo {

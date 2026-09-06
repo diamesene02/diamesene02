@@ -24,7 +24,15 @@ type LoadedMatch = {
   scoreA: number;
   scoreB: number;
   mvpId: string | null;
-  participants: { playerId: string; team: "A" | "B" }[];
+  /// `team` est l'équipe COURANTE, `initialTeam` celle du coup d'envoi. Tous
+  /// les agrégats lisent `initialTeam` : un joueur qui change de camp en cours
+  /// de match ne doit pas emporter rétroactivement le résultat, l'Élo et
+  /// l'étiquette de ses propres buts dans l'autre équipe.
+  participants: {
+    playerId: string;
+    team: "A" | "B";
+    initialTeam: "A" | "B";
+  }[];
   events: {
     type: "GOAL" | "OWN_GOAL" | "YELLOW_CARD" | "RED_CARD" | "HALF_TIME";
     team: "A" | "B";
@@ -44,7 +52,9 @@ async function loadFinishedMatches(scope: StatsScope): Promise<LoadedMatch[]> {
     orderBy: { playedAt: "asc" },
     include: {
       opponent: { select: { name: true } },
-      participants: { select: { playerId: true, team: true } },
+      participants: {
+        select: { playerId: true, team: true, initialTeam: true },
+      },
       events: {
         select: {
           type: true,
@@ -133,10 +143,10 @@ export async function getLeaderboard(
       .filter((m) => m.kind === "INTERNAL")
       .map((m) => ({
         teamA: m.participants
-          .filter((p) => p.team === "A")
+          .filter((p) => p.initialTeam === "A")
           .map((p) => p.playerId),
         teamB: m.participants
-          .filter((p) => p.team === "B")
+          .filter((p) => p.initialTeam === "B")
           .map((p) => p.playerId),
         scoreA: m.scoreA,
         scoreB: m.scoreB,
@@ -184,7 +194,7 @@ export async function getLeaderboard(
       const a = ensure(part.playerId);
       if (!a) continue;
       a.matchesPlayed++;
-      const r = resultFor(part.team, m);
+      const r = resultFor(part.initialTeam, m);
       a.results.push(r);
       if (r === "W") a.wins++;
       else if (r === "D") a.draws++;
@@ -421,7 +431,7 @@ export async function getPlayerDetail(
       playedAt: m.playedAt.toISOString(),
       label,
       score: `${m.scoreA}-${m.scoreB}`,
-      result: resultFor(ap.team, m),
+      result: resultFor(ap.initialTeam, m),
       goals: m.events.filter(
         (e) => e.type === "GOAL" && e.playerId === playerId,
       ).length,

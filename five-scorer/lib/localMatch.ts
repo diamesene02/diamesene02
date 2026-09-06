@@ -465,6 +465,65 @@ export async function movePlayerTeam(
   );
 }
 
+/// Inscrit un joueur arrivé après le coup d'envoi.
+///
+/// Le retardataire est une certitude dans un club qui joue tous les lundis. Il
+/// n'avait aucune place : addEvent refusait ses buts (« Joueur non inscrit à ce
+/// match ») et la seule issue était de terminer le match et de tout ressaisir.
+export async function ajouterJoueurAuMatch(
+  matchId: string,
+  playerId: string,
+  team: "A" | "B",
+): Promise<void> {
+  const db = getDb();
+  await db.transaction(
+    "rw",
+    db.matches,
+    db.participants,
+    db.roster,
+    db.outbox,
+    async () => {
+      const match = await db.matches.get(matchId);
+      if (!match) throw new Error("Match introuvable");
+      if (match.status === "FINISHED") throw new Error("Match terminé");
+      const deja = await db.participants.get(pKey(matchId, playerId));
+      if (deja) return; // déjà de la partie
+      // Il entre comme joueur de champ : le rôle de gardien d'un soir est une
+      // décision distincte, qui se prend sur la compo de la soirée.
+      await db.participants.put({
+        key: pKey(matchId, playerId),
+        matchId,
+        playerId,
+        team,
+        isGk: false,
+      });
+      await enqueue({
+        kind: "addParticipant",
+        clubId: match.clubId,
+        matchId,
+        payload: { playerId, team, isGk: false },
+      });
+    },
+  );
+}
+
+/// Le vivier du club, hors des joueurs déjà inscrits à ce match — ceux qu'on
+/// peut faire entrer en cours de route.
+export async function joueursAbsentsDuMatch(
+  matchId: string,
+): Promise<{ id: string; name: string }[]> {
+  const db = getDb();
+  const match = await db.matches.get(matchId);
+  if (!match) return [];
+  const parts = await db.participants.where("matchId").equals(matchId).toArray();
+  const dedans = new Set(parts.map((p) => p.playerId));
+  const vivier = await db.roster.where("clubId").equals(match.clubId).toArray();
+  return vivier
+    .filter((p) => !dedans.has(p.id))
+    .map((p) => ({ id: p.id, name: p.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /// Annule le dernier but d'un joueur (geste rapide "−" sur sa tuile).
 export async function undoLastGoalOf(
   matchId: string,

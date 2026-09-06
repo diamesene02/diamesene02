@@ -112,8 +112,8 @@ export default function RsvpPanel({
       </div>
       {canManage && (
         <p className="mt-2 text-[11px] text-[color:var(--ink-2)]">
-          Les membres répondent ici — le générateur d&apos;équipes reprend
-          automatiquement les présents au lancement du match.
+          Facultatif. Les équipes se préparent sur la soirée, présences ou
+          non — c&apos;est elles que le coup d&apos;envoi utilise.
         </p>
       )}
     </div>

@@ -72,3 +72,74 @@ export async function PATCH(req: Request, { params }: Ctx) {
   // de camp devenu sans objet. On répond donc 200 en le disant.
   return NextResponse.json({ ok: true, applique: updated.count > 0 });
 }
+
+
+type PostBody = { playerId: string; team: "A" | "B"; isGk?: boolean };
+
+/// POST : inscrit un joueur arrivé après le coup d'envoi.
+///
+/// Idempotent : rejouer l'opération ne crée pas de doublon et ne réécrit pas
+/// l'équipe d'un joueur déjà inscrit — sinon un rejeu tardif annulerait un
+/// changement de camp fait entre-temps.
+export async function POST(req: Request, { params }: Ctx) {
+  const { clubId, matchId } = await params;
+  const ctx = await getClubApiContext(clubId);
+  if (!ctx) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  if (!ctx.canScore) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const body = (await req.json().catch(() => null)) as PostBody | null;
+  if (!body || !idsValides(body.playerId)) {
+    return NextResponse.json({ error: "playerId requis" }, { status: 400 });
+  }
+  if (body.team !== "A" && body.team !== "B") {
+    return NextResponse.json({ error: "Équipe invalide" }, { status: 400 });
+  }
+
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, clubId },
+    select: { status: true, kind: true },
+  });
+  if (!match) {
+    return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
+  }
+  if (match.status === "FINISHED" && !ctx.canManage) {
+    return NextResponse.json(
+      { error: "Admin requis pour modifier un match terminé" },
+      { status: 403 },
+    );
+  }
+  if (match.kind === "EXTERNAL" && body.team === "B") {
+    return NextResponse.json(
+      { error: "Pas d'équipe B à composer sur un match contre un adversaire" },
+      { status: 400 },
+    );
+  }
+
+  // Le joueur doit être du club — l'identifiant vient du client.
+  const aNous = await prisma.player.count({
+    where: { id: body.playerId, clubId },
+  });
+  if (!aNous) {
+    return NextResponse.json({ error: "Joueur hors du club" }, { status: 400 });
+  }
+
+  // Le joueur arrivé en cours de match a pour équipe de départ celle où il
+  // entre : c'est bien le résultat de ce camp qui doit lui être compté.
+  await prisma.matchParticipant.createMany({
+    data: [
+      {
+        matchId,
+        playerId: body.playerId,
+        team: body.team,
+        initialTeam: body.team,
+        isGk: Boolean(body.isGk),
+      },
+    ],
+    skipDuplicates: true,
+  });
+  return NextResponse.json({ ok: true });
+}
