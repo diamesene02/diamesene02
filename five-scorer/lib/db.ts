@@ -130,6 +130,10 @@ export type OutboxEntry = {
   createdAt: string; // ISO
   attempts: number;
   lastError?: string | null;
+  /// Refusée par le serveur (403, 404, 409…). L'opération sort de la file
+  /// active mais reste conservée : on ne détruit pas la saisie d'un match sans
+  /// le dire. Absent tant que l'opération est en attente normale.
+  blockedAt?: string | null;
   op: OutboxOp;
 };
 

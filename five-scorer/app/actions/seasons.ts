@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
 
 export async function createSeason(
   slug: string,
-  name: string
+  name: string,
 ): Promise<{ ok: boolean; error?: string; seasonId?: string }> {
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
@@ -29,8 +30,14 @@ export async function createSeason(
 
 export async function closeSeason(
   slug: string,
-  seasonId: string
+  seasonId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(seasonId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
   const res = await prisma.season.updateMany({
@@ -44,8 +51,14 @@ export async function closeSeason(
 
 export async function reopenSeason(
   slug: string,
-  seasonId: string
+  seasonId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(seasonId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
   await prisma.$transaction(async (tx) => {

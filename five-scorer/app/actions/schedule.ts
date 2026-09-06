@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
 import type { RsvpStatus } from "@prisma/client";
 
@@ -18,7 +19,7 @@ export async function scheduleMatch(
     teamAName?: string;
     teamBName?: string;
     matchDayId?: string | null;
-  }
+  },
 ): Promise<{ ok: boolean; error?: string; matchId?: string }> {
   const ctx = await requireClub(slug);
   if (!ctx.canScore) return { ok: false, error: "Non autorisé." };
@@ -87,8 +88,14 @@ export async function scheduleMatch(
 
 export async function cancelScheduledMatch(
   slug: string,
-  matchId: string
+  matchId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 
@@ -115,8 +122,14 @@ export async function setMatchRsvp(
   slug: string,
   matchId: string,
   playerId: string,
-  status: RsvpStatus
+  status: RsvpStatus,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchId, playerId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!RSVP_STATUSES.includes(status)) {
     return { ok: false, error: "Statut invalide." };

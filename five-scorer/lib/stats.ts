@@ -72,10 +72,13 @@ async function loadFinishedMatches(scope: StatsScope): Promise<LoadedMatch[]> {
 
 export type Result = "W" | "D" | "L";
 
-function resultFor(team: "A" | "B", m: { scoreA: number; scoreB: number }): Result {
+function resultFor(
+  team: "A" | "B",
+  m: { scoreA: number; scoreB: number },
+): Result {
   const diff = m.scoreA - m.scoreB;
   if (diff === 0) return "D";
-  return (diff > 0) === (team === "A") ? "W" : "L";
+  return diff > 0 === (team === "A") ? "W" : "L";
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +115,7 @@ export type LeaderboardRow = {
 const ELO_BASE = 1000;
 
 export async function getLeaderboard(
-  scope: StatsScope
+  scope: StatsScope,
 ): Promise<LeaderboardRow[]> {
   const [matches, players] = await Promise.all([
     loadFinishedMatches(scope),
@@ -138,7 +141,7 @@ export async function getLeaderboard(
         scoreA: m.scoreA,
         scoreB: m.scoreB,
       })),
-    ELO_BASE
+    ELO_BASE,
   );
 
   type Acc = Omit<
@@ -191,8 +194,7 @@ export async function getLeaderboard(
       if (e.type === "GOAL") {
         if (e.playerId) ensure(e.playerId) && (acc.get(e.playerId)!.goals += 1);
         if (e.assistPlayerId)
-          ensure(e.assistPlayerId) &&
-            (acc.get(e.assistPlayerId)!.assists += 1);
+          ensure(e.assistPlayerId) && (acc.get(e.assistPlayerId)!.assists += 1);
       } else if (e.type === "OWN_GOAL" && e.playerId) {
         ensure(e.playerId) && (acc.get(e.playerId)!.ownGoals += 1);
       } else if (e.type === "YELLOW_CARD" && e.playerId) {
@@ -225,7 +227,7 @@ export async function getLeaderboard(
         hist.length >= 5
           ? Math.round(
               hist[hist.length - 1] -
-                (hist.length >= 6 ? hist[hist.length - 6] : ELO_BASE)
+                (hist.length >= 6 ? hist[hist.length - 6] : ELO_BASE),
             )
           : 0;
       const { results, ...row } = a;
@@ -250,7 +252,7 @@ export async function getLeaderboard(
         y.goals - x.goals ||
         y.winPct - x.winPct ||
         y.matchesPlayed - x.matchesPlayed ||
-        x.name.localeCompare(y.name)
+        x.name.localeCompare(y.name),
     );
 }
 
@@ -282,7 +284,7 @@ export type SeasonHonours = {
 
 export async function getSeasonHonours(
   clubId: string,
-  seasonId: string
+  seasonId: string,
 ): Promise<SeasonHonours | null> {
   const season = await prisma.season.findFirst({
     where: { id: seasonId, clubId },
@@ -294,7 +296,7 @@ export async function getSeasonHonours(
 
   const best = (
     value: (r: LeaderboardRow) => number,
-    candidates: LeaderboardRow[] = rows
+    candidates: LeaderboardRow[] = rows,
   ): HonourEntry => {
     let top: LeaderboardRow | null = null;
     for (const r of candidates) {
@@ -315,7 +317,7 @@ export async function getSeasonHonours(
     topMvp: best((r) => r.mvpCount),
     topWinPct: best(
       (r) => r.winPct,
-      rows.filter((r) => r.matchesPlayed >= 5)
+      rows.filter((r) => r.matchesPlayed >= 5),
     ),
     topElo: eloMoved ? best((r) => r.elo) : null,
     ironMan: best((r) => r.matchesPlayed),
@@ -337,7 +339,11 @@ export type PlayerDetail = {
     userId: string | null;
   };
   allTime: LeaderboardRow | null;
-  bySeason: { seasonId: string | null; seasonName: string; row: LeaderboardRow }[];
+  bySeason: {
+    seasonId: string | null;
+    seasonName: string;
+    row: LeaderboardRow;
+  }[];
   recentMatches: {
     id: string;
     playedAt: string;
@@ -351,7 +357,7 @@ export type PlayerDetail = {
 
 export async function getPlayerDetail(
   clubId: string,
-  playerId: string
+  playerId: string,
 ): Promise<PlayerDetail | null> {
   const player = await prisma.player.findFirst({
     where: { id: playerId, clubId },
@@ -417,7 +423,7 @@ export async function getPlayerDetail(
       score: `${m.scoreA}-${m.scoreB}`,
       result: resultFor(ap.team, m),
       goals: m.events.filter(
-        (e) => e.type === "GOAL" && e.playerId === playerId
+        (e) => e.type === "GOAL" && e.playerId === playerId,
       ).length,
       wasMvp: m.mvpId === playerId,
     };
@@ -458,10 +464,10 @@ export type ExternalRecord = {
 
 export async function getExternalRecord(
   scope: StatsScope,
-  points: { win: number; draw: number }
+  points: { win: number; draw: number },
 ): Promise<ExternalRecord> {
   const matches = (await loadFinishedMatches(scope)).filter(
-    (m) => m.kind === "EXTERNAL"
+    (m) => m.kind === "EXTERNAL",
   );
   const rec: ExternalRecord = {
     played: 0,
@@ -513,9 +519,7 @@ export async function getExternalRecord(
   }
 
   rec.form = chrono.slice(-5).reverse();
-  rec.byOpponent = Array.from(opp.values()).sort(
-    (a, b) => b.played - a.played
-  );
+  rec.byOpponent = Array.from(opp.values()).sort((a, b) => b.played - a.played);
   return rec;
 }
 

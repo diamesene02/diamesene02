@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
 
 /// Plafond : 100 000 € en centimes — personne ne loue un terrain plus cher.
@@ -11,8 +12,14 @@ const MAX_COST_CENTS = 100000_00;
 export async function setFieldCost(
   slug: string,
   matchDayId: string,
-  costCents: number | null
+  costCents: number | null,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchDayId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 
@@ -41,8 +48,14 @@ export async function setRsvpPaid(
   slug: string,
   matchDayId: string,
   playerId: string,
-  paid: boolean
+  paid: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchDayId, playerId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 

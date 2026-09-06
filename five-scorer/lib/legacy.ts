@@ -20,12 +20,42 @@ export async function getUnclaimedLegacyClub() {
   return org;
 }
 
+/// Fenêtre de revendication de l'historique v1.
+///
+/// Le PIN hérité de la v1 est un code à quatre chiffres : dix mille
+/// combinaisons pour devenir propriétaire de tout l'historique, avec le droit
+/// de le supprimer — et l'écran d'accueil annonce spontanément qu'un historique
+/// est à prendre.
+///
+/// Une limitation du nombre d'essais ne protège pas ici : l'app tourne sur des
+/// fonctions sans état, réparties sur plusieurs instances et redémarrées à
+/// froid, donc aucun compteur en mémoire ne survit ; et comme l'inscription est
+/// libre, un compteur par utilisateur se remet à zéro pour le prix d'un
+/// nouveau compte. Une défense qui ne défend rien est pire que pas de défense :
+/// elle rassure.
+///
+/// Le contrôle qui tient sur une architecture sans état est un interrupteur :
+/// la revendication n'est possible que si l'exploitant l'ouvre explicitement.
+/// Il l'ouvre le temps de récupérer son historique, puis la referme. La
+/// fenêtre reste fermée par défaut.
+function revendicationOuverte(): boolean {
+  return process.env.LEGACY_CLAIM_OPEN === "1";
+}
+
 export async function claimLegacyClub(
   userId: string,
-  pin: string
+  pin: string,
 ): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
   const org = await getUnclaimedLegacyClub();
   if (!org) return { ok: false, error: "Aucun historique à revendiquer." };
+
+  if (!revendicationOuverte()) {
+    return {
+      ok: false,
+      error:
+        "La reprise de l'historique est fermée. Demande à l'administrateur de l'ouvrir.",
+    };
+  }
 
   const hash = process.env.ADMIN_PIN_HASH;
   if (!hash || !bcrypt.compareSync(pin, hash)) {

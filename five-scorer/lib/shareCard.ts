@@ -1,7 +1,13 @@
 // Canvas renderer for match recap shareable image (1080x1080).
 
 type Player = { id: string; name: string; goals: number; team: "A" | "B" };
-type Goal = { id: string; scorerId: string; team: "A" | "B"; minute: number | null; createdAt: string };
+type Goal = {
+  id: string;
+  scorerId: string;
+  team: "A" | "B";
+  minute: number | null;
+  createdAt: string;
+};
 type Match = {
   playedAt: string;
   teamAName: string;
@@ -14,10 +20,15 @@ type Match = {
 // sont dupliquées ici parce qu'un canvas ne lit pas les variables CSS ;
 // elles doivent bouger avec les jetons.
 const TOK = {
-  bg0: "#0E1211", bg1: "#141917",
-  ink0: "#F4F6F3", ink1: "#C8CFCB", ink2: "#ADB5B2",
-  a: "#FF6B2C", aLight: "#FF996D",
-  b: "#3D8BFF", bLight: "#83B5FF",
+  bg0: "#0E1211",
+  bg1: "#141917",
+  ink0: "#F4F6F3",
+  ink1: "#C8CFCB",
+  ink2: "#ADB5B2",
+  a: "#FF6B2C",
+  aLight: "#FF996D",
+  b: "#3D8BFF",
+  bLight: "#83B5FF",
   gold: "#FFC24D",
 };
 
@@ -28,7 +39,14 @@ const TOK = {
 const UI = '"Archivo", system-ui, sans-serif';
 const NUM = '62% "Archivo", system-ui, sans-serif';
 
-function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -85,7 +103,10 @@ export async function renderShareCard({
   ctx.fillStyle = TOK.ink2;
   ctx.font = `500 22px ${UI}`;
   const date = new Date(match.playedAt).toLocaleDateString("fr-FR", {
-    weekday: "long", day: "2-digit", month: "long", year: "numeric",
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
   });
   ctx.fillText(date, 540, 130);
 
@@ -102,7 +123,10 @@ export async function renderShareCard({
 
   ctx.font = `800 220px ${NUM}`;
   ctx.fillStyle = winA ? TOK.gold : TOK.ink1;
-  if (winA) { ctx.shadowColor = "rgba(245,179,1,0.5)"; ctx.shadowBlur = 40; }
+  if (winA) {
+    ctx.shadowColor = "rgba(245,179,1,0.5)";
+    ctx.shadowBlur = 40;
+  }
   ctx.fillText(String(match.scoreA), 290, 440);
   ctx.shadowBlur = 0;
 
@@ -112,7 +136,10 @@ export async function renderShareCard({
 
   ctx.font = `800 220px ${NUM}`;
   ctx.fillStyle = winB ? TOK.gold : TOK.ink1;
-  if (winB) { ctx.shadowColor = "rgba(245,179,1,0.5)"; ctx.shadowBlur = 40; }
+  if (winB) {
+    ctx.shadowColor = "rgba(245,179,1,0.5)";
+    ctx.shadowBlur = 40;
+  }
   ctx.fillText(String(match.scoreB), 790, 440);
   ctx.shadowBlur = 0;
 
@@ -168,16 +195,20 @@ export async function renderShareCard({
   ctx.textAlign = "center";
   ctx.fillText("FIVE SCORER · urban foot", 540, 1030);
 
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png", 0.92));
+  return new Promise((resolve) =>
+    canvas.toBlob((b) => resolve(b), "image/png", 0.92),
+  );
 }
 
 export async function shareMatchImage(
   data: Parameters<typeof renderShareCard>[0],
-  publicUrl?: string
+  publicUrl?: string,
 ): Promise<void> {
   const blob = await renderShareCard(data);
   if (!blob) return;
-  const file = new File([blob], `five-scorer-${Date.now()}.png`, { type: "image/png" });
+  const file = new File([blob], `five-scorer-${Date.now()}.png`, {
+    type: "image/png",
+  });
   const nav = navigator as Navigator & {
     canShare?: (d: { files?: File[]; url?: string; text?: string }) => boolean;
   };

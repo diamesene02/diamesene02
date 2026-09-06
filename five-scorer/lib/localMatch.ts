@@ -39,7 +39,7 @@ export async function saveRoster(
     skill: number;
     isGk: boolean;
     isGuest: boolean;
-  }[]
+  }[],
 ) {
   const db = getDb();
   await db.roster.bulkPut(players.map((p) => ({ ...p, clubId })));
@@ -47,7 +47,7 @@ export async function saveRoster(
 
 export async function addLocalGuest(
   clubId: string,
-  name: string
+  name: string,
 ): Promise<string> {
   const id = newId();
   const db = getDb();
@@ -149,7 +149,7 @@ export async function createMatch(input: CreateMatchInput): Promise<string> {
           guests,
         },
       });
-    }
+    },
   );
 
   return id;
@@ -177,7 +177,7 @@ export type ScheduledMatchSeed = {
 };
 
 export async function launchScheduledMatch(
-  seed: ScheduledMatchSeed
+  seed: ScheduledMatchSeed,
 ): Promise<string> {
   const db = getDb();
   const playedAt = new Date().toISOString();
@@ -217,7 +217,7 @@ export async function launchScheduledMatch(
           playerId: p.playerId,
           team: p.team,
           isGk: p.isGk,
-        }))
+        })),
       );
       await enqueue({
         kind: "createMatch",
@@ -237,7 +237,7 @@ export async function launchScheduledMatch(
           guests: [],
         },
       });
-    }
+    },
   );
   return seed.id;
 }
@@ -254,7 +254,7 @@ export type AddEventInput = {
 
 export async function addEvent(
   matchId: string,
-  input: AddEventInput
+  input: AddEventInput,
 ): Promise<string> {
   const db = getDb();
   const eventId = newId();
@@ -280,8 +280,7 @@ export async function addEvent(
 
       const started = new Date(match.playedAt).getTime();
       const minute =
-        input.minute ??
-        Math.max(0, Math.floor((Date.now() - started) / 60000));
+        input.minute ?? Math.max(0, Math.floor((Date.now() - started) / 60000));
 
       const event: LocalEvent = {
         id: eventId,
@@ -317,7 +316,7 @@ export async function addEvent(
           createdAt,
         },
       });
-    }
+    },
   );
 
   return eventId;
@@ -326,37 +325,31 @@ export async function addEvent(
 /// Annule un événement précis (tap sur la timeline).
 export async function removeEvent(
   matchId: string,
-  eventId: string
+  eventId: string,
 ): Promise<boolean> {
   const db = getDb();
-  return db.transaction(
-    "rw",
-    db.matches,
-    db.events,
-    db.outbox,
-    async () => {
-      const ev = await db.events.get(eventId);
-      if (!ev || ev.matchId !== matchId) return false;
-      await db.events.delete(eventId);
+  return db.transaction("rw", db.matches, db.events, db.outbox, async () => {
+    const ev = await db.events.get(eventId);
+    if (!ev || ev.matchId !== matchId) return false;
+    await db.events.delete(eventId);
 
-      const d = scoreDelta(ev.type);
-      const match = await db.matches.get(matchId);
-      if (d && match) {
-        await db.matches.update(matchId, {
-          scoreA: ev.team === "A" ? Math.max(0, match.scoreA - d) : match.scoreA,
-          scoreB: ev.team === "B" ? Math.max(0, match.scoreB - d) : match.scoreB,
-        });
-      }
-
-      await enqueue({
-        kind: "removeEvent",
-        clubId: match?.clubId ?? "",
-        matchId,
-        payload: { eventId },
+    const d = scoreDelta(ev.type);
+    const match = await db.matches.get(matchId);
+    if (d && match) {
+      await db.matches.update(matchId, {
+        scoreA: ev.team === "A" ? Math.max(0, match.scoreA - d) : match.scoreA,
+        scoreB: ev.team === "B" ? Math.max(0, match.scoreB - d) : match.scoreB,
       });
-      return true;
     }
-  );
+
+    await enqueue({
+      kind: "removeEvent",
+      clubId: match?.clubId ?? "",
+      matchId,
+      payload: { eventId },
+    });
+    return true;
+  });
 }
 
 /// Attache (ou retire) une passe décisive à un but déjà saisi — le but part
@@ -364,7 +357,7 @@ export async function removeEvent(
 export async function setEventAssist(
   matchId: string,
   eventId: string,
-  assistPlayerId: string | null
+  assistPlayerId: string | null,
 ): Promise<void> {
   const db = getDb();
   await db.transaction("rw", db.matches, db.events, db.outbox, async () => {
@@ -384,7 +377,7 @@ export async function setEventAssist(
 /// Annule le dernier but d'un joueur (geste rapide "−" sur sa tuile).
 export async function undoLastGoalOf(
   matchId: string,
-  playerId: string
+  playerId: string,
 ): Promise<string | null> {
   const db = getDb();
   const last = await db.events
@@ -400,7 +393,7 @@ export async function undoLastGoalOf(
 export async function finishMatch(
   matchId: string,
   mvpId: string | null,
-  durationMin?: number | null
+  durationMin?: number | null,
 ): Promise<void> {
   const db = getDb();
   await db.transaction("rw", db.matches, db.outbox, async () => {
@@ -443,7 +436,7 @@ export async function getLocalMatch(matchId: string) {
   >();
   const bump = (
     id: string | null | undefined,
-    key: "goals" | "assists" | "yellow" | "red"
+    key: "goals" | "assists" | "yellow" | "red",
   ) => {
     if (!id) return;
     const t = tally.get(id) ?? { goals: 0, assists: 0, yellow: 0, red: 0 };
@@ -459,9 +452,7 @@ export async function getLocalMatch(matchId: string) {
 
   const ids = Array.from(new Set(parts.map((p) => p.playerId)));
   const roster = await db.roster.bulkGet(ids);
-  const rosterById = new Map(
-    roster.filter(Boolean).map((p) => [p!.id, p!])
-  );
+  const rosterById = new Map(roster.filter(Boolean).map((p) => [p!.id, p!]));
 
   const toLive = (team: "A" | "B"): LivePlayer[] =>
     parts
@@ -481,11 +472,9 @@ export async function getLocalMatch(matchId: string) {
 
   const enrichedEvents = events.map((e) => ({
     ...e,
-    playerName: e.playerId
-      ? rosterById.get(e.playerId)?.name ?? "?"
-      : null,
+    playerName: e.playerId ? (rosterById.get(e.playerId)?.name ?? "?") : null,
     assistName: e.assistPlayerId
-      ? rosterById.get(e.assistPlayerId)?.name ?? null
+      ? (rosterById.get(e.assistPlayerId)?.name ?? null)
       : null,
   }));
 

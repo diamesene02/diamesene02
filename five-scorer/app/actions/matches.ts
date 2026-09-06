@@ -3,12 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
 
 export async function deleteMatch(
   slug: string,
-  matchId: string
+  matchId: string,
 ): Promise<{ ok: false; error: string } | never> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
   await prisma.match
@@ -30,8 +37,14 @@ export type EditMatchInput = {
 export async function updateMatchDetails(
   slug: string,
   matchId: string,
-  input: EditMatchInput
+  input: EditMatchInput,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 

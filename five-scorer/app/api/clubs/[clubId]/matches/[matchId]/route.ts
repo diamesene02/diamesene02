@@ -43,7 +43,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!isFinishing && !isIdempotentFinish && !ctx.canManage) {
     return NextResponse.json(
       { error: "Admin requis pour modifier un match terminé" },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
@@ -56,12 +56,23 @@ export async function PATCH(req: Request, { params }: Ctx) {
     }
   }
 
+  // « Terminer un match déjà terminé » est toléré pour que la file d'attente
+  // hors-ligne puisse rejouer sans erreur — mais ce rejeu doit être INERTE.
+  // Il ne l'était pas : mvpId et durationMin s'écrivaient sans condition de
+  // rôle, si bien qu'un simple membre réécrivait l'homme du match et la durée
+  // d'une rencontre close. Et le cas n'était pas théorique : c'est exactement
+  // ce que produisait le scénario des deux téléphones, le finishMatch en file
+  // arrivant après le createMatch refusé.
+  const rejeuInerte = isIdempotentFinish && !ctx.canManage;
+
   const updated = await prisma.match.update({
     where: { id: matchId },
     data: {
       ...(body.status === "FINISHED" ? { status: "FINISHED" } : {}),
-      ...(body.mvpId !== undefined ? { mvpId: body.mvpId } : {}),
-      ...(body.durationMin !== undefined
+      ...(body.mvpId !== undefined && !rejeuInerte
+        ? { mvpId: body.mvpId }
+        : {}),
+      ...(body.durationMin !== undefined && !rejeuInerte
         ? { durationMin: body.durationMin }
         : {}),
       ...(ctx.canManage && body.teamAName?.trim()

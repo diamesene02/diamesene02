@@ -61,7 +61,7 @@ function snakeSeed(players: BalanceInput[]): [BalanceInput[], BalanceInput[]] {
 /// Échanges de paires tant que ça réduit l'écart.
 function localSearch(
   teamA: BalanceInput[],
-  teamB: BalanceInput[]
+  teamB: BalanceInput[],
 ): [BalanceInput[], BalanceInput[]] {
   const a = [...teamA];
   const b = [...teamB];
@@ -93,7 +93,7 @@ function localSearch(
 
 export function balanceTeams(
   players: BalanceInput[],
-  opts: { seed?: number } = {}
+  opts: { seed?: number } = {},
 ): BalancedTeams {
   if (players.length < 2) {
     return {
@@ -115,8 +115,14 @@ export function balanceTeams(
     return ((s >>> 0) % 1_000_000) / 1_000_000;
   };
 
-  const gks = shuffle(players.filter((p) => p.isGk), rng);
-  const field = shuffle(players.filter((p) => !p.isGk), rng);
+  const gks = shuffle(
+    players.filter((p) => p.isGk),
+    rng,
+  );
+  const field = shuffle(
+    players.filter((p) => !p.isGk),
+    rng,
+  );
 
   // Les gardiens d'abord, un par équipe tant qu'il y en a.
   const [gkA, gkB] = snakeSeed(gks);

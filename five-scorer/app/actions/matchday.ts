@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
 import type { RsvpStatus } from "@prisma/client";
 
@@ -9,7 +10,7 @@ import type { RsvpStatus } from "@prisma/client";
 /// groupe pickup, n'importe quel membre organise.
 export async function createMatchDay(
   slug: string,
-  input: { date: string; title?: string; location?: string }
+  input: { date: string; title?: string; location?: string },
 ): Promise<{ ok: boolean; error?: string; matchDayId?: string }> {
   const ctx = await requireClub(slug);
   if (!ctx.canScore) return { ok: false, error: "Non autorisé." };
@@ -36,8 +37,14 @@ export async function createMatchDay(
 
 export async function deleteMatchDay(
   slug: string,
-  matchDayId: string
+  matchDayId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchDayId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
   await prisma.matchDay
@@ -55,8 +62,14 @@ export async function setRsvp(
   slug: string,
   matchDayId: string,
   playerId: string,
-  status: RsvpStatus
+  status: RsvpStatus,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchDayId, playerId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!RSVP_STATUSES.includes(status)) {
     return { ok: false, error: "Statut invalide." };

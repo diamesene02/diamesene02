@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { idsValides } from "@/lib/ids";
 import { auth } from "@/lib/auth";
 import { requireUser, requireClub } from "@/lib/guard";
 import { claimLegacyClub } from "@/lib/legacy";
@@ -22,7 +23,10 @@ function normalizeName(s: string): string {
 /// Donne un profil joueur au compte : adopte un profil existant non lié qui
 /// porte le même nom (cas typique : le roster migré de la v1, ou un joueur
 /// créé par l'admin avant que la personne ne s'inscrive) — sinon en crée un.
-async function ensureLinkedPlayer(clubId: string, user: { id: string; name: string }) {
+async function ensureLinkedPlayer(
+  clubId: string,
+  user: { id: string; name: string },
+) {
   const existing = await prisma.player.findFirst({
     where: { clubId, userId: user.id },
   });
@@ -36,7 +40,7 @@ async function ensureLinkedPlayer(clubId: string, user: { id: string; name: stri
   const match = unlinked.find(
     (p) =>
       normalizeName(p.name) === target ||
-      (p.nickname && normalizeName(p.nickname) === target)
+      (p.nickname && normalizeName(p.nickname) === target),
   );
   if (match) {
     await prisma.player.update({
@@ -53,7 +57,7 @@ async function ensureLinkedPlayer(clubId: string, user: { id: string; name: stri
 // --- Rejoindre un club par code d'invitation --------------------------------
 
 export async function joinClubByCode(
-  code: string
+  code: string,
 ): Promise<{ ok: false; error: string } | never> {
   const session = await requireUser();
   const club = await prisma.club.findUnique({
@@ -81,7 +85,7 @@ export async function joinClubByCode(
 // --- Revendiquer l'historique v1 (ancien PIN admin) ------------------------
 
 export async function claimLegacy(
-  pin: string
+  pin: string,
 ): Promise<{ ok: false; error: string } | never> {
   const session = await requireUser();
   const res = await claimLegacyClub(session.user.id, pin);
@@ -115,7 +119,7 @@ const MOTM_MODES: MotmMode[] = ["VOTE", "ADMIN", "OFF"];
 
 export async function updateClubSettings(
   slug: string,
-  input: ClubSettingsInput
+  input: ClubSettingsInput,
 ): Promise<{ ok: boolean; error?: string }> {
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
@@ -177,7 +181,7 @@ export async function updateClubSettings(
 }
 
 export async function regenerateInviteCode(
-  slug: string
+  slug: string,
 ): Promise<{ ok: boolean; code?: string; error?: string }> {
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
@@ -195,8 +199,14 @@ export async function regenerateInviteCode(
 export async function setMemberRole(
   slug: string,
   memberId: string,
-  role: "admin" | "member"
+  role: "admin" | "member",
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(memberId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
   const member = await prisma.member.findFirst({
@@ -213,8 +223,14 @@ export async function setMemberRole(
 
 export async function removeMember(
   slug: string,
-  memberId: string
+  memberId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(memberId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
   const member = await prisma.member.findFirst({

@@ -67,14 +67,17 @@ export async function POST(req: Request, { params }: Ctx) {
   if (match.status === "FINISHED" && !ctx.canManage) {
     return NextResponse.json(
       { error: "Admin requis pour modifier un match terminé" },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
   // Idempotence : si l'ID client existe déjà, renvoyer l'état courant.
   if (body.id) {
-    const existing = await prisma.matchEvent.findUnique({
-      where: { id: body.id },
+    // findFirst scopé au match, et non findUnique par id : sinon un id
+    // d'événement appartenant à un autre club renvoyait tout son contenu dans
+    // la réponse, et la saisie réellement effectuée était perdue.
+    const existing = await prisma.matchEvent.findFirst({
+      where: { id: body.id, matchId },
     });
     if (existing) {
       const scores = await recomputeScore(matchId);
@@ -83,8 +86,8 @@ export async function POST(req: Request, { params }: Ctx) {
   }
 
   // Les joueurs référencés doivent appartenir au club.
-  const refs = [body.playerId, body.assistPlayerId].filter(
-    (x): x is string => Boolean(x)
+  const refs = [body.playerId, body.assistPlayerId].filter((x): x is string =>
+    Boolean(x),
   );
   if (refs.length > 0) {
     const owned = await prisma.player.count({
@@ -93,7 +96,7 @@ export async function POST(req: Request, { params }: Ctx) {
     if (owned !== new Set(refs).size) {
       return NextResponse.json(
         { error: "Joueur hors du club" },
-        { status: 400 }
+        { status: 400 },
       );
     }
   }
@@ -126,6 +129,24 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!ctx.canScore) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+  // Le matchId vient de l'URL, entièrement contrôlée par l'appelant : sans ce
+  // contrôle, un membre d'un club peut modifier les buts du match d'un autre
+  // club. Le POST et le DELETE de ce fichier le faisaient déjà ; le PATCH
+  // avait été oublié.
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, clubId },
+    select: { status: true },
+  });
+  if (!match) {
+    return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
+  }
+  if (match.status === "FINISHED" && !ctx.canManage) {
+    return NextResponse.json(
+      { error: "Admin requis pour modifier un match terminé" },
+      { status: 403 },
+    );
+  }
+
   const body = (await req.json().catch(() => null)) as PatchBody | null;
   if (!body?.eventId) {
     return NextResponse.json({ error: "eventId requis" }, { status: 400 });
@@ -135,7 +156,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
       where: { id: body.assistPlayerId, clubId },
     });
     if (!owned) {
-      return NextResponse.json({ error: "Joueur hors du club" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Joueur hors du club" },
+        { status: 400 },
+      );
     }
   }
   // Idempotent : event déjà supprimé → 200 sans effet.
@@ -169,7 +193,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
   if (match.status === "FINISHED" && !ctx.canManage) {
     return NextResponse.json(
       { error: "Admin requis pour modifier un match terminé" },
-      { status: 403 }
+      { status: 403 },
     );
   }
 

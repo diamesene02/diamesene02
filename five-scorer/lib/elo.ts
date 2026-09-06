@@ -17,7 +17,7 @@ export type EloMatch = {
 export function computeElo(
   matches: EloMatch[],
   base = 1000,
-  k = 32
+  k = 32,
 ): Map<string, number[]> {
   const current = new Map<string, number>();
   const history = new Map<string, number[]>();
@@ -26,10 +26,8 @@ export function computeElo(
   for (const m of matches) {
     if (m.teamA.length === 0 || m.teamB.length === 0) continue;
 
-    const ra =
-      m.teamA.reduce((s, id) => s + ratingOf(id), 0) / m.teamA.length;
-    const rb =
-      m.teamB.reduce((s, id) => s + ratingOf(id), 0) / m.teamB.length;
+    const ra = m.teamA.reduce((s, id) => s + ratingOf(id), 0) / m.teamA.length;
+    const rb = m.teamB.reduce((s, id) => s + ratingOf(id), 0) / m.teamB.length;
 
     const expectedA = 1 / (1 + Math.pow(10, (rb - ra) / 400));
     const resultA = m.scoreA > m.scoreB ? 1 : m.scoreA < m.scoreB ? 0 : 0.5;

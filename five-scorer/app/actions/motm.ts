@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
 
 /// Vote MVP d'un membre. Le mvpId du match est recalculé à chaque vote
@@ -10,8 +11,14 @@ import { requireClub } from "@/lib/guard";
 export async function voteMotm(
   slug: string,
   matchId: string,
-  playerId: string
+  playerId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchId, playerId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
   const ctx = await requireClub(slug);
   if (ctx.club.motmMode !== "VOTE") {
     return { ok: false, error: "Le vote MVP n'est pas activé." };
@@ -55,8 +62,8 @@ export async function voteMotm(
       (a, b) =>
         b._count._all - a._count._all ||
         (nameOf.get(a.playerId) ?? "").localeCompare(
-          nameOf.get(b.playerId) ?? ""
-        )
+          nameOf.get(b.playerId) ?? "",
+        ),
     )[0];
     await prisma.match.update({
       where: { id: matchId },
