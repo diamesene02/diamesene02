@@ -10,12 +10,16 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; session?: string }>;
 }) {
   const sp = await searchParams;
+  // Renvoyé ici par /session-expiree quand le compte de la session a disparu.
+  const sessionExpiree = sp.session === "expiree";
   // Redirection interne uniquement — jamais vers un domaine externe.
   const next =
-    typeof sp.next === "string" && sp.next.startsWith("/") ? sp.next : undefined;
+    typeof sp.next === "string" && sp.next.startsWith("/")
+      ? sp.next
+      : undefined;
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center px-5 py-12">
@@ -38,6 +42,12 @@ export default async function LoginPage({
             le <em>terrain</em>.
           </h1>
         </div>
+
+        {sessionExpiree && (
+          <p className="mb-4 rounded-lg border border-[color:var(--loss)] bg-[color:var(--bg-2)] p-3 text-sm text-[color:var(--loss)]">
+            Ta session a expiré : reconnecte-toi.
+          </p>
+        )}
 
         <div className="edge-top p-6">
           <LoginForm

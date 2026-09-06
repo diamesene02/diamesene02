@@ -27,6 +27,20 @@ export const getUserSession = cache(async () => {
 export async function requireUser() {
   const session = await getUserSession();
   if (!session) redirect("/login");
+
+  // La session vit cinq minutes dans un cookie signé, sans relecture de la
+  // base : elle peut donc survivre au compte qu'elle désigne. On vérifie que
+  // l'utilisateur existe encore, sinon les pages suivantes travaillent sur un
+  // fantôme — écrans vides, ou échec sur une contrainte de clé étrangère dès
+  // la première écriture. Une requête sur clé primaire, dédupliquée par
+  // React.cache pour toute la requête : le coût est négligeable devant le
+  // risque de laisser un accès ouvert après une révocation.
+  const stillExists = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true },
+  });
+  if (!stillExists) redirect("/session-expiree");
+
   return session;
 }
 
@@ -34,7 +48,7 @@ function toContext(
   user: ClubContext["user"],
   org: Organization,
   club: Club,
-  role: string
+  role: string,
 ): ClubContext {
   const r: ClubRole = role === "owner" || role === "admin" ? role : "member";
   const canManage = r !== "member";
@@ -66,7 +80,7 @@ export const requireClub = cache(async (slug: string): Promise<ClubContext> => {
 
 /// Variante API (outbox de sync) : renvoie null au lieu de rediriger.
 export async function getClubApiContext(
-  clubId: string
+  clubId: string,
 ): Promise<ClubContext | null> {
   const session = await getUserSession();
   if (!session) return null;
