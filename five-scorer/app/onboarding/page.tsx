@@ -55,7 +55,11 @@ export default async function OnboardingPage() {
               </>
             ) : (
               <>
-                Ton <em>club</em> t&apos;attend.
+                {/* Espace explicite : un espace littéral entre </em> et le
+                    texte suivant se perd à la sérialisation, et les deux mots
+                    se retrouvent collés à l'écran. */}
+                Ton <em>club</em>{" "}
+                t&apos;attend.
               </>
             )}
           </h1>
