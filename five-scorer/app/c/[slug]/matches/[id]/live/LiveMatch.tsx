@@ -12,8 +12,10 @@ import {
   addEvent,
   finishMatch,
   getLocalMatch,
+  movePlayerTeam,
   removeEvent,
   setEventAssist,
+  setEventScorer,
   undoLastGoalOf,
   type LivePlayer,
 } from "@/lib/localMatch";
@@ -42,7 +44,8 @@ type Settings = {
 };
 
 type SheetMode =
-  | { kind: "csc"; team: "A" | "B" } // qui a marqué contre son camp ?
+  // Corriger la compo en cours de match : tap sur le nom → « passer chez X ».
+  | { kind: "move"; player: LivePlayer; from: "A" | "B" }
   | { kind: "card"; team: "A" | "B"; card: "YELLOW_CARD" | "RED_CARD" };
 
 export default function LiveMatch({
@@ -72,6 +75,15 @@ export default function LiveMatch({
     scorerId: string;
   } | null>(null);
   const assistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Contre son camp : le but est déjà au tableau, on cherche seulement le nom.
+  const [cscFor, setCscFor] = useState<{
+    eventId: string;
+    conceding: "A" | "B";
+  } | null>(null);
+  const cscTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tuile qui vient de changer de camp : un éclair d'contour pour que l'œil
+  // suive le déplacement d'une colonne à l'autre.
+  const [justMoved, setJustMoved] = useState<string | null>(null);
 
   useEffect(() => {
     setSoundOn(isSoundEnabled());
@@ -79,6 +91,7 @@ export default function LiveMatch({
   useEffect(
     () => () => {
       if (assistTimer.current) clearTimeout(assistTimer.current);
+      if (cscTimer.current) clearTimeout(cscTimer.current);
     },
     []
   );
@@ -269,27 +282,73 @@ export default function LiveMatch({
     void kickSync();
   }, [data, matchId]);
 
-  async function onSheetPick(playerId: string | null) {
-    if (!sheet) return;
-    try {
-      if (sheet.kind === "csc") {
-        // CSC d'un joueur de `sheet.team` → but crédité à l'équipe adverse.
-        const credited = sheet.team === "A" ? "B" : "A";
-        await addEvent(matchId, {
+  /// Contre son camp : le score d'abord, le nom ensuite.
+  ///
+  /// Sur le terrain, personne ne revendique un csc — l'aveu met dix secondes
+  /// à venir et le nom fait débat. Faire du buteur un préalable, c'était
+  /// bloquer le tableau d'affichage sur une discussion. Un tap suffit
+  /// désormais : le but est crédité au bon camp immédiatement, l'auteur se
+  /// désigne après, sans rien retenir.
+  const addOwnGoal = useCallback(
+    async (conceding: "A" | "B") => {
+      try {
+        playGoalSound();
+        const credited = conceding === "A" ? "B" : "A";
+        const eventId = await addEvent(matchId, {
           type: "OWN_GOAL",
           team: credited,
-          playerId,
+          playerId: null,
           minute: liveMinute(),
         });
-      } else {
-        if (!playerId) return;
-        await addEvent(matchId, {
-          type: sheet.card,
-          team: sheet.team,
-          playerId,
-          minute: liveMinute(),
-        });
+        if (assistTimer.current) clearTimeout(assistTimer.current);
+        setAssistFor(null);
+        if (cscTimer.current) clearTimeout(cscTimer.current);
+        setCscFor({ eventId, conceding });
+        cscTimer.current = setTimeout(() => setCscFor(null), 15000);
+        void kickSync();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erreur");
       }
+    },
+    [matchId, liveMinute]
+  );
+
+  async function pickCscScorer(playerId: string | null) {
+    if (!cscFor) return;
+    if (cscTimer.current) clearTimeout(cscTimer.current);
+    if (playerId) {
+      await setEventScorer(matchId, cscFor.eventId, playerId);
+      void kickSync();
+    }
+    setCscFor(null);
+  }
+
+  async function confirmMove() {
+    if (sheet?.kind !== "move") return;
+    const to = sheet.from === "A" ? "B" : "A";
+    const playerId = sheet.player.id;
+    setSheet(null);
+    try {
+      await movePlayerTeam(matchId, playerId, to);
+      if (navigator.vibrate) navigator.vibrate(18);
+      setJustMoved(playerId);
+      setTimeout(() => setJustMoved((id) => (id === playerId ? null : id)), 400);
+      void kickSync();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    }
+  }
+
+  async function onSheetPick(playerId: string | null) {
+    if (sheet?.kind !== "card") return;
+    try {
+      if (!playerId) return;
+      await addEvent(matchId, {
+        type: sheet.card,
+        team: sheet.team,
+        playerId,
+        minute: liveMinute(),
+      });
       void kickSync();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
@@ -359,8 +418,11 @@ export default function LiveMatch({
   const period = match.period ?? 1;
   const aLead = match.scoreA > match.scoreB;
   const bLead = match.scoreB > match.scoreA;
-  const sheetPlayers: LivePlayer[] = sheet
-    ? sheet.team === "A"
+  const sheetPlayers: LivePlayer[] =
+    sheet?.kind === "card" ? (sheet.team === "A" ? teamA : teamB) : [];
+  // L'auteur d'un csc est forcément dans l'équipe qui a encaissé contre elle.
+  const cscCandidates: LivePlayer[] = cscFor
+    ? cscFor.conceding === "A"
       ? teamA
       : teamB
     : [];
@@ -525,14 +587,20 @@ export default function LiveMatch({
               name={p.name}
               goals={p.goals}
               tint="pitch"
+              justMoved={justMoved === p.id}
               onGoal={() => addGoal(p.id, "A")}
               onUndo={() => removeGoal(p.id)}
+              onMove={() => setSheet({ kind: "move", player: p, from: "A" })}
             />
           ))}
+          <CscRow
+            team="A"
+            opponent={match.teamBName}
+            onTap={() => addOwnGoal("A")}
+          />
           <TeamToolbar
             team="A"
             trackCards={settings.trackCards}
-            onCsc={() => setSheet({ kind: "csc", team: "A" })}
             onCard={(card) => setSheet({ kind: "card", team: "A", card })}
           />
         </section>
@@ -557,8 +625,13 @@ export default function LiveMatch({
                 onClick={undoOpponentGoal}
                 className="rounded-xl border border-[color:var(--stroke)] py-2.5 text-xs font-bold uppercase tracking-wider text-[color:var(--ink-2)] hover:text-white"
               >
-                - Annuler le dernier
+                − Annuler le dernier
               </button>
+              <CscRow
+                team="B"
+                opponent={match.teamAName}
+                onTap={() => addOwnGoal("B")}
+              />
             </div>
           ) : (
             <>
@@ -568,14 +641,20 @@ export default function LiveMatch({
                   name={p.name}
                   goals={p.goals}
                   tint="blue"
+                  justMoved={justMoved === p.id}
                   onGoal={() => addGoal(p.id, "B")}
                   onUndo={() => removeGoal(p.id)}
+                  onMove={() => setSheet({ kind: "move", player: p, from: "B" })}
                 />
               ))}
+              <CscRow
+                team="B"
+                opponent={match.teamAName}
+                onTap={() => addOwnGoal("B")}
+              />
               <TeamToolbar
                 team="B"
                 trackCards={settings.trackCards}
-                onCsc={() => setSheet({ kind: "csc", team: "B" })}
                 onCard={(card) => setSheet({ kind: "card", team: "B", card })}
               />
             </>
@@ -604,6 +683,33 @@ export default function LiveMatch({
               className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold uppercase text-[color:var(--ink-2)]"
             >
               Sans passe <Icon name="close" size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Contre son camp : le but est déjà compté, on ne cherche que le nom.
+          Non bloquant — la barre s'efface toute seule si personne n'avoue. */}
+      {cscFor && cscCandidates.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-[70] border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-3">
+          <div className="mx-auto flex max-w-3xl items-center gap-2 overflow-x-auto">
+            <span className="shrink-0 text-xs font-black uppercase tracking-wider text-[color:var(--ink-1)]">
+              Qui l&apos;a mis ?
+            </span>
+            {cscCandidates.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => pickCscScorer(p.id)}
+                className="shrink-0 rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 py-2 text-sm font-bold hover:border-[color:var(--lime)]"
+              >
+                {p.name}
+              </button>
+            ))}
+            <button
+              onClick={() => pickCscScorer(null)}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold uppercase text-[color:var(--ink-2)]"
+            >
+              Sans préciser <Icon name="close" size={12} />
             </button>
           </div>
         </div>
@@ -653,9 +759,18 @@ export default function LiveMatch({
                             : "text-[color:var(--b-400)]"
                         )}
                       >
+                        {/* Un csc est crédité à l'équipe qui en profite. Sans
+                            nom d'auteur, le repli sur `e.team` affichait donc
+                            « Noir (csc) » pour un but marqué par un joueur de
+                            Blanc — l'inverse de ce qui s'est passé. Sans
+                            buteur désigné, on nomme le camp qui l'a concédé. */}
                         {e.playerName ??
-                          (e.team === "B" ? match.teamBName : match.teamAName)}
-                        {e.type === "OWN_GOAL" && " (csc)"}
+                          (e.type === "OWN_GOAL"
+                            ? `csc de ${e.team === "B" ? match.teamAName : match.teamBName}`
+                            : e.team === "B"
+                              ? match.teamBName
+                              : match.teamAName)}
+                        {e.type === "OWN_GOAL" && e.playerName && " (csc)"}
                         {e.assistName && (
                           <span className="ml-1 font-normal text-[color:var(--ink-2)]">
                             (passe : {e.assistName})
@@ -686,7 +801,7 @@ export default function LiveMatch({
         </div>
       )}
 
-      {/* Picker CSC / carton */}
+      {/* Feuille : changement de camp, ou carton */}
       {sheet && (
         <div
           className="fixed inset-0 z-[80] flex items-end bg-black/70"
@@ -695,11 +810,37 @@ export default function LiveMatch({
           }}
         >
           <div className="w-full rounded-t-3xl border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-5">
-            <div className="mb-3 flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider">
-              {sheet.kind === "csc" ? (
-                "Qui a marqué contre son camp ?"
-              ) : (
-                <>
+            {sheet.kind === "move" ? (
+              <>
+                <div className="mb-1 text-sm font-extrabold uppercase tracking-wider">
+                  {sheet.player.name}
+                </div>
+                <p className="mb-4 text-sm text-[color:var(--ink-2)]">
+                  Les buts déjà marqués restent acquis à{" "}
+                  {sheet.from === "A" ? match.teamAName : match.teamBName}.
+                </p>
+                <button
+                  onClick={confirmMove}
+                  className={cn(
+                    "big-touch w-full rounded-xl px-4 py-4 text-left font-black uppercase tracking-wider",
+                    sheet.from === "A"
+                      ? "bg-[color:var(--bib-b)] text-[color:var(--pitch-0)]"
+                      : "bg-[color:var(--bib-a)] text-[color:var(--pitch-0)]"
+                  )}
+                >
+                  Passer chez{" "}
+                  {sheet.from === "A" ? match.teamBName : match.teamAName}
+                </button>
+                <button
+                  onClick={() => setSheet(null)}
+                  className="mt-2 w-full rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-wider text-[color:var(--ink-2)]"
+                >
+                  Annuler
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mb-3 flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider">
                   <Icon
                     name="card"
                     size={16}
@@ -713,28 +854,20 @@ export default function LiveMatch({
                   {sheet.card === "YELLOW_CARD"
                     ? "Carton jaune pour…"
                     : "Carton rouge pour…"}
-                </>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {sheetPlayers.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => onSheetPick(p.id)}
-                  className="big-touch rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-3 text-left font-bold hover:border-[color:var(--stroke-hi)]"
-                >
-                  {p.name}
-                </button>
-              ))}
-              {sheet.kind === "csc" && (
-                <button
-                  onClick={() => onSheetPick(null)}
-                  className="big-touch rounded-xl border border-dashed border-[color:var(--stroke)] px-3 py-3 text-left text-sm text-[color:var(--ink-2)]"
-                >
-                  Sans préciser
-                </button>
-              )}
-            </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {sheetPlayers.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => onSheetPick(p.id)}
+                      className="big-touch rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-3 text-left font-bold hover:border-[color:var(--stroke-hi)]"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -778,17 +911,64 @@ export default function LiveMatch({
   );
 }
 
+/// Le contre son camp, au pied de la colonne de l'équipe qui l'encaisse.
+///
+/// Il était caché derrière trois lettres en 11 px de l'encre la plus pâle —
+/// lisible comme une étiquette, pas comme un bouton — et ouvrait une fenêtre
+/// qui exigeait un nom avant de bouger le score. Écrit en toutes lettres, à la
+/// jauge d'une tuile de joueur, avec le camp bénéficiaire nommé en dessous, il
+/// n'y a plus ni doute sur ce qu'il fait ni délai avant que le score soit juste.
+function CscRow({
+  team,
+  opponent,
+  onTap,
+}: {
+  team: "A" | "B";
+  opponent: string;
+  onTap: () => void;
+}) {
+  const body = (
+    <div className="fs-tile-body">
+      <div className="fs-csc-label">
+        <span className="fs-csc-title">Contre son camp</span>
+        <span className="fs-csc-sub">but pour {opponent}</span>
+      </div>
+    </div>
+  );
+  const plus = (
+    <button onClick={onTap} className="fs-tile-plus" aria-label={`Contre son camp — but pour ${opponent}`}>
+      +1
+    </button>
+  );
+  return (
+    <div className={cn("fs-tile fs-csc", team)}>
+      {team === "A" ? (
+        <>
+          <div className="fs-tile-accent" />
+          {body}
+          {plus}
+        </>
+      ) : (
+        <>
+          {plus}
+          {body}
+          <div className="fs-tile-accent" />
+        </>
+      )}
+    </div>
+  );
+}
+
 function TeamToolbar({
   team,
   trackCards,
-  onCsc,
   onCard,
 }: {
   team: "A" | "B";
   trackCards: boolean;
-  onCsc: () => void;
   onCard: (card: "YELLOW_CARD" | "RED_CARD") => void;
 }) {
+  if (!trackCards) return null;
   return (
     <div
       className={cn(
@@ -796,13 +976,6 @@ function TeamToolbar({
         team === "B" && "flex-row-reverse"
       )}
     >
-      <button
-        onClick={onCsc}
-        className="rounded-md px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-3)]"
-        title="Contre son camp"
-      >
-        CSC
-      </button>
       {trackCards && (
         <>
           <button

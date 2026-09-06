@@ -88,13 +88,18 @@ export default async function PublicRecapPage({ params }: Params) {
       team: e.team as "A" | "B",
       minute: e.minute,
       createdAt: e.createdAt.toISOString(),
+      // Un csc peut rester sans auteur : le score part au premier tap et
+      // personne n'est obligé d'avouer. Sans ce repli, le récap affichait
+      // « ? » — ce qui se lit comme une panne, pas comme une abstention.
       scorerName: e.player
         ? e.type === "OWN_GOAL"
           ? `${e.player.name} (csc)`
           : e.player.name
-        : match.kind === "EXTERNAL" && e.team === "B"
-          ? (match.opponent?.name ?? match.teamBName)
-          : "?",
+        : e.type === "OWN_GOAL"
+          ? `csc de ${e.team === "B" ? match.teamAName : match.teamBName}`
+          : match.kind === "EXTERNAL" && e.team === "B"
+            ? (match.opponent?.name ?? match.teamBName)
+            : "?",
     }));
 
   return (

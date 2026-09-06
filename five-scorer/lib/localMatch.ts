@@ -374,6 +374,68 @@ export async function setEventAssist(
   });
 }
 
+/// Désigne (ou retire) l'auteur d'un contre son camp déjà saisi.
+///
+/// Le csc est le seul but que personne ne revendique : sur le terrain, l'aveu
+/// met dix secondes à venir et le nom fait débat. Le score, lui, est immédiat.
+/// On écrit donc le but au premier tap avec un buteur nul, et on n'attache le
+/// nom qu'après — par une mise à jour de champ, pour que l'événement garde son
+/// identifiant et que la file hors-ligne reste rejouable.
+export async function setEventScorer(
+  matchId: string,
+  eventId: string,
+  scorerPlayerId: string | null,
+): Promise<void> {
+  const db = getDb();
+  await db.transaction("rw", db.matches, db.events, db.outbox, async () => {
+    const ev = await db.events.get(eventId);
+    if (!ev || ev.matchId !== matchId || ev.type !== "OWN_GOAL") return;
+    const match = await db.matches.get(matchId);
+    await db.events.update(eventId, { playerId: scorerPlayerId });
+    await enqueue({
+      kind: "setScorer",
+      clubId: match?.clubId ?? "",
+      matchId,
+      payload: { eventId, scorerPlayerId },
+    });
+  });
+}
+
+/// Fait changer un joueur de camp pendant le match.
+///
+/// L'erreur de composition se voit au coup d'envoi, pas avant : deux copains
+/// dans la même équipe, un gardien manquant. Sans ce geste il fallait terminer
+/// le match et tout ressaisir. Les buts déjà marqués gardent leur équipe
+/// d'origine — ils ont bien été marqués pour ce camp-là.
+export async function movePlayerTeam(
+  matchId: string,
+  playerId: string,
+  team: "A" | "B",
+): Promise<void> {
+  const db = getDb();
+  await db.transaction(
+    "rw",
+    db.matches,
+    db.participants,
+    db.outbox,
+    async () => {
+      const match = await db.matches.get(matchId);
+      if (!match) throw new Error("Match introuvable");
+      if (match.status === "FINISHED") throw new Error("Match terminé");
+      const part = await db.participants.get(pKey(matchId, playerId));
+      if (!part) throw new Error("Joueur non inscrit à ce match");
+      if (part.team === team) return; // déjà du bon côté
+      await db.participants.update(pKey(matchId, playerId), { team });
+      await enqueue({
+        kind: "movePlayer",
+        clubId: match.clubId,
+        matchId,
+        payload: { playerId, team },
+      });
+    },
+  );
+}
+
 /// Annule le dernier but d'un joueur (geste rapide "−" sur sa tuile).
 export async function undoLastGoalOf(
   matchId: string,

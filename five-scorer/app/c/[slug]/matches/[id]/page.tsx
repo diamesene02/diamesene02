@@ -5,6 +5,7 @@ import { requireClub } from "@/lib/guard";
 import RecapView from "@/components/RecapView";
 import MotmVotePanel from "@/components/MotmVotePanel";
 import DeleteMatchButton from "@/components/DeleteMatchButton";
+import RematchButton from "@/components/RematchButton";
 import Icon from "@/components/Icon";
 import MatchRsvpPanel from "./MatchRsvpPanel";
 import CancelMatchButton from "./CancelMatchButton";
@@ -176,13 +177,18 @@ export default async function MatchRecapPage({
       team: e.team as "A" | "B",
       minute: e.minute,
       createdAt: e.createdAt.toISOString(),
+      // Un csc peut rester sans auteur : le score part au premier tap et
+      // personne n'est obligé d'avouer. Sans ce repli, le récap affichait
+      // « ? » — ce qui se lit comme une panne, pas comme une abstention.
       scorerName: e.player
         ? e.type === "OWN_GOAL"
           ? `${e.player.name} (csc)`
           : e.player.name
-        : match.kind === "EXTERNAL" && e.team === "B"
-          ? match.opponent?.name ?? match.teamBName
-          : "?",
+        : e.type === "OWN_GOAL"
+          ? `csc de ${e.team === "B" ? match.teamAName : match.teamBName}`
+          : match.kind === "EXTERNAL" && e.team === "B"
+            ? (match.opponent?.name ?? match.teamBName)
+            : "?",
     }));
 
   const votesByPlayer = new Map<string, number>();
@@ -219,6 +225,30 @@ export default async function MatchRecapPage({
         showLiveResumeLink={match.status === "LIVE" && ctx.canScore}
         liveHref={`/c/${slug}/matches/${match.id}/live`}
       />
+
+      {/* Une soirée, c'est plusieurs matchs. Le suivant part d'ici, avec la
+          composition qu'on vient de jouer — pas de l'écran de création. */}
+      {match.status === "FINISHED" && ctx.canScore && players.length > 0 && (
+        <RematchButton
+          clubId={ctx.club.id}
+          slug={slug}
+          teamAName={match.teamAName}
+          teamBName={match.teamBName}
+          kind={match.kind === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"}
+          opponentId={match.opponentId}
+          matchDayId={match.matchDayId}
+          seasonId={match.seasonId}
+          players={match.participants.map((p) => ({
+            id: p.player.id,
+            name: p.player.name,
+            nickname: p.player.nickname,
+            skill: p.player.skill,
+            isGk: p.isGk,
+            isGuest: p.player.isGuest,
+            team: p.team as "A" | "B",
+          }))}
+        />
+      )}
 
       {showVoting && (
         <div className="mt-6">

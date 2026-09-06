@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
+import { estId, estIdOuVide } from "@/lib/ids";
 import type { MatchEventType, Team } from "@prisma/client";
 
 type Ctx = { params: Promise<{ clubId: string; matchId: string }> };
@@ -117,9 +118,15 @@ export async function POST(req: Request, { params }: Ctx) {
   return NextResponse.json({ event, ...scores }, { status: 201 });
 }
 
-type PatchBody = { eventId: string; assistPlayerId: string | null };
+type PatchBody = {
+  eventId: string;
+  assistPlayerId?: string | null;
+  /// Auteur d'un contre son camp, désigné après coup (cf. lib/localMatch.ts).
+  scorerPlayerId?: string | null;
+};
 
-// PATCH : attache/retire la passe décisive d'un but (idempotent).
+// PATCH : attache/retire la passe décisive d'un but, ou l'auteur d'un contre
+// son camp (idempotent dans les deux cas).
 export async function PATCH(req: Request, { params }: Ctx) {
   const { clubId, matchId } = await params;
   const ctx = await getClubApiContext(clubId);
@@ -148,13 +155,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
 
   const body = (await req.json().catch(() => null)) as PatchBody | null;
-  if (!body?.eventId) {
+  if (!body || !estId(body.eventId)) {
     return NextResponse.json({ error: "eventId requis" }, { status: 400 });
   }
-  if (body.assistPlayerId) {
-    const owned = await prisma.player.count({
-      where: { id: body.assistPlayerId, clubId },
-    });
+
+  // Le corps désigne l'un OU l'autre : la présence de la clé fait foi, car
+  // `null` est une valeur légitime (« retirer le nom »).
+  const setsScorer = "scorerPlayerId" in body;
+  const cible = setsScorer ? body.scorerPlayerId : body.assistPlayerId;
+  if (!estIdOuVide(cible)) {
+    return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
+  }
+  if (cible) {
+    const owned = await prisma.player.count({ where: { id: cible, clubId } });
     if (!owned) {
       return NextResponse.json(
         { error: "Joueur hors du club" },
@@ -162,11 +175,18 @@ export async function PATCH(req: Request, { params }: Ctx) {
       );
     }
   }
-  // Idempotent : event déjà supprimé → 200 sans effet.
+
+  // Idempotent : event déjà supprimé → 200 sans effet. Le type est contraint
+  // dans le `where` pour qu'un csc ne puisse pas réécrire le buteur d'un but
+  // normal, ni l'inverse.
   await prisma.matchEvent
     .update({
-      where: { id: body.eventId, matchId, type: "GOAL" },
-      data: { assistPlayerId: body.assistPlayerId ?? null },
+      where: setsScorer
+        ? { id: body.eventId, matchId, type: "OWN_GOAL" }
+        : { id: body.eventId, matchId, type: "GOAL" },
+      data: setsScorer
+        ? { playerId: cible ?? null }
+        : { assistPlayerId: cible ?? null },
     })
     .catch(() => null);
   return NextResponse.json({ ok: true });

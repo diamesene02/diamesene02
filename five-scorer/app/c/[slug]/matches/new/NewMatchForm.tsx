@@ -92,7 +92,16 @@ export default function NewMatchForm({
     Object.fromEntries(presentPlayerIds.map((id) => [id, "A" as Assignment]))
   );
   const [guestName, setGuestName] = useState("");
+  // Le générateur est déterministe : à graine égale et effectif égal, il
+  // rend les mêmes équipes. Repartir de 1 à chaque ouverture, c'était donc
+  // rejouer la composition de la fois d'avant — « on tourne les équipes »
+  // n'arrivait jamais. La graine est tirée au montage, côté client seulement
+  // (pas pendant le rendu, sinon l'hydratation diverge).
   const [seed, setSeed] = useState(1);
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    setSeed(Math.floor(Math.random() * 1_000_000) + 1);
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,6 +160,7 @@ export default function NewMatchForm({
       return next;
     });
     setSeed(s + 1);
+    setDrawn(true);
   }
 
   async function addGuest() {
@@ -419,7 +429,7 @@ export default function NewMatchForm({
               onClick={() => generateTeams()}
               className="inline-flex min-h-[44px] items-center rounded-full bg-[color:var(--lime)] px-5 text-sm font-black text-[color:var(--bg-0)] transition-transform hover:scale-[1.03]"
             >
-              {seed === 1 ? "Équilibrer" : "Re-tirer"}
+              {drawn ? "Re-tirer" : "Équilibrer"}
             </button>
           </div>
           {teamA.length > 0 && teamB.length > 0 && (

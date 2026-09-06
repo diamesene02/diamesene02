@@ -14,8 +14,14 @@ type Props = {
   name: string;
   goals: number;
   tint: "pitch" | "blue";
+  /// Vient de changer de camp : un éclair de contour pour que l'œil suive.
+  justMoved?: boolean;
   onGoal: () => void;
   onUndo: () => void;
+  /// Tap sur le nom → proposer de le faire passer dans l'autre équipe. Le
+  /// glissé a été écarté : les doigts mouillés perdent le contact capacitif,
+  /// et un balayage horizontal se bat avec le défilement vertical de la liste.
+  onMove?: () => void;
 };
 
 // Le ballon du jeu d'icônes commun, à la taille de la tuile.
@@ -25,7 +31,15 @@ const BallIcon = () => (
   </span>
 );
 
-function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
+function PlayerTileImpl({
+  name,
+  goals,
+  tint,
+  justMoved,
+  onGoal,
+  onUndo,
+  onMove,
+}: Props) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didLongRef = useRef(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -89,7 +103,18 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
 
   const body = (
     <div className="fs-tile-body">
-      <div className="fs-tile-name">{name}</div>
+      {onMove ? (
+        <button
+          type="button"
+          onClick={onMove}
+          className="fs-tile-name fs-tile-name-btn"
+          aria-label={`${name} — changer d'équipe`}
+        >
+          {name}
+        </button>
+      ) : (
+        <div className="fs-tile-name">{name}</div>
+      )}
       <div className="fs-tile-goals-wrap">
         {goals > 0 && <BallIcon />}
         <span className="fs-tile-goals">{goals > 0 ? goals : ""}</span>
@@ -113,7 +138,7 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
   );
 
   return (
-    <div className={cn("fs-tile", teamCls)}>
+    <div className={cn("fs-tile", teamCls, justMoved && "arrive")}>
       {tint === "pitch" ? (
         <>
           {accent}

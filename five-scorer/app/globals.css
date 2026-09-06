@@ -651,9 +651,15 @@
     }
   }
 
+  /* `1fr` vaut `minmax(auto, 1fr)` : une colonne refuse de descendre sous son
+     contenu minimal. Un nom d'équipe ou de joueur un peu long élargissait donc
+     sa colonne et poussait les boutons +1 de l'équipe B hors de l'écran —
+     invisible tant qu'on teste avec « Momo » et « Blanc ». `minmax(0, 1fr)`
+     rend les deux moitiés strictement égales et laisse les points de suspension
+     faire leur travail. */
   .live-container {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--s2);
     padding: 0 var(--s2);
   }
@@ -770,6 +776,99 @@
 
   .fs-tile-plus.long-pressing {
     background: var(--loss);
+  }
+
+  /* Le nom devient la poignée du changement de camp. Zone de frappe pleine
+     hauteur : c'est le seul endroit de la tuile qui n'ajoute pas de but, il
+     doit donc être atteignable sans viser. */
+  .fs-tile-name-btn {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap-min);
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .fs-tile.B .fs-tile-name-btn {
+    justify-content: flex-end;
+    text-align: right;
+  }
+  .fs-tile-name-btn:active {
+    color: var(--ink-2);
+  }
+
+  /* Le joueur vient de changer de colonne. Sans marque, la tuile disparaît
+     d'un côté et réapparaît de l'autre sans que l'œil suive : on ne sait plus
+     si le geste a porté. Le contour s'allume 220 ms à l'arrivée. */
+  .fs-tile.arrive {
+    animation: fs-arrive 220ms var(--ease);
+  }
+  @keyframes fs-arrive {
+    from {
+      box-shadow: inset 0 0 0 2px var(--ink-1);
+    }
+    to {
+      box-shadow: inset 0 0 0 2px transparent;
+    }
+  }
+
+  /* ═══════════════════ CONTRE SON CAMP ═══════════════════
+     Au pied de la colonne de l'équipe qui l'encaisse, à la jauge d'une tuile
+     de joueur. L'aplat est creusé plutôt que rempli, et le bouton porte
+     l'encre sourde : c'est un but, mais ce n'est pas un buteur. Le liséré et
+     l'éclair d'appui prennent la couleur de l'équipe QUI EN PROFITE — la
+     seule chose qu'on ait besoin de savoir dans la seconde. */
+  .fs-csc {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .fs-csc.A .fs-tile-accent {
+    background: var(--bib-b);
+  }
+  .fs-csc.B .fs-tile-accent {
+    background: var(--bib-a);
+  }
+  .fs-csc .fs-tile-plus {
+    background: var(--ink-3);
+  }
+  .fs-csc.A .fs-tile-plus:active {
+    background: var(--bib-b);
+  }
+  .fs-csc.B .fs-tile-plus:active {
+    background: var(--bib-a);
+  }
+  .fs-csc-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .fs-csc.B .fs-csc-label {
+    align-items: flex-end;
+  }
+  /* Écrit en toutes lettres, donc large : à 88% de chasse la ligne mesurait
+     98 px pour 91 disponibles, et la colonne s'élargissait assez pour pousser
+     les boutons +1 de l'équipe B hors de l'écran. Archivo a un axe de chasse
+     réel (62–125%) : on resserre à 78%, la ligne tient à 85 px. Le repli sur
+     deux lignes reste autorisé pour les écrans plus étroits que 375 px. */
+  .fs-csc-title {
+    font-stretch: 78%;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+  }
+  .fs-csc-sub {
+    font-stretch: 100%;
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* ═══════════════════ RATTACHEMENT ═══════════════════

@@ -4,6 +4,7 @@ import { requireClub } from "@/lib/guard";
 import { getClubSummary } from "@/lib/stats";
 import RsvpPanel from "@/components/RsvpPanel";
 import Icon from "@/components/Icon";
+import RematchButton from "@/components/RematchButton";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function ClubHomePage({
     upcomingMatches,
     summary,
     myPlayer,
+    lastLineup,
   ] = await Promise.all([
       prisma.match.findFirst({
         where: { clubId, status: "LIVE" },
@@ -69,7 +71,51 @@ export default async function ClubHomePage({
         where: { clubId, userId: ctx.user.id },
         select: { id: true },
       }),
+      // La dernière composition réellement jouée. C'est la matière du coup
+      // d'envoi en un tap : à l'heure du match, la feuille n'est pas faite et
+      // la meilleure hypothèse disponible est « comme la dernière fois ».
+      prisma.match.findFirst({
+        where: { clubId, status: "FINISHED", kind: "INTERNAL" },
+        orderBy: { playedAt: "desc" },
+        select: {
+          teamAName: true,
+          teamBName: true,
+          participants: {
+            select: {
+              team: true,
+              isGk: true,
+              player: {
+                select: {
+                  id: true,
+                  name: true,
+                  nickname: true,
+                  skill: true,
+                  isGk: true,
+                  isGuest: true,
+                  isArchived: true,
+                },
+              },
+            },
+          },
+        },
+      }),
     ]);
+
+  // Les joueurs archivés depuis ne sont pas reconduits : une compo recopiée
+  // telle quelle ferait revenir des gens qui ont quitté le club.
+  const compoPrete = (lastLineup?.participants ?? []).filter(
+    (p) => !p.player.isArchived,
+  );
+  const compoA = compoPrete.filter((p) => p.team === "A").length;
+  const compoB = compoPrete.filter((p) => p.team === "B").length;
+  const coupDEnvoiPret = compoA > 0 && compoB > 0;
+  // Rattacher le match à la soirée en cours, oui — à celle de la semaine
+  // prochaine, non. On ne recolle que si on est effectivement dedans.
+  const soireeEnCours =
+    nextMatchDay &&
+    Math.abs(nextMatchDay.date.getTime() - Date.now()) < 12 * 3600_000
+      ? nextMatchDay.id
+      : null;
 
   const hero = recentMatches[0];
   const rest = recentMatches.slice(1);
@@ -124,13 +170,52 @@ export default async function ClubHomePage({
                 l'œil sait où aller, la grille tient au millimètre. */}
             {ctx.canScore && (
               <div className="mt-2 w-full">
-                <Link
-                  href={`/c/${slug}/matches/new`}
-                  className="btn primary big tap w-full"
-                >
-                  Lancer un match
-                  <Icon name="chevron" size={16} />
-                </Link>
+                {/* À l'heure du match, la feuille n'est pas faite et on la
+                    fait debout, au bord du terrain, pendant que dix personnes
+                    attendent. Le coup d'envoi part donc de la dernière compo
+                    jouée — annoncée avant le tap, et corrigeable une fois le
+                    match lancé (tap sur un nom → changer de camp). L'écran de
+                    composition reste là pour qui veut tout revoir. */}
+                {coupDEnvoiPret && lastLineup ? (
+                  <>
+                    <RematchButton
+                      clubId={clubId}
+                      slug={slug}
+                      teamAName={lastLineup.teamAName}
+                      teamBName={lastLineup.teamBName}
+                      kind="INTERNAL"
+                      opponentId={null}
+                      matchDayId={soireeEnCours}
+                      seasonId={activeSeason?.id ?? null}
+                      label="Coup d'envoi"
+                      hint={`${lastLineup.teamAName} ${compoA} vs ${compoB} ${lastLineup.teamBName} — la compo de la dernière fois`}
+                      players={compoPrete.map((p) => ({
+                        id: p.player.id,
+                        name: p.player.name,
+                        nickname: p.player.nickname,
+                        skill: p.player.skill,
+                        isGk: p.isGk,
+                        isGuest: p.player.isGuest,
+                        team: p.team as "A" | "B",
+                      }))}
+                    />
+                    <Link
+                      href={`/c/${slug}/matches/new`}
+                      className="btn ghost tap mt-3 w-full"
+                    >
+                      Composer les équipes
+                      <Icon name="chevron" size={16} />
+                    </Link>
+                  </>
+                ) : (
+                  <Link
+                    href={`/c/${slug}/matches/new`}
+                    className="btn primary big tap w-full"
+                  >
+                    Lancer un match
+                    <Icon name="chevron" size={16} />
+                  </Link>
+                )}
                 {/* « Programmer » sert de préfixe commun : les deux boutons
                     tiennent alors sur une ligne, sans rétrécir le texte. */}
                 <div className="mt-4">

@@ -119,6 +119,23 @@ export type OutboxOp =
       payload: { eventId: string; assistPlayerId: string | null };
     }
   | {
+      /// Désigne (ou retire) l'auteur d'un contre son camp déjà saisi. Le but
+      /// part au premier tap avec un buteur nul ; le nom se choisit après, sans
+      /// bloquer le score.
+      kind: "setScorer";
+      clubId: string;
+      matchId: string;
+      payload: { eventId: string; scorerPlayerId: string | null };
+    }
+  | {
+      /// Corrige la composition d'un match en cours : un joueur change de camp.
+      /// Rejouable — le serveur écrit l'appartenance voulue, pas un delta.
+      kind: "movePlayer";
+      clubId: string;
+      matchId: string;
+      payload: { playerId: string; team: "A" | "B" };
+    }
+  | {
       kind: "finishMatch";
       clubId: string;
       matchId: string;
