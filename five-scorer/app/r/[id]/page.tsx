@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import RecapView from "@/components/RecapView";
+import Icon from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -11,17 +13,34 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   const match = await prisma.match.findUnique({
     where: { id },
-    select: { teamAName: true, teamBName: true, scoreA: true, scoreB: true, playedAt: true, deletedAt: true },
+    select: {
+      teamAName: true,
+      teamBName: true,
+      scoreA: true,
+      scoreB: true,
+      playedAt: true,
+      status: true,
+      kind: true,
+      opponent: { select: { name: true } },
+    },
   });
-  if (!match || match.deletedAt) return { title: "Match · Five Scorer" };
-  const title = `${match.teamAName} ${match.scoreA} — ${match.scoreB} ${match.teamBName}`;
-  const date = new Date(match.playedAt).toLocaleDateString("fr-FR", {
+  const robots = { index: false, follow: false };
+  if (!match || match.status !== "FINISHED") {
+    return { title: "Match · Five Scorer", robots };
+  }
+  const teamBName =
+    match.kind === "EXTERNAL" && match.opponent
+      ? match.opponent.name
+      : match.teamBName;
+  const title = `${match.teamAName} ${match.scoreA} — ${match.scoreB} ${teamBName}`;
+  const date = match.playedAt.toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "long",
   });
   return {
     title: `${title} · Five Scorer`,
     description: `Match du ${date}`,
+    robots,
     openGraph: {
       title,
       description: `Match du ${date}`,
@@ -30,68 +49,96 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   };
 }
 
-export default async function PublicRecap({ params }: Params) {
+export default async function PublicRecapPage({ params }: Params) {
   const { id } = await params;
   const match = await prisma.match.findUnique({
     where: { id },
     include: {
       mvp: true,
-      players: { include: { player: true } },
-      goals: {
-        include: { scorer: true },
-        orderBy: { createdAt: "asc" },
-      },
+      opponent: true,
+      participants: { include: { player: true } },
+      events: { orderBy: { createdAt: "asc" }, include: { player: true } },
     },
   });
-  // Soft-deleted matches are invisible to the public share endpoint.
-  if (!match || match.deletedAt) notFound();
+  if (!match || match.status !== "FINISHED") notFound();
+
+  const teamBName =
+    match.kind === "EXTERNAL" && match.opponent
+      ? match.opponent.name
+      : match.teamBName;
+
+  const players = match.participants.map((p) => ({
+    id: p.player.id,
+    name: p.player.name,
+    team: p.team as "A" | "B",
+    goals: match.events.filter(
+      (e) => e.type === "GOAL" && e.playerId === p.player.id
+    ).length,
+  }));
+  const teamA = players.filter((p) => p.team === "A");
+  const teamB = players.filter((p) => p.team === "B");
+
+  const goals = match.events
+    .filter((e) => e.type === "GOAL" || e.type === "OWN_GOAL")
+    .map((e) => ({
+      id: e.id,
+      // Un csc reste dans la chronologie mais ne compte pas au classement
+      // des buteurs.
+      scorerId: e.type === "OWN_GOAL" ? "" : (e.playerId ?? ""),
+      team: e.team as "A" | "B",
+      minute: e.minute,
+      createdAt: e.createdAt.toISOString(),
+      scorerName: e.player
+        ? e.type === "OWN_GOAL"
+          ? `${e.player.name} (csc)`
+          : e.player.name
+        : match.kind === "EXTERNAL" && e.team === "B"
+          ? (match.opponent?.name ?? match.teamBName)
+          : "?",
+    }));
 
   return (
-    <main className="recap-wrap mx-auto max-w-xl p-4">
-      <div className="mb-4 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-1 text-xs uppercase tracking-widest text-[color:var(--ink-1)]">
-          <span>⚽</span>
-          <span>Five Scorer</span>
-        </div>
+    <div className="relative min-h-screen">
+      <div className="pointer-events-none fixed inset-0 opacity-30">
+        <div className="pitch-motif absolute inset-0" />
       </div>
-      <RecapView
-        match={{
-          id: match.id,
-          playedAt: match.playedAt.toISOString(),
-          teamAName: match.teamAName,
-          teamBName: match.teamBName,
-          scoreA: match.scoreA,
-          scoreB: match.scoreB,
-          status: match.status,
-          mvpId: match.mvpId,
-        }}
-        mvpName={match.mvp?.name ?? null}
-        teamA={match.players
-          .filter((mp) => mp.team === "A")
-          .map((mp) => ({
-            id: mp.playerId,
-            name: mp.player.name,
-            goals: match.goals.filter((g) => g.scorerId === mp.playerId).length,
-            team: "A" as const,
-          }))}
-        teamB={match.players
-          .filter((mp) => mp.team === "B")
-          .map((mp) => ({
-            id: mp.playerId,
-            name: mp.player.name,
-            goals: match.goals.filter((g) => g.scorerId === mp.playerId).length,
-            team: "B" as const,
-          }))}
-        goals={match.goals.map((g) => ({
-          id: g.id,
-          scorerId: g.scorerId,
-          team: g.team,
-          minute: g.minute,
-          createdAt: g.createdAt.toISOString(),
-          scorerName: g.scorer.name,
-        }))}
-        showActions={true}
-      />
-    </main>
+
+      <main className="relative mx-auto max-w-2xl px-5 pb-16 pt-6">
+        <div className="mb-4 text-center">
+          <span className="brand-pill">
+            <Icon name="ball" size={14} />
+            Five Scorer
+          </span>
+        </div>
+
+        <RecapView
+          match={{
+            id: match.id,
+            playedAt: match.playedAt.toISOString(),
+            teamAName: match.teamAName,
+            teamBName,
+            scoreA: match.scoreA,
+            scoreB: match.scoreB,
+            status: "FINISHED",
+            mvpId: match.mvpId,
+          }}
+          mvpName={match.mvp?.name ?? null}
+          teamA={teamA}
+          teamB={teamB}
+          goals={goals}
+          showActions={false}
+        />
+
+        <footer className="mt-10 text-center text-xs text-[color:var(--ink-2)]">
+          Suivi avec{" "}
+          <Link
+            href="/"
+            className="font-bold text-[color:var(--ink-1)] underline underline-offset-2"
+          >
+            Five Scorer
+          </Link>
+        </footer>
+      </main>
+    </div>
   );
 }

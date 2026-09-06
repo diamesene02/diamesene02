@@ -1,7 +1,13 @@
 // Canvas renderer for match recap shareable image (1080x1080).
 
 type Player = { id: string; name: string; goals: number; team: "A" | "B" };
-type Goal = { id: string; scorerId: string; team: "A" | "B"; minute: number | null; createdAt: string };
+type Goal = {
+  id: string;
+  scorerId: string;
+  team: "A" | "B";
+  minute: number | null;
+  createdAt: string;
+};
 type Match = {
   playedAt: string;
   teamAName: string;
@@ -10,15 +16,37 @@ type Match = {
   scoreB: number;
 };
 
+// Palette « craie sur gazon », alignée sur app/globals.css. Les valeurs
+// sont dupliquées ici parce qu'un canvas ne lit pas les variables CSS ;
+// elles doivent bouger avec les jetons.
 const TOK = {
-  bg0: "#07090F", bg1: "#0D1220",
-  ink0: "#F5F7FA", ink1: "#A7B0C4", ink2: "#5C6484",
-  a: "#22C55E", aLight: "#4ADE80",
-  b: "#38BDF8", bLight: "#7DD3FC",
-  gold: "#F5B301",
+  bg0: "#0E1211",
+  bg1: "#141917",
+  ink0: "#F4F6F3",
+  ink1: "#C8CFCB",
+  ink2: "#ADB5B2",
+  a: "#FF6B2C",
+  aLight: "#FF996D",
+  b: "#3D8BFF",
+  bLight: "#83B5FF",
+  gold: "#FFC24D",
 };
 
-function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+// Archivo porte toute la typographie de l'app ; son axe de chasse donne
+// aux scores l'allure d'un numéro de maillot. `font-stretch` n'existant
+// pas dans l'API canvas, on passe par la syntaxe raccourcie de ctx.font,
+// qui l'accepte.
+const UI = '"Archivo", system-ui, sans-serif';
+const NUM = '62% "Archivo", system-ui, sans-serif';
+
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -68,19 +96,22 @@ export async function renderShareCard({
 
   // Header
   ctx.fillStyle = TOK.ink1;
-  ctx.font = '600 28px "Space Grotesk", system-ui, sans-serif';
+  ctx.font = `600 28px ${UI}`;
   ctx.textAlign = "center";
   ctx.fillText("⚽ FIVE SCORER", 540, 90);
 
   ctx.fillStyle = TOK.ink2;
-  ctx.font = '500 22px "Space Grotesk", system-ui, sans-serif';
+  ctx.font = `500 22px ${UI}`;
   const date = new Date(match.playedAt).toLocaleDateString("fr-FR", {
-    weekday: "long", day: "2-digit", month: "long", year: "numeric",
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
   });
   ctx.fillText(date, 540, 130);
 
   // Team names
-  ctx.font = '700 44px "Space Grotesk", system-ui, sans-serif';
+  ctx.font = `700 44px ${UI}`;
   ctx.fillStyle = TOK.aLight;
   ctx.fillText(match.teamAName.toUpperCase(), 290, 260);
   ctx.fillStyle = TOK.bLight;
@@ -90,33 +121,39 @@ export async function renderShareCard({
   const winA = match.scoreA > match.scoreB;
   const winB = match.scoreB > match.scoreA;
 
-  ctx.font = '800 220px "JetBrains Mono", ui-monospace, monospace';
+  ctx.font = `800 220px ${NUM}`;
   ctx.fillStyle = winA ? TOK.gold : TOK.ink1;
-  if (winA) { ctx.shadowColor = "rgba(245,179,1,0.5)"; ctx.shadowBlur = 40; }
+  if (winA) {
+    ctx.shadowColor = "rgba(245,179,1,0.5)";
+    ctx.shadowBlur = 40;
+  }
   ctx.fillText(String(match.scoreA), 290, 440);
   ctx.shadowBlur = 0;
 
   ctx.fillStyle = TOK.ink2;
-  ctx.font = '500 140px "JetBrains Mono", ui-monospace, monospace';
+  ctx.font = `500 140px ${NUM}`;
   ctx.fillText(":", 540, 430);
 
-  ctx.font = '800 220px "JetBrains Mono", ui-monospace, monospace';
+  ctx.font = `800 220px ${NUM}`;
   ctx.fillStyle = winB ? TOK.gold : TOK.ink1;
-  if (winB) { ctx.shadowColor = "rgba(245,179,1,0.5)"; ctx.shadowBlur = 40; }
+  if (winB) {
+    ctx.shadowColor = "rgba(245,179,1,0.5)";
+    ctx.shadowBlur = 40;
+  }
   ctx.fillText(String(match.scoreB), 790, 440);
   ctx.shadowBlur = 0;
 
   // MVP pill
   if (mvpName) {
     const mvpText = "⭐ MVP : " + mvpName.toUpperCase();
-    ctx.font = '700 32px "Space Grotesk", system-ui, sans-serif';
+    ctx.font = `700 32px ${UI}`;
     const tw = ctx.measureText(mvpText).width;
     const pillW = tw + 60;
     const pillX = (1080 - pillW) / 2;
     ctx.fillStyle = TOK.gold;
     drawRoundedRect(ctx, pillX, 495, pillW, 56, 28);
     ctx.fill();
-    ctx.fillStyle = "#1f1500";
+    ctx.fillStyle = "#0E1211";
     ctx.fillText(mvpText, 540, 534);
   }
 
@@ -133,41 +170,45 @@ export async function renderShareCard({
   const startY = mvpName ? 640 : 600;
   ctx.textAlign = "left";
   ctx.fillStyle = TOK.ink1;
-  ctx.font = '700 22px "Space Grotesk", system-ui, sans-serif';
+  ctx.font = `700 22px ${UI}`;
   ctx.fillText("BUTEURS", 140, startY);
 
   scorers.forEach((p, i) => {
     const y = startY + 50 + i * 60;
     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "·";
-    ctx.font = '700 28px "Space Grotesk", system-ui, sans-serif';
+    ctx.font = `700 28px ${UI}`;
     ctx.fillStyle = TOK.ink0;
     ctx.fillText(`${medal}  ${p.name}`, 140, y);
     const count = goalCount[p.id];
     ctx.fillStyle = TOK.gold;
-    ctx.font = '800 40px "JetBrains Mono", ui-monospace, monospace';
+    ctx.font = `800 40px ${NUM}`;
     ctx.fillText(String(count), 560, y);
     ctx.fillStyle = TOK.ink1;
-    ctx.font = '600 26px "Space Grotesk", system-ui, sans-serif';
+    ctx.font = `600 26px ${UI}`;
     const teamName = p.team === "A" ? match.teamAName : match.teamBName;
     ctx.fillText(teamName, 760, y);
   });
 
   // Watermark
   ctx.fillStyle = TOK.ink2;
-  ctx.font = '500 18px "Space Grotesk", system-ui, sans-serif';
+  ctx.font = `500 18px ${UI}`;
   ctx.textAlign = "center";
   ctx.fillText("FIVE SCORER · urban foot", 540, 1030);
 
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png", 0.92));
+  return new Promise((resolve) =>
+    canvas.toBlob((b) => resolve(b), "image/png", 0.92),
+  );
 }
 
 export async function shareMatchImage(
   data: Parameters<typeof renderShareCard>[0],
-  publicUrl?: string
+  publicUrl?: string,
 ): Promise<void> {
   const blob = await renderShareCard(data);
   if (!blob) return;
-  const file = new File([blob], `five-scorer-${Date.now()}.png`, { type: "image/png" });
+  const file = new File([blob], `five-scorer-${Date.now()}.png`, {
+    type: "image/png",
+  });
   const nav = navigator as Navigator & {
     canShare?: (d: { files?: File[]; url?: string; text?: string }) => boolean;
   };

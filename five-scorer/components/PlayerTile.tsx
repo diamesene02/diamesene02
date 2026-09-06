@@ -3,6 +3,7 @@
 import { memo, useCallback, useRef } from "react";
 import { cn } from "@/lib/cn";
 import { unlockAudio, playGoalSound, playUndoSound } from "@/lib/audio";
+import Icon from "@/components/Icon";
 
 // Module-level guard: suppress taps for a short window after a long-press
 // fires, so the release doesn't accidentally add a goal after undoing.
@@ -17,10 +18,11 @@ type Props = {
   onUndo: () => void;
 };
 
+// Le ballon du jeu d'icônes commun, à la taille de la tuile.
 const BallIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="fs-tile-ball" aria-hidden>
-    <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 2a7.94 7.94 0 0 1 5 1.78l-1.58 1.14-3.42-1.1Zm-7.8 6.24L5.9 9l1.3 3.94-1 .73-2-2.9Zm4.16 8.26-1.1-3.4L9 12.5l3 2.2v1.7Zm3.64.44v-1.76l3-2.2 1.74 1.04-1.1 3.4a7.93 7.93 0 0 1-3.64-.48Zm6.07-2.18-2-2.9 1.3-3.94 1.7 1.24a7.93 7.93 0 0 1-1 5.6Z" />
-  </svg>
+  <span className="fs-tile-ball">
+    <Icon name="ball" size={12} />
+  </span>
 );
 
 function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
@@ -28,21 +30,39 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
   const didLongRef = useRef(false);
   const btnRef = useRef<HTMLButtonElement>(null);
 
-  const startPress = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    didLongRef.current = false;
-    btnRef.current?.classList.add("long-pressing");
-    try { btnRef.current?.setPointerCapture(e.pointerId); } catch {}
-    timerRef.current = setTimeout(() => {
-      didLongRef.current = true;
-      suppressTapUntil = Date.now() + SUPPRESS_TAP_MS;
-      btnRef.current?.classList.remove("long-pressing");
-      if (goals > 0) {
-        if (navigator.vibrate) navigator.vibrate(30);
-        playUndoSound();
-        onUndo();
-      }
-    }, 500);
-  }, [goals, onUndo]);
+  const startPress = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      didLongRef.current = false;
+      btnRef.current?.classList.add("long-pressing");
+      try {
+        btnRef.current?.setPointerCapture(e.pointerId);
+      } catch {}
+      timerRef.current = setTimeout(() => {
+        didLongRef.current = true;
+        btnRef.current?.classList.remove("long-pressing");
+        if (goals > 0) {
+          // Le garde n'est armé QUE si une annulation a réellement eu lieu : il
+          // sert à absorber le relâchement du doigt, qui sinon rajouterait le but
+          // qu'on vient de retirer. L'armer sur un appui sans effet rendait
+          // muette la tuile suivante pendant 700 ms — le buteur tapait, rien ne
+          // se passait, le but était perdu au milieu du match.
+          suppressTapUntil = Date.now() + SUPPRESS_TAP_MS;
+          if (navigator.vibrate) navigator.vibrate(30);
+          playUndoSound();
+          onUndo();
+        } else {
+          // Rien à annuler : on le dit au doigt plutôt que de ne rien faire.
+          if (navigator.vibrate) navigator.vibrate([12, 40, 12]);
+          btnRef.current?.classList.add("rien-a-annuler");
+          setTimeout(
+            () => btnRef.current?.classList.remove("rien-a-annuler"),
+            320,
+          );
+        }
+      }, 500);
+    },
+    [goals, onUndo],
+  );
 
   const endPress = useCallback(
     (e: React.PointerEvent) => {
@@ -57,7 +77,7 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
       }
       e.preventDefault();
     },
-    [onGoal]
+    [onGoal],
   );
 
   const cancelPress = useCallback(() => {

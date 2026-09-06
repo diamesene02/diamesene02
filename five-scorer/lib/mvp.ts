@@ -48,8 +48,6 @@ export function rankMvpCandidates(input: MvpInput): MvpCandidate[] {
     })
     .sort(
       (a, b) =>
-        b.score - a.score ||
-        b.goals - a.goals ||
-        a.name.localeCompare(b.name)
+        b.score - a.score || b.goals - a.goals || a.name.localeCompare(b.name),
     );
 }

@@ -10,6 +10,8 @@ export function useSyncState(): SyncState {
     syncing: false,
     lastError: null,
     lastSyncedAt: null,
+    blocked: 0,
+    needsAuth: false,
   });
   useEffect(() => subscribeSync(setS), []);
   return s;

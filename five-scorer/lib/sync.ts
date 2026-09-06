@@ -16,6 +16,12 @@ export type SyncState = {
   pending: number;
   syncing: boolean;
   lastError: string | null;
+  /// Opérations refusées par le serveur et conservées : elles ne partiront pas
+  /// toutes seules. Le badge doit le montrer — une file vidée en silence se lit
+  /// comme « tout est enregistré ».
+  blocked: number;
+  /// Le serveur ne reconnaît plus la session : il faut se reconnecter.
+  needsAuth: boolean;
   lastSyncedAt: string | null;
 };
 
@@ -26,6 +32,8 @@ const state: SyncState = {
   pending: 0,
   syncing: false,
   lastError: null,
+  blocked: 0,
+  needsAuth: false,
   lastSyncedAt: null,
 };
 const listeners = new Set<Listener>();
@@ -46,16 +54,44 @@ export function getSyncState(): SyncState {
 
 async function refreshPending() {
   const db = getDb();
-  state.pending = await db.outbox.count();
+  const toutes = await db.outbox.toArray();
+  // `pending` ne compte que ce qui partira tout seul ; `blocked` ce qui exige
+  // une intervention. Les confondre revenait à afficher « Synchro OK » sur une
+  // file pleine d'opérations refusées.
+  state.blocked = toutes.filter((o) => o.blockedAt).length;
+  state.pending = toutes.length - state.blocked;
   emit();
+}
+
+/// Les opérations refusées par le serveur, pour l'écran de diagnostic.
+export async function listBlockedOps(): Promise<OutboxEntry[]> {
+  const db = getDb();
+  return (await db.outbox.toArray()).filter((o) => o.blockedAt);
+}
+
+/// Remet les opérations bloquées dans la file — après une reconnexion, ou une
+/// fois les droits rétablis par un admin.
+export async function retryBlockedOps(): Promise<number> {
+  const db = getDb();
+  const bloquees = (await db.outbox.toArray()).filter((o) => o.blockedAt);
+  await Promise.all(
+    bloquees.map((o) =>
+      db.outbox.update(o.id!, { blockedAt: null, attempts: 0 }),
+    ),
+  );
+  state.needsAuth = false;
+  await refreshPending();
+  void kickSync();
+  return bloquees.length;
 }
 
 // --- Network helpers -------------------------------------------------------
 
 async function replayOp(op: OutboxOp): Promise<void> {
+  const base = `/api/clubs/${op.clubId}`;
   switch (op.kind) {
     case "createMatch": {
-      const res = await fetch("/api/matches", {
+      const res = await fetch(`${base}/matches`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -63,30 +99,43 @@ async function replayOp(op: OutboxOp): Promise<void> {
       await throwIfBad(res, "createMatch");
       return;
     }
-    case "addGoal": {
-      const res = await fetch(`/api/matches/${op.matchId}/goals`, {
+    case "addEvent": {
+      const res = await fetch(`${base}/matches/${op.matchId}/events`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
       });
-      await throwIfBad(res, "addGoal");
+      await throwIfBad(res, "addEvent");
       return;
     }
-    case "removeGoal": {
+    case "removeEvent": {
       const res = await fetch(
-        `/api/matches/${op.matchId}/goals?goalId=${encodeURIComponent(
-          op.payload.goalId
+        `${base}/matches/${op.matchId}/events?eventId=${encodeURIComponent(
+          op.payload.eventId,
         )}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
-      await throwIfBad(res, "removeGoal");
+      await throwIfBad(res, "removeEvent");
+      return;
+    }
+    case "setAssist": {
+      const res = await fetch(`${base}/matches/${op.matchId}/events`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(op.payload),
+      });
+      await throwIfBad(res, "setAssist");
       return;
     }
     case "finishMatch": {
-      const res = await fetch(`/api/matches/${op.matchId}`, {
+      const res = await fetch(`${base}/matches/${op.matchId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status: "FINISHED", mvpId: op.payload.mvpId }),
+        body: JSON.stringify({
+          status: "FINISHED",
+          mvpId: op.payload.mvpId,
+          durationMin: op.payload.durationMin ?? null,
+        }),
       });
       await throwIfBad(res, "finishMatch");
       return;
@@ -139,12 +188,16 @@ async function drainInner() {
     // removed from the outbox before moving on — crash-safe (at-least-once).
     // Server is idempotent, so at-least-once is the guarantee we need.
     // Loop until either the outbox is empty or we hit a retryable error.
-    // Non-retryable errors (4xx other than 401) are logged and the op is
-    // dropped to avoid blocking the queue forever.
+    // Une opération refusée par le serveur est marquée bloquée, jamais
+    // supprimée : la file continue d'avancer, et la saisie reste récupérable.
     while (true) {
-      const next = (await db.outbox.orderBy("createdAt").first()) as
-        | OutboxEntry
-        | undefined;
+      // Les opérations bloquées sont écartées de la file active : sans ce
+      // filtre, la première d'entre elles resterait en tête et ferait tourner
+      // le drain en boucle.
+      const next = (await db.outbox
+        .orderBy("createdAt")
+        .filter((o) => !o.blockedAt)
+        .first()) as OutboxEntry | undefined;
       if (!next) break;
 
       try {
@@ -168,14 +221,47 @@ async function drainInner() {
         state.lastError = err.message;
 
         if (authFailure) {
-          // No point retrying without a session — stop and let the UI
-          // prompt the user to re-enter PIN. Outbox is preserved.
+          // Session non reconnue : réessayer ne sert à rien tant que
+          // l'utilisateur ne s'est pas reconnecté. On conserve la file et on
+          // le DIT — auparavant le badge restait ambre indéfiniment sans
+          // jamais indiquer qu'il fallait se reconnecter.
+          state.needsAuth = true;
           break;
         }
         if (!retryable) {
-          // Drop poisonous op so the queue keeps moving. (E.g. the player
-          // was deleted server-side, so the goal can never persist.)
-          await db.outbox.delete(next.id!);
+          // On ne supprime plus. Un 4xx, c'est le plus souvent un refus de
+          // droits (403) ou un match déjà terminé — pas une opération
+          // empoisonnée. L'ancienne version jetait l'op, puis toutes celles
+          // qui en dépendaient tombaient en 404 et étaient jetées à leur
+          // tour : une soirée entière de buts disparaissait en une passe,
+          // pendant que la pastille repassait au vert « Synchro OK ».
+          //
+          // L'op est marquée bloquée : elle sort de la file active, reste en
+          // base, et devient visible dans l'interface.
+          // Bloquer TOUTE la chaîne du match, pas seulement cette opération.
+          // Les opérations d'un même match se suivent : laisser passer les
+          // suivantes revenait à exécuter `finishMatch` par-dessus un
+          // `addEvent` refusé — le match basculait terminé côté serveur, et
+          // l'opération bloquée devenait alors définitivement irrécupérable
+          // (son rejeu se heurte au refus « match terminé »).
+          const bloqueeLe = new Date().toISOString();
+          const motif = `${err.status ?? "?"} — ${err.message}`;
+          const matchDeLOp = (next.op as { matchId?: string }).matchId;
+          const aBloquer = matchDeLOp
+            ? (await db.outbox.toArray()).filter(
+                (o) =>
+                  !o.blockedAt &&
+                  (o.op as { matchId?: string }).matchId === matchDeLOp,
+              )
+            : [next];
+          await Promise.all(
+            aBloquer.map((o) =>
+              db.outbox.update(o.id!, {
+                blockedAt: bloqueeLe,
+                lastError: motif,
+              }),
+            ),
+          );
           continue;
         }
         // Retryable: stop the drain and try again later (next online event).

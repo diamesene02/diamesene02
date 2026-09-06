@@ -16,7 +16,7 @@
 // Bump CACHE_VERSION when you want to evict the old cache (e.g. you changed
 // this SW or the shell pages substantially).
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const SHELL_CACHE = `fs-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fs-runtime-${CACHE_VERSION}`;
 
