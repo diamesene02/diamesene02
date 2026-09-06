@@ -29,8 +29,11 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Space Grotesk", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "SF Mono", "Menlo", "monospace"],
+        // Une seule famille : l'axe de chasse d'Archivo remplace la seconde
+        // police. `font-mono` conserve le nom mais pointe la même variable —
+        // les chiffres tabulaires y suffisent à aligner les colonnes.
+        sans: ["Archivo", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["Archivo", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       fontSize: {
         score: ["4.5rem", { lineHeight: "1", fontWeight: "800" }],

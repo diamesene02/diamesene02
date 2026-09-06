@@ -1,12 +1,11 @@
 {
   "name": "Five Scorer",
   "short_name": "Five",
-  "description": "Scoring live pour les Five hebdo",
+  "description": "Le suivi de matchs de ton équipe : scoring live offline, stats de saison, équipes équilibrées, vote MVP.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "landscape",
-  "background_color": "#0b1220",
-  "theme_color": "#0b1220",
+  "background_color": "#0E1211",
+  "theme_color": "#0E1211",
   "icons": [
     {
       "src": "/icons/icon-192.png",

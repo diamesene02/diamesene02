@@ -2,816 +2,928 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ========================= FONTS ========================= */
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIVE SCORER — « Craie sur gazon »
+   ───────────────────────────────────────────────────────────────────────────
+   Le terrain la nuit : un gazon synthétique sombre, des lignes de craie, et
+   deux chasubles qui donnent au club son identité. L'app ne s'approprie
+   aucune couleur : elle est neutre pour que celles du club chantent.
+   (Principe validé par Forza Football, Grand Prix Red Dot 2018 : « garder
+   l'interface neutre pour que chacun affiche ses couleurs ».)
+
+   Trois règles héritées de la recherche, appliquées partout :
+   1. La couleur d'équipe ne porte JAMAIS le texte. Mesuré : de l'encre sur
+      orange brut plafonne à Lc 50, sur bleu brut à Lc 43. Les actions
+      utilisent la craie (Lc 100) ; la chasuble sert de repère, jamais de fond
+      de lecture. C'est la parade d'Apple Sports au conflit de deux couleurs.
+   2. Pas de halo, pas de dégradé décoratif, pas de verre dépoli. Ces trois
+      effets datent la conception (habillages TV 2018-2022) ; le standard
+      actuel est le plat, contrasté, net.
+   3. L'élévation se fait par la couleur, pas par l'ombre (Apple HIG, mode
+      sombre) : une surface plus claire est plus proche.
+
+   Contrastes : chaque valeur ci-dessous est calculée, pas choisie à l'œil.
+   Cible APCA (la métrique juste pour le sombre, WCAG 2.x surestimant le
+   contraste des fonds noirs) : Lc 90 titres, Lc 75 texte courant, Lc 60
+   petit texte et repères. Les contours fonctionnels tiennent le 3:1 exigé
+   par WCAG 1.4.11.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ────────────────────────── POLICE ────────────────────────── */
+/* Archivo (Omnibus-Type, OFL) : une seule variable, deux voix.
+   L'axe de chasse (62→125) sépare les numéros de maillot du texte
+   d'interface — la leçon typographique de la Coupe du monde 2026 (ne jamais
+   demander à une seule chasse de faire le titre ET le tableau d'affichage),
+   obtenue ici sans charger un second fichier. Vrais chiffres tabulaires :
+   vérifié fichier en main, contrairement à Oswald ou IBM Plex Sans qui n'en
+   ont pas. 76 Ko pour tout le système. Reconstruction : pnpm fonts */
 @font-face {
-  font-family: "Space Grotesk";
-  src: url("/fonts/space-grotesk.woff2") format("woff2-variations");
-  font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  src: url("/fonts/jetbrains-mono.woff2") format("woff2-variations");
-  font-weight: 400 800;
+  font-family: "Archivo";
+  src: url("/fonts/archivo-var.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
   font-style: normal;
   font-display: swap;
 }
 
-/* ========================= TOKENS ========================= */
+/* ────────────────────────── JETONS ────────────────────────── */
 :root {
   color-scheme: dark;
 
-  --bg-0: #07090F;
-  --bg-1: #0D1220;
-  --bg-2: #151B2D;
-  --stroke: #1F2740;
-  --stroke-hi: #2A3354;
+  /* Gazon — fond de nuit, très légèrement vert. Jamais de noir pur :
+     il provoque un halo et un scintillement au défilement sur OLED. */
+  --pitch-0: #0e1211; /* toile de fond */
+  --pitch-1: #141917; /* surface posée */
+  --pitch-2: #1c2321; /* surface soulevée */
+  --pitch-3: #252d2a; /* pression / survol */
 
-  --ink-0: #F5F7FA;
-  --ink-1: #A7B0C4;
-  --ink-2: #5C6484;
+  /* Craie — les lignes du terrain, et l'encre de l'app. */
+  --ink-1: #f4f6f3; /* titres, chiffres, action principale — Lc 100 */
+  --ink-2: #c8cfcb; /* texte courant — Lc 75 */
+  --ink-3: #adb5b2; /* légendes, unités — Lc 60 */
+  --rule: #2c3532; /* filet décoratif (séparation visuelle) */
+  --rule-hi: #616865; /* contour fonctionnel — 3,1:1, exigence WCAG */
 
-  --a-500: #22C55E;
-  --a-400: #4ADE80;
-  --a-glow: rgba(34,197,94,0.45);
-  --a-wash: rgba(34,197,94,0.10);
+  /* Chasubles — l'identité du club. Redéfinies à l'exécution par
+     ClubTheme d'après les réglages ; ici les couleurs par défaut, celles
+     des vraies chasubles de five. Chaque couleur a deux tons :
+     · -fill  : aplat, pour les barres et pastilles (pas de petit texte)
+     · -ink   : version éclaircie, seule autorisée à porter du texte */
+  --bib-a: #ff6b2c;
+  --bib-a-ink: #ff996d;
+  --bib-b: #3d8bff;
+  --bib-b-ink: #83b5ff;
 
-  --b-500: #38BDF8;
-  --b-400: #7DD3FC;
-  --b-glow: rgba(56,189,248,0.45);
-  --b-wash: rgba(56,189,248,0.10);
+  /* Signalétique — sémantique, distincte de l'identité du club.
+     Toujours doublée d'une lettre ou d'un mot : la couleur ne porte
+     jamais seule l'information (8 % des hommes sont daltoniens). */
+  --win: #3dd37e;
+  --draw: #adb5b2;
+  --loss: #ff9595;
+  --gold: #ffc24d; /* homme du match */
+  --live: #ff938d; /* le mot « direct » */
+  --live-dot: #ff3b30; /* la pastille qui bat — forme, pas texte */
 
-  --gold: #F5B301;
-  --gold-glow: rgba(245,179,1,0.55);
-  --live: #EF4444;
-  --live-pulse: rgba(239,68,68,0.35);
+  /* Typographie */
+  --font: "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  /* Signature brand accent — electric lime */
-  --lime: #D4FF3A;
-  --lime-glow: rgba(212,255,58,0.45);
-  --lime-dim: rgba(212,255,58,0.08);
+  /* Rythme — une seule échelle, pas d'espacement au jugé. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
 
-  --font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
+  /* Rayons — francs et rares. Le rectangle est la forme du terrain ;
+     l'arrondi est réservé aux pastilles et aux boutons. */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-pill: 999px;
 
-/* Stadium aurora: subtle animated gradient for heroes */
-.aurora {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  /* inner highlight edge + deep shadow foot */
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    inset 0 -1px 0 rgba(0,0,0,0.4),
-    0 30px 60px -30px rgba(0,0,0,0.6);
-}
-.aurora::before {
-  content: "";
-  position: absolute;
-  inset: -30%;
-  z-index: -1;
-  background:
-    radial-gradient(600px circle at 15% 20%, rgba(34,197,94,0.18), transparent 50%),
-    radial-gradient(500px circle at 85% 30%, rgba(56,189,248,0.16), transparent 55%),
-    radial-gradient(400px circle at 50% 90%, rgba(212,255,58,0.10), transparent 60%);
-  animation: auroraDrift 24s ease-in-out infinite alternate;
-  filter: blur(8px);
-}
-@keyframes auroraDrift {
-  0%   { transform: translate(0, 0) rotate(0deg); }
-  50%  { transform: translate(-3%, 2%) rotate(4deg); }
-  100% { transform: translate(2%, -3%) rotate(-3deg); }
-}
+  /* Cibles tactiles — 56 px pour la saisie au bord du terrain (main
+     froide, une seule main), 44 px minimum ailleurs. */
+  --tap: 56px;
+  --tap-min: 44px;
 
-/* Pitch lines motif for ambient background */
-.pitch-motif {
-  background-image:
-    linear-gradient(var(--stroke) 1px, transparent 1px),
-    linear-gradient(90deg, var(--stroke) 1px, transparent 1px);
-  background-size: 60px 60px;
-  background-position: -1px -1px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, black 0%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, black 0%, transparent 80%);
-}
+  /* Mouvement — 120-180 ms pour le retour immédiat, 320 ms élastique
+     pour la célébration d'un but. */
+  --t-fast: 120ms;
+  --t-mid: 180ms;
+  --t-slow: 320ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-/* Sculpted number: outlined display + filled layer */
-.num-sculpt {
-  position: relative;
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums slashed-zero;
-  font-feature-settings: "ss02","tnum";
-  letter-spacing: -0.06em;
-  color: var(--ink-0);
-}
-.num-sculpt[data-win="true"] {
-  color: var(--lime);
-  text-shadow: 0 0 60px var(--lime-glow), 0 4px 0 rgba(0,0,0,0.4);
-}
+  /* Marges de sécurité (encoche, barre gestuelle) */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
 
-/* Editorial kicker (small label above hero) */
-.kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--ink-2);
-}
-.kicker::before {
-  content: "";
-  width: 22px;
-  height: 1px;
-  background: var(--ink-2);
+  /* ─────────────── Passerelle depuis l'ancien vocabulaire ───────────────
+     Les écrans utilisent encore les noms de la version précédente. Plutôt
+     que de réécrire 46 fichiers, on redirige : la refonte se propage d'un
+     coup et les défauts mesurés se corrigent d'eux-mêmes — l'ancien
+     --ink-2 (3,21:1, sous le seuil AA) pointe désormais sur une valeur
+     à Lc 60. */
+  --bg-0: var(--pitch-0);
+  --bg-1: var(--pitch-1);
+  --bg-2: var(--pitch-2);
+  --stroke: var(--rule);
+  --stroke-hi: var(--rule-hi);
+  --ink-0: var(--ink-1);
+  /* --ink-1 et --ink-2 sont volontairement décalés d'un cran vers le clair */
+
+  /* L'accent de l'app n'est plus une couleur : c'est la craie. */
+  --lime: var(--ink-1);
+  --lime-dim: rgba(244, 246, 243, 0.06);
+
+  /* Équipes : aplat pour les barres, encre éclaircie pour le texte. */
+  --a-500: var(--bib-a);
+  --a-400: var(--bib-a-ink);
+  --a-wash: color-mix(in srgb, var(--bib-a) 12%, transparent);
+  --b-500: var(--bib-b);
+  --b-400: var(--bib-b-ink);
+  --b-wash: color-mix(in srgb, var(--bib-b) 12%, transparent);
+
+  /* Les halos sont neutralisés : ils datent la conception. */
+  --lime-glow: transparent;
+  --a-glow: transparent;
+  --b-glow: transparent;
+  --gold-glow: transparent;
+  --live-pulse: transparent;
+
+  --font-ui: var(--font);
+  --font-mono: var(--font);
 }
 
-/* Signature brand pill */
-.brand-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  background: var(--lime);
-  color: #0a1400;
-  box-shadow: 0 0 24px var(--lime-glow);
+/* Les ombres portées colorées de la version précédente s'annulent d'elles-
+   mêmes puisque leurs couleurs valent « transparent » ; restent les ombres
+   noires génériques, que l'on retire ici : dans le sombre, l'élévation se
+   lit par la couleur de surface, pas par une ombre invisible. */
+
+/* La cascade est explicite : les règles de base et de composants vivent
+   dans les couches Tailwind prévues pour elles. Sans ça, toute classe
+   déclarée après @tailwind utilities gagne à spécificité égale et annule
+   en silence un utilitaire posé dans le JSX — `className="kicker flex"`
+   resterait en display:block. */
+
+/* ────────────────────────── BASE ────────────────────────── */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Supprime le surlignage bleu au tap : signature « page web ». */
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--pitch-0);
+    color: var(--ink-1);
+    font-family: var(--font);
+    font-stretch: 100%;
+    font-weight: 450;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    /* Pas de rebond élastique : autre signature « page web » dans une WebView. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Le chrome de l'app ne se sélectionne pas ; le contenu, si. */
+  button,
+  nav,
+  header {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Supprime le délai de 300 ms sur les éléments tactiles. */
+  button,
+  a,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  /* Focus visible au clavier uniquement — jamais au doigt. */
+  :focus-visible {
+    outline: 2px solid var(--ink-1);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background: var(--ink-1);
+    color: var(--pitch-0);
+  }
 }
 
-/* Hero display heading */
-.display-xl {
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: clamp(48px, 10vw, 96px);
-  line-height: 0.92;
-  letter-spacing: -0.04em;
-}
-.display-md {
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: clamp(32px, 6vw, 56px);
-  line-height: 0.95;
-  letter-spacing: -0.03em;
-}
+@layer components {
+  /* ═══════════════════ VOIX TYPOGRAPHIQUES ═══════════════════
+   L'axe de chasse fait le travail : condensé = terrain (maillots,
+   scores), chasse normale = lecture (interface, tableaux). */
 
-html,
-body {
-  height: 100%;
-  background-color: var(--bg-0);
-  color: var(--ink-0);
-  font-family: var(--font-ui);
-  -webkit-tap-highlight-color: transparent;
-  overscroll-behavior: none;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
+  /* Numéros de maillot — scores, buts, compteurs. Condensé, très gras,
+   tabulaire pour que les chiffres ne dansent pas à la mise à jour. */
+  .num-sculpt,
+  .score-num,
+  .match-clock,
+  .scoreboard .score {
+    font-stretch: 68%;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    line-height: 0.86;
+    font-feature-settings: "tnum" 1;
+  }
 
-/* ========================= STADIUM LIGHT + GRAIN ====================== */
-/* Directional glow from top-right — gives the whole page ambient depth */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(900px 700px at 95% -10%, rgba(212,255,58,0.06), transparent 55%),
-    radial-gradient(1000px 800px at -10% 100%, rgba(56,189,248,0.04), transparent 60%);
-}
-/* Film grain for texture — breaks the flat-panel feel */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.35;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.95  0 0 0 0 0.95  0 0 0 0.55 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
-}
-/* Keep content above the noise layer */
-main, header, section, nav, footer { position: relative; z-index: 2; }
+  /* Grands titres — chasse resserrée, présence de une, sans être un cri. */
+  .display-xl {
+    font-stretch: 84%;
+    font-weight: 800;
+    font-size: clamp(38px, 11vw, 62px);
+    line-height: 0.94;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .display-md {
+    font-stretch: 88%;
+    font-weight: 800;
+    font-size: clamp(26px, 7vw, 38px);
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .display-xl em,
+  .display-md em {
+    font-style: normal;
+    font-stretch: 62%;
+    font-weight: 900;
+  }
 
-/* ========================= METAL EDGE ================================= */
-.edge-top {
-  position: relative;
-}
-.edge-top::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 1px; right: 1px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
-  pointer-events: none;
-}
+  /* Étiquette de section — la seule majuscule de l'app, tracée comme sur
+   une feuille de match. Remplace les emoji qui servaient de titres. */
+  .kicker,
+  .section-title {
+    display: block;
+    font-stretch: 100%;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0;
+  }
 
-/* ========================= ENGRAVED SCORE ============================= */
-/* Multi-layer treatment: inset shadow (carved) + outline glow when winning */
-.num-sculpt {
-  position: relative;
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums slashed-zero;
-  font-feature-settings: "ss02","tnum";
-  letter-spacing: -0.06em;
-  color: var(--ink-0);
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.6),
-    0 -1px 0 rgba(255,255,255,0.04);
-}
-.num-sculpt[data-win="true"] {
-  color: var(--lime);
-  text-shadow:
-    0 0 60px var(--lime-glow),
-    0 0 24px var(--lime-glow),
-    0 3px 0 rgba(0,0,0,0.45),
-    0 -1px 0 rgba(255,255,255,0.15);
-}
+  /* Données alignées : classements, minutes, montants. */
+  .tabular,
+  .timeline-minute,
+  .goal-dots {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
 
-/* ========================= BREATHING ACCENT =========================== */
-@keyframes breathe {
-  0%, 100% { opacity: 1; filter: saturate(1); }
-  50%      { opacity: 0.78; filter: saturate(1.15); }
-}
-.breathe { animation: breathe 3.2s ease-in-out infinite; }
+  .muted {
+    color: var(--ink-3);
+  }
 
-/* Tighter live dot — short sharp pulse instead of slow fade */
-@keyframes liveSharp {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 10px var(--live-pulse); }
-  12%      { transform: scale(1.22); box-shadow: 0 0 20px rgba(239,68,68,0.65); }
-  40%, 100% { transform: scale(1); }
-}
-.live-dot { animation: liveSharp 1.5s ease-in-out infinite; }
+  /* ═══════════════════ STRUCTURE ═══════════════════
+   Le terrain est fait de lignes, pas de boîtes empilées. Les filets
+   séparent ; le panneau ne sert qu'à regrouper ce qui va vraiment
+   ensemble. */
 
-/* ========================= HERO BREAK ================================= */
-/* Display text gets an italic-serif-ish italic word for contrast */
-.display-xl em {
-  font-style: italic;
-  font-weight: 400;
-  font-family: "Georgia", serif;
-  color: var(--lime);
-  text-shadow: 0 0 40px var(--lime-glow);
-  letter-spacing: -0.02em;
-  padding-right: 6px;
-}
-.display-xl .slash {
-  display: inline-block;
-  transform: rotate(-6deg) translateY(-4px);
-  color: var(--ink-2);
-  padding: 0 6px;
-}
+  .rule {
+    height: 1px;
+    background: var(--rule);
+    border: 0;
+    margin: 0;
+  }
 
-button {
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
-  font-family: var(--font-ui);
-}
+  /* Panneau — élévation par la couleur, sans ombre ni flou. */
+  .aurora,
+  .edge-top,
+  .recap-hero {
+    position: relative;
+    background: var(--pitch-1);
+    border: 0;
+    border-radius: var(--r-md);
+  }
 
-.big-touch {
-  min-height: 4rem;
-  min-width: 4rem;
-}
+  /* Ligne de craie en haut d'un panneau : le marquage du terrain comme
+   élément de structure, pas comme décor. */
+  .edge-top::before,
+  .aurora::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--ink-1);
+    opacity: 0.9;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+  }
 
-/* ========================= LIVE SCREEN ========================= */
-.live-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 16px;
-  min-height: 36px;
-  background: rgba(7,9,15,0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--stroke);
-}
-.live-topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-1);
-  font-weight: 700;
-}
-.live-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--live);
-  box-shadow: 0 0 10px var(--live-pulse);
-  animation: livePulse 1.6s infinite;
-}
-@keyframes livePulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(0.85); }
-}
-.match-clock {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--ink-0);
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.btn-fin {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  padding: 5px 11px;
-  border-radius: 10px;
-  border: 1px solid rgba(239,68,68,0.4);
-  background: rgba(239,68,68,0.14);
-  color: #fca5a5;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.btn-fin:active {
-  background: var(--live);
-  color: white;
-}
+  /* Fond ambiant : lignes de terrain, très en retrait. */
+  .pitch-motif {
+    background-image:
+      linear-gradient(var(--rule) 1px, transparent 1px),
+      linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+    background-size: 56px 56px;
+    opacity: 0.5;
+    mask-image: radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 100%);
+  }
 
-.sync-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--a-500);
-  border: 0;
-  cursor: pointer;
-  padding: 0;
-  box-shadow: 0 0 8px var(--a-glow);
-  transition: box-shadow 0.2s, background 0.2s;
-}
-.sync-dot.warn { background: var(--gold); box-shadow: 0 0 8px var(--gold-glow); }
-.sync-dot.off { background: var(--live); box-shadow: 0 0 8px var(--live-pulse); }
+  .pad {
+    padding: var(--s4);
+  }
 
-.scorebar {
-  position: sticky;
-  top: 36px;
-  z-index: 5;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
-  background: linear-gradient(180deg, rgba(13,18,32,0.95), rgba(7,9,15,0.85));
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--stroke);
-}
-.scorebar-team {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.scorebar-team.A { justify-content: flex-end; }
-.scorebar-team.B { justify-content: flex-start; }
-.team-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  border: 1px solid var(--stroke);
-  background: var(--bg-2);
-}
-.team-chip.A { color: var(--a-400); border-color: rgba(34,197,94,0.3); }
-.team-chip.B { color: var(--b-400); border-color: rgba(56,189,248,0.3); }
-.team-chip::before {
-  content: "";
-  width: 6px; height: 6px;
-  border-radius: 999px;
-}
-.team-chip.A::before { background: var(--a-500); box-shadow: 0 0 6px var(--a-glow); }
-.team-chip.B::before { background: var(--b-500); box-shadow: 0 0 6px var(--b-glow); }
+  /* ═══════════════════ MARQUES D'IDENTITÉ ═══════════════════ */
 
-.scoreboard {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-family: var(--font-mono);
-  font-weight: 800;
-  line-height: 1;
-  font-feature-settings: "ss02", "tnum";
-  font-variant-numeric: tabular-nums slashed-zero;
-}
-.scoreboard .score {
-  font-size: 72px;
-  letter-spacing: -0.04em;
-  color: var(--ink-0);
-  min-width: 1ch;
-  text-align: center;
-}
-.scoreboard .score {
-  letter-spacing: -0.06em;
-}
-.scoreboard .score.leading.A {
-  color: var(--lime);
-  text-shadow: 0 0 32px var(--lime-glow), 0 2px 0 rgba(0,0,0,0.4);
-}
-.scoreboard .score.leading.B {
-  color: var(--lime);
-  text-shadow: 0 0 32px var(--lime-glow), 0 2px 0 rgba(0,0,0,0.4);
-}
-.scoreboard .sep { color: var(--ink-2); font-size: 44px; font-weight: 500; }
+  /* Pastille de marque — sobre, pas un badge fluo. */
+  .brand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    max-width: 60vw;
+    padding: 6px 12px 6px 10px;
+    border-radius: var(--r-pill);
+    background: var(--pitch-2);
+    color: var(--ink-1);
+    font-stretch: 92%;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-/* Goal celebration */
-.scoreboard .score { position: relative; transition: color 0.2s; }
-.scoreboard .score.goaled {
-  animation: scorePop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1.4);
-}
-.scoreboard .score.goaled::after {
-  content: "";
-  position: absolute;
-  inset: -10%;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--gold-glow) 0%, transparent 70%);
-  animation: scoreBurst 0.55s ease-out forwards;
-  pointer-events: none;
-  z-index: -1;
-}
-@keyframes scorePop {
-  0%   { transform: scale(1); }
-  35%  { transform: scale(1.28); color: var(--gold); text-shadow: 0 0 32px var(--gold-glow); }
-  100% { transform: scale(1); }
-}
-@keyframes scoreBurst {
-  0%   { transform: scale(0); opacity: 1; }
-  100% { transform: scale(1.8); opacity: 0; }
-}
+  /* Chasuble : une barre de couleur + un nom en craie. La couleur
+   identifie, la craie se lit. */
+  .team-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    border: 0;
+    padding: 0;
+    background: none;
+  }
+  .team-chip::before {
+    content: "";
+    width: 12px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--bib-a);
+  }
+  .team-chip.B::before {
+    background: var(--bib-b);
+  }
+  .team-chip.A {
+    color: var(--ink-2);
+  }
 
-@media (orientation: landscape) {
-  .live-topbar { padding: 3px 12px; min-height: 26px; }
-  .live-topbar-left { font-size: 10px; gap: 6px; }
-  .live-dot { width: 6px; height: 6px; }
-  .match-clock { font-size: 11px; }
-  .btn-fin { font-size: 10px; padding: 3px 9px; }
-  .sync-dot { width: 8px; height: 8px; }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: var(--r-sm);
+    background: var(--pitch-2);
+    color: var(--ink-2);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .tag.A {
+    color: var(--bib-a-ink);
+  }
+  .tag.B {
+    color: var(--bib-b-ink);
+  }
 
-  .scorebar { padding: 4px 12px; top: 26px; gap: 12px; }
-  .scoreboard { gap: 8px; }
-  .scoreboard .score { font-size: 40px; }
-  .scoreboard .sep { font-size: 26px; }
-  .team-chip { font-size: 10px; padding: 3px 8px; }
+  /* Direct — le mot se lit (Lc 60), la pastille bat. */
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--live-dot);
+    animation: pulse 1.6s var(--ease) infinite;
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.82);
+    }
+  }
 
-  .fs-tile { min-height: 44px; border-radius: 8px; }
-  .fs-tile-body { padding: 0 8px; gap: 6px; }
-  .fs-tile-name { font-size: 13px; }
-  .fs-tile-goals { font-size: 14px; }
-  .fs-tile-ball { width: 10px; height: 10px; }
-  .fs-tile-plus { flex-basis: 48px; font-size: 15px; }
+  .sync-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--win);
+  }
+  .sync-dot.warn {
+    background: var(--gold);
+  }
+  .sync-dot.off {
+    background: var(--loss);
+  }
 
-  .live-container { gap: 3px; padding: 3px; }
-  .live-container > section { gap: 2px; }
-  .team-label { font-size: 9px !important; padding: 0 8px !important; line-height: 14px; }
-}
+  .mvp-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: 6px 12px;
+    border-radius: var(--r-pill);
+    background: var(--pitch-2);
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 13px;
+  }
 
-/* ========================= PLAYER TILE ========================= */
-.fs-tile {
-  display: flex;
-  align-items: stretch;
-  min-height: 54px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg-2);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 2px 8px rgba(0,0,0,0.35);
-}
-.fs-tile.A { background: linear-gradient(90deg, var(--a-wash), var(--bg-2) 40%); }
-.fs-tile.B { background: linear-gradient(-90deg, var(--b-wash), var(--bg-2) 40%); }
-.fs-tile-accent {
-  flex: 0 0 4px;
-}
-.fs-tile.A .fs-tile-accent { background: var(--a-500); box-shadow: 0 0 12px var(--a-glow); }
-.fs-tile.B .fs-tile-accent { background: var(--b-500); box-shadow: 0 0 12px var(--b-glow); }
-.fs-tile-body {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  min-width: 0;
-}
-.fs-tile.B .fs-tile-body { flex-direction: row-reverse; }
-.fs-tile-name {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: -0.005em;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.fs-tile.B .fs-tile-name { text-align: right; }
-.fs-tile-goals-wrap {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 32px;
-  justify-content: flex-end;
-}
-.fs-tile.B .fs-tile-goals-wrap { justify-content: flex-start; }
-.fs-tile-ball { width: 11px; height: 11px; opacity: 0.85; color: var(--ink-1); }
-.fs-tile-goals {
-  font-family: var(--font-mono);
-  font-weight: 800;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--gold);
-  font-variant-numeric: tabular-nums;
-  min-width: 12px;
-  text-align: center;
-}
-.fs-tile-goals:empty { visibility: hidden; }
-.fs-tile-plus {
-  flex: 0 0 56px;
-  border: 0;
-  font-family: var(--font-mono);
-  font-size: 17px;
-  font-weight: 800;
-  color: white;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.12s, filter 0.12s;
-  position: relative;
-}
-.fs-tile.A .fs-tile-plus { background: var(--a-500); }
-.fs-tile.B .fs-tile-plus { background: var(--b-500); }
-.fs-tile-plus:active { transform: scale(0.94); filter: brightness(1.12); }
-.fs-tile-plus.long-pressing {
-  background: var(--live) !important;
-}
-.fs-tile-plus.long-pressing::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 0 var(--live-pulse);
-  animation: longPressRing 0.5s linear forwards;
-  pointer-events: none;
-}
-@keyframes longPressRing {
-  from { box-shadow: 0 0 0 0 var(--live-pulse); }
-  to   { box-shadow: 0 0 0 28px transparent; }
-}
+  .podium-medal {
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    color: var(--ink-3);
+  }
 
-/* ========================= LIVE LAYOUT ========================= */
-@media (orientation: landscape) {
-  .live-container {
+  /* ═══════════════════ COMMANDES ═══════════════════
+   L'action principale est en craie : contraste maximal (Lc 100), lisible
+   à bout de bras sous les projecteurs. Aucune couleur d'équipe ne sert
+   de fond de bouton — mesuré insuffisant. */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s2);
+    min-height: var(--tap-min);
+    padding: 0 var(--s5);
+    border: 0;
+    border-radius: var(--r-pill);
+    background: var(--pitch-2);
+    color: var(--ink-1);
+    font-family: var(--font);
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition:
+      background var(--t-fast) var(--ease),
+      transform var(--t-fast) var(--ease);
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn.primary {
+    background: var(--ink-1);
+    color: var(--pitch-0);
+  }
+  .btn.primary:hover {
+    background: #fff;
+  }
+  .btn.ghost {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--rule-hi);
+  }
+  .btn.big {
+    min-height: var(--tap);
+    font-size: 17px;
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .big-touch {
+    min-height: var(--tap-min);
+  }
+
+  .icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .icon-btn:active {
+    background: var(--pitch-3);
+  }
+
+  .btn-fin {
+    min-height: 40px;
+    padding: 0 var(--s4);
+    border: 0;
+    border-radius: var(--r-pill);
+    background: var(--ink-1);
+    color: var(--pitch-0);
+    font-family: var(--font);
+    font-stretch: 96%;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+  }
+  .btn-fin:active {
+    transform: scale(0.97);
+  }
+
+  .tap {
+    transition: transform 60ms var(--ease);
+  }
+  .tap:active {
+    transform: scale(0.96);
+  }
+
+  /* ═══════════════════ ÉCRAN DE SAISIE ═══════════════════ */
+
+  .live-topbar {
     display: flex;
-    flex-direction: row;
-    gap: 4px;
-    padding: 4px;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+    padding: calc(var(--safe-t) + var(--s2)) var(--s2) var(--s2);
+    background: var(--pitch-0);
+    border-bottom: 1px solid var(--rule);
   }
-  .live-container > section {
-    flex: 1;
+  .live-topbar-left {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-stretch: 100%;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--live);
   }
-  .team-label {
-    display: block !important;
+  .match-clock {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--ink-1);
+    letter-spacing: 0;
   }
-}
-@media (orientation: portrait) {
+
+  /* Tableau d'affichage — le score domine, rien ne lui dispute la place.
+   Chiffres tabulaires : passer de 9 à 10 ne décale pas la mise en page. */
+  .scorebar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s4) var(--s4) var(--s5);
+    background: var(--pitch-0);
+  }
+  .scorebar-team {
+    display: flex;
+    min-width: 0;
+  }
+  .scorebar-team.A {
+    justify-content: flex-start;
+  }
+  .scorebar-team.B {
+    justify-content: flex-end;
+  }
+  .scoreboard {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s3);
+  }
+  .scoreboard .score {
+    font-size: clamp(56px, 17vw, 84px);
+    color: var(--ink-1);
+    transition: color var(--t-mid) var(--ease);
+  }
+  .scoreboard .score.leading.A {
+    color: var(--bib-a-ink);
+  }
+  .scoreboard .score.leading.B {
+    color: var(--bib-b-ink);
+  }
+  .scoreboard .sep {
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--ink-3);
+  }
+  /* Célébration : une impulsion courte, pas de plein écran qui masquerait
+   le score au moment où on veut le lire. */
+  .scoreboard .score.goaled {
+    animation: goaled var(--t-slow) var(--ease-pop);
+  }
+  @keyframes goaled {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.18);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
   .live-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 4px;
-    padding: 4px;
+    gap: var(--s2);
+    padding: 0 var(--s2);
   }
-  .live-container > section {
+
+  /* Tuile joueur — la cible de 56 px, doigt froid, une main.
+   La chasuble est une barre latérale : elle identifie sans jamais
+   passer sous le texte. */
+  .fs-tile {
+    display: flex;
+    align-items: stretch;
+    min-height: var(--tap);
+    margin-bottom: var(--s2);
+    border-radius: var(--r-md);
+    background: var(--pitch-1);
+    overflow: hidden;
+  }
+  .fs-tile.B {
+    flex-direction: row-reverse;
+  }
+  .fs-tile-accent {
+    width: 4px;
+    flex: 0 0 4px;
+    background: var(--bib-a);
+  }
+  .fs-tile.B .fs-tile-accent {
+    background: var(--bib-b);
+  }
+  .fs-tile-body {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+    min-width: 0;
+    padding: 0 var(--s3);
+  }
+  .fs-tile.B .fs-tile-body {
+    flex-direction: row-reverse;
+  }
+  .fs-tile-name {
+    flex: 1;
+    min-width: 0;
+    font-stretch: 96%;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fs-tile.B .fs-tile-name {
+    text-align: right;
+  }
+  .fs-tile-goals-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .fs-tile-ball {
+    display: inline-flex;
+    align-items: center;
+    color: var(--ink-3);
+  }
+  .fs-tile-goals {
+    font-stretch: 68%;
+    font-weight: 800;
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-1);
+  }
+  .fs-tile-goals:empty {
+    display: none;
+  }
+  /* Le bouton de but : craie pleine, 56 px, impossible à rater. */
+  .fs-tile-plus {
+    display: grid;
+    place-items: center;
+    width: var(--tap);
+    flex: 0 0 var(--tap);
+    border: 0;
+    background: var(--ink-1);
+    color: var(--pitch-0);
+    font-family: var(--font);
+    font-stretch: 80%;
+    font-weight: 800;
+    font-size: 17px;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .fs-tile-plus:active {
+    background: var(--bib-a);
+  }
+  .fs-tile.B .fs-tile-plus:active {
+    background: var(--bib-b);
+  }
+  .fs-tile-plus.long-pressing {
+    background: var(--loss);
+  }
+
+  /* ═══════════════════ RÉCAP & CHRONOLOGIE ═══════════════════ */
+
+  .recap-wrap {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--s5);
+  }
+  .recap-header {
+    font-stretch: 100%;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .recap-hero {
+    padding: var(--s5) var(--s4);
+  }
+  .recap-teams {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s3);
+  }
+  .recap-team-name {
+    font-stretch: 92%;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .recap-team-name.A {
+    color: var(--bib-a-ink);
+  }
+  .recap-team-name.B {
+    color: var(--bib-b-ink);
+  }
+  .recap-score {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--s4);
+    margin-top: var(--s3);
+  }
+  .score-num {
+    font-size: clamp(64px, 20vw, 104px);
+    color: var(--ink-1);
+  }
+  .score-num.lose {
+    color: var(--ink-3);
+  }
+  .score-sep {
+    font-size: 32px;
+    color: var(--ink-3);
+  }
+
+  /* Chronologie — chaque événement sur une ligne, minute alignée à gauche
+   comme sur une feuille de match. */
+  .timeline {
+    display: flex;
+    flex-direction: column;
+  }
+  .timeline-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s3) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .timeline-row:last-child {
+    border-bottom: 0;
+  }
+  .timeline-minute {
+    width: 34px;
+    flex: 0 0 34px;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .timeline-ball {
+    color: var(--ink-3);
+  }
+  .timeline-scorer {
+    flex: 1;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink-1);
+  }
+  .timeline-row.A .timeline-scorer {
+    color: var(--bib-a-ink);
+  }
+  .timeline-row.B .timeline-scorer {
+    color: var(--bib-b-ink);
+  }
+
+  .event-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .ev {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s3) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ev:last-child {
+    border-bottom: 0;
+  }
+  .goal-dots {
+    font-stretch: 68%;
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--ink-1);
+  }
+
+  /* ═══════════════════ MOUVEMENT ═══════════════════ */
+
+  .slide-up {
+    animation: slideUp var(--t-mid) var(--ease);
+  }
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .breathe {
+    animation: breathe 3.2s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.72;
+    }
   }
 }
 
-/* ========================= ICON BUTTONS ========================= */
-.icon-btn {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--stroke);
-  background: var(--bg-2);
-  color: var(--ink-0);
-  border-radius: 10px;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.15s, border-color 0.15s, transform 0.12s;
-}
-.icon-btn:active { transform: scale(0.94); }
-.icon-btn:hover { border-color: var(--stroke-hi); }
-@media (orientation: landscape) {
-  .icon-btn { width: 22px; height: 22px; font-size: 11px; }
-}
-
-
-/* ========================= TAG ========================= */
-.tag {
-  display: inline-block;
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--stroke);
-  color: var(--ink-0);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-.tag.A { background: rgba(34,197,94,0.18); color: var(--a-400); }
-.tag.B { background: rgba(56,189,248,0.18); color: var(--b-400); }
-.tag.mvp { background: var(--gold); color: #1f1500; }
-
-/* ========================= RECAP ========================= */
-.recap-wrap { max-width: 560px; }
-.recap-header {
-  text-align: center;
-  font-size: 12px;
-  letter-spacing: 0.3em;
-  color: var(--ink-2);
-  font-weight: 700;
-}
-.recap-hero {
-  position: relative;
-  background:
-    radial-gradient(400px circle at 50% 0%, rgba(212,255,58,0.06), transparent 60%),
-    linear-gradient(180deg, var(--bg-1), var(--bg-0));
-  border: 1px solid var(--stroke);
-  border-radius: 24px;
-  padding: 20px 16px 24px;
-  overflow: hidden;
-}
-.recap-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(var(--stroke) 1px, transparent 1px),
-    linear-gradient(90deg, var(--stroke) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.18;
-  mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, black, transparent 70%);
-  -webkit-mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, black, transparent 70%);
-  pointer-events: none;
-}
-.recap-hero > * { position: relative; z-index: 1; }
-.recap-teams {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.recap-team-name {
-  font-size: 13px;
-  letter-spacing: 0.18em;
-  font-weight: 700;
-}
-.recap-team-name.A { color: var(--a-400); }
-.recap-team-name.B { color: var(--b-400); }
-.recap-score {
-  display: flex;
-  justify-content: center;
-  align-items: baseline;
-  gap: 12px;
-  font-family: var(--font-mono);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums slashed-zero;
-}
-.score-num {
-  font-size: 72px;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: var(--ink-1);
-}
-.score-num { letter-spacing: -0.06em; }
-.score-num.win { color: var(--lime); text-shadow: 0 0 32px var(--lime-glow), 0 3px 0 rgba(0,0,0,0.4); }
-.score-num.lose { color: var(--ink-2); }
-.score-sep { color: var(--ink-2); font-size: 48px; font-weight: 500; }
-
-.mvp-pill {
-  display: block;
-  text-align: center;
-  background: var(--gold);
-  color: #1f1500;
-  padding: 10px 18px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 14px;
-  margin: 0 auto;
-  max-width: fit-content;
-  box-shadow: 0 6px 24px -6px var(--gold-glow);
-}
-
-.section-title {
-  margin: 14px 4px 6px;
-  color: var(--ink-2);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.timeline {
-  background: var(--bg-1);
-  border: 1px solid var(--stroke);
-  border-radius: 10px;
-  overflow: hidden;
-}
-.timeline-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--stroke);
-  font-size: 13px;
-}
-.timeline-row:last-child { border-bottom: 0; }
-.timeline-row.A { border-left: 3px solid var(--a-500); }
-.timeline-row.B { border-left: 3px solid var(--b-500); }
-.timeline-minute {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--ink-1);
-  min-width: 36px;
-}
-.timeline-scorer { font-weight: 700; flex: 1; }
-
-.event-list {
-  background: var(--bg-1);
-  border: 1px solid var(--stroke);
-  border-radius: 10px;
-  overflow: hidden;
-}
-.event-list .ev {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--stroke);
-}
-.event-list .ev:last-child { border-bottom: 0; }
-
-.podium-medal { display: inline-block; margin-right: 4px; }
-.goal-dots {
-  font-family: var(--font-mono);
-  color: var(--gold);
-  letter-spacing: 0.2em;
-}
-.muted { color: var(--ink-1); font-size: 13px; }
-.pad { padding: 12px; }
-
-/* Buttons (shared with button class for consistency) */
-.btn {
-  padding: 12px 16px;
-  border-radius: 10px;
-  border: 0;
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 15px;
-  cursor: pointer;
-  transition: transform 0.12s, background 0.15s;
-}
-.btn:active { transform: scale(0.97); }
-.btn.big { padding: 14px 18px; font-size: 16px; }
-.btn.ghost {
-  background: var(--bg-2);
-  color: var(--ink-0);
-  border: 1px solid var(--stroke);
-}
-.btn.primary {
-  background: var(--lime);
-  color: #0a1400;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  box-shadow: 0 8px 28px -10px var(--lime-glow), inset 0 1px 0 rgba(255,255,255,0.4);
-}
-.btn.primary:hover { filter: brightness(1.05); }
-
-/* ========================= REDUCED MOTION ========================= */
+/* Environ 5 % des utilisateurs demandent moins d'animation ; on la
+   supprime, on ne la ralentit pas. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════ DIVERS ═══════════════════ */
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tableaux larges : ils défilent dans leur conteneur, jamais la page. */
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
