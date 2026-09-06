@@ -212,8 +212,16 @@ async function drainInner() {
       // Les opérations bloquées sont écartées de la file active : sans ce
       // filtre, la première d'entre elles resterait en tête et ferait tourner
       // le drain en boucle.
+      // L'ordre se prend sur la clé primaire auto-incrémentée, jamais sur
+      // createdAt : cet horodatage vient de l'horloge du téléphone, qui peut
+      // reculer (correction NTP, changement de fuseau, réglage manuel). Un
+      // recul suffisait à faire passer le finishMatch devant des buts encore
+      // en file — et le serveur refuse ensuite d'écrire dans un match terminé,
+      // ce qui gèle définitivement toute la chaîne. `++id` ne recule jamais ;
+      // une Collection sans index parcourt l'object store dans l'ordre des
+      // clés primaires.
       const next = (await db.outbox
-        .orderBy("createdAt")
+        .toCollection()
         .filter((o) => !o.blockedAt)
         .first()) as OutboxEntry | undefined;
       if (!next) break;
@@ -221,6 +229,11 @@ async function drainInner() {
       try {
         await replayOp(next.op);
         await db.outbox.delete(next.id!);
+        // Une opération acceptée prouve que la session est reconnue. Sans ce
+        // rabaissement, le drapeau levé au premier 401 ne redescendait jamais :
+        // la pastille continuait d'exiger de se reconnecter alors que la file
+        // était vide et tout parti.
+        state.needsAuth = false;
         state.lastSyncedAt = new Date().toISOString();
       } catch (e) {
         const err = e as Error & { status?: number };

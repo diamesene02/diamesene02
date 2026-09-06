@@ -6,8 +6,18 @@ import { getLeaderboard } from "@/lib/stats";
 // Export CSV (Excel FR : séparateur « ; », BOM UTF-8).
 // GET /api/clubs/[clubId]/export?type=leaderboard|matches&saison=<seasonId|all>
 
+// Les noms de joueurs, d'équipes et d'adversaires viennent du client. Excel et
+// LibreOffice traitent toute cellule commençant par = + - @ (ou une tabulation)
+// comme une FORMULE : un membre pouvait nommer une équipe `=WEBSERVICE(...)` et
+// la faire exécuter dans le tableur de l'admin à l'ouverture de l'export. On
+// neutralise le premier caractère avant tout le reste.
+const DEBUT_FORMULE = /^[=+\-@\t\r]/;
+
 function csvField(v: string | number): string {
   const s = String(v);
+  if (DEBUT_FORMULE.test(s)) {
+    return `"'${s.replace(/"/g, '""')}"`;
+  }
   if (s.includes(";") || s.includes('"') || s.includes("\n")) {
     return `"${s.replace(/"/g, '""')}"`;
   }

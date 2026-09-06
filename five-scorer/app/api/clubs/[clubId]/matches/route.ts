@@ -157,7 +157,24 @@ export async function POST(req: Request, { params }: Ctx) {
         throw new Error("finished_scope");
       }
 
-      // Reset compos (idempotent).
+      // La composition n'est écrite QUE si le match n'en a pas encore.
+      //
+      // C'était un deleteMany suivi d'un createMany, sans condition. Deux
+      // téléphones sur le même match programmé suffisaient : chacun enfile son
+      // propre createMatch avec le MÊME identifiant. Le premier passe, le match
+      // devient LIVE, on corrige la composition en direct — puis le second
+      // téléphone retrouve du réseau et son createMatch rejoue : la correction
+      // est effacée, et rien ne la remet. Le garde qui existait ne couvrait que
+      // les matchs déjà terminés.
+      //
+      // Un match SCHEDULED garde l'ancien comportement : sa composition
+      // prévisionnelle est justement là pour être remplacée au coup d'envoi.
+      const compoExistante = await tx.matchParticipant.count({
+        where: { matchId: upserted.id },
+      });
+      const peutReecrire = compoExistante === 0 || upserted.status === "SCHEDULED";
+      if (!peutReecrire) return upserted;
+
       await tx.matchParticipant.deleteMany({ where: { matchId: upserted.id } });
       await tx.matchParticipant.createMany({
         data: [

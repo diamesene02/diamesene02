@@ -289,13 +289,16 @@ export default function LiveMatch({
     // bouton d'annulation le plus proche du geste incapable de le défaire :
     // il supprimait un vrai but adverse plus ancien, et le score retombait à
     // la bonne valeur — donc rien ne signalait l'erreur.
+    // Le filtre portait aussi sur `!e.playerId`. Or un csc n'a un buteur nul
+    // que TANT QUE personne n'a répondu à « Qui l'a mis ? » : dès qu'un nom
+    // est donné, le csc redevenait invisible pour l'annulation, qui supprimait
+    // alors un vrai but adverse plus ancien. La bonne condition est « le
+    // dernier événement qui a fait monter le compteur de B » — sur un match
+    // contre un adversaire extérieur, aucun de ses buts ne porte de buteur.
     const last = [...data.events]
       .reverse()
       .find(
-        (e) =>
-          e.team === "B" &&
-          (e.type === "GOAL" || e.type === "OWN_GOAL") &&
-          !e.playerId
+        (e) => e.team === "B" && (e.type === "GOAL" || e.type === "OWN_GOAL")
       );
     if (!last) {
       setError("Aucun but adverse à annuler");
@@ -340,10 +343,16 @@ export default function LiveMatch({
     fermerInvite();
     if (!playerId) return;
     try {
-      if (courante.kind === "passe") {
-        await setEventAssist(matchId, courante.eventId, playerId);
-      } else {
-        await setEventScorer(matchId, courante.eventId, playerId);
+      // L'événement peut avoir été annulé depuis la chronologie pendant que la
+      // barre était ouverte. Refermer la barre comme si le nom avait été pris
+      // renvoyait l'utilisateur convaincu d'avoir renseigné l'auteur.
+      const ecrit =
+        courante.kind === "passe"
+          ? await setEventAssist(matchId, courante.eventId, playerId)
+          : await setEventScorer(matchId, courante.eventId, playerId);
+      if (!ecrit) {
+        setError("Ce but n'existe plus — rien n'a été enregistré");
+        return;
       }
       void kickSync();
     } catch (e) {
@@ -493,11 +502,17 @@ export default function LiveMatch({
             className="live-dot"
             style={paused ? { animation: "none", opacity: 0.3 } : undefined}
           />
-          {/* Le mot ne s'affiche qu'à l'arrêt. En marche, la pastille qui
-              bat le dit déjà ; l'écrire en plus coûtait 38 px sur une barre
-              qui n'en avait pas. */}
-          {paused && <span>PAUSE</span>}
-          <span className="rounded border border-[color:var(--stroke)] px-1 text-[9px] font-black uppercase tracking-wider text-[color:var(--ink-1)]">
+          {/* Le mot « PAUSE » occupait 53 px, et seulement à l'arrêt —
+              c'est-à-dire précisément dans l'état où la barre débordait et
+              où le bouton « MT » se faisait voler son tap. Le chrono le dit
+              sans rien coûter : il s'éteint quand il ne tourne plus, et le
+              bouton d'à côté montre alors un triangle de lecture. */}
+          <span
+            className={cn(
+              "periode-chip rounded border border-[color:var(--stroke)] px-1 text-[9px] font-black uppercase tracking-wider text-[color:var(--ink-1)]",
+              period === 2 ? "p2" : "p1"
+            )}
+          >
             {period === 2 ? "2de" : "1re"}
           </span>
           {/* Un seul chrono. Le temps additionnel était affiché à part, dans
@@ -509,32 +524,30 @@ export default function LiveMatch({
               au-delà, d'un seul coup d'œil. */}
           <span
             className="match-clock"
-            style={overtime ? { color: "var(--live)" } : undefined}
+            style={
+              paused
+                ? { color: "var(--ink-3)" }
+                : overtime
+                  ? { color: "var(--live)" }
+                  : undefined
+            }
           >
             {fmt(overtime ? elapsedMs : Math.min(elapsedMs, limitMs))}
           </span>
+          {/* Le bouton restait un carré, SAUF juste après la mi-temps où il
+              s'élargissait pour annoncer « 2de mi-temps ». À cet instant
+              précis la barre portait aussi le mot PAUSE et la pastille de
+              période : elle débordait de 85 px et recouvrait entièrement le
+              bouton des événements — taper « 2de mi-temps » ouvrait la
+              chronologie. La pastille « 2de » juste à gauche dit déjà la même
+              chose ; le bouton reprend sa taille fixe. */}
           <button
             onClick={toggleClock}
-            className={cn("icon-btn", paused && halftimeJustSet && "w-auto px-2")}
-            title={
-              paused
-                ? halftimeJustSet
-                  ? "2de mi-temps"
-                  : "Reprendre"
-                : "Pause"
-            }
+            className="icon-btn"
+            title={paused ? "Reprendre" : "Pause"}
+            aria-label={paused ? "Reprendre le chrono" : "Mettre en pause"}
           >
-            {paused ? (
-              halftimeJustSet ? (
-                <span className="flex items-center gap-1.5 whitespace-nowrap text-[10px] font-extrabold uppercase tracking-wider">
-                  <Icon name="play" size={12} /> 2de mi-temps
-                </span>
-              ) : (
-                <Icon name="play" size={16} />
-              )
-            ) : (
-              <Icon name="pause" size={16} />
-            )}
+            <Icon name={paused ? "play" : "pause"} size={16} />
           </button>
           {period !== 2 && (
             <button
@@ -546,7 +559,13 @@ export default function LiveMatch({
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {/* Le groupe de droite ne cède jamais de place : c'est lui qui porte
+            « Fin » et la pastille de synchro. Le son a quitté cette barre — à
+            375 px le compte ne tenait pas, et le dépassement ne se voyait pas :
+            il ne décalait rien, il RECOUVRAIT. Le bouton des événements
+            recevait le tap destiné à « MT ». Le son est un réglage, pas un
+            geste de match : il est passé dans le panneau des événements. */}
+        <div className="live-topbar-right">
           <button
             onClick={() => setTimelineOpen((o) => !o)}
             className="icon-btn"
@@ -554,14 +573,6 @@ export default function LiveMatch({
             aria-label="Événements du match"
           >
             <Icon name="list" size={18} />
-          </button>
-          <button
-            onClick={() => setSoundOn(toggleSound())}
-            className="icon-btn"
-            title="Son"
-            aria-label={soundOn ? "Couper le son" : "Activer le son"}
-          >
-            <Icon name={soundOn ? "sound" : "mute"} size={18} />
           </button>
           <SyncBadge compact />
           <button onClick={() => setConfirmOpen(true)} className="btn-fin">
@@ -767,13 +778,23 @@ export default function LiveMatch({
           <div className="max-h-[70vh] w-full overflow-y-auto rounded-t-3xl border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-5">
             <div className="mb-3 flex items-center justify-between">
               <span className="kicker">Événements</span>
-              <button
-                onClick={() => setTimelineOpen(false)}
-                className="icon-btn"
-                aria-label="Fermer"
-              >
-                <Icon name="close" size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSoundOn(toggleSound())}
+                  className="icon-btn w-auto gap-1.5 px-3 text-[11px] font-black uppercase tracking-wider"
+                  aria-label={soundOn ? "Couper le son" : "Activer le son"}
+                >
+                  <Icon name={soundOn ? "sound" : "mute"} size={16} />
+                  {soundOn ? "Son" : "Muet"}
+                </button>
+                <button
+                  onClick={() => setTimelineOpen(false)}
+                  className="icon-btn"
+                  aria-label="Fermer"
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              </div>
             </div>
             {events.length === 0 ? (
               <p className="py-6 text-center text-sm text-[color:var(--ink-2)]">
@@ -822,6 +843,10 @@ export default function LiveMatch({
                     <button
                       onClick={async () => {
                         await removeEvent(matchId, e.id);
+                        // Même réflexe que les deux autres annulations : si la
+                        // barre du bas interrogeait CET événement, elle n'a
+                        // plus rien à demander.
+                        setInvite((i) => (i?.eventId === e.id ? null : i));
                         if (e.type === "HALF_TIME") {
                           // Mi-temps annulée → on ré-ouvre la 1re période
                           // pour que le bouton MT redevienne disponible.

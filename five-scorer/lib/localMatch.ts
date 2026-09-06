@@ -358,11 +358,15 @@ export async function setEventAssist(
   matchId: string,
   eventId: string,
   assistPlayerId: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const db = getDb();
+  let ecrit = true;
   await db.transaction("rw", db.matches, db.events, db.outbox, async () => {
     const ev = await db.events.get(eventId);
-    if (!ev || ev.matchId !== matchId || ev.type !== "GOAL") return;
+    if (!ev || ev.matchId !== matchId || ev.type !== "GOAL") {
+      ecrit = false;
+      return;
+    }
     const match = await db.matches.get(matchId);
     await db.events.update(eventId, { assistPlayerId });
     await enqueue({
@@ -372,6 +376,7 @@ export async function setEventAssist(
       payload: { eventId, assistPlayerId },
     });
   });
+  return ecrit;
 }
 
 /// Désigne (ou retire) l'auteur d'un contre son camp déjà saisi.
@@ -385,11 +390,17 @@ export async function setEventScorer(
   matchId: string,
   eventId: string,
   scorerPlayerId: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const db = getDb();
+  let ecrit = true;
   await db.transaction("rw", db.matches, db.events, db.outbox, async () => {
     const ev = await db.events.get(eventId);
-    if (!ev || ev.matchId !== matchId || ev.type !== "OWN_GOAL") return;
+    // L'événement a pu être annulé entre-temps depuis la chronologie. Sortir en
+    // silence faisait croire à l'utilisateur que le nom avait été pris.
+    if (!ev || ev.matchId !== matchId || ev.type !== "OWN_GOAL") {
+      ecrit = false;
+      return;
+    }
     const match = await db.matches.get(matchId);
     await db.events.update(eventId, { playerId: scorerPlayerId });
     await enqueue({
@@ -399,6 +410,7 @@ export async function setEventScorer(
       payload: { eventId, scorerPlayerId },
     });
   });
+  return ecrit;
 }
 
 /// Fait changer un joueur de camp pendant le match.
@@ -430,6 +442,18 @@ export async function movePlayerTeam(
       const part = await db.participants.get(pKey(matchId, playerId));
       if (!part) throw new Error("Joueur non inscrit à ce match");
       if (part.team === team) return; // déjà du bon côté
+      // Un tap de trop en mode correction et la colonne d'origine se vide : le
+      // match se terminait alors avec tout le monde du même côté, et
+      // lib/stats.ts inscrivait une défaite à dix joueurs pour un match que
+      // personne n'avait perdu.
+      const restants = await db.participants
+        .where("matchId")
+        .equals(matchId)
+        .filter((x) => x.team === part.team && x.playerId !== playerId)
+        .count();
+      if (restants === 0) {
+        throw new Error("Il faut au moins un joueur de chaque côté");
+      }
       await db.participants.update(pKey(matchId, playerId), { team });
       await enqueue({
         kind: "movePlayer",

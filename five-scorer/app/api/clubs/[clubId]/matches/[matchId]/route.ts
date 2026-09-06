@@ -63,7 +63,16 @@ export async function PATCH(req: Request, { params }: Ctx) {
   // d'une rencontre close. Et le cas n'était pas théorique : c'est exactement
   // ce que produisait le scénario des deux téléphones, le finishMatch en file
   // arrivant après le createMatch refusé.
-  const rejeuInerte = isIdempotentFinish && !ctx.canManage;
+  // Le rejeu inerte est une propriété du REJEU, pas du rôle de l'émetteur.
+  //
+  // La condition portait aussi sur `!ctx.canManage` : pour un admin, un
+  // finishMatch resté en file hors ligne réécrivait donc mvpId et durationMin
+  // d'un match déjà terminé. Or ce corps n'est pas composé par un humain —
+  // lib/sync.ts envoie toujours le mvpId qu'il avait au moment du tap, c'est-à-
+  // dire null en mode vote. Un admin qui retrouve du réseau le lendemain
+  // effaçait ainsi le MVP élu par le club. La retouche délibérée passe par
+  // l'écran d'édition, qui vérifie déjà les droits.
+  const rejeuInerte = isIdempotentFinish;
 
   const updated = await prisma.match.update({
     where: { id: matchId },

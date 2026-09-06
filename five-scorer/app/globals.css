@@ -438,16 +438,31 @@
     }
   }
 
+  /* La pastille est un point de 8 px — mais c'est aussi le seul bouton de
+     l'application qui relance une file d'opérations refusées. Une cible de
+     8 px au bord d'un terrain, doigt mouillé, c'est un but qui ne part jamais.
+     Le disque coloré devient un ::before ; la surface tactile, elle, fait la
+     taille minimale que le projet s'impose. */
   .sync-dot {
+    display: grid;
+    place-items: center;
+    width: var(--tap-min);
+    height: var(--tap-min);
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .sync-dot::before {
+    content: "";
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--win);
   }
-  .sync-dot.warn {
+  .sync-dot.warn::before {
     background: var(--gold);
   }
-  .sync-dot.off {
+  .sync-dot.off::before {
     background: var(--loss);
   }
 
@@ -574,17 +589,41 @@
     background: var(--pitch-0);
     border-bottom: 1px solid var(--rule);
   }
+  /* Le groupe de gauche peut être comprimé (min-width: 0) — il faut donc qu'il
+     CLIPPE au lieu de déborder. Sans overflow, son contenu passait par-dessus
+     les boutons de droite, qui sont postérieurs dans le document et peignent
+     donc au-dessus : le tap destiné à « MT » atterrissait sur les événements.
+     Un dépassement doit se voir, jamais voler un geste. */
   .live-topbar-left {
     display: flex;
     align-items: center;
     gap: 6px;
     min-width: 0;
+    overflow: hidden;
     font-stretch: 100%;
     font-weight: 700;
     font-size: 12px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--live);
+  }
+  /* Sous 360 px, la barre est encore 23 px trop courte et le bouton « MT » se
+     fait rogner. En 1re période, la pastille est redondante : la présence même
+     du bouton MT dit qu'on n'a pas encore sifflé la mi-temps. On la retire
+     donc, mais seulement là où l'information existe ailleurs — en 2de période
+     elle reste, et MT a disparu, donc la place est là. */
+  @media (max-width: 359px) {
+    .periode-chip.p1 {
+      display: none;
+    }
+  }
+
+  /* Le groupe de droite porte « Fin » et la synchro : il ne cède jamais. */
+  .live-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
   }
   .match-clock {
     font-size: 18px;
