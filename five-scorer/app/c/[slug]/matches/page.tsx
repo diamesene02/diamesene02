@@ -46,6 +46,9 @@ export default async function MatchesPage({
     include: {
       opponent: true,
       mvp: true,
+      // La soirée d'origine : c'est elle qui rend le rattachement visible dans
+      // la liste, et qui permet d'y remonter depuis un match.
+      matchDay: { select: { id: true, title: true } },
       _count: { select: { rsvps: { where: { status: "IN" } } } },
     },
   });
@@ -57,7 +60,7 @@ export default async function MatchesPage({
     .sort(
       (a, b) =>
         (a.scheduledAt ?? a.playedAt).getTime() -
-        (b.scheduledAt ?? b.playedAt).getTime()
+        (b.scheduledAt ?? b.playedAt).getTime(),
     );
   const finished = matches.filter((m) => m.status === "FINISHED");
 
@@ -78,7 +81,7 @@ export default async function MatchesPage({
       "inline-flex min-h-[44px] items-center rounded-full border px-4 text-xs font-bold uppercase tracking-wider transition-colors",
       active
         ? "border-transparent bg-[color:var(--lime)] text-[color:var(--bg-0)]"
-        : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)] hover:text-white"
+        : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)] hover:text-white",
     );
 
   return (
@@ -87,6 +90,15 @@ export default async function MatchesPage({
         <div>
           <span className="kicker">Historique</span>
           <h1 className="display-md mt-1">Les matchs</h1>
+          {/* Pendant de la définition posée sur la page des soirées. Formulée
+              pour couvrir les trois cas que l'app produit : le match d'une
+              soirée, l'improvisé, et la rencontre contre un club adverse. */}
+          <p className="mt-1.5 max-w-sm text-sm text-[color:var(--ink-2)]">
+            Une rencontre jouée : un score, des buteurs, un chrono.{" "}
+            <span className="text-[color:var(--ink-1)]">
+              Dans une soirée, ou toute seule.
+            </span>
+          </p>
         </div>
         <span className="text-sm font-bold tabular-nums text-[color:var(--ink-2)]">
           {finished.length} joué{finished.length > 1 ? "s" : ""}
@@ -203,14 +215,23 @@ export default async function MatchesPage({
                   <span className="w-14 shrink-0 text-[11px] uppercase tabular-nums text-[color:var(--ink-2)]">
                     {fmtDate(m.playedAt)}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-bold">
-                    {m.teamAName}{" "}
-                    <span className="text-[color:var(--ink-2)]">vs</span>{" "}
-                    {opponentOr(m)}
-                    {m.mvp && (
-                      <span className="ml-2 inline-flex items-center gap-1 align-middle text-[10px] font-black uppercase tracking-wider text-[color:var(--gold)]">
-                        <Icon name="star" size={11} filled />
-                        {m.mvp.name}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold">
+                      {m.teamAName}{" "}
+                      <span className="text-[color:var(--ink-2)]">vs</span>{" "}
+                      {opponentOr(m)}
+                      {m.mvp && (
+                        <span className="ml-2 inline-flex items-center gap-1 align-middle text-[10px] font-black uppercase tracking-wider text-[color:var(--gold)]">
+                          <Icon name="star" size={11} filled />
+                          {m.mvp.name}
+                        </span>
+                      )}
+                    </span>
+                    {/* Voir plusieurs lignes porter la même soirée fait
+                        comprendre l'emboîtement sans qu'on l'explique. */}
+                    {m.matchDay && (
+                      <span className="rattache mt-0.5 max-w-full truncate">
+                        {m.matchDay.title || "Soirée"}
                       </span>
                     )}
                   </span>

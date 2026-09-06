@@ -16,7 +16,7 @@ export default async function NewSessionPage({
   return (
     <main className="mx-auto max-w-xl">
       <span className="kicker">Organisation</span>
-      <h1 className="display-md mt-1">Programmer une session</h1>
+      <h1 className="display-md mt-1">Programmer une soirée</h1>
       <p className="mt-3 text-sm text-[color:var(--ink-1)]">
         La soirée five : une date, un lieu, et chacun répond présent.
       </p>

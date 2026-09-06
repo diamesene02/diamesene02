@@ -109,7 +109,7 @@ export default function BottomNav({ slug, canScore }: Props) {
     { href: `${base}/matches`, label: "Matchs", icon: <BallIcon /> },
   ];
   const rightTabs: Tab[] = [
-    { href: `${base}/sessions`, label: "Sessions", icon: <CalendarIcon /> },
+    { href: `${base}/sessions`, label: "Soirées", icon: <CalendarIcon /> },
     { href: `${base}/stats`, label: "Stats", icon: <ChartIcon /> },
   ];
 
@@ -119,17 +119,17 @@ export default function BottomNav({ slug, canScore }: Props) {
     {
       href: `${base}/matches/new`,
       label: "Lancer un match maintenant",
-      hint: "Score en direct dès le coup d'envoi",
+      hint: "Deux équipes, un score, un chrono",
     },
     {
       href: `${base}/matches/schedule`,
       label: "Programmer un match",
-      hint: "Fixe une date, l'équipe confirme",
+      hint: "Une rencontre à une date donnée",
     },
     {
       href: `${base}/matches/new-session`,
-      label: "Programmer une session",
-      hint: "Une soirée, plusieurs matchs",
+      label: "Programmer une soirée",
+      hint: "Un créneau réservé — les matchs se jouent dedans",
     },
   ];
 
@@ -168,7 +168,7 @@ export default function BottomNav({ slug, canScore }: Props) {
                 <button
                   type="button"
                   onClick={() => setSheetOpen(true)}
-                  aria-label="Créer un match ou une session"
+                  aria-label="Créer un match ou une soirée"
                   aria-haspopup="dialog"
                   aria-expanded={sheetOpen}
                   className="tap grid h-[52px] w-[52px] place-items-center rounded-full bg-[color:var(--lime)] text-[color:var(--bg-0)]"
@@ -187,7 +187,7 @@ export default function BottomNav({ slug, canScore }: Props) {
           className="fixed inset-0 z-50 sm:hidden"
           role="dialog"
           aria-modal="true"
-          aria-label="Créer un match ou une session"
+          aria-label="Créer un match ou une soirée"
         >
           <button
             type="button"

@@ -146,7 +146,7 @@ export default async function ClubHomePage({
                       href={`/c/${slug}/matches/new-session`}
                       className="btn ghost tap px-4 text-sm"
                     >
-                      Une session
+                      Une soirée
                     </Link>
                   </div>
                 </div>
@@ -161,7 +161,7 @@ export default async function ClubHomePage({
         <section className="mt-8 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <span className="kicker">Prochaine session</span>
+              <span className="kicker">Prochaine soirée</span>
               <div className="mt-1 text-xl font-black">
                 <Link
                   href={`/c/${slug}/sessions/${nextMatchDay.id}`}

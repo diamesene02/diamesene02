@@ -32,7 +32,7 @@ const FEATURES: { title: string; body: string }[] = [
     body: "Après chaque match, les membres votent. L'égo en jeu, chaque semaine.",
   },
   {
-    title: "Sessions & présences",
+    title: "Soirées & présences",
     body: "Programme ta session, chacun répond présent/absent, les présents remplissent le générateur.",
   },
   {

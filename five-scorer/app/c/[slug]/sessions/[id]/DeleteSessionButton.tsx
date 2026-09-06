@@ -22,7 +22,7 @@ export default function DeleteSessionButton({
         onClick={() => setConfirming(true)}
         className="rounded-lg px-4 py-2 text-sm font-bold text-[color:var(--loss)] hover:bg-[color:var(--bg-2)]"
       >
-        Supprimer la session
+        Supprimer la soirée
       </button>
     );
   }

@@ -78,7 +78,7 @@ export default async function SessionsPage({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-base font-black">
-              {md.title || "Session"}
+              {md.title || "Soirée"}
               <span
                 className={cn(
                   "ml-3 text-xs font-bold capitalize tabular-nums",
@@ -136,8 +136,16 @@ export default async function SessionsPage({
     <main>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <span className="kicker">Sessions</span>
+          <span className="kicker">Le calendrier</span>
           <h1 className="display-md mt-1">Les soirées</h1>
+          {/* La définition ne tient pas dans un kicker de 11 px : elle se lit
+              ici, à taille de texte courant, sous le titre qu'elle éclaire. */}
+          <p className="mt-1.5 max-w-sm text-sm text-[color:var(--ink-2)]">
+            Un créneau réservé : une date, un terrain, qui vient.{" "}
+            <span className="text-[color:var(--ink-1)]">
+              Les matchs se jouent dedans.
+            </span>
+          </p>
         </div>
         {ctx.canScore && (
           <Link
@@ -145,7 +153,7 @@ export default async function SessionsPage({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-5 text-sm font-bold hover:border-[color:var(--lime)]"
           >
             <Icon name="plus" size={16} />
-            Programmer une session
+            Programmer une soirée
           </Link>
         )}
       </div>
@@ -153,9 +161,14 @@ export default async function SessionsPage({
       {matchDays.length === 0 ? (
         <div className="mt-10 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-8 text-center">
           <p className="text-lg font-black">Aucune soirée pour l&apos;instant.</p>
-          <p className="mt-2 text-sm text-[color:var(--ink-1)]">
-            Programme la prochaine session, préviens les copains, et le terrain
-            fera le reste.
+          <p className="mx-auto mt-2 max-w-sm text-sm text-[color:var(--ink-1)]">
+            Une soirée, c&apos;est le créneau : jeudi 19 h, terrain 2. Tu la
+            programmes, chacun dit s&apos;il vient, et tu répartis le prix du
+            terrain entre les présents.
+          </p>
+          <p className="mx-auto mt-3 max-w-sm text-sm text-[color:var(--ink-2)]">
+            Les matchs, eux, se jouent dedans — et souvent plusieurs dans la même
+            soirée. Ce sont eux qui portent les scores et les statistiques.
           </p>
           {ctx.canScore && (
             <Link
@@ -163,7 +176,7 @@ export default async function SessionsPage({
               className="btn primary big mt-5"
             >
               <Icon name="plus" size={18} />
-              Programmer une session
+              Programmer une soirée
             </Link>
           )}
         </div>

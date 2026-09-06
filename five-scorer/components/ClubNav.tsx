@@ -17,7 +17,7 @@ export default function ClubNav({
   const tabs = [
     { href: base, label: "Accueil", exact: true },
     { href: `${base}/matches`, label: "Matchs" },
-    { href: `${base}/sessions`, label: "Sessions" },
+    { href: `${base}/sessions`, label: "Soirées" },
     { href: `${base}/stats`, label: "Stats" },
     { href: `${base}/players`, label: "Joueurs" },
     ...(canManage ? [{ href: `${base}/settings`, label: "Réglages" }] : []),

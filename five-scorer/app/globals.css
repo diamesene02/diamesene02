@@ -772,6 +772,39 @@
     background: var(--loss);
   }
 
+  /* ═══════════════════ RATTACHEMENT ═══════════════════
+     Une soirée contient des matchs, et rien ne le disait : les deux notions
+     vivaient dans deux onglets frères, ce qui affirme le contraire. La marque
+     ci-dessous est le coude qu'on trace au stylo sur une feuille de match pour
+     rattacher une ligne à son en-tête. Elle apparaît sur tout match issu d'une
+     soirée, où qu'il s'affiche — la relation devient visible avant d'être lue,
+     et se parcourt dans les deux sens. */
+  .rattache {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-stretch: 100%;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
+  }
+  .rattache::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 8px;
+    height: 7px;
+    margin-bottom: 3px;
+    border-left: 1px solid var(--rule-hi);
+    border-bottom: 1px solid var(--rule-hi);
+  }
+  a.rattache:hover {
+    color: var(--ink-1);
+  }
+  a.rattache:hover::before {
+    border-color: var(--ink-1);
+  }
+
   /* ═══════════════════ RÉCAP & CHRONOLOGIE ═══════════════════ */
 
   .recap-wrap {

@@ -96,7 +96,7 @@ export default function NewSessionForm({ slug }: { slug: string }) {
         disabled={isPending}
         className="big-touch w-full rounded-2xl bg-[color:var(--lime)] py-4 text-lg font-black text-[color:var(--bg-0)] disabled:opacity-50"
       >
-        {isPending ? "Création…" : "Programmer la session"}
+        {isPending ? "Création…" : "Programmer la soirée"}
       </button>
 
       <p className="text-xs text-[color:var(--ink-2)]">

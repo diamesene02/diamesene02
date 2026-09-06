@@ -98,7 +98,7 @@ export default async function SessionDetailPage({
           </Link>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <span className="kicker">{md.title || "Session"}</span>
+              <span className="kicker">{md.title || "Soirée"}</span>
               <h1 className="display-md mt-1 capitalize">
                 {dateLabel}
                 <span className="ml-3 text-lg tabular-nums text-[color:var(--lime)]">
