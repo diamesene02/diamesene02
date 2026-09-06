@@ -2,7 +2,7 @@
 # Bootstrap Five Scorer en local :
 #   - démarre un Postgres (Docker en priorité, sinon Homebrew postgresql@16)
 #   - crée la DB + user `fivescorer`
-#   - génère un .env prêt à l'emploi (hash PIN=1234 avec $ échappés)
+#   - génère un .env prêt à l'emploi (secrets Better Auth)
 #   - lance prisma migrate + seed
 #
 # Usage :  bash scripts/bootstrap.sh        (depuis five-scorer/)
@@ -108,15 +108,14 @@ fi
 
 # --- 3. Générer .env si absent ---
 if [ ! -f .env ]; then
-  echo "🔐 Génération .env (PIN=1234)"
-  HASH=$(node -e "console.log(require('bcryptjs').hashSync('1234',10).replace(/\\\$/g,'\\\\\$'))")
+  echo "🔐 Génération .env"
   SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
   DB_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?schema=public"
   cat > .env <<EOF
 DATABASE_URL="$DB_URL"
 DIRECT_URL="$DB_URL"
-SCORING_PIN_HASH="$HASH"
-SESSION_SECRET="$SECRET"
+BETTER_AUTH_SECRET="$SECRET"
+BETTER_AUTH_URL="http://localhost:3000"
 EOF
 else
   echo "🔐 .env déjà présent (conservé)"
@@ -125,10 +124,7 @@ fi
 # --- 4. Migrate + seed ---
 echo "📐 prisma migrate deploy"
 pnpm prisma migrate deploy
-echo "🌱 prisma db seed"
-pnpm prisma db seed
-
 echo ""
 echo "✅ Tout est prêt."
 echo "   → Lance :   pnpm dev"
-echo "   → Ouvre :   http://localhost:3000   (PIN = 1234)"
+echo "   → Ouvre :   http://localhost:3000 et crée ton compte + ton club"

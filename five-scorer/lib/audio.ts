@@ -102,3 +102,10 @@ export function playUndoSound(): void {
   if (!isSoundEnabled()) return;
   playTone({ freq: 520, glideTo: 260, duration: 0.16, type: "sawtooth", gain: 0.18 });
 }
+
+// Fin du temps réglementaire : double coup de sifflet.
+export function playFullTimeSound(): void {
+  if (!isSoundEnabled()) return;
+  playTone({ freq: 1760, duration: 0.16, type: "square", gain: 0.1 });
+  playTone({ freq: 1760, duration: 0.34, type: "square", gain: 0.1, delay: 0.22 });
+}

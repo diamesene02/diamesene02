@@ -53,9 +53,10 @@ async function refreshPending() {
 // --- Network helpers -------------------------------------------------------
 
 async function replayOp(op: OutboxOp): Promise<void> {
+  const base = `/api/clubs/${op.clubId}`;
   switch (op.kind) {
     case "createMatch": {
-      const res = await fetch("/api/matches", {
+      const res = await fetch(`${base}/matches`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -63,30 +64,43 @@ async function replayOp(op: OutboxOp): Promise<void> {
       await throwIfBad(res, "createMatch");
       return;
     }
-    case "addGoal": {
-      const res = await fetch(`/api/matches/${op.matchId}/goals`, {
+    case "addEvent": {
+      const res = await fetch(`${base}/matches/${op.matchId}/events`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
       });
-      await throwIfBad(res, "addGoal");
+      await throwIfBad(res, "addEvent");
       return;
     }
-    case "removeGoal": {
+    case "removeEvent": {
       const res = await fetch(
-        `/api/matches/${op.matchId}/goals?goalId=${encodeURIComponent(
-          op.payload.goalId
+        `${base}/matches/${op.matchId}/events?eventId=${encodeURIComponent(
+          op.payload.eventId
         )}`,
         { method: "DELETE" }
       );
-      await throwIfBad(res, "removeGoal");
+      await throwIfBad(res, "removeEvent");
+      return;
+    }
+    case "setAssist": {
+      const res = await fetch(`${base}/matches/${op.matchId}/events`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(op.payload),
+      });
+      await throwIfBad(res, "setAssist");
       return;
     }
     case "finishMatch": {
-      const res = await fetch(`/api/matches/${op.matchId}`, {
+      const res = await fetch(`${base}/matches/${op.matchId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status: "FINISHED", mvpId: op.payload.mvpId }),
+        body: JSON.stringify({
+          status: "FINISHED",
+          mvpId: op.payload.mvpId,
+          durationMin: op.payload.durationMin ?? null,
+        }),
       });
       await throwIfBad(res, "finishMatch");
       return;

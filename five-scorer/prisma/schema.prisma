@@ -8,74 +8,405 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Auth — schéma généré par Better Auth (plugin organization).
+// Une Organization EST un club ; le profil sportif vit dans `Club` (1:1).
+// ═══════════════════════════════════════════════════════════════════════════
+
+model User {
+  id            String       @id
+  name          String
+  email         String
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  members       Member[]
+  invitations   Invitation[]
+  motmVotes     MotmVote[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id                   String   @id
+  expiresAt            DateTime
+  token                String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganizationId String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  /// Better Auth ≥1.7 : l'identité d'un account est scopée par issuer
+  /// (ex. "local:credential" pour email/mot de passe).
+  issuer                String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Organization {
+  id          String       @id
+  name        String
+  slug        String
+  logo        String?
+  createdAt   DateTime
+  metadata    String?
+  members     Member[]
+  invitations Invitation[]
+  club        Club?
+
+  @@unique([slug])
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Domaine — tout est scopé par club (clubId = organization.id).
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum SportFormat {
+  FIVE
+  FUTSAL
+  SEVEN
+  ELEVEN
+  OTHER
+}
+
+enum MotmMode {
+  VOTE // les membres votent après le match
+  ADMIN // le marqueur/admin désigne
+  OFF
+}
+
+/// Profil sportif du club (1:1 avec Organization).
+model Club {
+  id             String      @id // == organization.id
+  organization   Organization @relation(fields: [id], references: [id], onDelete: Cascade)
+  format         SportFormat @default(FIVE)
+  /// Durée par défaut d'un match en minutes (les fives jouent souvent 2×10 ou au temps).
+  matchDurationMin Int       @default(10)
+  pointsWin      Int         @default(3)
+  pointsDraw     Int         @default(1)
+  trackAssists   Boolean     @default(true)
+  trackCards     Boolean     @default(false)
+  motmMode       MotmMode    @default(VOTE)
+  /// Les membres (rôle member) peuvent-ils saisir en live ? Sinon admin+ uniquement.
+  membersCanScore Boolean    @default(true)
+  /// Couleurs des chasubles — l'identité visuelle du club. L'app est
+  /// neutre ; ce sont ces deux couleurs qui l'habillent (barres d'équipe,
+  /// scores, classements). La variante lisible pour le texte est dérivée
+  /// par le calcul, pas stockée (cf. lib/color.ts).
+  colorA         String      @default("#FF6B2C")
+  colorB         String      @default("#3D8BFF")
+  /// Page club publique (/p/[slug]) : classements + résultats en lecture seule.
+  isPublic       Boolean     @default(false)
+  /// Code d'invitation court, régénérable (rejoindre sans email).
+  inviteCode     String      @unique @default(cuid())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  players   Player[]
+  seasons   Season[]
+  matchDays MatchDay[]
+  opponents Opponent[]
+  matches   Match[]
+
+  @@map("club")
+}
+
+model Player {
+  id         String   @id @default(cuid())
+  clubId     String
+  club       Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name       String
+  nickname   String?
+  /// Compte utilisateur lié (un membre peut revendiquer son profil joueur).
+  userId     String?
+  /// Note de niveau 1..5, réglée par les admins — alimente le générateur d'équipes.
+  skill      Int      @default(3)
+  /// Gardien attitré (le générateur répartit les GK en premier).
+  isGk       Boolean  @default(false)
+  isGuest    Boolean  @default(false)
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  participations MatchParticipant[]
+  events         MatchEvent[]       @relation("EventPlayer")
+  assists        MatchEvent[]       @relation("EventAssist")
+  mvpOfMatches   Match[]            @relation("MatchMvp")
+  motmVotes      MotmVote[]
+  rsvps          Rsvp[]
+
+  @@unique([clubId, userId])
+  @@index([clubId, isArchived])
+  @@index([clubId, name])
+  @@map("player")
+}
+
+model Season {
+  id        String    @id @default(cuid())
+  clubId    String
+  club      Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name      String
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  matches   Match[]
+  matchDays MatchDay[]
+
+  @@index([clubId, isActive])
+  @@map("season")
+}
+
+/// Une "session" : la soirée five, qui regroupe plusieurs petits matchs
+/// et porte les présences (RSVP).
+model MatchDay {
+  id        String    @id @default(cuid())
+  clubId    String
+  club      Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  seasonId  String?
+  season    Season?   @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  date      DateTime
+  title     String?
+  location  String?
+  notes     String?
+  /// Prix du terrain en centimes — réparti entre les présents (paiements).
+  fieldCostCents Int?
+  createdAt DateTime  @default(now())
+
+  matches Match[]
+  rsvps   Rsvp[]
+
+  @@index([clubId, date])
+  @@map("match_day")
+}
+
+/// Équipe adverse externe (mode championnat / matchs contre d'autres équipes).
+model Opponent {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name      String
+  shortName String?
+  createdAt DateTime @default(now())
+
+  matches Match[]
+
+  @@unique([clubId, name])
+  @@map("opponent")
+}
+
+enum MatchKind {
+  /// Match interne : deux équipes tirées du roster du club (le five classique).
+  INTERNAL
+  /// Match contre une équipe externe (Opponent) — alimente le classement.
+  EXTERNAL
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  CANCELED
+}
+
 enum Team {
   A
   B
 }
 
-enum MatchStatus {
-  LIVE
-  FINISHED
-}
-
-model Player {
-  id        String   @id @default(cuid())
-  name      String
-  nickname  String?
-  isGuest   Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  matches       MatchPlayer[]
-  goals         Goal[]        @relation("PlayerGoals")
-  mvpOfMatches  Match[]       @relation("MatchMvp")
-
-  @@index([name])
-}
-
 model Match {
-  id         String      @id @default(cuid())
-  playedAt   DateTime    @default(now())
-  teamAName  String      @default("Équipe A")
-  teamBName  String      @default("Équipe B")
-  scoreA     Int         @default(0)
-  scoreB     Int         @default(0)
-  status     MatchStatus @default(LIVE)
-  mvpId      String?
-  mvp        Player?     @relation("MatchMvp", fields: [mvpId], references: [id])
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id          String      @id @default(cuid())
+  clubId      String
+  club        Club        @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  seasonId    String?
+  season      Season?     @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  matchDayId  String?
+  matchDay    MatchDay?   @relation(fields: [matchDayId], references: [id], onDelete: SetNull)
+  kind        MatchKind   @default(INTERNAL)
+  opponentId  String?
+  opponent    Opponent?   @relation(fields: [opponentId], references: [id], onDelete: SetNull)
+  /// Match EXTERNAL : joué à domicile ?
+  isHome      Boolean     @default(true)
+  status      MatchStatus @default(LIVE)
+  scheduledAt DateTime?
+  playedAt    DateTime    @default(now())
+  venue       String?
+  teamAName   String      @default("Équipe A")
+  teamBName   String      @default("Équipe B")
+  /// Scores dénormalisés — recalculés depuis les events à chaque mutation.
+  scoreA      Int         @default(0)
+  scoreB      Int         @default(0)
+  durationMin Int?
+  mvpId       String?
+  mvp         Player?     @relation("MatchMvp", fields: [mvpId], references: [id], onDelete: SetNull)
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  players MatchPlayer[]
-  goals   Goal[]
+  participants MatchParticipant[]
+  events       MatchEvent[]
+  motmVotes    MotmVote[]
+  rsvps        Rsvp[]
 
-  @@index([playedAt])
-  @@index([status])
+  @@index([clubId, playedAt])
+  @@index([clubId, status])
+  @@index([seasonId])
+  @@index([matchDayId])
+  @@map("match")
 }
 
-model MatchPlayer {
+model MatchParticipant {
   matchId  String
   playerId String
   team     Team
+  isGk     Boolean @default(false)
 
   match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@id([matchId, playerId])
   @@index([playerId])
+  @@map("match_participant")
 }
 
-model Goal {
+enum MatchEventType {
+  GOAL
+  OWN_GOAL
+  YELLOW_CARD
+  RED_CARD
+  /// Marqueur de mi-temps dans la timeline (aucun effet sur le score).
+  HALF_TIME
+}
+
+model MatchEvent {
+  id             String         @id @default(cuid())
+  matchId        String
+  match          Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  type           MatchEventType
+  /// Équipe créditée (pour un but : celle qui marque, y compris sur csc).
+  team           Team
+  /// Joueur concerné — null possible (ex. buteur adverse inconnu en EXTERNAL).
+  playerId       String?
+  player         Player?        @relation("EventPlayer", fields: [playerId], references: [id], onDelete: SetNull)
+  assistPlayerId String?
+  assistPlayer   Player?        @relation("EventAssist", fields: [assistPlayerId], references: [id], onDelete: SetNull)
+  minute         Int?
+  createdAt      DateTime       @default(now())
+
+  @@index([matchId, createdAt])
+  @@index([playerId])
+  @@index([assistPlayerId])
+  @@map("match_event")
+}
+
+enum RsvpStatus {
+  IN
+  OUT
+  MAYBE
+}
+
+/// Présence : sur une session (MatchDay) ou un match programmé.
+model Rsvp {
+  id          String     @id @default(cuid())
+  matchDayId  String?
+  matchDay    MatchDay?  @relation(fields: [matchDayId], references: [id], onDelete: Cascade)
+  matchId     String?
+  match       Match?     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  status      RsvpStatus
+  /// A payé sa part du terrain (coché par un admin sur la session).
+  hasPaid     Boolean    @default(false)
+  respondedAt DateTime   @updatedAt
+
+  @@unique([matchDayId, playerId])
+  @@unique([matchId, playerId])
+  @@map("rsvp")
+}
+
+model MotmVote {
   id        String   @id @default(cuid())
   matchId   String
-  scorerId  String
-  team      Team
-  minute    Int?
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  voterId   String
+  voter     User     @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  scorer   Player  @relation("PlayerGoals", fields: [scorerId], references: [id], onDelete: Cascade)
-
+  @@unique([matchId, voterId])
   @@index([matchId])
-  @@index([scorerId])
-  @@index([createdAt])
+  @@map("motm_vote")
 }

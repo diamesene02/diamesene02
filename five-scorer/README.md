@@ -1,76 +1,67 @@
 # Five Scorer
 
-PWA tactile pour saisir en live les scores et buteurs des **Five hebdo**, avec
-historique, classement des buteurs, stats par joueur et élection du MVP.
+Plateforme open source de suivi de matchs pour équipes amateurs — five, futsal, foot à 7 ou à 11. Deux modes de jeu : la session entre potes (matchs internes, équipes tirées du roster) et le mode saison (matchs contre d'autres équipes, classement, barème de points).
+
+## Fonctionnalités
+
+- **Scoring live offline-first** — saisie au bord du terrain sans réseau : événements typés (buts, passes décisives, csc, cartons), timeline corrigeable après coup, synchronisation par outbox idempotente.
+- **Clubs multi-équipes** — comptes utilisateurs, invitations par lien, rôles owner / admin / member.
+- **Générateur d'équipes équilibrées** — niveau 1 à 5 par joueur, gardiens répartis en premier, re-tirage en un tap.
+- **Saisons & stats** — classements buteurs / passeurs / MVP, forme (5 derniers matchs) et séries, bilan contre les adversaires avec barème configurable (points victoire / nul).
+- **Sessions & présences** — soirées regroupant plusieurs matchs, RSVP des joueurs.
+- **Vote MVP** — élection de l'homme du match par les membres (ou désignation par l'admin).
+- **Pages publiques + partage** — page club publique en lecture seule, lien de récap par match, carte image à partager.
 
 ## Stack
 
-- **Next.js 15** (App Router) + TypeScript
-- **Tailwind CSS**
-- **Prisma** + **Postgres** (Supabase conseillé)
-- **Zustand** pour l'état live (saisie optimiste)
-- **iron-session** + bcrypt pour le gate PIN
-- PWA installable sur tablette (manifest + orientation paysage)
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS
+- Prisma + Postgres
+- Better Auth (plugin organizations)
+- Dexie (IndexedDB) pour l'offline
+- PWA installable
 
 ## Démarrage
 
-### Express — une commande
-
-Avec Docker (ou Postgres déjà lancé en local, ou Homebrew) :
+### Express
 
 ```bash
 pnpm install
-pnpm bootstrap   # crée la DB, génère .env (PIN=1234), migrate + seed
+pnpm bootstrap   # Postgres via Docker ou brew + .env + migrate
 pnpm dev
 ```
 
-Ouvre http://localhost:3000, PIN = `1234`.
-
-### Manuel (si tu veux contrôler chaque étape)
+### Manuel
 
 ```bash
 pnpm install
 cp .env.example .env
-# Éditer .env : DATABASE_URL, DIRECT_URL, SCORING_PIN_HASH, SESSION_SECRET
-
-# Générer le hash PIN (ex. 1234) — /!\ échapper les $ pour dotenv-expand :
-node -e "console.log(require('bcryptjs').hashSync('1234',10).replace(/\\\$/g,'\\\\\$'))"
-# Copier le résultat dans SCORING_PIN_HASH="..."
-
-pnpm prisma migrate dev --name init
-pnpm prisma db seed
+# Remplir :
+#   DATABASE_URL / DIRECT_URL   → ton Postgres
+#   BETTER_AUTH_SECRET          → openssl rand -hex 32
+#   BETTER_AUTH_URL             → http://localhost:3000
+pnpm prisma migrate deploy
 pnpm dev
 ```
 
-Ouvre http://localhost:3000 (idéalement DevTools en mode tablette paysage).
+Ouvre http://localhost:3000, crée un compte puis un club.
 
-## Flux
+Google OAuth optionnel : renseigner `GOOGLE_CLIENT_ID` et `GOOGLE_CLIENT_SECRET`.
 
-1. Accueil → **+ Nouveau match**
-2. PIN → choix équipes / joueurs / invités
-3. Écran live : tap **+1** sur le joueur qui marque, **−** pour annuler
-4. **Terminer le match** → choix MVP → récap
-5. `/stats/scorers`, `/matches/history`, `/stats/players/[id]`
+## Migration depuis la v1
 
-## Modèle de données
+La migration `v2_platform` conserve les joueurs, matchs et buts existants dans un club « legacy ». Le premier compte qui saisit l'ancien PIN admin depuis `/onboarding` en devient owner — `ADMIN_PIN_HASH` doit rester présent dans l'environnement.
 
-- `Player` (roster + invités `isGuest`)
-- `Match` (scores dénormalisés, status `LIVE`/`FINISHED`, MVP)
-- `MatchPlayer` (composition équipe A/B)
-- `Goal` (un par but → undo précis + top scoreurs)
+## Architecture
+
+- **Offline-first** : les événements sont écrits dans Dexie (IndexedDB) puis rejoués via une outbox FIFO sur des API idempotentes.
+- **Multi-tenant** : un club = une organization Better Auth ; tout le domaine est scopé par club.
+- **Autorisation** : rôles owner / admin / member résolus par `lib/guard.ts`.
+- **Stats** : calculées en mémoire dans `lib/stats.ts` à partir des matchs terminés du scope (club, saison).
 
 ## Déploiement
 
-Vercel + Supabase Postgres. Penser à configurer :
+Vercel + Postgres managé (Supabase conseillé).
 
-- `DATABASE_URL` (connexion poolée, `?pgbouncer=true`)
-- `DIRECT_URL` (connexion directe pour Prisma migrate)
-- `SCORING_PIN_HASH` (bcrypt)
-- `SESSION_SECRET` (≥ 32 caractères aléatoires)
-
-## Backlog v2
-
-- Passes décisives
-- Supabase Realtime pour multi-tablettes synchronisées
-- Export CSV / partage WhatsApp
-- Avatars joueurs
+- Variables d'env à configurer : `DATABASE_URL` (connexion poolée), `DIRECT_URL` (directe, pour les migrations), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, optionnellement `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` et `ADMIN_PIN_HASH` (migration v1).
+- Exécuter `prisma migrate deploy` au build.

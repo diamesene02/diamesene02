@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { shareMatchImage } from "@/lib/shareCard";
+import Icon from "@/components/Icon";
 
 type Player = {
   id: string;
@@ -38,6 +39,7 @@ export default function RecapView({
   teamB,
   goals,
   showLiveResumeLink = false,
+  liveHref,
   showActions = true,
   onRematch,
   publicShareUrl,
@@ -48,6 +50,7 @@ export default function RecapView({
   teamB: Player[];
   goals: Goal[];
   showLiveResumeLink?: boolean;
+  liveHref?: string;
   showActions?: boolean;
   onRematch?: () => void;
   publicShareUrl?: string;
@@ -119,7 +122,7 @@ export default function RecapView({
             {match.scoreB}
           </span>
         </div>
-        <div className="mt-2 text-center text-xs uppercase tracking-widest text-[color:var(--ink-2)]">
+        <div className="mt-2 text-center text-xs uppercase tracking-widest text-[color:var(--ink-3)]">
           {new Date(match.playedAt).toLocaleDateString("fr-FR", {
             weekday: "long",
             day: "2-digit",
@@ -130,16 +133,18 @@ export default function RecapView({
 
       {mvpName && (
         <div className="mvp-pill">
-          ⭐ MVP — <strong>{mvpName}</strong>
+          <Icon name="star" filled size={14} />
+          MVP — <strong>{mvpName}</strong>
         </div>
       )}
 
       {showLiveResumeLink && (
         <Link
-          href={`/matches/${match.id}/live`}
-          className="block rounded-lg bg-[color:var(--a-500)] px-4 py-3 text-center font-bold text-white"
+          href={liveHref ?? `/matches/${match.id}/live`}
+          className="flex items-center justify-center gap-2 rounded-lg bg-[color:var(--ink-1)] px-4 py-3 text-center font-bold text-[color:var(--bg-0)]"
         >
-          Reprendre le match en cours →
+          Reprendre le match en cours
+          <Icon name="chevron" size={14} />
         </Link>
       )}
 
@@ -154,7 +159,12 @@ export default function RecapView({
                 <span className="timeline-minute">
                   {g.minute != null ? `${g.minute}'` : "—"}
                 </span>
-                <span className="timeline-ball">⚽</span>
+                <Icon
+                  name="ball"
+                  size={14}
+                  label="But"
+                  className="timeline-ball shrink-0"
+                />
                 <span className="timeline-scorer">{g.scorerName}</span>
               </div>
             ))}
@@ -169,9 +179,8 @@ export default function RecapView({
             {scorers.map((p, i) => (
               <div key={p.id} className="ev">
                 <span>
-                  <span className="podium-medal">
-                    {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "·"}
-                  </span>{" "}
+                  {/* Le rang se dit avec un chiffre tabulaire, pas une médaille. */}
+                  <span className="podium-medal">{i + 1}</span>{" "}
                   <span className={`tag ${p.team}`}>
                     {p.team === "A" ? match.teamAName : match.teamBName}
                   </span>{" "}
@@ -191,15 +200,22 @@ export default function RecapView({
         <>
           <div className="flex gap-2">
             <button onClick={onShareLink} className="btn primary big flex-1">
-              {copied ? "✓ Lien copié" : "🔗 Partager lien"}
+              {copied ? (
+                <>
+                  <Icon name="check" size={16} />
+                  Lien copié
+                </>
+              ) : (
+                "Partager lien"
+              )}
             </button>
             <button onClick={onShareImage} className="btn ghost big flex-1">
-              📸 Image
+              Image
             </button>
           </div>
           {onRematch && (
             <button onClick={onRematch} className="btn ghost big w-full">
-              🔄 Rematch
+              Rematch
             </button>
           )}
         </>

@@ -42,13 +42,13 @@ export default function SyncBadge({
 
   const pill =
     state === "off"
-      ? "bg-red-900/70 text-red-200 border-red-700"
+      ? "bg-[color:var(--bg-2)] text-[color:var(--loss)] border-[color:var(--loss)]"
       : state === "warn"
         ? "bg-amber-900/70 text-amber-200 border-amber-700"
         : "bg-emerald-900/60 text-emerald-200 border-emerald-700";
   const dot =
     state === "off"
-      ? "bg-red-400"
+      ? "bg-[color:var(--loss)]"
       : state === "warn"
         ? "bg-amber-400 animate-pulse"
         : "bg-emerald-400";

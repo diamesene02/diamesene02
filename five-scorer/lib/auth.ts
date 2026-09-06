@@ -1,67 +1,57 @@
-import { cookies } from "next/headers";
-import { getIronSession, type SessionOptions } from "iron-session";
-import bcrypt from "bcryptjs";
+import { betterAuth } from "better-auth";
+import { organization } from "better-auth/plugins";
+import { nextCookies } from "better-auth/next-js";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+import { prisma } from "./prisma";
 
-export type ScoringSession = {
-  unlocked?: boolean;       // scorer PIN ok (can score live matches)
-  admin?: boolean;          // admin PIN ok (can edit/delete finished matches)
-  unlockedAt?: number;
-  adminAt?: number;
-};
+// Auth centrale : comptes email/mot de passe (+ Google si configuré) et
+// organizations = clubs. Le profil sportif du club (format, barème, options)
+// vit dans la table `club`, créée dans le hook afterCreate ci-dessous.
 
-const SESSION_COOKIE = "five_scorer_session";
+const googleConfigured =
+  Boolean(process.env.GOOGLE_CLIENT_ID) &&
+  Boolean(process.env.GOOGLE_CLIENT_SECRET);
 
-export function sessionOptions(): SessionOptions {
-  const password = process.env.SESSION_SECRET;
-  if (!password || password.length < 32) {
-    throw new Error(
-      "SESSION_SECRET must be set and at least 32 characters long"
-    );
-  }
-  return {
-    password,
-    cookieName: SESSION_COOKIE,
-    cookieOptions: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      path: "/",
-    },
-  };
-}
+export const auth = betterAuth({
+  appName: "Five Scorer",
+  baseURL: process.env.BETTER_AUTH_URL,
+  secret: process.env.BETTER_AUTH_SECRET,
+  database: prismaAdapter(prisma, { provider: "postgresql" }),
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 8,
+  },
+  socialProviders: googleConfigured
+    ? {
+        google: {
+          clientId: process.env.GOOGLE_CLIENT_ID!,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        },
+      }
+    : undefined,
+  session: {
+    // Évite un aller-retour DB par requête : la session est encodée dans un
+    // cookie signé, revalidée toutes les 5 minutes.
+    cookieCache: { enabled: true, maxAge: 60 * 5 },
+  },
+  plugins: [
+    organization({
+      // Un utilisateur peut gérer plusieurs clubs (son five du jeudi + le
+      // club du dimanche) mais on borne pour éviter l'abus.
+      organizationLimit: 10,
+      organizationHooks: {
+        afterCreateOrganization: async ({ organization: org, user }) => {
+          await prisma.club.create({ data: { id: org.id } });
+          // Le créateur a d'office son profil joueur, lié à son compte.
+          await prisma.player.create({
+            data: { clubId: org.id, name: user.name, userId: user.id },
+          });
+        },
+      },
+    }),
+    // Doit rester en dernier : synchronise les cookies dans les server actions.
+    nextCookies(),
+  ],
+});
 
-export async function getSession() {
-  const cookieStore = await cookies();
-  return getIronSession<ScoringSession>(cookieStore, sessionOptions());
-}
-
-export async function isUnlocked(): Promise<boolean> {
-  const session = await getSession();
-  return Boolean(session.unlocked);
-}
-
-export async function isAdmin(): Promise<boolean> {
-  const session = await getSession();
-  return Boolean(session.admin);
-}
-
-export function verifyPin(pin: string): boolean {
-  const hash = process.env.SCORING_PIN_HASH;
-  if (!hash) return false;
-  try {
-    return bcrypt.compareSync(pin, hash);
-  } catch {
-    return false;
-  }
-}
-
-export function verifyAdminPin(pin: string): boolean {
-  const hash = process.env.ADMIN_PIN_HASH;
-  if (!hash) return false;
-  try {
-    return bcrypt.compareSync(pin, hash);
-  } catch {
-    return false;
-  }
-}
+export type ServerSession = typeof auth.$Infer.Session;
