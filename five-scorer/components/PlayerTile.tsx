@@ -30,21 +30,39 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
   const didLongRef = useRef(false);
   const btnRef = useRef<HTMLButtonElement>(null);
 
-  const startPress = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    didLongRef.current = false;
-    btnRef.current?.classList.add("long-pressing");
-    try { btnRef.current?.setPointerCapture(e.pointerId); } catch {}
-    timerRef.current = setTimeout(() => {
-      didLongRef.current = true;
-      suppressTapUntil = Date.now() + SUPPRESS_TAP_MS;
-      btnRef.current?.classList.remove("long-pressing");
-      if (goals > 0) {
-        if (navigator.vibrate) navigator.vibrate(30);
-        playUndoSound();
-        onUndo();
-      }
-    }, 500);
-  }, [goals, onUndo]);
+  const startPress = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      didLongRef.current = false;
+      btnRef.current?.classList.add("long-pressing");
+      try {
+        btnRef.current?.setPointerCapture(e.pointerId);
+      } catch {}
+      timerRef.current = setTimeout(() => {
+        didLongRef.current = true;
+        btnRef.current?.classList.remove("long-pressing");
+        if (goals > 0) {
+          // Le garde n'est armé QUE si une annulation a réellement eu lieu : il
+          // sert à absorber le relâchement du doigt, qui sinon rajouterait le but
+          // qu'on vient de retirer. L'armer sur un appui sans effet rendait
+          // muette la tuile suivante pendant 700 ms — le buteur tapait, rien ne
+          // se passait, le but était perdu au milieu du match.
+          suppressTapUntil = Date.now() + SUPPRESS_TAP_MS;
+          if (navigator.vibrate) navigator.vibrate(30);
+          playUndoSound();
+          onUndo();
+        } else {
+          // Rien à annuler : on le dit au doigt plutôt que de ne rien faire.
+          if (navigator.vibrate) navigator.vibrate([12, 40, 12]);
+          btnRef.current?.classList.add("rien-a-annuler");
+          setTimeout(
+            () => btnRef.current?.classList.remove("rien-a-annuler"),
+            320,
+          );
+        }
+      }, 500);
+    },
+    [goals, onUndo],
+  );
 
   const endPress = useCallback(
     (e: React.PointerEvent) => {
@@ -59,7 +77,7 @@ function PlayerTileImpl({ name, goals, tint, onGoal, onUndo }: Props) {
       }
       e.preventDefault();
     },
-    [onGoal]
+    [onGoal],
   );
 
   const cancelPress = useCallback(() => {

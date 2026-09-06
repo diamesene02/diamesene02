@@ -27,13 +27,25 @@ export async function GET(request: Request) {
   // Ceinture et bretelles : si signOut n'a pas pu poser l'en-tête de
   // suppression (session déjà absente du serveur), on efface nous-mêmes les
   // cookies de Better Auth, préfixe sécurisé compris.
+  // Un Set-Cookie dont le nom porte le préfixe __Secure- est REJETÉ par le
+  // navigateur s'il n'a pas l'attribut Secure. Or ce sont les seuls noms qui
+  // existent en production : Better Auth ajoute ce préfixe dès que la baseURL
+  // est en https. Sans `secure: true`, cette route croyait nettoyer et ne
+  // nettoyait rien — l'utilisateur repartait avec son cookie et retombait dans
+  // la boucle que cette route existe précisément pour casser.
   for (const name of [
     "better-auth.session_token",
     "__Secure-better-auth.session_token",
     "better-auth.session_data",
     "__Secure-better-auth.session_data",
   ]) {
-    res.cookies.set(name, "", { path: "/", maxAge: 0 });
+    res.cookies.set(name, "", {
+      path: "/",
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: name.startsWith("__Secure-"),
+    });
   }
 
   return res;

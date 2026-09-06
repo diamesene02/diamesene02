@@ -749,6 +749,25 @@
   .fs-tile.B .fs-tile-plus:active {
     background: var(--bib-b);
   }
+  /* Appui long sur un joueur sans but : rien à annuler. On le signale par une
+     secousse brève plutôt que de ne rien faire — un geste sans réponse se lit
+     comme une panne. */
+  .fs-tile-plus.rien-a-annuler {
+    animation: rien-a-annuler 320ms var(--ease);
+  }
+  @keyframes rien-a-annuler {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-3px);
+    }
+    75% {
+      transform: translateX(3px);
+    }
+  }
+
   .fs-tile-plus.long-pressing {
     background: var(--loss);
   }

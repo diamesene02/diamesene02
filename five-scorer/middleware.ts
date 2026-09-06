@@ -11,14 +11,23 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const hasSession = Boolean(getSessionCookie(req));
 
+  // Le cookie est jugé sur sa seule PRÉSENCE : ni signature, ni lecture de
+  // base. Il peut donc désigner une session que le serveur ne reconnaît plus
+  // (ligne supprimée, BETTER_AUTH_SECRET changé) et rester sept jours dans le
+  // navigateur. Sans le garde ci-dessous, deux règles se renvoient la balle —
+  // ici /login → /onboarding, et la garde d'accès /onboarding → /login — et le
+  // navigateur boucle jusqu'à ERR_TOO_MANY_REDIRECTS : plus une seule page ne
+  // s'affiche. La sortie de secours doit donc toujours pouvoir atteindre
+  // /login pour y faire nettoyer le cookie.
+  const sortieDeSecours = req.nextUrl.searchParams.get("session") === "expiree";
+
   // Déjà connecté → pas de raison de revoir login/signup.
-  if (AUTH_PAGES.includes(pathname) && hasSession) {
+  if (AUTH_PAGES.includes(pathname) && hasSession && !sortieDeSecours) {
     return NextResponse.redirect(new URL("/onboarding", req.url));
   }
 
   // Espace club + onboarding : session requise.
-  const isProtected =
-    pathname.startsWith("/c/") || pathname === "/onboarding";
+  const isProtected = pathname.startsWith("/c/") || pathname === "/onboarding";
   if (isProtected && !hasSession) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";

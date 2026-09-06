@@ -26,7 +26,9 @@ export const getUserSession = cache(async () => {
 
 export async function requireUser() {
   const session = await getUserSession();
-  if (!session) redirect("/login");
+  // Pas vers /login : le cookie survit à la session et le middleware
+  // renverrait aussitôt ici. On passe par la sortie qui efface le cookie.
+  if (!session) redirect("/session-expiree");
 
   // La session vit cinq minutes dans un cookie signé, sans relecture de la
   // base : elle peut donc survivre au compte qu'elle désigne. On vérifie que
