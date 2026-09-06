@@ -12,25 +12,43 @@ const googleConfigured =
   Boolean(process.env.GOOGLE_CLIENT_ID) &&
   Boolean(process.env.GOOGLE_CLIENT_SECRET);
 
-/// L'URL sur laquelle l'app se croit servie — elle sert de base aux
-/// redirections après connexion et aux callbacks OAuth.
+/// Un déploiement de prévisualisation répond sur DEUX adresses : l'alias
+/// stable de la branche (VERCEL_BRANCH_URL), celle qu'on ouvre depuis la
+/// pull request, et l'adresse unique du déploiement (VERCEL_URL). Il faut
+/// les connaître toutes les deux.
 ///
-/// En production c'est l'URL canonique, réglée dans BETTER_AUTH_URL. Mais
-/// chaque déploiement de prévisualisation a la sienne : sans ce garde-fou,
-/// se connecter depuis une pull request renverrait l'utilisateur vers la
-/// production, et on testerait autre chose que ce qu'on croit tester.
-/// VERCEL_ENV et VERCEL_URL sont fournies par la plateforme (les variables
-/// système doivent être activées dans les réglages du projet).
+/// C'est le piège dans lequel on est tombé : baseURL réglée sur VERCEL_URL
+/// alors que le navigateur arrivait par l'alias de branche. Better Auth
+/// compare l'origine de la requête à ses origines de confiance et répond
+/// « INVALID_ORIGIN » — que l'écran d'inscription traduisait, à tort, par
+/// « cet email est déjà utilisé ».
+function previewUrls(): string[] {
+  if (process.env.VERCEL_ENV !== "preview") return [];
+  return [process.env.VERCEL_BRANCH_URL, process.env.VERCEL_URL]
+    .filter((host): host is string => Boolean(host))
+    .map((host) => `https://${host}`);
+}
+
+/// L'URL sur laquelle l'app se croit servie — base des redirections après
+/// connexion et des callbacks OAuth. En production, l'URL canonique ; en
+/// prévisualisation, l'alias de branche, seul stable d'un déploiement à
+/// l'autre.
 function resolveBaseUrl(): string | undefined {
-  if (process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  return process.env.BETTER_AUTH_URL;
+  return previewUrls()[0] ?? process.env.BETTER_AUTH_URL;
+}
+
+/// Les origines dont Better Auth accepte les requêtes. On y met les deux
+/// adresses de prévisualisation en plus de l'URL canonique.
+function trustedOrigins(): string[] {
+  const origins = previewUrls();
+  if (process.env.BETTER_AUTH_URL) origins.push(process.env.BETTER_AUTH_URL);
+  return origins;
 }
 
 export const auth = betterAuth({
   appName: "Five Scorer",
   baseURL: resolveBaseUrl(),
+  trustedOrigins: trustedOrigins(),
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   emailAndPassword: {

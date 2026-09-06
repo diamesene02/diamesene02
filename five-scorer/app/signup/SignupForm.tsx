@@ -34,8 +34,14 @@ export default function SignupForm({
     setLoading(true);
     const res = await signUp.email({ name: name.trim(), email, password });
     if (res.error) {
+      // Ne jamais inventer la cause : un message affirmatif et faux envoie
+      // le diagnostic dans le mur. On nomme le cas courant, puis on montre
+      // ce que le serveur a réellement répondu.
+      const detail = res.error.message ?? res.error.statusText ?? "";
       setError(
-        "Impossible de créer le compte. Cet email est peut-être déjà utilisé."
+        res.error.status === 422
+          ? "Cet email est déjà utilisé."
+          : `Création impossible${detail ? ` — ${detail}` : ""}.`
       );
       setLoading(false);
       return;

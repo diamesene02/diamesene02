@@ -28,7 +28,16 @@ export default function LoginForm({
     setLoading(true);
     const res = await signIn.email({ email, password });
     if (res.error) {
-      setError("Email ou mot de passe incorrect.");
+      // 401 = identifiants refusés, le cas normal : on reste vague, c'est
+      // volontaire (ne pas révéler si l'email existe). Tout le reste est une
+      // panne : on la nomme, sinon on cherche un mot de passe alors que le
+      // serveur parle d'autre chose.
+      const detail = res.error.message ?? res.error.statusText ?? "";
+      setError(
+        res.error.status === 401
+          ? "Email ou mot de passe incorrect."
+          : `Connexion impossible${detail ? ` — ${detail}` : ""}.`
+      );
       setLoading(false);
       return;
     }
