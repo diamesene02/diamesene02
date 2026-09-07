@@ -240,13 +240,18 @@ export default function LiveMatch({
 
   // Match déjà terminé (ex. fini sur un autre appareil) → récap. La
   // navigation doit sortir du rendu, sinon React râle à juste titre.
+  // Ce garde sert au match terminé AILLEURS (autre téléphone, autre onglet) :
+  // on quitte l'écran live. Mais il ne doit pas court-circuiter notre propre
+  // coup de sifflet : dès que finishMatch écrivait dans la base locale, le
+  // status passait à FINISHED et la redirection partait AVANT que le slate ne
+  // s'affiche — la cérémonie de fin de match n'existait jamais.
   const finished = data?.match?.status === "FINISHED";
   useEffect(() => {
-    if (finished) {
+    if (finished && !tempsPlein) {
       if (onFinished) onFinished(matchId);
       else router.replace(`/c/${slug}/matches/${matchId}`);
     }
-  }, [finished, router, slug, matchId, onFinished]);
+  }, [finished, tempsPlein, router, slug, matchId, onFinished]);
 
   // Le but reçoit sa cérémonie : la bande du camp qui marque balaie le
   // panneau pendant que le chiffre roule. L'ancienne version posait une
@@ -516,7 +521,9 @@ export default function LiveMatch({
   }
 
   const { match, teamA, teamB, events } = data;
-  if (match.status === "FINISHED") return null; // redirection via l'effet
+  // Même raison : tant que le slate est à l'écran, le composant doit rester
+  // monté pour le rendre.
+  if (match.status === "FINISHED" && !tempsPlein) return null;
 
   const external = match.kind === "EXTERNAL";
   const period = match.period ?? 1;
