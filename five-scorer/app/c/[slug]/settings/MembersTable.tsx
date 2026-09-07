@@ -51,95 +51,95 @@ export default function MembersTable({
         <p className="mt-3 text-sm text-[color:var(--loss)]">{error}</p>
       )}
 
-      <div className="scroll-x mt-4">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead>
-            <tr className="border-b border-[color:var(--rule)] text-left text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-2)]">
-              <th className="py-3 pr-3">Membre</th>
-              <th className="px-3 py-3">Joueur lié</th>
-              <th className="px-3 py-3">Rôle</th>
-              <th className="py-3 pl-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[color:var(--rule)]">
-            {members.map((m) => {
-              const isOwner = m.role === "owner";
-              return (
-                <tr key={m.id}>
-                  <td className="py-3 pr-3">
-                    <div className="font-bold">
-                      {m.name}
-                      {m.userId === currentUserId && (
-                        <span className="ml-1.5 text-xs font-normal text-[color:var(--ink-2)]">
-                          (toi)
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-[color:var(--ink-2)]">
-                      {m.email}
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-[color:var(--ink-1)]">
-                    {m.playerName ?? "—"}
-                  </td>
-                  <td className="px-3 py-3">
-                    {isOwner ? (
-                      <span className="rounded-[2px] bg-[color:var(--gold)]/20 px-2.5 py-1 text-[13px] font-semibold text-[color:var(--gold)]">
-                        Capitaine
-                      </span>
-                    ) : (
-                      <select
-                        value={m.role === "admin" ? "admin" : "member"}
-                        disabled={isPending}
-                        onChange={(e) =>
-                          run(() =>
-                            setMemberRole(
-                              slug,
-                              m.id,
-                              e.target.value as "admin" | "member"
-                            )
-                          )
-                        }
-                        className="min-h-[44px] rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 text-xs font-bold outline-none focus:border-[color:var(--ink-1)]"
-                      >
-                        <option value="admin">Admin</option>
-                        <option value="member">Membre</option>
-                      </select>
-                    )}
-                  </td>
-                  <td className="py-3 pl-3 text-right">
-                    {!isOwner &&
-                      (confirmId === m.id ? (
-                        <span className="inline-flex items-center gap-2">
-                          <button
-                            onClick={() => run(() => removeMember(slug, m.id))}
-                            disabled={isPending}
-                            className="inline-flex min-h-[44px] items-center rounded-[2px] bg-[color:var(--loss)]/20 px-3 text-[13px] font-semibold text-[color:var(--loss)] disabled:opacity-50"
-                          >
-                            {isPending ? "…" : "Confirmer"}
-                          </button>
-                          <button
-                            onClick={() => setConfirmId(null)}
-                            className="inline-flex min-h-[44px] items-center text-xs font-bold text-[color:var(--ink-2)] hover:text-white"
-                          >
-                            Non
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmId(m.id)}
-                          className="inline-flex min-h-[44px] items-center text-[13px] font-semibold text-[color:var(--ink-2)] hover:text-[color:var(--loss)]"
-                        >
-                          Retirer
-                        </button>
-                      ))}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* Un tableau de quatre colonnes large de 560 px qu'il fallait faire
+          glisser en travers d'un écran de 375 : le nom d'un membre et le
+          bouton qui le retire ne se voyaient jamais ensemble. Chaque membre
+          tient maintenant dans un bloc, et l'action est sous les yeux. */}
+      <ul className="mt-4">
+        {members.map((m) => {
+          const isOwner = m.role === "owner";
+          return (
+            <li
+              key={m.id}
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[color:var(--rule)] py-3 first:border-t-0"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-semibold text-[color:var(--ink-1)]">
+                  {m.name}
+                  {m.userId === currentUserId && (
+                    <span className="ml-1.5 font-normal text-[color:var(--ink-3)]">
+                      (toi)
+                    </span>
+                  )}
+                </div>
+                <div className="synthese mt-0.5">
+                  <span className="truncate">{m.email}</span>
+                  {m.playerName && (
+                    <>
+                      <span className="synthese-sep">·</span>
+                      <span>joueur {m.playerName}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {isOwner ? (
+                <span
+                  className="text-[13px] font-semibold"
+                  style={{ color: "var(--gold)" }}
+                >
+                  Capitaine
+                </span>
+              ) : (
+                <select
+                  value={m.role === "admin" ? "admin" : "member"}
+                  disabled={isPending}
+                  aria-label={`Rôle de ${m.name}`}
+                  onChange={(e) =>
+                    run(() =>
+                      setMemberRole(
+                        slug,
+                        m.id,
+                        e.target.value as "admin" | "member"
+                      )
+                    )
+                  }
+                  className="min-h-[44px] rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 text-[13px] font-semibold outline-none focus:border-[color:var(--ink-1)]"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="member">Membre</option>
+                </select>
+              )}
+
+              {!isOwner &&
+                (confirmId === m.id ? (
+                  <span className="inline-flex items-center gap-2">
+                    <button
+                      onClick={() => run(() => removeMember(slug, m.id))}
+                      disabled={isPending}
+                      className="inline-flex min-h-[44px] items-center rounded-[2px] bg-[color:var(--loss)]/20 px-3 text-[13px] font-semibold text-[color:var(--loss)] disabled:opacity-50"
+                    >
+                      {isPending ? "…" : "Confirmer"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmId(null)}
+                      className="inline-flex min-h-[44px] items-center text-[13px] font-semibold text-[color:var(--ink-2)]"
+                    >
+                      Non
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(m.id)}
+                    className="inline-flex min-h-[44px] items-center text-[13px] font-semibold text-[color:var(--ink-2)] hover:text-[color:var(--loss)]"
+                  >
+                    Retirer
+                  </button>
+                ))}
+            </li>
+          );
+        })}
+      </ul>
 
       <p className="mt-3 text-xs text-[color:var(--ink-2)]">
         Retirer un membre ne supprime pas son historique : son profil joueur

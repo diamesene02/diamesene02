@@ -14,25 +14,22 @@ import {
 export const dynamic = "force-dynamic";
 
 // La lettre porte l'information ; la couleur ne fait que la doubler.
+/// La forme, au dessin unique de l'app : plein pour une victoire, contour
+/// pour un nul, vide pour une défaite. C'était ici la troisième écriture —
+/// des pastilles colorées portant la lettre — après le classement et la
+/// fiche joueur.
 function FormBadges({ form }: { form: Result[] }) {
   if (form.length === 0) {
     return <span className="text-[color:var(--ink-3)]">—</span>;
   }
   return (
-    <span className="inline-flex gap-1">
+    <span className="forme">
       {form.map((r, i) => (
         <span
           key={i}
-          className={`inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-black ${
-            r === "W"
-              ? "bg-[color:var(--win)] text-[color:var(--pitch-0)]"
-              : r === "D"
-                ? "bg-[color:var(--pitch-2)] text-[color:var(--ink-3)]"
-                : "bg-[color:var(--pitch-2)] text-[color:var(--loss)]"
-          }`}
-        >
-          {r}
-        </span>
+          className={`forme-case${r === "W" ? " v" : r === "D" ? " n" : ""}`}
+          title={r === "W" ? "Victoire" : r === "D" ? "Nul" : "Défaite"}
+        />
       ))}
     </span>
   );
@@ -152,9 +149,6 @@ export default async function StatsPage({
       unit: byAssists.assists > 1 ? "passes" : "passe",
     });
   }
-
-  const panel =
- "rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]";
 
   return (
     <main>
@@ -299,7 +293,7 @@ export default async function StatsPage({
               <span className="kicker mb-3 block">
                 Palmarès {honours.seasonName}
               </span>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="bande">
                 {(
                   [
                     {
@@ -317,7 +311,7 @@ export default async function StatsPage({
                         ]
                       : []),
                     {
-                      label: "MVP",
+                      label: "Homme du match",
                       entry: honours.topMvp,
                       unit: (v: number) => (v > 1 ? "titres" : "titre"),
                     },
@@ -345,28 +339,26 @@ export default async function StatsPage({
                 )
                   .filter((c) => c.entry !== null)
                   .map((c) => (
-                    <div
+                    <Link
                       key={c.label}
-                      className="rounded-[2px] bg-[color:var(--pitch-1)] p-3"
+                      href={`/c/${slug}/players/${c.entry!.playerId}`}
+                      className="ticker duel"
                     >
-                      <span className="kicker">{c.label}</span>
-                      <div className="mt-1 truncate font-semibold">
-                        <Link
-                          href={`/c/${slug}/players/${c.entry!.playerId}`}
-                          className="hover:text-[color:var(--ink-1)]"
-                        >
-                          {c.entry!.name}
-                        </Link>
-                      </div>
-                      <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className="num-sculpt text-2xl text-[color:var(--gold)]">
+                      <span className="min-w-0 truncate text-[13px] text-[color:var(--ink-3)]">
+                        {c.label}
+                      </span>
+                      <span className="min-w-0 truncate text-[13px] font-semibold text-[color:var(--ink-1)]">
+                        {c.entry!.name}
+                      </span>
+                      <span className="ticker-score whitespace-nowrap">
+                        <span style={{ color: "var(--gold)" }}>
                           {c.entry!.value}
                         </span>
-                        <span className="truncate text-xs font-bold text-[color:var(--ink-3)]">
+                        <span className="ml-1.5 text-[13px] font-normal text-[color:var(--ink-3)]">
                           {c.unit(c.entry!.value)}
                         </span>
-                      </div>
-                    </div>
+                      </span>
+                    </Link>
                   ))}
               </div>
             </section>
@@ -380,13 +372,11 @@ export default async function StatsPage({
               <span className="kicker mb-3 block">
                 Palmarès des saisons clôturées
               </span>
-              <ul
-                className={`divide-y divide-[color:var(--rule)] overflow-hidden ${panel}`}
-              >
+              <ul className="bande">
                 {pastHonours.map((h) => (
                   <li
                     key={h.seasonName}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm"
+                    className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[color:var(--rule)] py-2.5 text-sm first:border-t-0"
                   >
                     <span className="font-black">{h.seasonName}</span>
                     {h.topScorer ? (
@@ -439,35 +429,42 @@ export default async function StatsPage({
           {external.played > 0 && (
             <section className="mt-10">
               <span className="kicker mb-3 block">Bilan vs adversaires</span>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {[
-                  { label: "J", value: String(external.played) },
-                  {
-                    label: "V-N-D",
-                    value: `${external.wins}-${external.draws}-${external.losses}`,
-                  },
-                  {
-                    label: "Buts +/-",
-                    value: `${external.goalsFor} / ${external.goalsAgainst}`,
-                  },
-                  { label: "Points", value: String(external.points) },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className="rounded-[2px] bg-[color:var(--pitch-1)] px-4 py-3"
-                  >
-                    <div className="kicker">{s.label}</div>
-                    <div className="num-sculpt mt-1 truncate text-lg">
-                      {s.value}
-                    </div>
-                  </div>
-                ))}
-                <div className="col-span-2 rounded-[2px] bg-[color:var(--pitch-1)] px-4 py-3 sm:col-span-1">
-                  <div className="kicker">Forme</div>
-                  <div className="mt-2">
+              {/* Cinq tuiles « étiquette + gros chiffre » pour cinq nombres :
+                  le gabarit de tableau de bord, une dernière fois. */}
+              <div className="bande">
+                <div className="synthese">
+                  <span>
+                    <b>{external.played}</b> match
+                    {external.played > 1 ? "s" : ""}
+                  </span>
+                  <span className="synthese-sep">·</span>
+                  <span>
+                    <b>{external.wins}</b> V
+                  </span>
+                  <span className="synthese-sep">·</span>
+                  <span>
+                    <b>{external.draws}</b> N
+                  </span>
+                  <span className="synthese-sep">·</span>
+                  <span>
+                    <b>{external.losses}</b> D
+                  </span>
+                  <span className="synthese-sep">·</span>
+                  <span>
+                    {external.goalsFor}
+                    <span className="text-[color:var(--rule-hi)]">:</span>
+                    {external.goalsAgainst}
+                  </span>
+                  <span className="synthese-sep">·</span>
+                  <span>
+                    <b>{external.points}</b> points
+                  </span>
+                </div>
+                {external.form.length > 0 && (
+                  <div className="mt-4">
                     <FormBadges form={external.form} />
                   </div>
-                </div>
+                )}
               </div>
 
               {external.byOpponent.length > 0 && (
