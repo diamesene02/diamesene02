@@ -5,6 +5,7 @@ import { getClubSummary } from "@/lib/stats";
 import RsvpPanel from "@/components/RsvpPanel";
 import Icon from "@/components/Icon";
 import RematchButton from "@/components/RematchButton";
+import { nomsChasubles } from "@/lib/color";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,12 @@ export default async function ClubHomePage({
   const { slug } = await params;
   const ctx = await requireClub(slug);
   const clubId = ctx.club.id;
+
+  const debutDeCeJour = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
 
   const activeSeason = await prisma.season.findFirst({
     where: { clubId, isActive: true },
@@ -48,7 +55,11 @@ export default async function ClubHomePage({
       prisma.matchDay.findFirst({
         where: {
           clubId,
-          date: { gte: new Date(Date.now() - 12 * 3600_000) },
+          // Une soirée reste « en cours » jusqu'à la fin de sa journée, pas
+          // douze heures glissantes : le mardi à 7 h, la soirée du lundi
+          // s'affichait encore comme la prochaine, avec « ce soir » écrit
+          // dessus et le match du jour qui venait s'y rattacher.
+          date: { gte: debutDeCeJour },
           // Une soirée annulée n'est pas la prochaine soirée.
           canceledAt: null,
         },
@@ -123,6 +134,10 @@ export default async function ClubHomePage({
       }),
     ]);
 
+  // Les noms d'équipe par défaut se déduisent des chasubles du club : une
+  // équipe nommée « Blanc » ne doit pas porter une barre noire.
+  const nomsClub = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
+
   // Rattacher le match à la soirée en cours, oui — à celle de la semaine
   // prochaine, non. On ne recolle que si on est effectivement dedans.
   const soireeEnCours =
@@ -169,20 +184,23 @@ export default async function ClubHomePage({
   const compoB = compoPrete.filter((p) => p.team === "B").length;
   const coupDEnvoiPret = compoA > 0 && compoB > 0;
   const nomA = sourcePreparee
-    ? (nextMatchDay?.teamAName ?? "Blanc")
-    : (lastLineup?.teamAName ?? "Blanc");
+    ? (nextMatchDay?.teamAName ?? nomsClub.a)
+    : (lastLineup?.teamAName ?? nomsClub.a);
   const nomB = sourcePreparee
-    ? (nextMatchDay?.teamBName ?? "Noir")
-    : (lastLineup?.teamBName ?? "Noir");
+    ? (nextMatchDay?.teamBName ?? nomsClub.b)
+    : (lastLineup?.teamBName ?? nomsClub.b);
 
   // La compo se décide trois à quatre jours avant. À partir de cinq jours, si
   // elle n'est pas faite, on le dit — c'est l'oubli qui coûtait le temps au
   // coup d'envoi, et c'est le seul moment où le rappel sert encore à quelque
   // chose.
+  // Compté en JOURS CIVILS, pas en millisecondes : à 19 h pour une soirée à
+  // 20 h, Math.ceil sur l'écart donnait 1 et le rappel annonçait « Demain »
+  // au-dessus de la date du jour même.
+  const minuit = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const joursAvant = nextMatchDay
-    ? Math.ceil(
-        (nextMatchDay.date.getTime() - Date.now()) / (24 * 3600_000),
-      )
+    ? Math.round((minuit(nextMatchDay.date) - minuit(new Date())) / 86_400_000)
     : null;
   // « ce soir », « demain », ou le jour nommé : le bouton dit de quelle soirée
   // vient la compo qu'il s'apprête à utiliser.

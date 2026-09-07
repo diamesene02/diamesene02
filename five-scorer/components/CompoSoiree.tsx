@@ -48,8 +48,10 @@ export default function CompoSoiree({
   const [camps, setCamps] = useState<Record<string, Camp>>(() =>
     Object.fromEntries(compoInitiale.map((c) => [c.playerId, c.team])),
   );
-  const [nomA, setNomA] = useState(nomAInitial ?? "Blanc");
-  const [nomB, setNomB] = useState(nomBInitial ?? "Noir");
+  // Les replis viennent des chasubles du club (cf. nomsChasubles) : le nom
+  // d'une équipe ne doit jamais contredire la couleur affichée à côté.
+  const [nomA, setNomA] = useState(nomAInitial ?? "Équipe A");
+  const [nomB, setNomB] = useState(nomBInitial ?? "Équipe B");
   const [graine, setGraine] = useState(() => Math.floor(Math.random() * 1e6) + 1);
 
   const equipeA = joueurs.filter((j) => camps[j.id] === "A");

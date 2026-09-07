@@ -14,6 +14,9 @@ export type LocalPlayer = {
   skill: number;
   isGk: boolean;
   isGuest: boolean;
+  /// Le cache local ne se purge jamais : un joueur archivé après coup restait
+  /// proposé à l'entrée en cours de match, et rentrait dans les statistiques.
+  isArchived?: boolean;
 };
 
 export type LocalMatch = {
@@ -134,7 +137,16 @@ export type OutboxOp =
       kind: "addParticipant";
       clubId: string;
       matchId: string;
-      payload: { playerId: string; team: "A" | "B"; isGk: boolean };
+      payload: {
+        playerId: string;
+        team: "A" | "B";
+        isGk: boolean;
+        /// Un invité créé hors ligne n'existe pas encore côté serveur. Sans
+        /// lui, la route répondait 400 « Joueur hors du club » — un refus, donc
+        /// le blocage DÉFINITIF de toute la chaîne d'ops du match, buts
+        /// compris. createMatch embarque déjà ses invités de la même façon.
+        guest?: { id: string; name: string };
+      };
     }
   | {
       /// Corrige la composition d'un match en cours : un joueur change de camp.

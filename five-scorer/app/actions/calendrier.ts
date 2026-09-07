@@ -72,27 +72,56 @@ export async function creerCalendrier(
       });
       if (!s) throw new Error("saison_hors_club");
     } else {
-      // Une seule saison active à la fois : les précédentes se referment.
-      await tx.season.updateMany({
+      // On COMPLÈTE la saison active, on n'en ouvre pas une seconde.
+      //
+      // La branche précédente refermait la saison en cours et en créait une
+      // neuve à chaque passage sur l'écran. Or les soirées et les matchs déjà
+      // joués gardent leur ancienne saison : l'accueil, qui lit la saison
+      // active, retombait à zéro match, zéro but, classement vide. Un admin
+      // revenant en janvier ajouter trois lundis effaçait ainsi tout le
+      // classement de sa saison, sans rien pour l'en avertir.
+      const active = await tx.season.findFirst({
         where: { clubId: ctx.club.id, isActive: true },
-        data: { isActive: false },
+        select: { id: true, startsAt: true, endsAt: true },
       });
-      const s = await tx.season.create({
-        data: {
-          clubId: ctx.club.id,
-          name: nom,
-          startsAt: dates[0],
-          endsAt: dates[dates.length - 1],
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      seasonId = s.id;
+      if (active) {
+        seasonId = active.id;
+        // La saison s'étire pour englober les nouvelles dates.
+        const debut = dates[0];
+        const fin = dates[dates.length - 1];
+        await tx.season.update({
+          where: { id: active.id },
+          data: {
+            startsAt: active.startsAt < debut ? active.startsAt : debut,
+            endsAt:
+              active.endsAt && active.endsAt > fin ? active.endsAt : fin,
+          },
+        });
+      } else {
+        const s = await tx.season.create({
+          data: {
+            clubId: ctx.club.id,
+            name: nom,
+            startsAt: dates[0],
+            endsAt: dates[dates.length - 1],
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        seasonId = s.id;
+      }
     }
 
     // Les soirées déjà présentes sur ces journées ne sont pas retouchées : une
     // compo préparée ne doit jamais être écrasée par une régénération.
-    const bornes = { gte: dates[0], lte: dates[dates.length - 1] };
+    //
+    // La fenêtre porte sur des JOURNÉES ENTIÈRES, pas sur les horodatages des
+    // dates générées : une soirée déjà créée à 19h00 échappait à un `gte`
+    // calé sur 20h00, et une seconde soirée naissait le même jour.
+    const bornes = {
+      gte: debutDeJournee(dates[0]),
+      lte: finDeJournee(dates[dates.length - 1]),
+    };
     const existantes = await tx.matchDay.findMany({
       where: { clubId: ctx.club.id, date: bornes },
       select: { date: true },
@@ -124,8 +153,21 @@ export async function creerCalendrier(
 
 /// Deux soirées le même jour n'ont pas de sens : la clé de comparaison est le
 /// jour civil, pas l'horodatage.
+///
+/// Le jour est celui du SERVEUR et non UTC : `toISOString()` faisait basculer
+/// une soirée de fin de soirée dans le jour suivant, et l'anti-doublon tombait
+/// à côté.
 function jourCle(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function debutDeJournee(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function finDeJournee(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 }
 
 /// Annule une soirée sans la supprimer.

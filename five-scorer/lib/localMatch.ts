@@ -39,10 +39,13 @@ export async function saveRoster(
     skill: number;
     isGk: boolean;
     isGuest: boolean;
+    isArchived?: boolean;
   }[],
 ) {
   const db = getDb();
-  await db.roster.bulkPut(players.map((p) => ({ ...p, clubId })));
+  await db.roster.bulkPut(
+    players.map((p) => ({ ...p, clubId, isArchived: Boolean(p.isArchived) })),
+  );
 }
 
 export async function addLocalGuest(
@@ -488,6 +491,7 @@ export async function ajouterJoueurAuMatch(
       if (match.status === "FINISHED") throw new Error("Match terminé");
       const deja = await db.participants.get(pKey(matchId, playerId));
       if (deja) return; // déjà de la partie
+      const fiche = await db.roster.get(playerId);
       // Il entre comme joueur de champ : le rôle de gardien d'un soir est une
       // décision distincte, qui se prend sur la compo de la soirée.
       await db.participants.put({
@@ -501,7 +505,14 @@ export async function ajouterJoueurAuMatch(
         kind: "addParticipant",
         clubId: match.clubId,
         matchId,
-        payload: { playerId, team, isGk: false },
+        payload: {
+          playerId,
+          team,
+          isGk: false,
+          ...(fiche?.isGuest
+            ? { guest: { id: fiche.id, name: fiche.name } }
+            : {}),
+        },
       });
     },
   );
@@ -519,7 +530,7 @@ export async function joueursAbsentsDuMatch(
   const dedans = new Set(parts.map((p) => p.playerId));
   const vivier = await db.roster.where("clubId").equals(match.clubId).toArray();
   return vivier
-    .filter((p) => !dedans.has(p.id))
+    .filter((p) => !dedans.has(p.id) && !p.isArchived)
     .map((p) => ({ id: p.id, name: p.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

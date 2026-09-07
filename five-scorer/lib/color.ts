@@ -109,3 +109,54 @@ export function bibTheme(a?: string | null, b?: string | null): BibTheme {
 function normalize(hex: string): string {
   return toHex(parse(hex));
 }
+
+/// Nomme une couleur de chasuble en français.
+///
+/// Les noms d'équipe étaient écrits en dur (« Blanc » / « Noir ») pendant que
+/// le club réglait ailleurs ses vraies couleurs de chasubles. Les deux ne se
+/// parlaient pas : une équipe appelée « Blanc » pouvait porter une barre noire,
+/// et l'écran se lisait à l'envers. Le nom se DÉDUIT donc de la couleur — ils ne
+/// peuvent plus se contredire. Il reste modifiable à la main : un club qui joue
+/// « Sang et Or » doit pouvoir l'écrire.
+export function nomChasuble(hex: string): string {
+  if (!isValidHex(hex)) return "Équipe";
+  const [r, g, b] = parse(hex).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+
+  if (l >= 0.86 && sat < 0.18) return "Blanc";
+  if (l <= 0.16) return "Noir";
+  if (sat < 0.12) return "Gris";
+
+  let h: number;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+
+  if (h < 16 || h >= 345) return "Rouge";
+  if (h < 45) return "Orange";
+  if (h < 70) return "Jaune";
+  if (h < 160) return "Vert";
+  if (h < 200) return "Cyan";
+  if (h < 255) return "Bleu";
+  if (h < 290) return "Violet";
+  return "Rose";
+}
+
+/// Les deux noms par défaut d'un club, tirés de ses chasubles.
+export function nomsChasubles(
+  a?: string | null,
+  b?: string | null,
+): { a: string; b: string } {
+  const t = bibTheme(a, b);
+  const na = nomChasuble(t.aFill);
+  const nb = nomChasuble(t.bFill);
+  // Deux chasubles de la même famille : on désambiguïse plutôt que d'afficher
+  // deux fois le même nom.
+  if (na === nb) return { a: `${na} 1`, b: `${nb} 2` };
+  return { a: na, b: nb };
+}

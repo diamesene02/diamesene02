@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import CompoSoiree from "@/components/CompoSoiree";
+import { nomsChasubles } from "@/lib/color";
 import { getLeaderboard } from "@/lib/stats";
 import Icon from "@/components/Icon";
 import MoneyPanel from "./MoneyPanel";
@@ -32,6 +33,12 @@ export default async function SessionDetailPage({
     },
   });
   if (!md) notFound();
+
+  // Les noms d'équipe par défaut se DÉDUISENT des chasubles réglées par le
+  // club. Ils étaient écrits en dur (« Blanc » / « Noir ») pendant que le club
+  // choisissait ses vraies couleurs ailleurs : une équipe nommée « Blanc »
+  // pouvait porter une barre noire, et l'écran se lisait à l'envers.
+  const nomsClub = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
 
   const [players, myPlayer] = await Promise.all([
     prisma.player.findMany({
@@ -155,6 +162,15 @@ export default async function SessionDetailPage({
           </span>
         </div>
         <CompoSoiree
+          // L'état du composant est posé au montage. Sans identité dérivée des
+          // données serveur, « Compo précédente » écrivait bien en base mais
+          // n'apparaissait pas : router.refresh() préserve l'état client. Le
+          // badge affichait « Prête » au-dessus d'une liste restée vide, et
+          // l'enregistrement suivant effaçait la compo reprise.
+          key={
+            md.lineup.map((l) => `${l.playerId}:${l.team}`).join("|") +
+            `|${md.teamAName ?? ""}|${md.teamBName ?? ""}`
+          }
           slug={slug}
           matchDayId={md.id}
           peutModifier={ctx.canScore}
@@ -163,8 +179,8 @@ export default async function SessionDetailPage({
             playerId: l.playerId,
             team: l.team as "A" | "B",
           }))}
-          nomAInitial={md.teamAName}
-          nomBInitial={md.teamBName}
+          nomAInitial={md.teamAName ?? nomsClub.a}
+          nomBInitial={md.teamBName ?? nomsClub.b}
         />
       </section>
 
