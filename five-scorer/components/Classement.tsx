@@ -56,11 +56,16 @@ export default function Classement({
   lignes,
   trackAssists,
   trackCards,
+  /// La vitrine publique montre le même classement à des visiteurs qui n'ont
+  /// pas de compte : la fiche joueur est derrière la garde du club, le lien
+  /// s'efface donc au lieu de mener à une redirection.
+  avecFiches = true,
 }: {
   slug: string;
   lignes: LigneClassement[];
   trackAssists: boolean;
   trackCards: boolean;
+  avecFiches?: boolean;
 }) {
   const [ouvert, setOuvert] = useState<string | null>(null);
 
@@ -164,12 +169,14 @@ export default function Classement({
                           } d'affilée`}
                     </span>
                   )}
-                  <Link
-                    href={`/c/${slug}/players/${r.playerId}`}
-                    className="ml-auto text-[13px] font-semibold text-[color:var(--ink-2)]"
-                  >
-                    Sa fiche →
-                  </Link>
+                  {avecFiches && (
+                    <Link
+                      href={`/c/${slug}/players/${r.playerId}`}
+                      className="ml-auto text-[13px] font-semibold text-[color:var(--ink-2)]"
+                    >
+                      Sa fiche →
+                    </Link>
+                  )}
                 </div>
               </div>
             )}

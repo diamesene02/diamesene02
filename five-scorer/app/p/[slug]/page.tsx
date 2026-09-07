@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getLeaderboard } from "@/lib/stats";
 import Icon from "@/components/Icon";
 import ClubTheme from "@/components/ClubTheme";
+import Classement from "@/components/Classement";
 
 export const dynamic = "force-dynamic";
 
@@ -50,15 +51,23 @@ export default async function PublicClubPage({ params }: Params) {
   ]);
   const top = rows.slice(0, 10);
 
+  // Une vitrine dit d'abord ce que le club a fait cette saison. La page
+  // s'ouvrait directement sur un tableau de cinq colonnes.
+  const totalMatchs = await prisma.match.count({
+    where: {
+      clubId: club.id,
+      status: "FINISHED",
+      ...(activeSeason ? { seasonId: activeSeason.id } : {}),
+    },
+  });
+  const totalButs = rows.reduce((s, r) => s + r.goals, 0);
+  const meilleurButeur = rows.filter((r) => r.goals > 0)[0] ?? null;
+
   const fmtDate = (d: Date) =>
     d.toLocaleDateString("fr-FR", {
       day: "2-digit",
       month: "short",
     });
-
-  const th =
- "px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-2)]";
-  const td = "px-3 py-2.5";
 
   return (
     <div data-club-theme className="relative min-h-screen">
@@ -86,117 +95,121 @@ export default async function PublicClubPage({ params }: Params) {
           <span className="kicker">
             {activeSeason ? activeSeason.name : "Toutes saisons"}
           </span>
-          <h1 className="display-md mt-1">{org.name}</h1>
+          <h1 className="display-xl mt-2">{org.name}</h1>
+          {totalMatchs > 0 && (
+            <div className="synthese mt-3">
+              <span>
+                <b>{totalMatchs}</b> match{totalMatchs > 1 ? "s" : ""}
+              </span>
+              <span className="synthese-sep">·</span>
+              <span>
+                <b>{totalButs}</b> but{totalButs > 1 ? "s" : ""}
+              </span>
+              {meilleurButeur && (
+                <>
+                  <span className="synthese-sep">·</span>
+                  <span>
+                    {meilleurButeur.name} <b>{meilleurButeur.goals}</b>
+                  </span>
+                </>
+              )}
+            </div>
+          )}
 
-          {/* Classement */}
-          <section className="mt-8">
-            <span className="kicker mb-3 block">Classement</span>
+          {/* Classement — le même dessin que dans l'app, sans le lien vers la
+              fiche joueur : le visiteur n'a pas de compte. C'était un tableau
+              de cinq colonnes à en-têtes en capitales tracées. */}
+          <section className="bande mt-8">
+            <div className="bande-titre">
+              <span className="kicker">Classement</span>
+            </div>
             {top.length === 0 ? (
-              <div className="rounded-[2px] bg-[color:var(--pitch-1)] p-8 text-center text-sm text-[color:var(--ink-1)]">
+              <p className="text-sm text-[color:var(--ink-2)]">
                 Pas encore de match terminé.
-              </div>
+              </p>
             ) : (
-              <div className="scroll-x rounded-[2px] bg-[color:var(--pitch-1)]">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[color:var(--rule)]">
-                      <th className={`${th} text-left`}>#</th>
-                      <th className={`${th} text-left`}>Joueur</th>
-                      <th className={`${th} text-center`}>J</th>
-                      <th className={`${th} text-center`}>Buts</th>
-                      <th className={`${th} text-center`}>MVP</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[color:var(--rule)]">
-                    {top.map((r, i) => (
-                      <tr key={r.playerId}>
-                        <td
-                          className={`${td} tabular text-xs font-bold text-[color:var(--ink-2)]`}
-                        >
-                          {i + 1}
-                        </td>
-                        <td className={`${td} font-bold`}>{r.name}</td>
-                        <td
-                          className={`${td} tabular text-center text-[color:var(--ink-2)]`}
-                        >
-                          {r.matchesPlayed}
-                        </td>
-                        <td
-                          className={`${td} num-sculpt text-center text-base text-[color:var(--ink-1)]`}
-                        >
-                          {r.goals}
-                        </td>
-                        <td
-                          className={`${td} tabular text-center text-[color:var(--gold)]`}
-                        >
-                          {r.mvpCount}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Classement
+                slug={slug}
+                avecFiches={false}
+                trackAssists={club.trackAssists}
+                trackCards={club.trackCards}
+                lignes={top.map((r) => ({
+                  playerId: r.playerId,
+                  name: r.name,
+                  nickname: r.nickname,
+                  isGuest: r.isGuest,
+                  matchesPlayed: r.matchesPlayed,
+                  goals: r.goals,
+                  assists: r.assists,
+                  yellow: r.yellow,
+                  red: r.red,
+                  wins: r.wins,
+                  draws: r.draws,
+                  losses: r.losses,
+                  winPct: r.winPct,
+                  mvpCount: r.mvpCount,
+                  form: r.form,
+                  streak: r.streak,
+                  elo: r.elo,
+                  eloTrend: r.eloTrend,
+                }))}
+              />
             )}
           </section>
 
-          {/* Derniers résultats */}
+          {/* Derniers résultats — le ticker commun. Le score s'écrivait ici
+              avec un « : » et une taille à lui, la sixième dans l'app. */}
           {lastMatches.length > 0 && (
-            <section className="mt-8">
-              <span className="kicker mb-3 block">Derniers résultats</span>
-              <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-[2px] bg-[color:var(--pitch-1)]">
-                {lastMatches.map((m) => (
-                  <li key={m.id}>
-                    <Link
-                      href={`/r/${m.id}`}
-                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
-                    >
-                      <span className="tabular w-14 shrink-0 text-[11px] uppercase text-[color:var(--ink-2)]">
-                        {fmtDate(m.playedAt)}
-                      </span>
-                      <span className="flex-1 truncate text-sm font-bold">
-                        {m.teamAName}{" "}
-                        <span className="text-[color:var(--ink-2)]">vs</span>{" "}
-                        {m.kind === "EXTERNAL" && m.opponent
-                          ? m.opponent.name
-                          : m.teamBName}
-                        {m.mvp && (
-                          <span className="ml-2 inline-flex items-center gap-1 align-middle text-xs font-bold text-[color:var(--gold)]">
-                            <Icon
-                              name="star"
-                              size={12}
-                              filled
-                              label="Homme du match"
-                            />
-                            {m.mvp.name}
+            <section className="bande mt-8">
+              <div className="bande-titre">
+                <span className="kicker">Derniers résultats</span>
+              </div>
+              <ul>
+                {lastMatches.map((m) => {
+                  const aGagne = m.scoreA > m.scoreB;
+                  const bGagne = m.scoreB > m.scoreA;
+                  return (
+                    <li key={m.id}>
+                      <Link href={`/r/${m.id}`} className="ticker">
+                        <span className="ticker-heure">
+                          {fmtDate(m.playedAt)}
+                        </span>
+                        <span className="ticker-score">
+                          <span
+                            className={aGagne ? "" : "text-[color:var(--ink-3)]"}
+                          >
+                            {m.scoreA}
                           </span>
-                        )}
-                      </span>
-                      <span className="num-sculpt text-lg">
-                        <span
-                          className={
-                            m.scoreA >= m.scoreB
-                              ? "text-[color:var(--ink-1)]"
-                              : "text-[color:var(--ink-3)]"
-                          }
-                        >
-                          {m.scoreA}
+                          <span className="px-1.5 text-[color:var(--rule-hi)]">
+                            —
+                          </span>
+                          <span
+                            className={bGagne ? "" : "text-[color:var(--ink-3)]"}
+                          >
+                            {m.scoreB}
+                          </span>
                         </span>
-                        <span className="px-1.5 text-[color:var(--ink-3)]">
-                          :
+                        <span className="ticker-buteurs">
+                          {m.teamAName}
+                          <span className="text-[color:var(--rule-hi)]"> vs </span>
+                          {m.kind === "EXTERNAL" && m.opponent
+                            ? m.opponent.name
+                            : m.teamBName}
+                          {m.mvp && (
+                            <span
+                              className="inline-flex items-center gap-1.5 align-middle"
+                              style={{ color: "var(--gold)" }}
+                            >
+                              {" · "}
+                              <Icon name="star" size={11} filled />
+                              {m.mvp.name}
+                            </span>
+                          )}
                         </span>
-                        <span
-                          className={
-                            m.scoreB >= m.scoreA
-                              ? "text-[color:var(--ink-1)]"
-                              : "text-[color:var(--ink-3)]"
-                          }
-                        >
-                          {m.scoreB}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}
