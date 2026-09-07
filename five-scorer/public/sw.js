@@ -65,6 +65,31 @@ async function stocker(cle, res) {
   return true;
 }
 
+/// Met en cache les ressources dont une page a besoin pour VIVRE.
+///
+/// Mettre le HTML en cache ne suffit pas : ses scripts et sa feuille de style
+/// sont des fichiers séparés, aux noms hachés par le build. Sans eux, la page
+/// arrive hors-ligne mais reste inerte — du texte non hydraté, des boutons
+/// morts. Une coquille de match dans cet état ne compte aucun but.
+async function precacherRessources(html) {
+  const refs = new Set();
+  const re = /\/_next\/static\/[A-Za-z0-9._~\/-]+?\.(?:js|css)/g;
+  let m;
+  while ((m = re.exec(html)) !== null) refs.add(m[0]);
+  await Promise.all(
+    [...refs].map(async (url) => {
+      try {
+        if (await caches.match(url)) return;
+        // Résolue contre l'origine : une URL relative ne fait pas une Request.
+        const abs = new URL(url, self.location.origin).href;
+        const res = await avecDelai(new Request(abs), 8000);
+        await stocker(url, res);
+      } catch {}
+    }),
+  );
+  return refs.size;
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
@@ -105,7 +130,12 @@ self.addEventListener("message", (event) => {
               new Request(url.href, { credentials: "same-origin", cache: "reload" }),
               8000,
             );
-            if (estHtml(res)) await stocker(url.pathname, res);
+            if (estHtml(res)) {
+              const copie = res.clone();
+              if (await stocker(url.pathname, res)) {
+                await precacherRessources(await copie.text());
+              }
+            }
           } catch {}
         }
       })(),
@@ -144,10 +174,34 @@ async function dernierClub() {
 /// général. Jamais la page vitrine, jamais une réponse redirigée.
 async function repli(url) {
   const chemin = url.pathname;
+  const club = chemin.match(/^\/c\/([^/]+)(?:\/(.*))?$/);
+
+  // « / » n'est jamais servi depuis le cache quand on connaît un club : cette
+  // entrée peut être la page VITRINE, mise en cache du temps où personne
+  // n'était connecté. Hors-ligne, elle proposait « Se connecter » à quelqu'un
+  // qui l'était déjà, sans aucun moyen d'atteindre son équipe.
+  if (!club) {
+    const slug = await dernierClub();
+    if (slug) {
+      const accueil = await caches.match(`/c/${slug}`);
+      if (accueil) return accueil;
+      const coquille = await caches.match(`/c/${slug}/play`);
+      if (coquille) return coquille;
+    }
+    const exactHorsClub = await caches.match(chemin);
+    if (exactHorsClub) return exactHorsClub;
+    const horsLigne = await caches.match("/hors-ligne");
+    return (
+      horsLigne ||
+      new Response("Hors-ligne", {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      })
+    );
+  }
+
   const exact = await caches.match(chemin);
   if (exact) return exact;
-
-  const club = chemin.match(/^\/c\/([^/]+)(?:\/(.*))?$/);
   if (club) {
     const slug = club[1];
     const reste = club[2] || "";
@@ -160,15 +214,6 @@ async function repli(url) {
     const accueil = await caches.match(`/c/${slug}`);
     if (accueil) return accueil;
     if (coquille) return coquille;
-  } else {
-    // "/" ou une page hors club : on renvoie vers le dernier club connu.
-    const slug = await dernierClub();
-    if (slug) {
-      const accueil = await caches.match(`/c/${slug}`);
-      if (accueil) return accueil;
-      const coquille = await caches.match(`/c/${slug}/play`);
-      if (coquille) return coquille;
-    }
   }
 
   const horsLigne = await caches.match("/hors-ligne");
