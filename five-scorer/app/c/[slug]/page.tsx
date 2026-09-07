@@ -5,6 +5,7 @@ import { getClubSummary } from "@/lib/stats";
 import RsvpPanel from "@/components/RsvpPanel";
 import Icon from "@/components/Icon";
 import RematchButton from "@/components/RematchButton";
+import Panneau from "@/components/Panneau";
 import ReprendreLocal from "@/components/ReprendreLocal";
 import { nomsChasubles } from "@/lib/color";
 
@@ -282,166 +283,124 @@ export default async function ClubHomePage({
           retrouve. */}
       {!liveMatch && <ReprendreLocal slug={slug} clubId={clubId} />}
 
-      {/* Match en cours */}
-      {liveMatch ? (
-        <Link
-          href={`/c/${slug}/matches/${liveMatch.id}/live`}
-          className="aurora edge-top block overflow-hidden bande"
-        >
-          <div className="flex items-center gap-2">
-            <span className="live-dot" />
-            <span className="kicker text-[color:var(--direct)]">
-              En cours · reprendre
-            </span>
+      {/* LE MATCH EN COURS, s'il y en a un : le panneau, pas une carte. */}
+      {liveMatch && (
+        <Link href={`/c/${slug}/matches/${liveMatch.id}/live`} className="block">
+          <div className="contexte">
+            <span className="live-dot" aria-hidden />
+            En direct — reprendre
           </div>
-          <div className="mt-3 flex items-end justify-between gap-4">
-            <div className="display-md">
-              {liveMatch.teamAName}
-              <br />
-              <span className="text-[color:var(--bib-b-ink)]">
-                vs {liveMatch.teamBName}
-              </span>
-            </div>
-            <div className="num-sculpt text-7xl">
-              {liveMatch.scoreA}
-              <span className="px-2 text-[color:var(--ink-2)]">:</span>
-              {liveMatch.scoreB}
-            </div>
-          </div>
+          <Panneau
+            a={liveMatch.teamAName}
+            b={liveMatch.teamBName}
+            scoreA={liveMatch.scoreA}
+            scoreB={liveMatch.scoreB}
+            taille="panneau"
+          />
         </Link>
-      ) : (
-        <section className="aurora edge-top relative overflow-hidden bande creuse">
-          <div className="relative z-[1] flex flex-col items-start gap-4">
-            <span className="kicker">
-              {activeSeason ? activeSeason.name : ctx.org.name}
-            </span>
-            <h1 className="display-xl">
-              Marque <em>vite</em>.
-              <br />
-              Regarde <em>mieux</em>.
-            </h1>
-            {/* Une action dominante, deux secondaires de largeur égale :
-                l'œil sait où aller, la grille tient au millimètre. */}
-            {ctx.canScore && (
-              <div className="mt-2 w-full">
-                {/* Le coup d'envoi ne saisit plus rien. Il part de la compo
-                    PRÉPARÉE pour la soirée du jour — le club décide ses
-                    équipes trois à quatre jours avant — et retombe sur celle
-                    du dernier match seulement à défaut. Dans les deux cas la
-                    source est annoncée avant le tap : un lancement en un geste
-                    ne doit pas être un lancement à l'aveugle. */}
-                {coupDEnvoiPret ? (
-                  <>
-                    <RematchButton
-                      clubId={clubId}
-                      slug={slug}
-                      teamAName={nomA}
-                      teamBName={nomB}
-                      kind="INTERNAL"
-                      opponentId={null}
-                      matchDayId={soireeEnCours?.id ?? null}
-                      seasonId={activeSeason?.id ?? null}
-                      label="Coup d'envoi"
-                      hint={`${nomA} ${compoA} vs ${compoB} ${nomB} — ${
-                        sourcePreparee
-                          ? `la compo préparée pour ${quandCourt}`
-                          : "la compo de la dernière fois"
-                      }`}
-                      players={compoPrete}
-                    />
-                    <Link
-                      href={`/c/${slug}/matches/new`}
-                      className="btn ghost tap mt-3 w-full"
-                    >
-                      Composer les équipes
-                      <Icon name="chevron" size={16} />
-                    </Link>
-                  </>
-                ) : (
-                  <Link
-                    href={`/c/${slug}/matches/new`}
-                    className="btn primary big tap w-full"
-                  >
-                    Lancer un match
-                    <Icon name="chevron" size={16} />
-                  </Link>
-                )}
-                {/* « Programmer » sert de préfixe commun : les deux boutons
-                    tiennent alors sur une ligne, sans rétrécir le texte. */}
-                <div className="mt-4">
-                  <span className="kicker">Programmer</span>
-                  <div className="mt-2 flex gap-2">
-                    <Link
-                      href={`/c/${slug}/matches/schedule`}
-                      className="btn ghost tap px-4 text-sm"
-                    >
-                      Un match
-                    </Link>
-                    <Link
-                      href={`/c/${slug}/matches/new-session`}
-                      className="btn ghost tap px-4 text-sm"
-                    >
-                      Une soirée
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
       )}
 
-      {/* Prochaine session + RSVP */}
-      {nextMatchDay && (
-        <section className="mt-8 bande">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <span className="kicker">Prochaine soirée</span>
-              <div className="mt-1 text-xl font-black">
-                <Link
-                  href={`/c/${slug}/sessions/${nextMatchDay.id}`}
-                  className="hover:text-[color:var(--ink-1)]"
-                >
-                  {nextMatchDay.title || "Five"}
-                </Link>
-                <span className="ml-3 font-mono text-sm font-bold text-[color:var(--ink-1)]">
-                  {fmtDate(nextMatchDay.date)}
-                  {" · "}
+      {/* LE PROCHAIN LUNDI. C'est l'information de la semaine, donc c'est le
+          titre de la page — pas un slogan. Un club ne s'ouvre pas sur une
+          promesse marketing, il s'ouvre sur sa prochaine échéance. */}
+      {!liveMatch && (
+        <section className="pt-2">
+          {nextMatchDay ? (
+            <>
+              <div className="contexte">
+                {joursAvant != null && joursAvant <= 0
+                  ? "Ce soir"
+                  : joursAvant === 1
+                    ? "Demain"
+                    : `Dans ${joursAvant} jours`}
+                {nextMatchDay.location ? ` · ${nextMatchDay.location}` : ""}
+              </div>
+              <Link
+                href={`/c/${slug}/sessions/${nextMatchDay.id}`}
+                className="display-xl mt-2 block capitalize"
+              >
+                {nextMatchDay.date.toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
+              </Link>
+              <div className="synthese mt-3">
+                <b>
                   {nextMatchDay.date.toLocaleTimeString("fr-FR", {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
-                </span>
+                </b>
+                {compoPrete.length > 0 && sourcePreparee ? (
+                  <>
+                    <span className="synthese-sep">·</span>
+                    <span>
+                      {nomA} <b>{compoA}</b> contre <b>{compoB}</b> {nomB}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="synthese-sep">·</span>
+                    <span>équipes à préparer</span>
+                  </>
+                )}
               </div>
-              {nextMatchDay.location && (
-                <div className="mt-0.5 text-sm text-[color:var(--ink-1)]">
-                  <Icon name="pin" size={13} />
-                  {nextMatchDay.location}
-                </div>
+            </>
+          ) : (
+            <>
+              <div className="contexte">{ctx.org.name}</div>
+              <h1 className="display-xl mt-2">Aucune soirée au calendrier.</h1>
+            </>
+          )}
+
+          {ctx.canScore && (
+            <div className="mt-6">
+              {coupDEnvoiPret ? (
+                <>
+                  <RematchButton
+                    clubId={clubId}
+                    slug={slug}
+                    teamAName={nomA}
+                    teamBName={nomB}
+                    kind="INTERNAL"
+                    opponentId={null}
+                    matchDayId={soireeEnCours?.id ?? null}
+                    seasonId={activeSeason?.id ?? null}
+                    label="Coup d'envoi"
+                    hint={`${nomA} ${compoA} vs ${compoB} ${nomB} — ${
+                      sourcePreparee
+                        ? `la compo préparée pour ${quandCourt}`
+                        : "la compo de la dernière fois"
+                    }`}
+                    players={compoPrete}
+                  />
+                  <Link
+                    href={`/c/${slug}/matches/new`}
+                    className="btn ghost tap mt-3 w-full"
+                  >
+                    Composer les équipes
+                    <Icon name="chevron" size={16} />
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href={`/c/${slug}/matches/new`}
+                  className="btn primary big tap w-full"
+                >
+                  Lancer un match
+                  <Icon name="chevron" size={16} />
+                </Link>
               )}
             </div>
-            {ctx.canScore && (
-              <Link
-                href={`/c/${slug}/matches/new?md=${nextMatchDay.id}`}
-                className="rounded-[2px] bg-[color:var(--ink-1)] px-4 py-2 text-[13px] font-semibold text-[color:var(--pitch-0)]"
-              >
-                Lancer un match
-              </Link>
-            )}
-          </div>
-          <RsvpPanel
-            slug={slug}
-            matchDayId={nextMatchDay.id}
-            myPlayerId={myPlayer?.id ?? null}
-            canManage={ctx.canManage}
-            rsvps={nextMatchDay.rsvps.map((r) => ({
-              playerId: r.player.id,
-              name: r.player.name,
-              status: r.status,
-            }))}
-          />
+          )}
         </section>
       )}
+
+      {/* La section « Prochaine soirée » disait mot pour mot ce que le titre
+          de la page dit déjà, et portait un sondage de présences dont ce club
+          n'a pas l'usage : l'effectif est connu, les équipes se décident sur
+          WhatsApp. Le lien vers la soirée est sur la date elle-même. */}
 
       {/* Prochains matchs programmés — convocations en cours */}
       {upcomingMatches.length > 0 && (
@@ -487,162 +446,128 @@ export default async function ClubHomePage({
         </section>
       )}
 
-      {/* Chiffres de la saison */}
+      {/* La saison en UNE ligne. Quatre tuiles « étiquette + gros chiffre »
+          occupaient un quart d'écran pour dire quatre nombres : c'est le
+          gabarit de tableau de bord, pas la densité d'une page de sport. */}
       {summary.matchesPlayed > 0 && (
-        <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "Matchs", value: String(summary.matchesPlayed) },
-            { label: "Buts", value: String(summary.totalGoals) },
-            {
-              label: "Pichichi",
-              value: summary.topScorer
-                ? `${summary.topScorer.name} · ${summary.topScorer.goals}`
-                : "—",
-            },
-            {
-              label: "MVP",
-              value: summary.topMvp
-                ? `${summary.topMvp.name} · ${summary.topMvp.count}`
-                : "—",
-            },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] px-4 py-3"
-            >
-              <div className="kicker">{s.label}</div>
-              <div className="mt-1 truncate text-lg font-black">{s.value}</div>
-            </div>
-          ))}
+        <section className="bande mt-8">
+          <div className="synthese">
+            <span>
+              <b>{summary.matchesPlayed}</b> matchs
+            </span>
+            <span className="synthese-sep">·</span>
+            <span>
+              <b>{summary.totalGoals}</b> buts
+            </span>
+            {summary.topScorer && (
+              <>
+                <span className="synthese-sep">·</span>
+                <span>
+                  {summary.topScorer.name} <b>{summary.topScorer.goals}</b>
+                </span>
+              </>
+            )}
+            {summary.topMvp && (
+              <>
+                <span className="synthese-sep">·</span>
+                <span>
+                  {summary.topMvp.name} <b>{summary.topMvp.count}</b> fois
+                  homme du match
+                </span>
+              </>
+            )}
+          </div>
         </section>
       )}
 
-      {/* Dernier match — traitement poster */}
+      {/* LE DERNIER MATCH. Le même panneau que partout, et la bande du
+          vainqueur reste élargie : le résultat se lit à la géométrie avant
+          d'être lu au chiffre. */}
       {hero && (
-        <section className="mt-10">
-          <div className="mb-3 flex items-baseline justify-between">
+        <section className="mt-8">
+          <div className="bande-titre">
             <span className="kicker">Dernier match</span>
             <Link
               href={`/c/${slug}/matches`}
-              className="text-xs font-bold  text-[color:var(--ink-2)] hover:text-white"
+              className="text-[13px] font-semibold text-[color:var(--ink-2)]"
             >
               Tout voir →
             </Link>
           </div>
-          <Link
-            href={`/c/${slug}/matches/${hero.id}`}
-            className="edge-top group block overflow-hidden bande"
-          >
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
-              <div className="text-right">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--bib-a-ink)]">
-                  {hero.teamAName}
-                </div>
-                <div
-                  className="num-sculpt mt-2"
-                  style={{ fontSize: "clamp(64px, 15vw, 140px)" }}
-                  data-win={hero.scoreA > hero.scoreB ? "true" : "false"}
-                >
-                  {hero.scoreA}
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-16 w-px bg-[color:var(--rule-hi)]" />
-                <span className="text-xs font-black  text-[color:var(--ink-2)]">
-                  VS
+          <Link href={`/c/${slug}/matches/${hero.id}`} className="block">
+            <Panneau
+              a={hero.teamAName}
+              b={
+                hero.kind === "EXTERNAL" && hero.opponent
+                  ? hero.opponent.name
+                  : hero.teamBName
+              }
+              scoreA={hero.scoreA}
+              scoreB={hero.scoreB}
+              taille="panneau"
+              fini
+              pied={
+                <span className="synthese">
+                  <span>{fmtDate(hero.playedAt)}</span>
+                  <span className="synthese-sep">·</span>
+                  <span>
+                    <b>{hero.events.length}</b> but
+                    {hero.events.length > 1 ? "s" : ""}
+                  </span>
+                  {hero.mvp && (
+                    <>
+                      <span className="synthese-sep">·</span>
+                      <span style={{ color: "var(--gold)" }}>
+                        {hero.mvp.name}
+                      </span>
+                    </>
+                  )}
                 </span>
-                <div className="h-16 w-px bg-[color:var(--rule-hi)]" />
-              </div>
-              <div className="text-left">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--bib-b-ink)]">
-                  {hero.kind === "EXTERNAL" && hero.opponent
-                    ? hero.opponent.name
-                    : hero.teamBName}
-                </div>
-                <div
-                  className="num-sculpt mt-2"
-                  style={{ fontSize: "clamp(64px, 15vw, 140px)" }}
-                  data-win={hero.scoreB > hero.scoreA ? "true" : "false"}
-                >
-                  {hero.scoreB}
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--rule)] pt-4">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono font-bold text-[color:var(--ink-1)]">
-                  {fmtDate(hero.playedAt)}
-                </span>
-                <span className="text-[color:var(--ink-2)]">·</span>
-                <span className="font-mono text-[color:var(--ink-2)]">
-                  {hero.events.length} but{hero.events.length > 1 ? "s" : ""}
-                </span>
-                {hero.mvp && (
-                  <>
-                    <span className="text-[color:var(--ink-2)]">·</span>
-                    <span className="rounded-[2px] bg-[color:var(--gold)]/20 px-2 py-0.5 text-[13px] font-semibold text-[color:var(--gold)]">
-                      <Icon name="star" size={11} filled />
-                      {hero.mvp.name}
-                    </span>
-                  </>
-                )}
-              </div>
-              <span className="text-xs font-bold  text-[color:var(--ink-1)] group-hover:text-[color:var(--ink-1)]">
-                Voir le récap →
-              </span>
-            </div>
+              }
+            />
           </Link>
         </section>
       )}
 
-      {/* Archive compacte */}
+      {/* L'ARCHIVE en ticker : date, score tabulaire, adversaire. Un filet
+          entre les lignes, aucun contour autour. Un service de résultats. */}
       {rest.length > 0 && (
-        <section className="mt-8">
-          <span className="kicker mb-3 block">Archive</span>
-          <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
-            {rest.map((m) => (
-              <li key={m.id}>
-                <Link
-                  href={`/c/${slug}/matches/${m.id}`}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
-                >
-                  <span className="w-14 font-mono text-[11px] uppercase text-[color:var(--ink-2)]">
-                    {m.playedAt.toLocaleDateString("fr-FR", {
-                      day: "2-digit",
-                      month: "short",
-                    })}
-                  </span>
-                  <span className="flex-1 truncate text-sm font-bold">
-                    {m.teamAName}{" "}
-                    <span className="text-[color:var(--ink-2)]">vs</span>{" "}
-                    {m.kind === "EXTERNAL" && m.opponent
-                      ? m.opponent.name
-                      : m.teamBName}
-                  </span>
-                  <span className="font-mono text-sm font-black">
-                    <span
-                      className={
-                        m.scoreA > m.scoreB
-                          ? "text-[color:var(--ink-1)]"
-                          : "text-[color:var(--ink-1)]"
-                      }
-                    >
-                      {m.scoreA}
+        <section className="bande mt-8">
+          <div className="bande-titre">
+            <span className="kicker">Avant ça</span>
+          </div>
+          <ul>
+            {rest.map((m) => {
+              const aGagne = m.scoreA > m.scoreB;
+              const bGagne = m.scoreB > m.scoreA;
+              return (
+                <li key={m.id}>
+                  <Link href={`/c/${slug}/matches/${m.id}`} className="ticker">
+                    <span className="ticker-heure">
+                      {m.playedAt.toLocaleDateString("fr-FR", {
+                        day: "2-digit",
+                        month: "short",
+                      })}
                     </span>
-                    <span className="px-1.5 text-[color:var(--ink-2)]">:</span>
-                    <span
-                      className={
-                        m.scoreB > m.scoreA
-                          ? "text-[color:var(--ink-1)]"
-                          : "text-[color:var(--ink-1)]"
-                      }
-                    >
-                      {m.scoreB}
+                    <span className="ticker-score">
+                      <span className={aGagne ? "" : "text-[color:var(--ink-3)]"}>
+                        {m.scoreA}
+                      </span>
+                      <span className="px-1.5 text-[color:var(--rule-hi)]">—</span>
+                      <span className={bGagne ? "" : "text-[color:var(--ink-3)]"}>
+                        {m.scoreB}
+                      </span>
                     </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
+                    <span className="ticker-buteurs">
+                      {m.teamAName} · {" "}
+                      {m.kind === "EXTERNAL" && m.opponent
+                        ? m.opponent.name
+                        : m.teamBName}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

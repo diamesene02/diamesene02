@@ -14,7 +14,7 @@ export default function VersionBadge() {
   }, []);
   const web = (process.env.NEXT_PUBLIC_BUILD_ID ?? "dev").slice(0, 7);
   return (
-    <p className="mt-10 text-[11px] tabular-nums text-[color:var(--ink-3)]">
+    <p className="version-badge">
       web {web}
       {android ? ` · android ${android}` : ""}
     </p>

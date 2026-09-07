@@ -971,6 +971,17 @@
     height: 14px;
   }
 
+  /* Le numéro de build : indispensable pour répondre à « je vois une vieille
+     version », mais ce n'est pas du contenu. Il vit en pied de page, à
+     l'encre la plus sourde. */
+  .version-badge {
+    margin-top: var(--s8);
+    padding-bottom: var(--s2);
+    font-size: var(--t-meta);
+    font-variant-numeric: tabular-nums;
+    color: var(--rule-hi);
+  }
+
   /* ═══════════════ PAYSAGE ═══════════════
      Téléphone tourné : la hauteur tombe à ~400 px. Le panneau vertical et son
      chiffre de 112 px mangeaient tout l'écran — il ne restait que deux tuiles,
