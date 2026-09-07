@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
-import { cn } from "@/lib/cn";
 import Icon from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
@@ -45,92 +44,137 @@ export default async function SessionsPage({
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const past = matchDays.filter((md) => md.date < startOfToday);
 
-  const fmtDate = (d: Date) =>
-    d.toLocaleDateString("fr-FR", {
-      weekday: "long",
-      day: "2-digit",
-      month: "short",
-    });
+  // La colonne d'en-tête du ticker fait 52 px : « lun. 07 » y tient, « lundi
+  // 07 sept. » non. Le mois est porté par l'en-tête de groupe.
+  const fmtCourt = (d: Date) =>
+    d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit" });
+  const fmtHeure = (d: Date) =>
+    d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-  const Row = ({
+  // UNE SOIRÉE, UNE LIGNE.
+  //
+  // Chaque soirée occupait une carte encadrée de quatre lignes — titre, date,
+  // lieu, puis trois pastilles « 0 présent », « 0 match », le prix. Sur une
+  // saison de quarante lundis, c'est un mur de cartes identiques qu'il faut
+  // parcourir au pouce pour retrouver une date.
+  //
+  // Elles deviennent des rangées de 32 px, groupées par mois : le calendrier
+  // se relit d'un coup d'œil, et le mois donne le repère que la date seule ne
+  // donne pas.
+  const Rangee = ({
     md,
-    highlight,
+    aVenir,
   }: {
     md: (typeof matchDays)[number];
-    highlight?: boolean;
+    aVenir?: boolean;
   }) => {
-    const inCount = md.rsvps.length;
-    const allPaid = inCount > 0 && md.rsvps.every((r) => r.hasPaid);
-    const totalGoals = md.matches.reduce(
-      (s, m) => s + m.scoreA + m.scoreB,
-      0
-    );
+    const presents = md.rsvps.length;
+    const toutRegle = presents > 0 && md.rsvps.every((r) => r.hasPaid);
+    const buts = md.matches.reduce((s, m) => s + m.scoreA + m.scoreB, 0);
     return (
-      <Link
-        href={`/c/${slug}/sessions/${md.id}`}
-        className={cn(
- "block rounded-none border bg-[color:var(--pitch-1)] p-4 transition-colors",
-          highlight
-            ? "border-[color:var(--ink-1)]/60 hover:border-[color:var(--ink-1)]"
-            : "border-[color:var(--rule)] hover:border-[color:var(--rule-hi)]"
-        )}
-      >
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-base font-black">
-              {md.title || "Soirée"}
-              <span
-                className={cn(
- "ml-3 text-xs font-bold capitalize tabular-nums",
-                  highlight
-                    ? "text-[color:var(--ink-1)]"
-                    : "text-[color:var(--ink-1)]"
-                )}
-              >
-                {fmtDate(md.date)}
-              </span>
-            </div>
-            {md.location && (
-              <div className="mt-1 flex items-center gap-1.5 text-xs text-[color:var(--ink-2)]">
-                <Icon name="pin" size={12} className="shrink-0" />
-                <span className="truncate">{md.location}</span>
-              </div>
-            )}
-          </div>
-          <span className="text-xs font-bold  text-[color:var(--ink-2)]">
-            Voir →
-          </span>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold tabular-nums">
-          <span className="rounded-[2px] border border-[color:var(--bib-a)]/40 bg-[color:var(--pitch-2)] px-2.5 py-1 text-[color:var(--bib-a-ink)]">
-            {inCount} présent{inCount > 1 ? "s" : ""}
-          </span>
-          <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-1 text-[color:var(--ink-1)]">
-            {md.matches.length} match{md.matches.length > 1 ? "s" : ""}
-            {totalGoals > 0 && (
-              <span className="text-[color:var(--ink-2)]">
+      <Link href={`/c/${slug}/sessions/${md.id}`} className="ticker">
+        <span className="ticker-heure">{fmtCourt(md.date)}</span>
+        <span className="ticker-score whitespace-nowrap">
+          {aVenir ? (
+            fmtHeure(md.date)
+          ) : (
+            <>
+              <b>{md.matches.length}</b>
+              <span className="text-[13px] font-normal text-[color:var(--ink-3)]">
                 {" "}
-                · {totalGoals} but{totalGoals > 1 ? "s" : ""}
+                match{md.matches.length > 1 ? "s" : ""}
               </span>
-            )}
-          </span>
-          {md.fieldCostCents != null && (
-            <span
-              className={cn(
- "inline-flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1",
-                allPaid
-                  ? "border-[color:var(--ink-1)]/50 bg-[color:var(--ink-2)] text-[color:var(--ink-1)]"
-                  : "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
-              )}
-            >
-              <Icon name="coin" size={12} />
-              {fmtEuro(md.fieldCostCents)} · {allPaid ? "réglé" : "à encaisser"}
-            </span>
+            </>
           )}
-        </div>
+        </span>
+        <span className="ticker-buteurs">
+          {aVenir ? (
+            <>
+              {md.location && <span>{md.location}</span>}
+              {presents > 0 && (
+                <span style={{ color: "var(--bib-a-ink)" }}>
+                  {md.location ? " · " : ""}
+                  {presents} présent{presents > 1 ? "s" : ""}
+                </span>
+              )}
+              {md.title && !md.location && <span>{md.title}</span>}
+            </>
+          ) : (
+            <>
+              {buts > 0 && (
+                <span>
+                  {buts} but{buts > 1 ? "s" : ""}
+                </span>
+              )}
+              {md.fieldCostCents != null && md.fieldCostCents > 0 && (
+                <span
+                  style={{
+                    color: toutRegle ? "var(--ink-3)" : "var(--gold)",
+                  }}
+                >
+                  {buts > 0 ? " · " : ""}
+                  {fmtEuro(md.fieldCostCents)}
+                  {toutRegle ? " réglé" : " à encaisser"}
+                </span>
+              )}
+            </>
+          )}
+        </span>
       </Link>
     );
   };
+
+  /// Le mois donne le repère qu'une date seule ne donne pas quand on en
+  /// aligne quarante.
+  const parMois = (liste: typeof matchDays) => {
+    const out: { cle: string; titre: string; jours: typeof matchDays }[] = [];
+    const index = new Map<string, (typeof out)[number]>();
+    for (const md of liste) {
+      const cle = `${md.date.getFullYear()}-${md.date.getMonth()}`;
+      let g = index.get(cle);
+      if (!g) {
+        g = {
+          cle,
+          titre: md.date.toLocaleDateString("fr-FR", {
+            month: "long",
+            year: "numeric",
+          }),
+          jours: [],
+        };
+        index.set(cle, g);
+        out.push(g);
+      }
+      g.jours.push(md);
+    }
+    return out;
+  };
+
+  const Mois = ({
+    liste,
+    aVenir,
+  }: {
+    liste: typeof matchDays;
+    aVenir?: boolean;
+  }) =>
+    parMois(liste).map((g) => (
+      <div key={g.cle} className="bande mt-5 first:mt-0">
+        <div className="bande-titre">
+          <span className="capitalize text-[13px] font-semibold text-[color:var(--ink-1)]">
+            {g.titre}
+          </span>
+          <span className="text-[13px] tabular-nums text-[color:var(--ink-3)]">
+            {g.jours.length}
+          </span>
+        </div>
+        <ul>
+          {g.jours.map((md) => (
+            <li key={md.id}>
+              <Rangee md={md} aVenir={aVenir} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    ));
 
   return (
     <main>
@@ -196,19 +240,15 @@ export default async function SessionsPage({
       ) : (
         <>
           {upcoming.length > 0 && (
-            <section className="mt-8 space-y-3">
-              <span className="kicker block">À venir</span>
-              {upcoming.map((md) => (
-                <Row key={md.id} md={md} highlight />
-              ))}
+            <section className="mt-8">
+              <span className="kicker mb-3 block">À venir</span>
+              <Mois liste={upcoming} aVenir />
             </section>
           )}
           {past.length > 0 && (
-            <section className="mt-8 space-y-3">
-              <span className="kicker block">Déjà jouées</span>
-              {past.map((md) => (
-                <Row key={md.id} md={md} />
-              ))}
+            <section className="mt-8">
+              <span className="kicker mb-3 block">Déjà jouées</span>
+              <Mois liste={past} />
             </section>
           )}
         </>
