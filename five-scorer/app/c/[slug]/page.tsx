@@ -290,7 +290,7 @@ export default async function ClubHomePage({
         >
           <div className="flex items-center gap-2">
             <span className="live-dot" />
-            <span className="kicker text-[color:var(--live)]">
+            <span className="kicker text-[color:var(--direct)]">
               En cours · reprendre
             </span>
           </div>

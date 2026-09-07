@@ -8,6 +8,7 @@ import MvpPicker from "@/components/MvpPicker";
 import SyncBadge from "@/components/SyncBadge";
 import { cn } from "@/lib/cn";
 import Icon from "@/components/Icon";
+import ChiffreRoulant from "@/components/ChiffreRoulant";
 import {
   addEvent,
   finishMatch,
@@ -113,6 +114,11 @@ export default function LiveMatch({
   // suive le déplacement d'une colonne à l'autre.
   const [justMoved, setJustMoved] = useState<string | null>(null);
   const moveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // La cérémonie du but : un compteur pour rejouer l'éclair à chaque but.
+  const [eclair, setEclair] = useState<{ team: "A" | "B"; n: number } | null>(null);
+  // Le coup de sifflet final : un écran d'une seconde, un tap pour passer.
+  const [tempsPlein, setTempsPlein] = useState(false);
+  const passerSlate = useRef<(() => void) | null>(null);
   // Le retardataire : les joueurs du club absents de la feuille de ce match.
   const [vivier, setVivier] = useState<{ id: string; name: string }[]>([]);
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
@@ -242,22 +248,18 @@ export default function LiveMatch({
     }
   }, [finished, router, slug, matchId, onFinished]);
 
-  const scoreARef = useRef<HTMLSpanElement>(null);
-  const scoreBRef = useRef<HTMLSpanElement>(null);
+  // Le but reçoit sa cérémonie : la bande du camp qui marque balaie le
+  // panneau pendant que le chiffre roule. L'ancienne version posait une
+  // classe `goaled` que le CSS ne connaissait pas — le but tombait sans un
+  // mouvement.
   const prevScoreRef = useRef<{ a: number; b: number } | null>(null);
   useEffect(() => {
     if (!data) return;
     const prev = prevScoreRef.current;
     const curr = { a: data.match.scoreA, b: data.match.scoreB };
     if (prev) {
-      if (curr.a > prev.a && scoreARef.current) {
-        scoreARef.current.classList.add("goaled");
-        setTimeout(() => scoreARef.current?.classList.remove("goaled"), 600);
-      }
-      if (curr.b > prev.b && scoreBRef.current) {
-        scoreBRef.current.classList.add("goaled");
-        setTimeout(() => scoreBRef.current?.classList.remove("goaled"), 600);
-      }
+      if (curr.a > prev.a) setEclair((e) => ({ team: "A", n: (e?.n ?? 0) + 1 }));
+      else if (curr.b > prev.b) setEclair((e) => ({ team: "B", n: (e?.n ?? 0) + 1 }));
     }
     prevScoreRef.current = curr;
   }, [data]);
@@ -316,7 +318,7 @@ export default function LiveMatch({
 
   const addOpponentGoal = useCallback(async () => {
     try {
-      playGoalSound();
+      playGoalSound("B");
       await addEvent(matchId, {
         type: "GOAL",
         team: "B",
@@ -366,8 +368,9 @@ export default function LiveMatch({
   const addOwnGoal = useCallback(
     async (conceding: "A" | "B") => {
       try {
-        playGoalSound();
+        
         const credited = conceding === "A" ? "B" : "A";
+        playGoalSound(credited);
         const eventId = await addEvent(matchId, {
           type: "OWN_GOAL",
           team: credited,
@@ -463,7 +466,14 @@ export default function LiveMatch({
   async function onFinish(mvpId: string | null) {
     setFinishing(true);
     try {
+      // Temps plein : une seconde, ou un tap. Le match est déjà terminé dans
+      // Dexie avant que l'écran ne parte — le slate n'est pas une attente.
       await finishMatch(matchId, mvpId);
+      setTempsPlein(true);
+      await new Promise<void>((res) => {
+        passerSlate.current = res;
+        setTimeout(res, 1000);
+      });
       void kickSync();
       if (onFinished) onFinished(matchId);
       else router.replace(`/c/${slug}/matches/${matchId}`);
@@ -622,31 +632,26 @@ export default function LiveMatch({
           caractère, c'est l'axe médian du panneau. Et le perdant descend d'un
           ton d'encre — la hiérarchie se fait au ton, pas à la couleur. */}
       <header className="panneau">
+        {eclair && (
+          <div key={eclair.n} className={cn("but-flash", eclair.team, "joue")} aria-hidden />
+        )}
         <div className="panneau-bande A" />
         <div className="panneau-camp A">
           <span className="panneau-code">{match.teamAName}</span>
-          <span
-            ref={scoreARef}
-            className={cn(
-              "chiffre-panneau panneau-score",
-              bLead && "perd"
-            )}
-          >
-            {match.scoreA}
-          </span>
+          <ChiffreRoulant
+            value={match.scoreA}
+            compress
+            className={cn("chiffre-panneau panneau-score", bLead && "perd")}
+          />
         </div>
         <div className="panneau-axe" />
         <div className="panneau-camp B">
           <span className="panneau-code">{match.teamBName}</span>
-          <span
-            ref={scoreBRef}
-            className={cn(
-              "chiffre-panneau panneau-score",
-              aLead && "perd"
-            )}
-          >
-            {match.scoreB}
-          </span>
+          <ChiffreRoulant
+            value={match.scoreB}
+            compress
+            className={cn("chiffre-panneau panneau-score", aLead && "perd")}
+          />
         </div>
         <div className="panneau-bande B" />
         <div className="panneau-pied">
@@ -1041,12 +1046,44 @@ export default function LiveMatch({
               </button>
               <button
                 onClick={requestFinish}
-                className="flex-1 rounded-[2px] bg-[color:var(--loss)] px-4 py-3 font-bold text-[color:var(--pitch-0)]"
+                className="flex-1 rounded-[2px] bg-[color:var(--ink-1)] px-4 py-3 font-bold text-[color:var(--pitch-0)]"
               >
                 Terminer
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {tempsPlein && (
+        <div
+          className="temps-plein"
+          onClick={() => passerSlate.current?.()}
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className={cn(
+              "temps-plein-bande",
+              aLead ? "A" : bLead ? "B" : "nul"
+            )}
+          />
+          <div className="temps-plein-corps">
+            <div className="temps-plein-titre">Temps plein</div>
+            <div className="temps-plein-score">
+              <span className={cn(bLead && "perd")}>{match.scoreA}</span>
+              <span className="panneau-axe" style={{ height: "0.7em", alignSelf: "center" }} />
+              <span className={cn(aLead && "perd")}>{match.scoreB}</span>
+            </div>
+            <div className="temps-plein-vainqueur">
+              {aLead
+                ? `${match.teamAName} l'emporte`
+                : bLead
+                  ? `${match.teamBName} l'emporte`
+                  : "Match nul"}
+            </div>
+          </div>
+          <div className="temps-plein-aide">Touche pour continuer</div>
         </div>
       )}
 

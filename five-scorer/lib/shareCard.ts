@@ -1,4 +1,23 @@
-// Canvas renderer for match recap shareable image (1080x1080).
+// La carte de match — l'objet qu'on poste dans le groupe à 23h14.
+//
+// C'est là qu'est le wow d'un club amateur : pas sur le téléphone du marqueur,
+// mais quinze minutes plus tard, quand quinze personnes voient la même image
+// et que le perdant la voit aussi. Une seule grammaire, la même que le
+// panneau de l'app : deux bandes de chasuble pleine hauteur aux bords, un
+// chiffre géant en chasse 62 %, un filet de craie, une phrase calculée.
+//
+// La bande PORTE LE RÉSULTAT : 194 px pour le vainqueur, 65 px pour le
+// perdant, 108/108 pour un nul. On sait qui a gagné à trois mètres, avant de
+// lire le score — et ça survit au daltonisme, au noir et blanc, à une vignette
+// de 80 px. Le fond est toujours le gazon : la chasuble ne porte jamais de
+// texte (mesuré : elle plafonne à Lc 43-50), elle est punaisée sur le noir.
+//
+// Aucun dégradé, aucune ombre, aucun emoji, aucune pilule, aucun logo. Ce qui
+// distingue cette carte d'un gabarit « Full Time », c'est la DONNÉE : la
+// largeur de bande, les minutes des buts, une phrase qui n'existe que si le
+// fait est vrai.
+
+import { bibTheme, inkVariant } from "./color";
 
 type Player = { id: string; name: string; goals: number; team: "A" | "B" };
 type Goal = {
@@ -7,6 +26,7 @@ type Goal = {
   team: "A" | "B";
   minute: number | null;
   createdAt: string;
+  scorerName?: string;
 };
 type Match = {
   playedAt: string;
@@ -15,45 +35,79 @@ type Match = {
   scoreA: number;
   scoreB: number;
 };
-
-// Palette « craie sur gazon », alignée sur app/globals.css. Les valeurs
-// sont dupliquées ici parce qu'un canvas ne lit pas les variables CSS ;
-// elles doivent bouger avec les jetons.
-const TOK = {
-  bg0: "#0E1211",
-  bg1: "#141917",
-  ink0: "#F4F6F3",
-  ink1: "#C8CFCB",
-  ink2: "#ADB5B2",
-  a: "#FF6B2C",
-  aLight: "#FF996D",
-  b: "#3D8BFF",
-  bLight: "#83B5FF",
-  gold: "#FFC24D",
+export type ClubCarte = {
+  name: string;
+  colorA: string | null;
+  colorB: string | null;
 };
 
-// Archivo porte toute la typographie de l'app ; son axe de chasse donne
-// aux scores l'allure d'un numéro de maillot. `font-stretch` n'existant
-// pas dans l'API canvas, on passe par la syntaxe raccourcie de ctx.font,
-// qui l'accepte.
-const UI = '"Archivo", system-ui, sans-serif';
-const NUM = '62% "Archivo", system-ui, sans-serif';
+const W = 1080;
+const H = 1350;
+const PITCH0 = "#0e1211";
+const INK1 = "#f4f6f3";
+const INK2 = "#c8cfcb";
+const INK3 = "#adb5b2";
+const RULE = "#2c3532";
+const GOLD = "#ffc24d";
 
-function drawRoundedRect(
+/// Largeur de bande = résultat. Sur 1080 : 10 % au repos.
+const BANDE = { repos: 108, vainqueur: 194, perdant: 65 };
+const MARGE = 48;
+
+type Chasse = "extra-condensed" | "condensed" | "semi-condensed" | "normal";
+
+// Le raccourci `font` du canvas accepte la chasse par MOT-CLÉ seulement ; un
+// pourcentage y est ignoré en silence — c'est ainsi que l'ancienne carte se
+// dessinait en chasse normale sans que rien ne le dise. On pose aussi la
+// propriété dédiée, plus récente et plus sûre.
+function police(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
+  poids: number,
+  taille: number,
+  chasse: Chasse = "normal",
 ) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+  ctx.font = `${poids} ${chasse} ${taille}px "Archivo", system-ui, sans-serif`;
+  const c = ctx as CanvasRenderingContext2D & { fontStretch?: string };
+  if ("fontStretch" in c) c.fontStretch = chasse;
+}
+
+async function chargerPolice() {
+  if (typeof document === "undefined" || !document.fonts?.load) return;
+  try {
+    await Promise.all([
+      document.fonts.load('640 extra-condensed 100px "Archivo"'),
+      document.fonts.load('600 condensed 60px "Archivo"'),
+      document.fonts.load('600 semi-condensed 60px "Archivo"'),
+      document.fonts.load('700 34px "Archivo"'),
+      document.fonts.load('500 44px "Archivo"'),
+    ]);
+  } catch {
+    // la police système prendra le relais : la carte reste juste, moins belle.
+  }
+}
+
+function contexte(playedAt: string): string {
+  const d = new Date(playedAt);
+  const jour = d
+    .toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" })
+    .replace(".", "")
+    .toUpperCase();
+  const heure = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return `${jour} · ${heure}`;
+}
+
+/// La phrase n'existe que si le fait existe. Aucun adjectif, jamais de ligne
+/// vide, jamais de « quelle soirée ». Des rangs, des écarts, des séries.
+function phraseCalculee(
+  match: Match,
+  buteurs: { name: string; count: number }[],
+): string | null {
+  const meilleur = buteurs[0];
+  if (meilleur && meilleur.count >= 2) return `${meilleur.name}, ${meilleur.count} buts`;
+  const ecart = Math.abs(match.scoreA - match.scoreB);
+  if (ecart >= 3) return `${ecart} buts d'écart`;
+  if (match.scoreA === match.scoreB) return "Match nul";
+  return null;
 }
 
 export async function renderShareCard({
@@ -62,142 +116,199 @@ export async function renderShareCard({
   teamB,
   goals,
   mvpName,
+  club,
 }: {
   match: Match;
   teamA: Player[];
   teamB: Player[];
   goals: Goal[];
   mvpName?: string | null;
+  club?: ClubCarte;
 }): Promise<Blob | null> {
+  await chargerPolice();
   const canvas = document.createElement("canvas");
-  canvas.width = 1080;
-  canvas.height = 1080;
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  // Background
-  const bg = ctx.createLinearGradient(0, 0, 0, 1080);
-  bg.addColorStop(0, TOK.bg1);
-  bg.addColorStop(1, TOK.bg0);
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, 1080, 1080);
+  const t = bibTheme(club?.colorA, club?.colorB);
+  const encreA = inkVariant(t.aSlab, PITCH0);
+  const encreB = inkVariant(t.bSlab, PITCH0);
+  const aGagne = match.scoreA > match.scoreB;
+  const bGagne = match.scoreB > match.scoreA;
+  const wA = aGagne ? BANDE.vainqueur : bGagne ? BANDE.perdant : BANDE.repos;
+  const wB = bGagne ? BANDE.vainqueur : aGagne ? BANDE.perdant : BANDE.repos;
 
-  const aWash = ctx.createLinearGradient(0, 0, 540, 0);
-  aWash.addColorStop(0, "rgba(34,197,94,0.16)");
-  aWash.addColorStop(1, "transparent");
-  ctx.fillStyle = aWash;
-  ctx.fillRect(0, 0, 540, 1080);
+  // Le gazon, puis les deux bandes punaisées aux bords.
+  ctx.fillStyle = PITCH0;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = t.aSlab;
+  ctx.fillRect(0, 0, wA, H);
+  // La bande B porte l'encoche — le seul discriminant qui survit à deux
+  // chasubles sombres remontées au même gris. 50 px pleins, 10 px vides.
+  ctx.fillStyle = t.bSlab;
+  for (let y = 0; y < H; y += 60) ctx.fillRect(W - wB, y, wB, 50);
 
-  const bWash = ctx.createLinearGradient(1080, 0, 540, 0);
-  bWash.addColorStop(0, "rgba(56,189,248,0.16)");
-  bWash.addColorStop(1, "transparent");
-  ctx.fillStyle = bWash;
-  ctx.fillRect(540, 0, 540, 1080);
+  const x0 = wA + MARGE;
+  const x1 = W - wB - MARGE;
+  const cx = (x0 + x1) / 2;
 
-  // Header
-  ctx.fillStyle = TOK.ink1;
-  ctx.font = `600 28px ${UI}`;
-  ctx.textAlign = "center";
-  ctx.fillText("⚽ FIVE SCORER", 540, 90);
+  // Filet de craie en tête, entre les bandes.
+  ctx.fillStyle = INK1;
+  ctx.fillRect(wA, 48, W - wA - wB, 6);
 
-  ctx.fillStyle = TOK.ink2;
-  ctx.font = `500 22px ${UI}`;
-  const date = new Date(match.playedAt).toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  ctx.fillText(date, 540, 130);
-
-  // Team names
-  ctx.font = `700 44px ${UI}`;
-  ctx.fillStyle = TOK.aLight;
-  ctx.fillText(match.teamAName.toUpperCase(), 290, 260);
-  ctx.fillStyle = TOK.bLight;
-  ctx.fillText(match.teamBName.toUpperCase(), 790, 260);
-
-  // Score
-  const winA = match.scoreA > match.scoreB;
-  const winB = match.scoreB > match.scoreA;
-
-  ctx.font = `800 220px ${NUM}`;
-  ctx.fillStyle = winA ? TOK.gold : TOK.ink1;
-  if (winA) {
-    ctx.shadowColor = "rgba(245,179,1,0.5)";
-    ctx.shadowBlur = 40;
-  }
-  ctx.fillText(String(match.scoreA), 290, 440);
-  ctx.shadowBlur = 0;
-
-  ctx.fillStyle = TOK.ink2;
-  ctx.font = `500 140px ${NUM}`;
-  ctx.fillText(":", 540, 430);
-
-  ctx.font = `800 220px ${NUM}`;
-  ctx.fillStyle = winB ? TOK.gold : TOK.ink1;
-  if (winB) {
-    ctx.shadowColor = "rgba(245,179,1,0.5)";
-    ctx.shadowBlur = 40;
-  }
-  ctx.fillText(String(match.scoreB), 790, 440);
-  ctx.shadowBlur = 0;
-
-  // MVP pill
-  if (mvpName) {
-    const mvpText = "⭐ MVP : " + mvpName.toUpperCase();
-    ctx.font = `700 32px ${UI}`;
-    const tw = ctx.measureText(mvpText).width;
-    const pillW = tw + 60;
-    const pillX = (1080 - pillW) / 2;
-    ctx.fillStyle = TOK.gold;
-    drawRoundedRect(ctx, pillX, 495, pillW, 56, 28);
-    ctx.fill();
-    ctx.fillStyle = "#0E1211";
-    ctx.fillText(mvpText, 540, 534);
-  }
-
-  const goalCount: Record<string, number> = {};
-  goals.forEach((g) => {
-    goalCount[g.scorerId] = (goalCount[g.scorerId] ?? 0) + 1;
-  });
-  const allPlayers = [...teamA, ...teamB];
-  const scorers = allPlayers
-    .filter((p) => goalCount[p.id])
-    .sort((a, b) => goalCount[b.id] - goalCount[a.id])
-    .slice(0, 5);
-
-  const startY = mvpName ? 640 : 600;
+  // Contexte : l'unique ligne en capitales tracées de l'affiche.
+  ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  ctx.fillStyle = TOK.ink1;
-  ctx.font = `700 22px ${UI}`;
-  ctx.fillText("BUTEURS", 140, startY);
+  ctx.fillStyle = INK3;
+  police(ctx, 700, 34);
+  const c = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+  if ("letterSpacing" in c) c.letterSpacing = "4px";
+  ctx.fillText(contexte(match.playedAt), x0, 130);
+  if ("letterSpacing" in c) c.letterSpacing = "0px";
 
-  scorers.forEach((p, i) => {
-    const y = startY + 50 + i * 60;
-    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "·";
-    ctx.font = `700 28px ${UI}`;
-    ctx.fillStyle = TOK.ink0;
-    ctx.fillText(`${medal}  ${p.name}`, 140, y);
-    const count = goalCount[p.id];
-    ctx.fillStyle = TOK.gold;
-    ctx.font = `800 40px ${NUM}`;
-    ctx.fillText(String(count), 560, y);
-    ctx.fillStyle = TOK.ink1;
-    ctx.font = `600 26px ${UI}`;
-    const teamName = p.team === "A" ? match.teamAName : match.teamBName;
-    ctx.fillText(teamName, 760, y);
+  // Codes d'équipe, à leur bord.
+  police(ctx, 600, 62, "condensed");
+  ctx.fillStyle = INK2;
+  ctx.textAlign = "left";
+  ctx.fillText(match.teamAName.toUpperCase(), x0, 240);
+  ctx.textAlign = "right";
+  ctx.fillText(match.teamBName.toUpperCase(), x1, 240);
+
+  // LE SCORE — c'est lui la photo. 600 px, ou 480 dès qu'un score a deux
+  // chiffres : mesuré, « 12 » et « 9 » ne tiennent pas entre les bandes à 600.
+  const deuxChiffres = match.scoreA >= 10 || match.scoreB >= 10;
+  const S = deuxChiffres ? 480 : 600;
+  const hautChiffre = 300;
+  const capHauteur = S * 0.72;
+  const ligneBase = hautChiffre + capHauteur;
+  police(ctx, 640, S, "extra-condensed");
+  ctx.textAlign = "right";
+  ctx.fillStyle = bGagne ? INK3 : INK1;
+  ctx.fillText(String(match.scoreA), cx - 56, ligneBase);
+  ctx.textAlign = "left";
+  ctx.fillStyle = aGagne ? INK3 : INK1;
+  ctx.fillText(String(match.scoreB), cx + 56, ligneBase);
+  // L'axe médian, centré sur la hauteur des chiffres.
+  const hAxe = Math.min(260, capHauteur);
+  ctx.fillStyle = INK1;
+  ctx.fillRect(cx - 3, hautChiffre + (capHauteur - hAxe) / 2, 6, hAxe);
+
+  // Buteurs, triés. Un csc est un but : il figure, au nom de celui qui l'a
+  // mis quand on le sait, sinon au nom du camp qui l'a concédé — sans ça un
+  // match à trois csc se présentait presque vide.
+  const compte: Record<string, number> = {};
+  const libelle: Record<string, { name: string; team: "A" | "B" }> = {};
+  const parNom = new Map(
+    [...teamA, ...teamB].map((p) => [p.id, p] as const),
+  );
+  goals.forEach((g) => {
+    const cle = g.scorerId || g.scorerName || `csc-${g.team}`;
+    compte[cle] = (compte[cle] ?? 0) + 1;
+    if (!libelle[cle]) {
+      const j = g.scorerId ? parNom.get(g.scorerId) : undefined;
+      libelle[cle] = j
+        ? { name: j.name, team: j.team }
+        : {
+            name:
+              g.scorerName ??
+              `csc de ${g.team === "B" ? match.teamAName : match.teamBName}`,
+            // Un csc est crédité à `g.team` ; son auteur est dans l'autre camp.
+            team: g.team === "A" ? "B" : "A",
+          };
+    }
+  });
+  const buteurs = Object.keys(compte)
+    .map((cle) => ({ id: cle, ...libelle[cle], count: compte[cle] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  let y = ligneBase + 96;
+
+  // La phrase calculée — ou rien.
+  const phrase = phraseCalculee(match, buteurs);
+  if (phrase) {
+    police(ctx, 600, 72, "semi-condensed");
+    ctx.fillStyle = INK1;
+    ctx.textAlign = "left";
+    ctx.fillText(phrase, x0, y);
+    y += 88;
+  }
+
+  // Les rangées de buteurs : minute sourde, nom en encre de camp, code au bord.
+  ctx.textAlign = "left";
+  for (const p of buteurs) {
+    const minutes = goals
+      .filter(
+        (g) =>
+          (g.scorerId || g.scorerName || `csc-${g.team}`) === p.id &&
+          g.minute != null,
+      )
+      .map((g) => `${g.minute}'`)
+      .join(" ");
+    police(ctx, 500, 40);
+    ctx.fillStyle = INK3;
+    ctx.fillText(minutes || "—", x0, y);
+    police(ctx, 600, 46, "semi-condensed");
+    ctx.fillStyle = p.team === "A" ? encreA : encreB;
+    ctx.fillText(p.name, x0 + 200, y);
+    police(ctx, 500, 36, "condensed");
+    ctx.fillStyle = INK3;
+    ctx.textAlign = "right";
+    ctx.fillText(
+      `${p.count} · ${(p.team === "A" ? match.teamAName : match.teamBName).toUpperCase()}`,
+      x1,
+      y,
+    );
+    ctx.textAlign = "left";
+    y += 60;
+  }
+
+  // Joueur du match : un filet d'or sous le nom, jamais une pastille.
+  if (mvpName) {
+    y += 24;
+    police(ctx, 700, 34);
+    ctx.fillStyle = INK3;
+    ctx.fillText("JOUEUR DU MATCH", x0, y);
+    y += 56;
+    police(ctx, 600, 46, "semi-condensed");
+    ctx.fillStyle = INK1;
+    ctx.fillText(mvpName, x0, y);
+    const largeur = ctx.measureText(mvpName).width;
+    ctx.fillStyle = GOLD;
+    ctx.fillRect(x0, y + 10, largeur, 3);
+  }
+
+  // La frise : un axe, une coche par but, A au-dessus, B en dessous. Huit
+  // matchs se liraient comme un seul graphique de momentum ; ici, un match.
+  const yAxe = H - 190;
+  ctx.fillStyle = RULE;
+  ctx.fillRect(x0, yAxe, x1 - x0, 2);
+  const minutes = goals.map((g) => g.minute).filter((m): m is number => m != null);
+  const duree = Math.max(40, ...minutes.map((m) => m + 2));
+  goals.forEach((g, i) => {
+    const frac =
+      g.minute != null ? g.minute / duree : (i + 1) / (goals.length + 1);
+    const x = Math.round(x0 + (x1 - x0) * frac);
+    if (g.team === "A") {
+      ctx.fillStyle = t.aSlab;
+      ctx.fillRect(x - 3, yAxe - 26, 6, 24);
+    } else {
+      ctx.fillStyle = t.bSlab;
+      ctx.fillRect(x - 3, yAxe + 4, 6, 10);
+      ctx.fillRect(x - 3, yAxe + 16, 6, 10);
+    }
   });
 
-  // Watermark
-  ctx.fillStyle = TOK.ink2;
-  ctx.font = `500 18px ${UI}`;
-  ctx.textAlign = "center";
-  ctx.fillText("FIVE SCORER · urban foot", 540, 1030);
+  // Signature : le club, en bas à gauche. Pas de marque d'app — le lien s'en
+  // charge.
+  police(ctx, 700, 34);
+  ctx.fillStyle = INK2;
+  ctx.textAlign = "left";
+  ctx.fillText(club?.name ?? "", x0, H - 72);
 
-  return new Promise((resolve) =>
-    canvas.toBlob((b) => resolve(b), "image/png", 0.92),
-  );
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
 }
 
 export async function shareMatchImage(
@@ -213,31 +324,25 @@ export async function shareMatchImage(
     canShare?: (d: { files?: File[]; url?: string; text?: string }) => boolean;
   };
 
-  // 1. Try sharing the image as a file (best UX on supported mobiles)
   if (nav.canShare && nav.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: "Match Five Scorer" });
+      await navigator.share({ files: [file], title: "Match" });
       return;
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
     }
   }
-
-  // 2. Try sharing just the public URL (works everywhere share is supported)
   if (publicUrl && nav.canShare && nav.canShare({ url: publicUrl })) {
     try {
-      await navigator.share({ title: "Match Five Scorer", url: publicUrl });
+      await navigator.share({ title: "Match", url: publicUrl });
       return;
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
     }
   }
-
-  // 3. Fallback: open the image in a new tab so the user can save/share manually
   const url = URL.createObjectURL(blob);
   const win = window.open(url, "_blank");
   if (!win) {
-    // popup blocked → download
     const a = document.createElement("a");
     a.href = url;
     a.download = file.name;

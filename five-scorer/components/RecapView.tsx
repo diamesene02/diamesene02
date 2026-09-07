@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { shareMatchImage } from "@/lib/shareCard";
 import Icon from "@/components/Icon";
+import Panneau from "@/components/Panneau";
 
 type Player = {
   id: string;
@@ -43,6 +44,7 @@ export default function RecapView({
   showActions = true,
   onRematch,
   publicShareUrl,
+  club,
 }: {
   match: Match;
   mvpName: string | null;
@@ -54,6 +56,9 @@ export default function RecapView({
   showActions?: boolean;
   onRematch?: () => void;
   publicShareUrl?: string;
+  /// Nom et chasubles du club : la carte partagée se dessine avec ses
+  /// couleurs, jamais avec une palette codée.
+  club?: { name: string; colorA: string | null; colorB: string | null };
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -76,7 +81,7 @@ export default function RecapView({
 
   async function onShareImage() {
     try {
-      await shareMatchImage({ match, mvpName, teamA, teamB, goals }, publicUrl);
+      await shareMatchImage({ match, mvpName, teamA, teamB, goals, club }, publicUrl);
     } catch (e) {
       console.error("share image failed", e);
     }
@@ -106,22 +111,17 @@ export default function RecapView({
 
   return (
     <div className="space-y-4 py-2">
-      <div className="recap-header">MATCH TERMINÉ</div>
+      <div className="contexte">Match terminé</div>
 
       <div className="recap-hero">
-        <div className="recap-teams">
-          <div className="recap-team-name A">{match.teamAName.toUpperCase()}</div>
-          <div className="recap-team-name B">{match.teamBName.toUpperCase()}</div>
-        </div>
-        <div className="recap-score">
-          <span className={`score-num ${winA ? "win" : winB ? "lose" : ""}`}>
-            {match.scoreA}
-          </span>
-          <span className="score-sep">:</span>
-          <span className={`score-num ${winB ? "win" : winA ? "lose" : ""}`}>
-            {match.scoreB}
-          </span>
-        </div>
+        <Panneau
+          a={match.teamAName}
+          b={match.teamBName}
+          scoreA={match.scoreA}
+          scoreB={match.scoreB}
+          taille="panneau"
+          fini={match.status === "FINISHED"}
+        />
         <div className="mt-2 text-center text-xs  text-[color:var(--ink-3)]">
           {new Date(match.playedAt).toLocaleDateString("fr-FR", {
             weekday: "long",

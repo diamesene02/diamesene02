@@ -147,6 +147,8 @@
   --r-focus: 4px;
 
   --bande-panneau: 10px;
+  --bande-vainqueur: 18px;
+  --bande-perdant: 6px;
   --bande-rangee: 6px;
   --h-saisie: 56px;
   --h-lecture: 44px;
@@ -154,6 +156,20 @@
   --tap: 56px;
   --tap-min: 44px;
 
+  /* BUDGET DE MOUVEMENT — l'inventaire complet. Le wow est un événement, pas
+     un état : au repos, rien ne bouge. Quatre instants ont droit à une
+     séquence, et chacun a son budget. Toute animation qui ne se rattache pas
+     à l'un d'eux est un fondu ≤ 120 ms, ou n'existe pas.
+       --t-touch  réponse au doigt (appui +1)           140 ms
+       --t-enter  entrée d'un élément (chiffre, ligne)  200 ms
+       --t-scene  changement d'écran, feuille           360 ms
+       --t-but    la cérémonie du but, tout compris     400 ms
+       --t-fin    le coup de sifflet final, un par match 1000 ms */
+  --t-touch: 140ms;
+  --t-enter: 200ms;
+  --t-scene: 360ms;
+  --t-but: 400ms;
+  --t-fin: 1000ms;
   --t-fast: 120ms;
   --t-mid: 180ms;
   --t-slow: 320ms;
@@ -523,6 +539,26 @@
      deux gris quasi identiques une fois remontées au plancher de visibilité :
      seule une différence de FORME survit à n'importe quel couple, daltonisme
      compris. Le côté est absolu — A toujours à gauche, B toujours à droite. */
+  /* La bande PORTE LE RÉSULTAT. Au repos, 10 px de chaque côté. Après le coup
+     de sifflet, elle se fixe à sa largeur de vérité — 18 px pour le
+     vainqueur, 6 px pour le perdant — et y RESTE : un événement doit laisser
+     une trace, sinon il n'a pas eu lieu. C'est de la géométrie qui encode
+     une donnée : apprise en un lundi, lisible à trois mètres, et elle survit
+     au daltonisme, au noir et blanc, et à une vignette de 80 px. */
+  .panneau.fini {
+    grid-template-columns:
+      var(--bande-gauche, var(--bande-panneau)) minmax(0, 1fr) auto
+      minmax(0, 1fr) var(--bande-droite, var(--bande-panneau));
+    transition: grid-template-columns var(--t-scene) var(--ease);
+  }
+  .panneau.fini.gagne-a {
+    --bande-gauche: var(--bande-vainqueur);
+    --bande-droite: var(--bande-perdant);
+  }
+  .panneau.fini.gagne-b {
+    --bande-gauche: var(--bande-perdant);
+    --bande-droite: var(--bande-vainqueur);
+  }
   .panneau-bande.B {
     grid-column: 5;
     background: repeating-linear-gradient(
@@ -613,24 +649,326 @@
     color: var(--ink-1);
   }
 
-  /* Le balayage du chiffre : le seul instant saturé de l'app, moins de deux
-     dixièmes de seconde, et le score reste lisible pendant toute sa durée. */
-  .chiffre-boite {
-    display: inline-block;
+  /* ═══════════════ LE CHIFFRE QUI ROULE ═══════════════
+     Une boîte à hauteur fixe, deux chiffres empilés : l'ancien sort par le
+     haut, le nouveau entre par le bas — et, sur le panneau, se comprime en
+     entrant. Le score reste lisible pendant toute la durée. */
+  /* Pas de line-height ici : la boîte prend celui du dessin de chiffre qu'on
+     lui donne (.chiffre-panneau : 0,82). Déclaré ici, « inherit » gagnait la
+     cascade et remontait au 1,55 du corps — le panneau gonflait de 80 px. */
+  .chiffre-roulant {
+    position: relative;
+    display: inline-grid;
     overflow: hidden;
   }
-  .chiffre-boite.entre {
-    animation: chiffre-entre 160ms var(--ease);
+  .chiffre-roulant > span {
+    grid-area: 1 / 1;
+    display: block;
+    line-height: inherit;
+  }
+  .chiffre-roulant-courant.entre {
+    animation: chiffre-entre var(--t-enter) var(--ease) both;
+  }
+  .chiffre-roulant-courant.entre.comprime {
+    animation: chiffre-entre-comprime var(--t-enter) var(--ease) both;
+  }
+  .chiffre-roulant-sort {
+    animation: chiffre-sort var(--t-enter) var(--ease) both;
+    pointer-events: none;
   }
   @keyframes chiffre-entre {
     from {
-      transform: translateY(0.16em);
+      transform: translateY(0.55em);
       opacity: 0;
     }
     to {
       transform: translateY(0);
       opacity: 1;
     }
+  }
+  @keyframes chiffre-entre-comprime {
+    from {
+      transform: translateY(0.55em);
+      opacity: 0;
+      font-stretch: 100%;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+      font-stretch: 62%;
+    }
+  }
+  @keyframes chiffre-sort {
+    from {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateY(-0.9em);
+      opacity: 0;
+    }
+  }
+
+  /* ═══════════════ L'ÉCLAIR DE BUT ═══════════════
+     La bande de chasuble du camp qui marque balaie tout le panneau depuis SON
+     bord, puis se retire — la couleur est une lumière d'événement, jamais une
+     peinture au repos. Elle passe DERRIÈRE les chiffres : le score reste
+     lisible pendant toute la séquence, comme sur un scorebug de diffusion.
+     Aucune ombre, aucun dégradé, aucun rebond. */
+  .but-flash {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: var(--bib-a-slab);
+  }
+  .but-flash.B {
+    transform-origin: right center;
+    background: repeating-linear-gradient(
+      180deg,
+      var(--bib-b-slab) 0 20px,
+      transparent 20px 24px
+    );
+  }
+  .but-flash.joue {
+    animation: but-flash var(--t-but) var(--ease) both;
+  }
+  @keyframes but-flash {
+    0% {
+      transform: scaleX(0);
+      opacity: 1;
+    }
+    45% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scaleX(1);
+      opacity: 0;
+    }
+  }
+  .panneau {
+    position: sticky;
+    overflow: hidden;
+  }
+  .panneau > .panneau-camp,
+  .panneau > .panneau-axe,
+  .panneau > .panneau-pied,
+  .panneau > .panneau-bande {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ═══════════════ TEMPS PLEIN ═══════════════
+     Le coup de sifflet final est un écran, pas une légende de 13 px. Un
+     slate, une seconde, un seul par match, un tap pour passer : le score se
+     fige, la bande du vainqueur remplit la largeur. Le fond reste le gazon —
+     l'encre reste de la craie, le contraste reste garanti. */
+  .temps-plein {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    grid-template-rows: 1fr auto 1fr;
+    background: var(--pitch-0);
+    cursor: pointer;
+    animation: temps-plein-entre var(--t-enter) var(--ease) both;
+  }
+  .temps-plein-bande {
+    align-self: end;
+    height: 10px;
+    transform-origin: left center;
+    background: var(--bib-a-slab);
+    animation: temps-plein-bande var(--t-scene) var(--ease) both;
+  }
+  .temps-plein-bande.B {
+    transform-origin: right center;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--bib-b-slab) 0 20px,
+      transparent 20px 24px
+    );
+  }
+  .temps-plein-bande.nul {
+    background: var(--rule-hi);
+  }
+  .temps-plein-corps {
+    padding: var(--s6) var(--s4);
+  }
+  .temps-plein-titre {
+    font-size: var(--t-meta);
+    font-weight: 700;
+    letter-spacing: var(--k-caps);
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .temps-plein-score {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s3);
+    margin-top: var(--s2);
+    font-size: 96px;
+    font-stretch: 62%;
+    font-weight: 640;
+    line-height: 0.82;
+    letter-spacing: var(--k-xxl);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-1);
+  }
+  .temps-plein-score .perd {
+    color: var(--ink-3);
+  }
+  .temps-plein-vainqueur {
+    margin-top: var(--s3);
+    font-size: var(--t-nom);
+    font-stretch: 82%;
+    font-weight: 600;
+    letter-spacing: var(--k-l);
+    color: var(--ink-1);
+  }
+  .temps-plein-aide {
+    align-self: start;
+    padding: 0 var(--s4);
+    font-size: var(--t-legende);
+    color: var(--ink-3);
+  }
+  @keyframes temps-plein-entre {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes temps-plein-bande {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* ═══════════════ PANNEAU MINIATURE ═══════════════
+     Le même objet que le panneau du live, en trois tailles, partout où un
+     score s'affiche : accueil, soirée, archive, récaps. */
+  .panneau-mini {
+    display: grid;
+    grid-template-columns:
+      var(--bande-gauche, var(--bande-rangee)) minmax(0, 1fr) auto
+      minmax(0, 1fr) var(--bande-droite, var(--bande-rangee));
+    align-items: center;
+    width: 100%;
+    background: var(--pitch-1);
+  }
+  .panneau-mini.fini.gagne-a {
+    --bande-gauche: var(--bande-vainqueur);
+    --bande-droite: var(--bande-perdant);
+  }
+  .panneau-mini.fini.gagne-b {
+    --bande-gauche: var(--bande-perdant);
+    --bande-droite: var(--bande-vainqueur);
+  }
+  .panneau-mini-bande {
+    align-self: stretch;
+    min-height: 100%;
+    background: var(--bib-a-slab);
+  }
+  .panneau-mini-bande.B {
+    background: repeating-linear-gradient(
+      180deg,
+      var(--bib-b-slab) 0 20px,
+      transparent 20px 24px
+    );
+  }
+  .panneau-mini-camp {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+    min-width: 0;
+    padding: 0 var(--s3);
+  }
+  .panneau-mini-camp.B {
+    flex-direction: row-reverse;
+  }
+  .panneau-mini-code {
+    min-width: 0;
+    font-stretch: 74%;
+    font-weight: 600;
+    letter-spacing: var(--k-l);
+    text-transform: uppercase;
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .panneau-mini-score {
+    font-stretch: 62%;
+    font-weight: 640;
+    line-height: 0.82;
+    letter-spacing: var(--k-xl);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-1);
+  }
+  .panneau-mini-score.perd {
+    color: var(--ink-3);
+  }
+  .panneau-mini-axe {
+    justify-self: center;
+    width: var(--axe, 2px);
+    background: var(--ink-1);
+  }
+  .panneau-mini-pied {
+    grid-column: 2 / 5;
+    padding: 0 var(--s3) var(--s2);
+    font-size: var(--t-legende);
+    color: var(--ink-3);
+  }
+  .panneau-mini.panneau {
+    min-height: 120px;
+    padding: var(--s3) 0;
+  }
+  .panneau-mini.panneau .panneau-mini-camp {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s1);
+  }
+  .panneau-mini.panneau .panneau-mini-code {
+    font-size: var(--t-nom);
+  }
+  .panneau-mini.panneau .panneau-mini-score {
+    font-size: 72px;
+  }
+  .panneau-mini.panneau .panneau-mini-axe {
+    height: 48px;
+  }
+  .panneau-mini.ligne {
+    min-height: var(--h-lecture);
+  }
+  .panneau-mini.ligne .panneau-mini-code {
+    font-size: var(--t-legende);
+  }
+  .panneau-mini.ligne .panneau-mini-score {
+    font-size: 28px;
+  }
+  .panneau-mini.ligne .panneau-mini-axe {
+    height: 20px;
+  }
+  .panneau-mini.ticker {
+    min-height: var(--h-ticker);
+    background: none;
+  }
+  .panneau-mini.ticker .panneau-mini-code {
+    font-size: var(--t-meta);
+  }
+  .panneau-mini.ticker .panneau-mini-score {
+    font-size: 20px;
+  }
+  .panneau-mini.ticker .panneau-mini-axe {
+    height: 14px;
   }
 
   /* ═══════════════ TUILE DE SAISIE ═══════════════

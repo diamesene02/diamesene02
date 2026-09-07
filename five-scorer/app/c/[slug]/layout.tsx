@@ -7,6 +7,7 @@ import BottomNav from "@/components/BottomNav";
 import Icon from "@/components/Icon";
 import ClubTheme from "@/components/ClubTheme";
 import OfflinePrimer from "@/components/OfflinePrimer";
+import VersionBadge from "@/components/VersionBadge";
 
 export default async function ClubLayout({
   children,
@@ -62,7 +63,8 @@ export default async function ClubLayout({
 
         <ClubNav slug={slug} canManage={ctx.canManage} />
 
-        <div className="mt-6">{children}</div>
+        <div className="mt-6">{children}
+        <VersionBadge /></div>
 
         {/* Spacer : dégage la BottomNav fixe sur mobile */}
         <div aria-hidden className="h-20 sm:hidden" />

@@ -94,12 +94,12 @@ function PlayerTileImpl({
       if (!didLongRef.current && !suppressed) {
         unlockAudio();
         if (navigator.vibrate) navigator.vibrate(12);
-        playGoalSound();
+        playGoalSound(tint === "pitch" ? "A" : "B");
         onGoal();
       }
       e.preventDefault();
     },
-    [onGoal],
+    [onGoal, tint],
   );
 
   const cancelPress = useCallback(() => {

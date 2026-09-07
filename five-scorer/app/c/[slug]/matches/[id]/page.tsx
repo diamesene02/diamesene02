@@ -251,6 +251,11 @@ export default async function MatchRecapPage({
         goals={goals}
         showLiveResumeLink={match.status === "LIVE" && ctx.canScore}
         liveHref={`/c/${slug}/matches/${match.id}/live`}
+        club={{
+          name: ctx.org.name,
+          colorA: ctx.club.colorA,
+          colorB: ctx.club.colorB,
+        }}
       />
 
       {/* Une soirée, c'est plusieurs matchs. Le suivant part d'ici, avec la

@@ -94,17 +94,21 @@ function playTone({
   osc.stop(t0 + duration + 0.02);
 }
 
-export function playGoalSound(): void {
+/// Le but a un son PAR CAMP : montant pour A, le même inversé pour B. Au bord
+/// du terrain, le marqueur regarde le jeu, pas l'écran — l'oreille est le
+/// seul canal qui reste, et il ne disait rien de qui venait de marquer.
+export function playGoalSound(team: "A" | "B" = "A"): void {
   if (!isSoundEnabled()) return;
+  const monte = team === "A";
   playTone({
-    freq: 440,
-    glideTo: 880,
+    freq: monte ? 440 : 880,
+    glideTo: monte ? 880 : 440,
     duration: 0.14,
     type: "triangle",
     gain: 0.28,
   });
   playTone({
-    freq: 1320,
+    freq: monte ? 1320 : 990,
     duration: 0.12,
     type: "sine",
     gain: 0.18,

@@ -231,7 +231,7 @@ export default async function SessionDetailPage({
               <Link
                 key={m.id}
                 href={`/c/${slug}/matches/${m.id}/live`}
-                className="flex min-h-[56px] items-center gap-4 rounded-none border border-[color:var(--live)]/40 bg-[color:var(--pitch-1)] p-4 transition-colors hover:border-[color:var(--live)]"
+                className="flex min-h-[56px] items-center gap-4 rounded-none border border-[color:var(--direct)]/40 bg-[color:var(--pitch-1)] p-4 transition-colors hover:border-[color:var(--direct)]"
               >
                 <span className="live-dot shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-base font-black">
@@ -244,7 +244,7 @@ export default async function SessionDetailPage({
                   <span className="px-1.5 text-[color:var(--ink-2)]">:</span>
                   {m.scoreB}
                 </span>
-                <span className="text-[10px] font-black  text-[color:var(--live)]">
+                <span className="text-[10px] font-black  text-[color:var(--direct)]">
                   Live →
                 </span>
               </Link>
