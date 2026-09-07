@@ -971,6 +971,76 @@
     height: 14px;
   }
 
+  /* ═══════════════ PAYSAGE ═══════════════
+     Téléphone tourné : la hauteur tombe à ~400 px. Le panneau vertical et son
+     chiffre de 112 px mangeaient tout l'écran — il ne restait que deux tuiles,
+     coupées. Rien dans le CSS ne parlait d'orientation.
+
+     En paysage, le panneau devient une BARRE : code et chiffre côte à côte,
+     chrono sur la même ligne. On y perd le chiffre géant — c'est le prix, et
+     il est juste : tourné, l'écran sert à SAISIR, pas à être lu à trois
+     mètres. Les tuiles reprennent toute la place, et c'est elles qu'on tape. */
+  @media (orientation: landscape) and (max-height: 560px) {
+    .live-topbar {
+      padding: calc(var(--safe-t) + 4px) var(--s2) 4px;
+    }
+    /* Les colonnes du panneau ne s'étirent plus : sur 812 px de large, deux
+       « 1fr » repoussaient le code d'équipe et son chiffre chacun à un bout,
+       avec un trou au milieu. Elles se serrent autour de l'axe. */
+    .panneau {
+      padding: var(--s2) 0 6px;
+      grid-template-columns:
+        var(--bande-gauche, var(--bande-panneau)) 1fr auto 1fr
+        var(--bande-droite, var(--bande-panneau));
+    }
+    .panneau-camp.A {
+      justify-content: flex-end;
+      padding-right: var(--s4);
+    }
+    /* B est en row-reverse : « flex-end » l'amène vers l'axe, pas « start ». */
+    .panneau-camp.B {
+      justify-content: flex-end;
+      padding-left: var(--s4);
+    }
+    .panneau-camp {
+      flex-direction: row;
+      align-items: baseline;
+      justify-content: center;
+      gap: var(--s2);
+    }
+    .panneau-camp.B {
+      flex-direction: row-reverse;
+    }
+    .panneau-code {
+      font-size: var(--t-legende);
+    }
+    .panneau-score {
+      font-size: 46px;
+    }
+    .panneau-axe {
+      height: 32px;
+    }
+    .panneau-pied {
+      margin-top: 4px;
+    }
+    .match-clock {
+      font-size: 18px;
+    }
+    .compo-entree {
+      min-height: 30px;
+      font-size: var(--t-meta);
+    }
+    /* Les tuiles gardent une colonne par équipe : c'est l'appartenance qui
+       compte, pas la densité. Elles récupèrent simplement la hauteur que le
+       panneau leur rend. */
+    .temps-plein-score {
+      font-size: 56px;
+    }
+    .temps-plein-corps {
+      padding: var(--s4);
+    }
+  }
+
   /* ═══════════════ TUILE DE SAISIE ═══════════════
      56px, aucun rayon, aucun contour : la tuile se détache par 2px de fond.
      Le bouton +1 est un CARRÉ collé au bord extérieur — la seule géométrie
