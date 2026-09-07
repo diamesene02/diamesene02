@@ -1453,6 +1453,11 @@
     color: var(--ink-1);
     white-space: nowrap;
   }
+  /* Face-à-face : ici l'identité n'est pas une heure, c'est l'adversaire.
+     Il passe donc en tête et prend la place, le bilan tient à droite. */
+  .ticker.duel {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
   .ticker-buteurs {
     min-width: 0;
     font-size: var(--t-legende);

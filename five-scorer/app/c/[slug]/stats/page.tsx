@@ -136,7 +136,9 @@ export default async function StatsPage({
   }
   if (byMvp && byMvp.mvpCount > 0) {
     podium.push({
-      label: "MVP",
+      // Le reste de l'app dit « homme du match ». « MVP » était le dernier
+      // endroit qui gardait l'acronyme.
+      label: "Homme du match",
       name: byMvp.name,
       value: byMvp.mvpCount,
       unit: byMvp.mvpCount > 1 ? "titres" : "titre",
@@ -151,10 +153,6 @@ export default async function StatsPage({
     });
   }
 
-  const th =
- "px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-3)]";
-  const td = "px-3 py-2.5";
-  const tdNum = `${td} text-center tabular-nums`;
   const panel =
  "rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]";
 
@@ -228,24 +226,27 @@ export default async function StatsPage({
         </section>
       ) : (
         <>
-          {/* Podium — tuiles compactes : étiquette, nom, numéro de maillot. */}
+          {/* LE PODIUM. C'est la manchette de la page : le meilleur buteur
+              et l'homme du match de la saison. Il tenait dans deux boîtes
+              grises « étiquette + nom + gros chiffre » — le gabarit de
+              tableau de bord, à la taille d'un widget météo. Le nom prend
+              maintenant la place qu'il mérite. */}
           {podium.length > 0 && (
-            <section className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {podium.map((p, i) => (
-                <div
-                  key={p.label}
-                  className={`rounded-[2px] bg-[color:var(--pitch-1)] p-3 ${
-                    i === 0 && podium.length !== 2
-                      ? "col-span-2 sm:col-span-1"
-                      : ""
-                  }`}
-                >
-                  <span className="kicker">{p.label}</span>
-                  <div className="mt-1 truncate font-semibold">{p.name}</div>
-                  <div className="mt-1 flex items-baseline gap-1.5">
-                    <span className="num-sculpt text-3xl">{p.value}</span>
-                    <span className="text-xs font-bold text-[color:var(--ink-3)]">
-                      {p.unit}
+            <section className="mt-8">
+              {podium.map((p) => (
+                <div key={p.label} className="bande mt-4 first:mt-0">
+                  <div className="bande-titre">
+                    <span className="kicker">{p.label}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="display-md min-w-0 truncate">
+                      {p.name}
+                    </span>
+                    <span className="flex shrink-0 items-baseline gap-1.5">
+                      <span className="display-md tabular-nums">{p.value}</span>
+                      <span className="text-[13px] text-[color:var(--ink-3)]">
+                        {p.unit}
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -472,52 +473,54 @@ export default async function StatsPage({
               {external.byOpponent.length > 0 && (
                 <div className="mt-4">
                   <span className="kicker mb-3 block">Face-à-face</span>
-                  <div className={`scroll-x ${panel}`}>
-                    <table className="min-w-[640px] w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-[color:var(--rule)]">
-                          <th className={`${th} text-left`}>Adversaire</th>
-                          <th className={`${th} text-center`}>J</th>
-                          <th className={`${th} text-center`}>V</th>
-                          <th className={`${th} text-center`}>N</th>
-                          <th className={`${th} text-center`}>D</th>
-                          <th className={`${th} text-center`}>BP</th>
-                          <th className={`${th} text-center`}>BC</th>
-                          <th className={`${th} text-center`}>Diff</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[color:var(--rule)]">
-                        {external.byOpponent.map((o) => {
-                          const diff = o.goalsFor - o.goalsAgainst;
-                          return (
-                            <tr
-                              key={o.opponentId}
-                              className="transition-colors hover:bg-[color:var(--pitch-2)]"
-                            >
-                              <td className={`${td} font-bold`}>{o.name}</td>
-                              <td className={tdNum}>{o.played}</td>
-                              <td className={tdNum}>{o.wins}</td>
-                              <td className={tdNum}>{o.draws}</td>
-                              <td className={tdNum}>{o.losses}</td>
-                              <td className={tdNum}>{o.goalsFor}</td>
-                              <td className={tdNum}>{o.goalsAgainst}</td>
-                              <td
-                                className={`${tdNum} font-black ${
+                  <ul>
+                    {external.byOpponent.map((o) => {
+                      const diff = o.goalsFor - o.goalsAgainst;
+                      return (
+                        <li key={o.opponentId}>
+                          <div className="ticker duel">
+                            <span className="min-w-0 truncate text-[13px] font-semibold text-[color:var(--ink-1)]">
+                              {o.name}
+                            </span>
+                            <span className="synthese whitespace-nowrap">
+                              <span>
+                                <b>{o.wins}</b> V
+                              </span>
+                              <span className="synthese-sep">·</span>
+                              <span>
+                                <b>{o.draws}</b> N
+                              </span>
+                              <span className="synthese-sep">·</span>
+                              <span>
+                                <b>{o.losses}</b> D
+                              </span>
+                              <span className="synthese-sep">·</span>
+                              <span>
+                                {o.goalsFor}
+                                <span className="text-[color:var(--rule-hi)]">
+                                  :
+                                </span>
+                                {o.goalsAgainst}
+                              </span>
+                            </span>
+                            <span
+                              className="ticker-score"
+                              style={{
+                                color:
                                   diff > 0
-                                    ? "text-[color:var(--win)]"
+                                    ? "var(--win)"
                                     : diff < 0
-                                      ? "text-[color:var(--loss)]"
-                                      : "text-[color:var(--ink-3)]"
-                                }`}
-                              >
-                                {diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : diff}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                      ? "var(--loss)"
+                                      : "var(--ink-3)",
+                              }}
+                            >
+                              {diff > 0 ? `+${diff}` : diff}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
               )}
             </section>
