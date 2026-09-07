@@ -100,9 +100,10 @@ function contexte(playedAt: string): string {
 /// vide, jamais de « quelle soirée ». Des rangs, des écarts, des séries.
 function phraseCalculee(
   match: Match,
-  buteurs: { name: string; count: number }[],
+  buteurs: { id: string; name: string; count: number }[],
 ): string | null {
-  const meilleur = buteurs[0];
+  // Un csc anonyme n'est pas un buteur : la phrase ne nomme qu'un joueur.
+  const meilleur = buteurs.find((b) => !b.id.startsWith("csc-"));
   if (meilleur && meilleur.count >= 2) return `${meilleur.name}, ${meilleur.count} buts`;
   const ecart = Math.abs(match.scoreA - match.scoreB);
   if (ecart >= 3) return `${ecart} buts d'écart`;
