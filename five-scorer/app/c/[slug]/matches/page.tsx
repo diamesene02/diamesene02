@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { cn } from "@/lib/cn";
 import Icon from "@/components/Icon";
+import Panneau from "@/components/Panneau";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export default async function MatchesPage({
       mvp: true,
       // La soirée d'origine : c'est elle qui rend le rattachement visible dans
       // la liste, et qui permet d'y remonter depuis un match.
-      matchDay: { select: { id: true, title: true } },
+      matchDay: { select: { id: true, title: true, date: true } },
       _count: { select: { rsvps: { where: { status: "IN" } } } },
     },
   });
@@ -75,6 +76,46 @@ export default async function MatchesPage({
 
   const opponentOr = (m: (typeof matches)[number]) =>
     m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName;
+
+  // UN LUNDI, UN BLOC.
+  //
+  // Le club joue six à huit matchs par soirée avec les deux mêmes chasubles :
+  // une liste plate en donne autant de fiches encadrées qui répètent toutes
+  // « Orange vs Bleu ». Sur une saison, c'est deux cents lignes identiques.
+  //
+  // Les matchs se rangent donc sous la soirée qui les a produits — un en-tête
+  // porte la date et le nombre de matchs, les lignes ne portent plus que
+  // l'heure, le score et l'homme du match. Un match improvisé, sans soirée,
+  // forme un groupe de son propre jour : la structure ne se casse pas.
+  type Joue = (typeof finished)[number];
+  const groupes: { cle: string; titre: string; date: Date; matchs: Joue[] }[] =
+    [];
+  const parCle = new Map<string, (typeof groupes)[number]>();
+  for (const m of finished) {
+    const cle = m.matchDay?.id ?? `jour-${m.playedAt.toDateString()}`;
+    let g = parCle.get(cle);
+    if (!g) {
+      g = {
+        cle,
+        titre: m.matchDay?.title || "",
+        date: m.matchDay?.date ?? m.playedAt,
+        matchs: [],
+      };
+      parCle.set(cle, g);
+      groupes.push(g);
+    }
+    g.matchs.push(m);
+  }
+  // Dans une soirée, on relit les matchs dans l'ordre où ils se sont joués.
+  for (const g of groupes)
+    g.matchs.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
+
+  const fmtJour = (d: Date) =>
+    d.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    });
 
   const chip = (active: boolean) =>
     cn(
@@ -131,135 +172,155 @@ export default async function MatchesPage({
         </div>
       </div>
 
-      {/* En direct */}
+      {/* En direct — le panneau commun. Le score s'écrivait ici une
+          cinquième fois, avec un « : » et une taille à lui. */}
       {live.length > 0 && (
-        <section className="mt-8 space-y-3">
+        <section className="mt-8">
           {live.map((m) => (
-            <Link
-              key={m.id}
-              href={`/c/${slug}/matches/${m.id}/live`}
-              className="flex min-h-[56px] items-center gap-4 rounded-none border border-[color:var(--direct)]/40 bg-[color:var(--pitch-1)] p-4 transition-colors hover:border-[color:var(--direct)]"
-            >
-              <span className="live-dot shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-base font-black">
-                {m.teamAName}{" "}
-                <span className="text-[color:var(--ink-2)]">vs</span>{" "}
-                {opponentOr(m)}
-              </span>
-              <span className="num-sculpt text-2xl">
-                {m.scoreA}
-                <span className="px-1.5 text-[color:var(--ink-2)]">:</span>
-                {m.scoreB}
-              </span>
-              <span className="text-[10px] font-black  text-[color:var(--direct)]">
-                Live →
-              </span>
-            </Link>
+            <div key={m.id} className="mt-4 first:mt-0">
+              <div className="bande-titre">
+                <span className="kicker flex items-center gap-2 text-[color:var(--direct)]">
+                  <span className="live-dot" />
+                  En direct
+                </span>
+                <span className="text-[13px] font-semibold text-[color:var(--ink-2)]">
+                  Reprendre →
+                </span>
+              </div>
+              <Link
+                href={`/c/${slug}/matches/${m.id}/live`}
+                className="block"
+              >
+                <Panneau
+                  a={m.teamAName}
+                  b={opponentOr(m)}
+                  scoreA={m.scoreA}
+                  scoreB={m.scoreB}
+                  taille="panneau"
+                />
+              </Link>
+            </div>
           ))}
         </section>
       )}
 
       {/* Programmés */}
       {scheduled.length > 0 && (
-        <section className="mt-8">
-          <span className="kicker mb-3 block">Programmés</span>
-          <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
-            {scheduled.map((m) => (
-              <li key={m.id}>
-                <Link
-                  href={`/c/${slug}/matches/${m.id}`}
-                  className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
-                >
-                  <span className="w-20 shrink-0 text-[11px] uppercase leading-tight tabular-nums text-[color:var(--ink-2)]">
-                    {fmtDate(m.scheduledAt ?? m.playedAt)}
-                    <br />
-                    <span className="text-[color:var(--ink-1)]">
-                      {fmtTime(m.scheduledAt ?? m.playedAt)}
+        <section className="bande mt-8">
+          <div className="bande-titre">
+            <span className="kicker">Programmés</span>
+            <span className="text-[13px] tabular-nums text-[color:var(--ink-3)]">
+              {scheduled.length}
+            </span>
+          </div>
+          <ul>
+            {scheduled.map((m) => {
+              const quand = m.scheduledAt ?? m.playedAt;
+              return (
+                <li key={m.id}>
+                  <Link href={`/c/${slug}/matches/${m.id}`} className="ticker">
+                    <span className="ticker-heure">{fmtDate(quand)}</span>
+                    <span className="ticker-score text-[color:var(--ink-1)]">
+                      {fmtTime(quand)}
                     </span>
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-bold">
-                    {m.teamAName}{" "}
-                    <span className="text-[color:var(--ink-2)]">vs</span>{" "}
-                    {opponentOr(m)}
-                    {m.venue && (
-                      <span className="ml-2 inline-flex items-center gap-1 align-middle text-xs font-medium text-[color:var(--ink-2)]">
-                        <Icon name="pin" size={11} />
-                        {m.venue}
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs font-bold tabular-nums text-[color:var(--bib-a-ink)]">
-                    {m._count.rsvps} présent{m._count.rsvps > 1 ? "s" : ""}
-                  </span>
-                  <span className="shrink-0 rounded-[2px] border border-[color:var(--bib-b-ink)]/40 bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--bib-b-ink)]">
-                    à venir
-                  </span>
-                </Link>
-              </li>
-            ))}
+                    <span className="ticker-buteurs">
+                      {m.teamAName}
+                      <span className="text-[color:var(--rule-hi)]"> vs </span>
+                      {opponentOr(m)}
+                      {m.venue && (
+                        <span className="text-[color:var(--ink-3)]">
+                          {" · "}
+                          {m.venue}
+                        </span>
+                      )}
+                      {m._count.rsvps > 0 && (
+                        <span style={{ color: "var(--bib-a-ink)" }}>
+                          {" · "}
+                          {m._count.rsvps} présent
+                          {m._count.rsvps > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
 
-      {/* Joués */}
-      {finished.length > 0 && (
+      {/* Joués — groupés par soirée */}
+      {groupes.length > 0 && (
         <section className="mt-8">
           <span className="kicker mb-3 block">Joués</span>
-          <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
-            {finished.map((m) => (
-              <li key={m.id}>
-                <Link
-                  href={`/c/${slug}/matches/${m.id}`}
-                  className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
-                >
-                  <span className="w-14 shrink-0 text-[11px] uppercase tabular-nums text-[color:var(--ink-2)]">
-                    {fmtDate(m.playedAt)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold">
-                      {m.teamAName}{" "}
-                      <span className="text-[color:var(--ink-2)]">vs</span>{" "}
-                      {opponentOr(m)}
-                      {m.mvp && (
-                        <span className="ml-2 inline-flex items-center gap-1 align-middle text-[13px] font-semibold text-[color:var(--gold)]">
-                          <Icon name="star" size={11} filled />
-                          {m.mvp.name}
+          {groupes.map((g) => (
+            <div key={g.cle} className="bande mt-5 first:mt-0">
+              <div className="bande-titre">
+                <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
+                  <span className="capitalize">{fmtJour(g.date)}</span>
+                  {g.titre && (
+                    <span className="text-[color:var(--ink-3)]">
+                      {" · "}
+                      {g.titre}
+                    </span>
+                  )}
+                </span>
+                <span className="text-[13px] tabular-nums text-[color:var(--ink-3)]">
+                  {g.matchs.length} match{g.matchs.length > 1 ? "s" : ""}
+                </span>
+              </div>
+              <ul>
+                {g.matchs.map((m) => {
+                  const aGagne = m.scoreA > m.scoreB;
+                  const bGagne = m.scoreB > m.scoreA;
+                  return (
+                    <li key={m.id}>
+                      <Link
+                        href={`/c/${slug}/matches/${m.id}`}
+                        className="ticker"
+                      >
+                        <span className="ticker-heure">
+                          {fmtTime(m.playedAt)}
                         </span>
-                      )}
-                    </span>
-                    {/* Voir plusieurs lignes porter la même soirée fait
-                        comprendre l'emboîtement sans qu'on l'explique. */}
-                    {m.matchDay && (
-                      <span className="rattache mt-0.5 max-w-full truncate">
-                        {m.matchDay.title || "Soirée"}
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-sm font-black tabular-nums">
-                    <span
-                      className={
-                        m.scoreA > m.scoreB
-                          ? "text-[color:var(--ink-1)]"
-                          : "text-[color:var(--ink-1)]"
-                      }
-                    >
-                      {m.scoreA}
-                    </span>
-                    <span className="px-1.5 text-[color:var(--ink-2)]">:</span>
-                    <span
-                      className={
-                        m.scoreB > m.scoreA
-                          ? "text-[color:var(--ink-1)]"
-                          : "text-[color:var(--ink-1)]"
-                      }
-                    >
-                      {m.scoreB}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                        <span className="ticker-score">
+                          <span
+                            className={aGagne ? "" : "text-[color:var(--ink-3)]"}
+                          >
+                            {m.scoreA}
+                          </span>
+                          <span className="px-1.5 text-[color:var(--rule-hi)]">
+                            —
+                          </span>
+                          <span
+                            className={bGagne ? "" : "text-[color:var(--ink-3)]"}
+                          >
+                            {m.scoreB}
+                          </span>
+                        </span>
+                        <span className="ticker-buteurs">
+                          {m.kind === "EXTERNAL" && (
+                            <span className="text-[color:var(--ink-2)]">
+                              {opponentOr(m)}
+                            </span>
+                          )}
+                          {m.mvp && (
+                            <span
+                              className="inline-flex items-center gap-1.5 align-middle"
+                              style={{ color: "var(--gold)" }}
+                            >
+                              {m.kind === "EXTERNAL" && " · "}
+                              <Icon name="star" size={11} filled />
+                              {m.mvp.name}
+                            </span>
+                          )}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </section>
       )}
 

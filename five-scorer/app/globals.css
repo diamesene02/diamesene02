@@ -1419,7 +1419,7 @@
      en-tête pour huit matchs, au lieu de huit fiches indépendantes. */
   .ticker {
     display: grid;
-    grid-template-columns: 44px auto 1fr;
+    grid-template-columns: 52px auto 1fr;
     align-items: center;
     gap: var(--s3);
     min-height: var(--h-ticker);
@@ -1437,6 +1437,9 @@
     font-size: var(--t-legende);
     font-variant-numeric: tabular-nums;
     color: var(--ink-3);
+    /* La colonne est fixe : « 10 sept. » s'y cassait en deux lignes et faisait
+       gonfler la rangée à 48 px au milieu d'un service de résultats à 32. */
+    white-space: nowrap;
   }
   .ticker-score {
     font-stretch: 88%;
