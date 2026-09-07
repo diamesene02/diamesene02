@@ -1,22 +1,20 @@
-import { cn } from "@/lib/cn";
+import LigneScore from "@/components/ios/LigneScore";
 
-// Le score a UN dessin dans toute l'app : bandes de chasuble aux bords, axe
-// médian en craie, perdant en encre sourde — le même objet en trois tailles.
-// Il remplace cinq écritures différentes du score, dont quatre avec un « : »
-// et deux dont la couleur du vainqueur était un ternaire mort.
-//
-// `fini` : le match est terminé, la bande porte le résultat (18 px pour le
-// vainqueur, 6 px pour le perdant). Un événement laisse une trace.
-
+// Le score a UN dessin dans toute l'app — celui de la maquette : écusson et
+// nom de chaque chasuble aux bords, chiffres lourds, perdant grisé, état au
+// centre. Le composant garde son ancienne signature (a, b, scoreA, scoreB,
+// fini, pied) pour que l'accueil, la soirée, l'historique et le récap n'aient
+// rien à changer.
 export default function Panneau({
   a,
   b,
   scoreA,
   scoreB,
-  taille = "ligne",
   fini = false,
   className,
   pied,
+  heure,
+  href,
 }: {
   a: string;
   b: string;
@@ -26,32 +24,21 @@ export default function Panneau({
   fini?: boolean;
   className?: string;
   pied?: React.ReactNode;
+  heure?: React.ReactNode;
+  href?: string;
 }) {
-  const aGagne = scoreA > scoreB;
-  const bGagne = scoreB > scoreA;
   return (
-    <div
-      className={cn(
-        "panneau-mini",
-        taille,
-        fini && "fini",
-        fini && aGagne && "gagne-a",
-        fini && bGagne && "gagne-b",
-        className
-      )}
-    >
-      <span className="panneau-mini-bande A" aria-hidden />
-      <span className="panneau-mini-camp A">
-        <span className="panneau-mini-code">{a}</span>
-        <span className={cn("panneau-mini-score", bGagne && "perd")}>{scoreA}</span>
-      </span>
-      <span className="panneau-mini-axe" aria-hidden />
-      <span className="panneau-mini-camp B">
-        <span className="panneau-mini-code">{b}</span>
-        <span className={cn("panneau-mini-score", aGagne && "perd")}>{scoreB}</span>
-      </span>
-      <span className="panneau-mini-bande B" aria-hidden />
-      {pied && <span className="panneau-mini-pied">{pied}</span>}
-    </div>
+    <LigneScore
+      nomA={a}
+      nomB={b}
+      scoreA={scoreA}
+      scoreB={scoreB}
+      etat={fini ? "Terminé" : "En direct"}
+      direct={!fini}
+      heure={heure}
+      pied={pied}
+      href={href}
+      className={className}
+    />
   );
 }

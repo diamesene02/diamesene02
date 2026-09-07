@@ -1993,3 +1993,1153 @@
     display: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SYSTÈME « NATIF » — tour 4 de la maquette (FSScreen.dc.html)
+   ───────────────────────────────────────────────────────────────────────────
+   Ce qu'on a repris d'Apple Sports : la police système, un fond dégradé
+   profond dans la couleur du contexte (calculé depuis les deux chasubles,
+   lib/theme.ts), des cartes translucides à grand rayon, des onglets texte en
+   tête de carte, des scores lourds avec le perdant grisé, des écussons ronds,
+   un tableau à chiffres tabulaires, la feuille de match sur terrain, un menu
+   « pilule » en verre. Version poussée : grain fin sur les fonds, halos aux
+   couleurs des équipes derrière le score du live, chiffres condensés par
+   scaleX(.86), éclair de couleur à chaque but.
+
+   Les jetons (--bg, --cd, --cb, --cs, --ink, --i2, --i3, --sep, --gl, --gb,
+   --seg, --bt, --bf, --av, --mn, --ring, --ok, --bad, --or, --ta, --tb,
+   --taG, --tbG, --taH, --tbH, --taF, --tbF) sont posés par ClubTheme sur
+   [data-club-theme], en sombre et en clair (data-theme="light").
+
+   Ce bloc est HORS des couches Tailwind : il gagne sur tout ce qui précède,
+   et c'est voulu — les anciens dessins (bande, ticker, rangée, panneau) sont
+   remappés ici sur le nouveau vocabulaire, pour que chaque écran non encore
+   redessiné bascule d'un coup.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  --ios-font: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
+    Helvetica, Arial, system-ui, sans-serif;
+}
+
+[data-club-theme] {
+  font-family: var(--ios-font);
+  font-stretch: 100%;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--ink);
+  background: var(--bg);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+[data-club-theme] h1,
+[data-club-theme] h2,
+[data-club-theme] h3 {
+  color: var(--ink);
+  font-weight: 700;
+}
+[data-club-theme] em,
+[data-club-theme] i {
+  color: var(--ink);
+}
+[data-club-theme] ::selection {
+  background: var(--ink);
+  color: var(--bgSolid);
+}
+[data-club-theme] :focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+@keyframes fsIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fsMenu {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ecran {
+  animation: fsIn 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ── La carte ─────────────────────────────────────────────────────────── */
+.carte {
+  background: var(--cd);
+  border: 1px solid var(--cb);
+  box-shadow: var(--cs);
+  border-radius: 28px;
+  overflow: hidden;
+}
+.carte-titre {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  padding: 20px 0 12px;
+  color: var(--ink);
+}
+.filet {
+  margin: 0 10px;
+  border-top: 1px solid var(--sep);
+}
+
+/* Onglets texte en tête de carte. */
+.onglets {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  height: 62px;
+  align-items: center;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.onglet {
+  height: 62px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--i3);
+  cursor: pointer;
+  padding: 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.onglet.actif {
+  color: var(--ink);
+}
+
+/* ── Écussons, avatars ────────────────────────────────────────────────── */
+.ecusson {
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  flex: none;
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 255, 255, 0.3),
+    0 6px 14px rgba(0, 0, 0, 0.3);
+}
+.ecusson.A {
+  background: var(--taG);
+  color: var(--taF);
+}
+.ecusson.B {
+  background: var(--tbG);
+  color: var(--tbF);
+}
+.ecusson.club {
+  background: radial-gradient(circle at 35% 30%, #666, #2a2a2e 60%, #111);
+  color: #fff;
+}
+.avatar-anneau {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--av);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--anneau, var(--gb));
+}
+.avatar-anneau.A {
+  --anneau: var(--ta);
+}
+.avatar-anneau.B {
+  --anneau: var(--tb);
+}
+
+/* ── La ligne de score : écusson, chiffre, état, chiffre, écusson ─────── */
+.ligne-score {
+  display: grid;
+  grid-template-columns: 88px 1fr auto 1fr 88px;
+  align-items: start;
+  width: 100%;
+  padding: 12px 12px 14px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: center;
+}
+.ligne-score.tape {
+  cursor: pointer;
+}
+.ligne-score.tape:active {
+  opacity: 0.7;
+}
+.ligne-score .camp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ligne-score .camp .ecusson {
+  width: 60px;
+  height: 60px;
+  font-size: 24px;
+}
+.ligne-score .camp .nom {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--i2);
+  max-width: 88px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ligne-score .chiffre {
+  height: 60px;
+  display: grid;
+  place-items: center;
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.ligne-score .chiffre.perd {
+  color: var(--i3);
+}
+.ligne-score .milieu {
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 8px;
+}
+.ligne-score .milieu .etat {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.ligne-score .milieu .heure {
+  font-size: 13px;
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ligne-score .milieu .direct {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bad);
+}
+.ligne-score .milieu .direct::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+.ligne-score .pied {
+  grid-column: 1 / -1;
+  padding: 8px 8px 0;
+  font-size: 15px;
+  color: var(--i2);
+  text-align: center;
+}
+/* Le chiffre lourd : condensé par transformation, jamais par une chasse. */
+.score-lourd {
+  display: inline-block;
+  transform: scaleX(0.86);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Commandes ────────────────────────────────────────────────────────── */
+.verre {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  border: 1px solid var(--gb);
+  background: var(--gl);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.verre:active {
+  opacity: 0.8;
+}
+.verre.rond {
+  width: 44px;
+  padding: 0;
+}
+.verre.lueur {
+  border: 1.5px solid var(--ring);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 22px var(--ring);
+}
+.verre.grand {
+  height: 52px;
+  border-radius: 26px;
+}
+.plein {
+  height: 52px;
+  padding: 0 22px;
+  border-radius: 26px;
+  border: 0;
+  background: var(--bt);
+  color: var(--bf);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.plein:active {
+  opacity: 0.9;
+}
+.plein:disabled,
+.verre:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.plein.danger {
+  background: var(--cd);
+  color: var(--bad);
+  border: 1px solid var(--cb);
+  box-shadow: none;
+}
+
+.segment {
+  display: inline-flex;
+  height: 36px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--seg);
+}
+.segment > button,
+.segment > a {
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--i2);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 200ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.segment > button.actif,
+.segment > a.actif {
+  background: var(--bt);
+  color: var(--bf);
+}
+.segment.plein-large {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  height: 44px;
+  padding: 3px;
+  border-radius: 22px;
+}
+.segment.plein-large > button,
+.segment.plein-large > a {
+  height: 38px;
+  border-radius: 19px;
+  font-size: 17px;
+}
+.segment.plein-large > button.actif,
+.segment.plein-large > a.actif {
+  background: var(--gl);
+  color: var(--ink);
+}
+
+.interrupteur {
+  width: 51px;
+  height: 31px;
+  border-radius: 16px;
+  border: 0;
+  padding: 2px;
+  background: rgba(120, 120, 128, 0.4);
+  display: flex;
+  justify-content: flex-start;
+  transition: background 200ms;
+  cursor: pointer;
+  flex: none;
+}
+.interrupteur.on {
+  background: #34c759;
+  justify-content: flex-end;
+}
+.interrupteur > span {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.grabber {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--i3);
+  margin: calc(var(--safe-t) + 12px) auto 0;
+}
+
+/* ── En-têtes d'écran ─────────────────────────────────────────────────── */
+.barre-haut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: calc(var(--safe-t) + 14px) 14px 0;
+}
+.barre-haut .legende {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--i2);
+  text-align: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.titre-ecran {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.sous-titre {
+  font-size: 17px;
+  color: var(--i2);
+  margin-top: 6px;
+}
+.entete-collante {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: calc(var(--safe-t) + 56px);
+  margin-bottom: calc(-1 * (var(--safe-t) + 56px));
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  background: var(--mn);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--sep);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.entete-collante.visible {
+  opacity: 1;
+}
+
+/* ── Listes groupées iOS (réglages) ───────────────────────────────────── */
+.section-ios {
+  padding: 22px 30px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--i2);
+}
+.liste-ios {
+  margin: 0 14px;
+  padding: 0 18px;
+  border-radius: 22px;
+}
+.rangee-ios {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  text-align: left;
+  text-decoration: none;
+}
+.rangee-ios + .rangee-ios {
+  border-top: 1px solid var(--sep);
+}
+.rangee-ios .libelle {
+  flex: 1;
+  min-width: 0;
+}
+.rangee-ios .libelle .aide {
+  display: block;
+  font-size: 13px;
+  color: var(--i2);
+}
+.rangee-ios .valeur {
+  color: var(--i2);
+  white-space: nowrap;
+}
+.rangee-ios .chevron {
+  color: var(--i3);
+}
+.code-invite {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 15px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--seg);
+}
+
+/* ── Le fond du match (live, récap, carte de partage) : toujours sombre ── */
+.fond-match {
+  color: #fff;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.06) 0.8px, transparent 1.3px) 0 0 /
+      5px 5px,
+    radial-gradient(60% 50% at 0% 32%, var(--taH), transparent 70%),
+    radial-gradient(60% 50% at 100% 32%, var(--tbH), transparent 70%),
+    linear-gradient(180deg, #0b0b12 0%, #14152a 55%, #1b1c36 100%);
+}
+.fond-match {
+  /* Sur le fond sombre du match, les jetons de lecture sont fixés : le thème
+     clair ne s'y applique pas — c'est une feuille de match. */
+  --ink: #fff;
+  --i2: rgba(255, 255, 255, 0.62);
+  --i3: rgba(255, 255, 255, 0.4);
+  --sep: rgba(255, 255, 255, 0.12);
+  --gl: rgba(255, 255, 255, 0.12);
+  --gb: rgba(255, 255, 255, 0.16);
+  --cd: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.06));
+  --cdSolid: rgba(255, 255, 255, 0.085);
+  --cb: rgba(255, 255, 255, 0.14);
+  --cs: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --seg: rgba(0, 0, 0, 0.3);
+  --bt: #fff;
+  --bf: #111;
+  --av: rgba(0, 0, 0, 0.45);
+  --mn: rgba(14, 14, 24, 0.82);
+  --ok: #30d158;
+  --bad: #ff453a;
+  --or: #ffd60a;
+}
+
+/* ── La forme : V / N / D en carrés colorés ───────────────────────────── */
+[data-club-theme] .forme {
+  gap: 5px;
+}
+[data-club-theme] .forme-case {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--bad);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+[data-club-theme] .forme-case::after {
+  content: "D";
+}
+[data-club-theme] .forme-case.v {
+  background: var(--ok);
+  color: #04230d;
+}
+[data-club-theme] .forme-case.v::after {
+  content: "V";
+}
+[data-club-theme] .forme-case.n {
+  background: var(--seg);
+  color: var(--ink);
+}
+[data-club-theme] .forme-case.n::after {
+  content: "N";
+}
+
+/* ── Le terrain de la compo ───────────────────────────────────────────── */
+.pelouse {
+  position: relative;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0 43px, transparent 43px 86px),
+    linear-gradient(180deg, #1f7a3a, #166330);
+  color: #fff;
+}
+.pelouse::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
+.pelouse::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 96px;
+  height: 96px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.pelouse-surface {
+  position: absolute;
+  left: 50%;
+  width: 180px;
+  height: 64px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  transform: translateX(-50%);
+}
+.pelouse-surface.haut {
+  top: -2px;
+  border-radius: 0 0 10px 10px;
+}
+.pelouse-surface.bas {
+  bottom: -2px;
+  border-radius: 10px 10px 0 0;
+}
+.pelouse-joueur {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pelouse-joueur .avatar-anneau {
+  width: 54px;
+  height: 54px;
+  font-size: 15px;
+  font-weight: 800;
+  background: rgba(10, 20, 12, 0.9);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 3px var(--anneau, #fff),
+    0 6px 14px rgba(0, 0, 0, 0.4);
+}
+.pelouse-joueur .nom {
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  max-width: 96px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pelouse-joueur .num {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: -6px;
+}
+
+/* ── Le tableau : 9 colonnes, chiffres tabulaires ─────────────────────── */
+.tableau-tete,
+.tableau-rangee {
+  display: grid;
+  grid-template-columns: 24px 30px 1fr 30px 26px 26px 26px 30px 40px;
+  align-items: center;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.tableau-tete {
+  padding-bottom: 8px;
+  font-size: 15px;
+  color: var(--i2);
+}
+.tableau-tete > span,
+.tableau-rangee > span {
+  text-align: center;
+  min-width: 0;
+}
+.tableau-tete > span:nth-child(3),
+.tableau-rangee > span:nth-child(3) {
+  text-align: left;
+  padding-left: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.tableau-rangee {
+  width: 100%;
+  height: 54px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+.tableau-rangee + .tableau-rangee {
+  border-top: 1px solid var(--sep);
+}
+.tableau-rangee:active {
+  opacity: 0.7;
+}
+.tableau-rangee > span:first-child {
+  text-align: left;
+}
+.tableau-rangee > .avatar-anneau {
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+}
+.tableau-rangee > span:last-child {
+  font-weight: 600;
+}
+.tableau-pied {
+  display: block;
+  width: 100%;
+  padding: 14px 0 12px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: none;
+  color: var(--i2);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* ── Barres de comparaison (stats du match) ───────────────────────────── */
+.duel-stat {
+  padding: 10px 0;
+}
+.duel-stat .chiffres {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: baseline;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.duel-stat .chiffres > span:nth-child(2) {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--i2);
+}
+.duel-stat .chiffres > span:last-child {
+  text-align: right;
+}
+.duel-stat .barres {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.duel-stat .barres > span {
+  flex: 1;
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.duel-stat .barres > span:first-child {
+  justify-content: flex-end;
+}
+.duel-stat .barres i {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+}
+.duel-stat .barres > span:first-child i {
+  background: var(--ta);
+}
+.duel-stat .barres > span:last-child i {
+  background: var(--tb);
+}
+
+/* ── Le menu du club (pilule + liste en verre) ────────────────────────── */
+.menu-club-fond {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: default;
+}
+.menu-club {
+  position: absolute;
+  top: calc(var(--safe-t) + 60px);
+  right: 14px;
+  width: 290px;
+  z-index: 50;
+  border-radius: 32px;
+  background: var(--mn);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  border: 1px solid var(--cb);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 30px 60px rgba(0, 0, 0, 0.5);
+  padding: 18px 12px 12px;
+  animation: fsMenu 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: top right;
+}
+.menu-club-tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 14px;
+}
+.menu-club-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  height: 54px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 27px;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+.menu-club-item.actif {
+  background: var(--gl);
+}
+.menu-club-item.danger {
+  color: var(--bad);
+}
+
+/* ── Bannière « Ce soir » ─────────────────────────────────────────────── */
+.banniere {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 126px;
+  border: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--tb);
+  color: #fff;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  text-decoration: none;
+}
+.banniere .voile {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--banniere-fond) 0%,
+    var(--banniere-fond) 52%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+.banniere .texte {
+  position: relative;
+  padding: 22px 22px 0;
+  pointer-events: none;
+}
+.banniere .texte .titre {
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: -0.3px;
+  max-width: 270px;
+}
+.banniere .texte .aide {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.62);
+  margin-top: 6px;
+}
+
+/* ═══ REMAPS des anciens dessins sur le nouveau vocabulaire ══════════════ */
+[data-club-theme] .bande {
+  margin: 18px 0 0;
+  padding: 18px 20px 20px;
+  background: var(--cd);
+  border: 1px solid var(--cb);
+  box-shadow: var(--cs);
+  border-radius: 28px;
+}
+[data-club-theme] .bande.creuse {
+  background: var(--cd);
+  border-color: var(--cb);
+}
+[data-club-theme] .bande + .bande {
+  margin-top: 18px;
+}
+[data-club-theme] .bande-titre {
+  margin-bottom: 10px;
+}
+[data-club-theme] .kicker,
+[data-club-theme] .section-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--i2);
+}
+[data-club-theme] .contexte {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  text-transform: none;
+  color: var(--i2);
+}
+[data-club-theme] .display-xl {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+[data-club-theme] .display-md {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+[data-club-theme] .titre-nom {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--ink);
+}
+[data-club-theme] .chiffre-panneau,
+[data-club-theme] .chiffre-ligne,
+[data-club-theme] .num-sculpt,
+[data-club-theme] .recap-score,
+[data-club-theme] .panneau-score {
+  font-stretch: 100%;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+}
+[data-club-theme] .btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  border: 1px solid var(--gb);
+  background: var(--gl);
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+[data-club-theme] .btn.ghost {
+  border-color: var(--gb);
+  color: var(--ink);
+}
+[data-club-theme] .btn.primary {
+  border-color: transparent;
+  background: var(--bt);
+  color: var(--bf);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+[data-club-theme] .btn.big {
+  min-height: 52px;
+  border-radius: 26px;
+}
+[data-club-theme] .icon-btn {
+  border-radius: 22px;
+  border: 1px solid var(--gb);
+  background: var(--gl);
+  color: var(--ink);
+}
+[data-club-theme] .champ,
+[data-club-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+[data-club-theme] select,
+[data-club-theme] textarea {
+  border-radius: 14px;
+  border: 0;
+  background: var(--seg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  min-height: 52px;
+  padding: 0 16px;
+}
+[data-club-theme] textarea {
+  padding: 14px 16px;
+}
+[data-club-theme] .champ:focus,
+[data-club-theme] input:focus,
+[data-club-theme] select:focus,
+[data-club-theme] textarea:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 0;
+}
+[data-club-theme] .ticker {
+  grid-template-columns: 64px auto 1fr;
+  min-height: 56px;
+  font-size: 17px;
+  text-decoration: none;
+}
+[data-club-theme] .ticker + .ticker {
+  border-top: 1px solid var(--sep);
+}
+[data-club-theme] .ticker-heure {
+  font-size: 15px;
+  color: var(--i2);
+}
+[data-club-theme] .ticker-score {
+  font-stretch: 100%;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+[data-club-theme] .ticker-buteurs {
+  font-size: 15px;
+  color: var(--i2);
+}
+[data-club-theme] .rangee {
+  min-height: 54px;
+  font-size: 17px;
+  border-radius: 0;
+}
+[data-club-theme] .rangee + .rangee {
+  border-top: 1px solid var(--sep);
+}
+[data-club-theme] .rangee-bande {
+  display: none;
+}
+[data-club-theme] .rangee-tete {
+  font-size: 15px;
+  color: var(--i2);
+}
+[data-club-theme] .rangee-rang {
+  color: var(--i2);
+}
+[data-club-theme] .rangee-num {
+  font-stretch: 100%;
+  font-size: 17px;
+}
+[data-club-theme] .rangee-num.fort {
+  font-weight: 600;
+  color: var(--ink);
+}
+[data-club-theme] .rangee-detail {
+  background: var(--seg);
+  border-radius: 14px;
+  margin: 4px 0 8px;
+  padding: 12px 14px;
+}
+[data-club-theme] .synthese {
+  font-size: 17px;
+  color: var(--i2);
+}
+[data-club-theme] .synthese b {
+  font-weight: 600;
+  color: var(--ink);
+}
+[data-club-theme] .synthese-sep {
+  color: var(--i3);
+}
+[data-club-theme] .live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+[data-club-theme] .timeline-row {
+  min-height: 52px;
+  font-size: 17px;
+}
+[data-club-theme] .timeline-minute {
+  width: 44px;
+  font-size: 17px;
+  color: var(--i2);
+}
+[data-club-theme] .timeline-scorer {
+  font-size: 17px;
+  color: var(--ink);
+}
+[data-club-theme] .timeline-row.A .timeline-scorer,
+[data-club-theme] .timeline-row.B .timeline-scorer {
+  color: var(--ink);
+}
+[data-club-theme] .version-badge {
+  color: var(--i3);
+}
+[data-club-theme] .sync-dot {
+  border-radius: 50%;
+}
+[data-club-theme] .compo-ligne,
+[data-club-theme] .compo-entree,
+[data-club-theme] .rappel {
+  border-radius: 14px;
+  background: var(--seg);
+}
+[data-club-theme] .compo-barre {
+  border-radius: 3px;
+}
