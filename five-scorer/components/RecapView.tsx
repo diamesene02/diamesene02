@@ -70,10 +70,53 @@ export default function RecapView({
     goalCount[g.scorerId] = (goalCount[g.scorerId] ?? 0) + 1;
   });
 
+  // La chronologie doit être CHRONOLOGIQUE. Les buts arrivent ordonnés par
+  // date de saisie : c'est le bon ordre pendant le match, et le mauvais dès
+  // qu'on rattrape un but oublié — saisi en dernier, il se rangeait à la fin
+  // alors qu'il s'est joué à la 3e minute.
+  //
+  // Un but sans minute (l'horloge n'a pas tourné) hérite de la minute du but
+  // qui le précède : il reste là où on l'a saisi au lieu d'être renvoyé au
+  // coup d'envoi.
+  const ordonnes = (() => {
+    let derniere = 0;
+    const avecCle = goals.map((g, i) => {
+      if (g.minute != null) derniere = g.minute;
+      return { g, cle: derniere, i };
+    });
+    return avecCle
+      .sort((x, y) => x.cle - y.cle || x.i - y.i)
+      .map((x) => x.g);
+  })();
+
   const all = [...teamA, ...teamB];
-  const scorers = all
-    .filter((p) => goalCount[p.id])
-    .sort((a, b) => goalCount[b.id] - goalCount[a.id]);
+
+  // « Doublé de Diame · Triplé de Karim »
+  //
+  // Il y avait DEUX sections sous le score : une chronologie qui listait
+  // chaque but avec sa minute et son buteur, puis un classement des buteurs
+  // qui relistait les mêmes noms avec un « 1 » à côté. Sur un match à cinq
+  // buts de cinq joueurs différents, la seconde ne disait pas un mot de plus
+  // que la première — elle doublait l'écran pour rien.
+  //
+  // Ce qu'un classement de buteurs apporte VRAIMENT, la chronologie ne le
+  // donne pas d'un coup d'œil : qui a marqué plusieurs fois. Donc cette ligne
+  // n'existe QUE s'il y a un fait à dire. Sinon, rien — la chronologie suffit.
+  const exploits = all
+    .filter((p) => (goalCount[p.id] ?? 0) > 1)
+    .sort((a, b) => goalCount[b.id] - goalCount[a.id])
+    .map((p) => {
+      const n = goalCount[p.id];
+      if (n === 2) return `Doublé de ${p.name}`;
+      if (n === 3) return `Triplé de ${p.name}`;
+      return `${p.name}, ${n} buts`;
+    });
+
+  const dateLabel = new Date(match.playedAt).toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
 
   const publicUrl =
     publicShareUrl ||
@@ -110,31 +153,50 @@ export default function RecapView({
   }
 
   return (
-    <div className="space-y-4 py-2">
-      <div className="contexte">Match terminé</div>
+    <div className="space-y-6 py-2">
+      {/* Le panneau porte tout ce qui situe le match : date, buts, homme du
+          match. Il y avait au-dessus une ligne « MATCH TERMINÉ » en capitales
+          tracées — la bande élargie du vainqueur le dit déjà — puis la date
+          centrée dans un bandeau gris, puis la pastille MVP encadrée d'or.
+          Trois objets pour trois faits qui tiennent sous le score. */}
+      <Panneau
+        a={match.teamAName}
+        b={match.teamBName}
+        scoreA={match.scoreA}
+        scoreB={match.scoreB}
+        taille="panneau"
+        fini={match.status === "FINISHED"}
+        pied={
+          <span className="synthese">
+            <span className="capitalize">{dateLabel}</span>
+            <span className="synthese-sep">·</span>
+            <span>
+              <b>{goals.length}</b> but{goals.length > 1 ? "s" : ""}
+            </span>
+            {mvpName && (
+              <>
+                <span className="synthese-sep">·</span>
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  style={{ color: "var(--gold)" }}
+                >
+                  <Icon name="star" size={12} filled />
+                  {mvpName}
+                </span>
+              </>
+            )}
+          </span>
+        }
+      />
 
-      <div className="recap-hero">
-        <Panneau
-          a={match.teamAName}
-          b={match.teamBName}
-          scoreA={match.scoreA}
-          scoreB={match.scoreB}
-          taille="panneau"
-          fini={match.status === "FINISHED"}
-        />
-        <div className="mt-2 text-center text-xs  text-[color:var(--ink-3)]">
-          {new Date(match.playedAt).toLocaleDateString("fr-FR", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-          })}
-        </div>
-      </div>
-
-      {mvpName && (
-        <div className="mvp-pill">
-          <Icon name="star" filled size={14} />
-          MVP — <strong>{mvpName}</strong>
+      {exploits.length > 0 && (
+        <div className="synthese">
+          {exploits.map((t, i) => (
+            <span key={t} className="contents">
+              {i > 0 && <span className="synthese-sep">·</span>}
+              <span>{t}</span>
+            </span>
+          ))}
         </div>
       )}
 
@@ -148,13 +210,15 @@ export default function RecapView({
         </Link>
       )}
 
-      <div>
-        <div className="section-title">Chronologie</div>
+      <div className="bande">
+        <div className="bande-titre">
+          <span className="kicker">La chronologie</span>
+        </div>
         {goals.length === 0 ? (
           <div className="muted pad">Aucun but.</div>
         ) : (
           <div className="timeline">
-            {goals.map((g) => (
+            {ordonnes.map((g) => (
               <div key={g.id} className={`timeline-row ${g.team}`}>
                 <span className="timeline-minute">
                   {g.minute != null ? `${g.minute}'` : "—"}
@@ -171,27 +235,6 @@ export default function RecapView({
           </div>
         )}
       </div>
-
-      {scorers.length > 0 && (
-        <div>
-          <div className="section-title">Buteurs</div>
-          <div className="event-list">
-            {scorers.map((p, i) => (
-              <div key={p.id} className="ev">
-                <span>
-                  {/* Le rang se dit avec un chiffre tabulaire, pas une médaille. */}
-                  <span className="podium-medal">{i + 1}</span>{" "}
-                  <span className={`tag ${p.team}`}>
-                    {p.team === "A" ? match.teamAName : match.teamBName}
-                  </span>{" "}
-                  {p.name}
-                </span>
-                <strong className="goal-count">{goalCount[p.id]}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {showActions && (
         <>
