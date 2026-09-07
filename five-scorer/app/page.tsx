@@ -7,7 +7,7 @@ import Icon from "@/components/Icon";
 export const metadata: Metadata = {
   title: "Five Scorer — le suivi de matchs de ton équipe",
   description:
-    "Scoring live au bord du terrain, stats de saison, équipes équilibrées automatiquement, vote du MVP. Pour ton five du jeudi comme pour ton club du dimanche.",
+ "Scoring live au bord du terrain, stats de saison, équipes équilibrées automatiquement, vote du MVP. Pour ton five du jeudi comme pour ton club du dimanche.",
 };
 
 export const dynamic = "force-dynamic";
@@ -80,13 +80,13 @@ export default async function LandingPage() {
           <nav className="flex items-center gap-2">
             <Link
               href="/login"
-              className="rounded-full bg-[color:var(--bg-2)] px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors hover:bg-[color:var(--stroke)]"
+              className="rounded-[2px] bg-[color:var(--pitch-2)] px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-[color:var(--rule)]"
             >
               Se connecter
             </Link>
             <Link
               href="/signup"
-              className="rounded-full bg-[color:var(--lime)] px-4 py-2 text-xs font-black uppercase tracking-wider text-[color:var(--bg-0)] transition-colors hover:bg-white"
+              className="rounded-[2px] bg-[color:var(--ink-1)] px-4 py-2 text-[13px] font-semibold text-[color:var(--pitch-0)] transition-colors hover:bg-white"
             >
               Créer un compte
             </Link>
@@ -125,7 +125,7 @@ export default async function LandingPage() {
             {FEATURES.map((f) => (
               <div
                 key={f.title}
-                className="edge-top p-5 transition-colors hover:bg-[color:var(--bg-2)]"
+                className="edge-top p-5 transition-colors hover:bg-[color:var(--pitch-2)]"
               >
                 <h3 className="mt-1 text-lg font-black leading-tight tracking-tight">
                   {f.title}
@@ -145,7 +145,7 @@ export default async function LandingPage() {
             {STEPS.map((s, i) => (
               <div
                 key={s.title}
-                className="rounded-lg bg-[color:var(--bg-1)] p-5"
+                className="rounded-[2px] bg-[color:var(--pitch-1)] p-5"
               >
                 <div className="num-sculpt text-5xl">0{i + 1}</div>
                 <h3 className="mt-4 text-lg font-black leading-tight tracking-tight">
@@ -172,7 +172,7 @@ export default async function LandingPage() {
         </section>
 
         {/* Emporte l'app */}
-        <section className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-lg bg-[color:var(--bg-1)] p-6">
+        <section className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-[2px] bg-[color:var(--pitch-1)] p-6">
           <div>
             <span className="kicker">Sur ton téléphone</span>
             <p className="mt-2 max-w-md text-sm text-[color:var(--ink-1)]">
@@ -190,7 +190,7 @@ export default async function LandingPage() {
         </section>
 
         {/* Pied de page */}
-        <footer className="mt-14 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--stroke)] pt-6 text-xs text-[color:var(--ink-2)]">
+        <footer className="mt-14 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--rule)] pt-6 text-xs text-[color:var(--ink-2)]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span>Five Scorer — open source, offline-first.</span>
             <Link href="/privacy" className="hover:text-white">

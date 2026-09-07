@@ -106,12 +106,12 @@ export default function CalendrierForm({
   }
 
   const champ =
-    "mt-1 w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]";
+ "mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]";
   const etiquette = "kicker";
 
   return (
     <div className="space-y-6">
-      <section className="space-y-4 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5">
+      <section className="space-y-4 bande">
         <label className="block">
           <span className={etiquette}>Nom de la saison</span>
           <input
@@ -190,7 +190,7 @@ export default function CalendrierForm({
         </div>
       </section>
 
-      <section className="rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5">
+      <section className="bande">
         <div className="flex items-baseline justify-between gap-3">
           <span className="kicker">À créer</span>
           <span className="text-sm tabular-nums text-[color:var(--ink-2)]">
@@ -208,7 +208,7 @@ export default function CalendrierForm({
         <div className="mt-4 space-y-4">
           {parMois.map(([mois, jours]) => (
             <div key={mois}>
-              <div className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-[color:var(--ink-3)]">
+              <div className="mb-1.5 text-[13px] font-semibold text-[color:var(--ink-3)]">
                 {mois}
               </div>
               <ul className="space-y-1">
@@ -222,21 +222,21 @@ export default function CalendrierForm({
                         onClick={() =>
                           setBascules((b) => ({ ...b, [k]: !prise }))
                         }
-                        className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-[color:var(--bg-2)]"
+                        className="flex w-full items-center gap-3 rounded-[2px] px-2 py-2 text-left hover:bg-[color:var(--pitch-2)]"
                       >
                         <span
                           className={
-                            "grid h-5 w-5 shrink-0 place-items-center rounded border " +
+ "grid h-5 w-5 shrink-0 place-items-center rounded border " +
                             (prise
                               ? "border-transparent bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
-                              : "border-[color:var(--stroke-hi)]")
+                              : "border-[color:var(--rule-hi)]")
                           }
                         >
                           {prise && <Icon name="check" size={12} />}
                         </span>
                         <span
                           className={
-                            "flex-1 text-sm tabular-nums " +
+ "flex-1 text-sm tabular-nums " +
                             (prise
                               ? "text-[color:var(--ink-1)]"
                               : "text-[color:var(--ink-3)] line-through")
@@ -249,7 +249,7 @@ export default function CalendrierForm({
                           })}
                         </span>
                         {o.exclu && (
-                          <span className="shrink-0 text-[11px] font-bold uppercase tracking-wider text-[color:var(--gold)]">
+                          <span className="shrink-0 text-[13px] font-semibold text-[color:var(--gold)]">
                             {o.exclu}
                           </span>
                         )}

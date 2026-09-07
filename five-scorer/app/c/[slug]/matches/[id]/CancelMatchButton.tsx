@@ -20,7 +20,7 @@ export default function CancelMatchButton({
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="rounded-lg px-4 py-2 text-sm font-bold text-[color:var(--loss)] hover:bg-[color:var(--bg-2)]"
+        className="rounded-[2px] px-4 py-2 text-sm font-bold text-[color:var(--loss)] hover:bg-[color:var(--pitch-2)]"
       >
         Annuler ce match
       </button>
@@ -38,13 +38,13 @@ export default function CancelMatchButton({
             else router.refresh();
           })
         }
-        className="rounded-lg bg-[color:var(--loss)] px-4 py-2 text-sm font-bold text-[color:var(--bg-0)] disabled:opacity-50"
+        className="rounded-[2px] bg-[color:var(--loss)] px-4 py-2 text-sm font-bold text-[color:var(--pitch-0)] disabled:opacity-50"
       >
         {pending ? "…" : "Oui, annuler"}
       </button>
       <button
         onClick={() => setConfirming(false)}
-        className="rounded-lg px-3 py-2 text-sm font-bold text-[color:var(--ink-1)]"
+        className="rounded-[2px] px-3 py-2 text-sm font-bold text-[color:var(--ink-1)]"
       >
         Non
       </button>

@@ -57,7 +57,7 @@ export default async function PublicClubPage({ params }: Params) {
     });
 
   const th =
-    "px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-2)]";
+ "px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-2)]";
   const td = "px-3 py-2.5";
 
   return (
@@ -76,7 +76,7 @@ export default async function PublicClubPage({ params }: Params) {
           </span>
           <Link
             href="/"
-            className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)] hover:text-[color:var(--ink-1)]"
+            className="text-xs font-bold  text-[color:var(--ink-2)] hover:text-[color:var(--ink-1)]"
           >
             Créé avec Five Scorer
           </Link>
@@ -92,14 +92,14 @@ export default async function PublicClubPage({ params }: Params) {
           <section className="mt-8">
             <span className="kicker mb-3 block">Classement</span>
             {top.length === 0 ? (
-              <div className="rounded-lg bg-[color:var(--bg-1)] p-8 text-center text-sm text-[color:var(--ink-1)]">
+              <div className="rounded-[2px] bg-[color:var(--pitch-1)] p-8 text-center text-sm text-[color:var(--ink-1)]">
                 Pas encore de match terminé.
               </div>
             ) : (
-              <div className="scroll-x rounded-lg bg-[color:var(--bg-1)]">
+              <div className="scroll-x rounded-[2px] bg-[color:var(--pitch-1)]">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[color:var(--stroke)]">
+                    <tr className="border-b border-[color:var(--rule)]">
                       <th className={`${th} text-left`}>#</th>
                       <th className={`${th} text-left`}>Joueur</th>
                       <th className={`${th} text-center`}>J</th>
@@ -107,7 +107,7 @@ export default async function PublicClubPage({ params }: Params) {
                       <th className={`${th} text-center`}>MVP</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[color:var(--stroke)]">
+                  <tbody className="divide-y divide-[color:var(--rule)]">
                     {top.map((r, i) => (
                       <tr key={r.playerId}>
                         <td
@@ -143,12 +143,12 @@ export default async function PublicClubPage({ params }: Params) {
           {lastMatches.length > 0 && (
             <section className="mt-8">
               <span className="kicker mb-3 block">Derniers résultats</span>
-              <ul className="divide-y divide-[color:var(--stroke)] overflow-hidden rounded-lg bg-[color:var(--bg-1)]">
+              <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-[2px] bg-[color:var(--pitch-1)]">
                 {lastMatches.map((m) => (
                   <li key={m.id}>
                     <Link
                       href={`/r/${m.id}`}
-                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--bg-2)]"
+                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
                     >
                       <span className="tabular w-14 shrink-0 text-[11px] uppercase text-[color:var(--ink-2)]">
                         {fmtDate(m.playedAt)}

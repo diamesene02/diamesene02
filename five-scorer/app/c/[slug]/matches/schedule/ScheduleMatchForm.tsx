@@ -86,14 +86,14 @@ export default function ScheduleMatchForm({
   }
 
   const inputCls =
-    "mt-1 w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]";
+ "mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]";
 
   return (
     <form
       onSubmit={submit}
-      className="space-y-6 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5 sm:p-6"
+      className="space-y-6 bande"
     >
-      <div className="flex gap-1 self-start rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-1">
+      <div className="flex gap-1 self-start rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-1">
         {(
           [
             ["INTERNAL", "Entre nous"],
@@ -105,9 +105,9 @@ export default function ScheduleMatchForm({
             type="button"
             onClick={() => setMode(m)}
             className={cn(
-              "rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wider transition-colors",
+ "rounded-[2px] px-3.5 py-2 text-[13px] font-semibold transition-colors",
               mode === m
-                ? "bg-[color:var(--lime)] text-[color:var(--bg-0)]"
+                ? "bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
                 : "text-[color:var(--ink-1)] hover:text-white"
             )}
           >
@@ -144,7 +144,7 @@ export default function ScheduleMatchForm({
             <input
               value={teamAName}
               onChange={(e) => setTeamAName(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--a-500)]"
+              className="mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--bib-a)]"
             />
           </label>
           <label className="block">
@@ -152,12 +152,12 @@ export default function ScheduleMatchForm({
             <input
               value={teamBName}
               onChange={(e) => setTeamBName(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--b-500)]"
+              className="mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--b-500)]"
             />
           </label>
         </div>
       ) : (
-        <div className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)] p-4">
+        <div className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-2)] p-4">
           <span className="kicker">Adversaire</span>
           <div className="mt-2 flex flex-wrap gap-2">
             {opponents.map((o) => (
@@ -166,10 +166,10 @@ export default function ScheduleMatchForm({
                 type="button"
                 onClick={() => setOpponentId(o.id)}
                 className={cn(
-                  "rounded-full border px-4 py-2 text-sm font-bold transition-colors",
+ "rounded-[2px] border px-4 py-2 text-sm font-bold transition-colors",
                   opponentId === o.id
-                    ? "border-[color:var(--b-400)] bg-[color:var(--b-wash)] text-[color:var(--b-400)]"
-                    : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)]"
+                    ? "border-[color:var(--bib-b-ink)] bg-[color:var(--pitch-2)] text-[color:var(--bib-b-ink)]"
+                    : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)]"
                 )}
               >
                 {o.name}
@@ -181,12 +181,12 @@ export default function ScheduleMatchForm({
               value={newOpponent}
               onChange={(e) => setNewOpponent(e.target.value)}
               placeholder="Nouvelle équipe adverse…"
-              className="flex-1 rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 text-sm outline-none focus:border-[color:var(--b-500)]"
+              className="flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm outline-none focus:border-[color:var(--b-500)]"
             />
             <button
               type="button"
               onClick={addOpponent}
-              className="rounded-lg border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 py-2 text-sm font-bold hover:border-[color:var(--b-400)]"
+              className="rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 py-2 text-sm font-bold hover:border-[color:var(--bib-b-ink)]"
             >
               + Ajouter
             </button>
@@ -199,7 +199,7 @@ export default function ScheduleMatchForm({
       <button
         type="submit"
         disabled={isPending}
-        className="big-touch w-full rounded-2xl bg-[color:var(--lime)] py-4 text-lg font-black text-[color:var(--bg-0)] disabled:opacity-50"
+        className="big-touch w-full rounded-none bg-[color:var(--ink-1)] py-4 text-lg font-black text-[color:var(--pitch-0)] disabled:opacity-50"
       >
         {isPending ? "Création…" : "Programmer le match"}
       </button>

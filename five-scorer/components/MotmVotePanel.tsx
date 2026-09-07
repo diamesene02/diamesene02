@@ -54,8 +54,8 @@ export default function MotmVotePanel({
   const max = Math.max(1, ...rows.map((c) => c.votes));
 
   return (
-    <div className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-4">
-      <div className="mb-1 text-sm font-black uppercase tracking-wider text-[color:var(--gold)]">
+    <div className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4">
+      <div className="mb-1 text-[13px] font-semibold text-[color:var(--gold)]">
         Homme du match — vote des membres
       </div>
       <p className="mb-3 text-xs tabular-nums text-[color:var(--ink-3)]">
@@ -71,10 +71,10 @@ export default function MotmVotePanel({
               disabled={pending}
               onClick={() => vote(c.id)}
               className={cn(
-                "relative block w-full overflow-hidden rounded-xl border px-4 py-2.5 text-left transition-colors",
+ "relative block w-full overflow-hidden rounded-none border px-4 py-2.5 text-left transition-colors",
                 selected === c.id
-                  ? "border-[color:var(--gold)] bg-[color:var(--bg-2)]"
-                  : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] hover:border-[color:var(--stroke-hi)]"
+                  ? "border-[color:var(--gold)] bg-[color:var(--pitch-2)]"
+                  : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] hover:border-[color:var(--rule-hi)]"
               )}
             >
               <span
@@ -82,7 +82,7 @@ export default function MotmVotePanel({
                 style={{
                   width: `${(c.votes / max) * 100}%`,
                   background:
-                    "color-mix(in srgb, var(--gold) 16%, transparent)",
+ "color-mix(in srgb, var(--gold) 16%, transparent)",
                 }}
               />
               <span className="relative flex items-center justify-between gap-2">

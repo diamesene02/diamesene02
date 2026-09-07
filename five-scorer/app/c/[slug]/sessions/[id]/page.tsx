@@ -97,11 +97,11 @@ export default async function SessionDetailPage({
   return (
     <main>
       {/* En-tête */}
-      <section className="aurora edge-top relative overflow-hidden rounded-3xl border border-[color:var(--stroke)] p-6">
+      <section className="aurora edge-top relative overflow-hidden bande creuse">
         <div className="relative z-[1]">
           <Link
             href={`/c/${slug}/sessions`}
-            className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)] hover:text-white"
+            className="text-xs font-bold  text-[color:var(--ink-2)] hover:text-white"
           >
             ← Les soirées
           </Link>
@@ -110,7 +110,7 @@ export default async function SessionDetailPage({
               <span className="kicker">{md.title || "Soirée"}</span>
               <h1 className="display-md mt-1 capitalize">
                 {dateLabel}
-                <span className="ml-3 text-lg tabular-nums text-[color:var(--lime)]">
+                <span className="ml-3 text-lg tabular-nums text-[color:var(--ink-1)]">
                   {timeLabel}
                 </span>
               </h1>
@@ -130,7 +130,7 @@ export default async function SessionDetailPage({
               {ctx.canScore && (
                 <Link
                   href={`/c/${slug}/matches/new?md=${md.id}`}
-                  className="inline-flex min-h-[44px] items-center rounded-full bg-[color:var(--lime)] px-5 text-xs font-black uppercase tracking-wider text-[color:var(--bg-0)]"
+                  className="inline-flex min-h-[44px] items-center rounded-[2px] bg-[color:var(--ink-1)] px-5 text-[13px] font-semibold text-[color:var(--pitch-0)]"
                 >
                   Lancer un match
                 </Link>
@@ -148,11 +148,11 @@ export default async function SessionDetailPage({
           match on oublie de faire la feuille de match, on perd du temps ». Les
           équipes sont connues trois à quatre jours avant — elles ont désormais
           où être écrites, et le coup d'envoi n'a plus rien à saisir. */}
-      <section className="mt-8 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-6">
+      <section className="mt-8 bande">
         <div className="mb-4 flex items-baseline justify-between gap-3">
           <span className="kicker">Les équipes</span>
           <span
-            className="text-[11px] font-black uppercase tracking-wider"
+            className="text-[13px] font-semibold"
             style={{
               color:
                 md.lineup.length > 0 ? "var(--win)" : "var(--ink-3)",
@@ -185,7 +185,7 @@ export default async function SessionDetailPage({
       </section>
 
       {/* Présences */}
-      <section className="mt-8 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-6">
+      <section className="mt-8 bande">
         <span className="kicker mb-4 block">Présences</span>
         <SessionRsvpAdmin
           key={rsvpRows.map((r) => `${r.playerId}:${r.status ?? "-"}`).join("|")}
@@ -199,7 +199,7 @@ export default async function SessionDetailPage({
 
       {/* La part du terrain */}
       {showMoney && (
-        <section className="mt-8 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-6">
+        <section className="mt-8 bande">
           <div className="mb-4 flex items-center gap-2 text-[color:var(--ink-3)]">
             <Icon name="coin" size={15} />
             <span className="kicker">Le terrain</span>
@@ -231,7 +231,7 @@ export default async function SessionDetailPage({
               <Link
                 key={m.id}
                 href={`/c/${slug}/matches/${m.id}/live`}
-                className="flex min-h-[56px] items-center gap-4 rounded-2xl border border-[color:var(--live)]/40 bg-[color:var(--bg-1)] p-4 transition-colors hover:border-[color:var(--live)]"
+                className="flex min-h-[56px] items-center gap-4 rounded-none border border-[color:var(--live)]/40 bg-[color:var(--pitch-1)] p-4 transition-colors hover:border-[color:var(--live)]"
               >
                 <span className="live-dot shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-base font-black">
@@ -244,13 +244,13 @@ export default async function SessionDetailPage({
                   <span className="px-1.5 text-[color:var(--ink-2)]">:</span>
                   {m.scoreB}
                 </span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-[color:var(--live)]">
+                <span className="text-[10px] font-black  text-[color:var(--live)]">
                   Live →
                 </span>
               </Link>
             ))}
             {otherMatches.length > 0 && (
-              <ul className="divide-y divide-[color:var(--stroke)] overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]">
+              <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
                 {otherMatches.map((m) => (
                   <li key={m.id}>
                     <Link
@@ -265,14 +265,14 @@ export default async function SessionDetailPage({
                         <span className="text-[color:var(--ink-2)]">vs</span>{" "}
                         {opponentOr(m)}
                         {m.mvp && (
-                          <span className="ml-2 inline-flex items-center gap-1 align-middle text-[10px] font-black uppercase tracking-wider text-[color:var(--gold)]">
+                          <span className="ml-2 inline-flex items-center gap-1 align-middle text-[13px] font-semibold text-[color:var(--gold)]">
                             <Icon name="star" size={11} filled />
                             {m.mvp.name}
                           </span>
                         )}
                       </span>
                       {m.status === "SCHEDULED" ? (
-                        <span className="rounded-full border border-[color:var(--b-400)]/40 bg-[color:var(--b-wash)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--b-400)]">
+                        <span className="rounded-[2px] border border-[color:var(--bib-b-ink)]/40 bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--bib-b-ink)]">
                           à venir
                         </span>
                       ) : (
@@ -280,7 +280,7 @@ export default async function SessionDetailPage({
                           <span
                             className={
                               m.scoreA > m.scoreB
-                                ? "text-[color:var(--lime)]"
+                                ? "text-[color:var(--ink-1)]"
                                 : "text-[color:var(--ink-1)]"
                             }
                           >
@@ -292,7 +292,7 @@ export default async function SessionDetailPage({
                           <span
                             className={
                               m.scoreB > m.scoreA
-                                ? "text-[color:var(--lime)]"
+                                ? "text-[color:var(--ink-1)]"
                                 : "text-[color:var(--ink-1)]"
                             }
                           >
@@ -313,10 +313,10 @@ export default async function SessionDetailPage({
       {leaderboard.length > 0 && (
         <section className="mt-8">
           <span className="kicker mb-3 block">Les cracks du soir</span>
-          <div className="scroll-x rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]">
+          <div className="scroll-x rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[color:var(--stroke)] text-left text-[10px] font-black uppercase tracking-widest text-[color:var(--ink-2)]">
+                <tr className="border-b border-[color:var(--rule)] text-left text-[10px] font-black  text-[color:var(--ink-2)]">
                   <th className="px-4 py-2.5">Joueur</th>
                   <th className="px-3 py-2.5 text-center">J</th>
                   <th className="px-3 py-2.5 text-center">V</th>
@@ -324,13 +324,13 @@ export default async function SessionDetailPage({
                   <th className="px-3 py-2.5 text-center">MVP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[color:var(--stroke)]">
+              <tbody className="divide-y divide-[color:var(--rule)]">
                 {leaderboard.map((r, i) => (
                   <tr key={r.playerId} className="hover:bg-white/[0.03]">
                     <td className="px-4 py-2.5 font-bold">
                       <Link
                         href={`/c/${slug}/players/${r.playerId}`}
-                        className="hover:text-[color:var(--lime)]"
+                        className="hover:text-[color:var(--ink-1)]"
                       >
                         <span className="mr-2 text-[11px] tabular-nums text-[color:var(--ink-2)]">
                           {i + 1}
@@ -344,7 +344,7 @@ export default async function SessionDetailPage({
                     <td className="px-3 py-2.5 text-center tabular-nums">
                       {r.wins}
                     </td>
-                    <td className="px-3 py-2.5 text-center font-black tabular-nums text-[color:var(--lime)]">
+                    <td className="px-3 py-2.5 text-center font-black tabular-nums text-[color:var(--ink-1)]">
                       {r.goals}
                     </td>
                     <td className="px-3 py-2.5 text-center tabular-nums text-[color:var(--gold)]">

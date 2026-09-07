@@ -5,7 +5,7 @@ import Icon from "@/components/Icon";
 export const metadata: Metadata = {
   title: "Conditions d'utilisation — Five Scorer",
   description:
-    "Les règles du jeu pour utiliser Five Scorer : simples, courtes, honnêtes.",
+ "Les règles du jeu pour utiliser Five Scorer : simples, courtes, honnêtes.",
 };
 
 function Section({
@@ -105,7 +105,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <footer className="mt-12 flex flex-wrap items-center gap-4 border-t border-[color:var(--stroke)] pt-6 text-xs text-[color:var(--ink-2)]">
+        <footer className="mt-12 flex flex-wrap items-center gap-4 border-t border-[color:var(--rule)] pt-6 text-xs text-[color:var(--ink-2)]">
           <Link href="/" className="font-bold hover:text-white">
             ← Retour à l&apos;accueil
           </Link>

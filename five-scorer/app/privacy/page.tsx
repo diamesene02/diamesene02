@@ -5,7 +5,7 @@ import Icon from "@/components/Icon";
 export const metadata: Metadata = {
   title: "Politique de confidentialité — Five Scorer",
   description:
-    "Ce que Five Scorer collecte, pourquoi, où c'est hébergé, et comment exercer tes droits.",
+ "Ce que Five Scorer collecte, pourquoi, où c'est hébergé, et comment exercer tes droits.",
 };
 
 function Section({
@@ -158,7 +158,7 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <footer className="mt-12 flex flex-wrap items-center gap-4 border-t border-[color:var(--stroke)] pt-6 text-xs text-[color:var(--ink-2)]">
+        <footer className="mt-12 flex flex-wrap items-center gap-4 border-t border-[color:var(--rule)] pt-6 text-xs text-[color:var(--ink-2)]">
           <Link href="/" className="font-bold hover:text-white">
             ← Retour à l&apos;accueil
           </Link>

@@ -78,10 +78,10 @@ export default async function MatchesPage({
 
   const chip = (active: boolean) =>
     cn(
-      "inline-flex min-h-[44px] items-center rounded-full border px-4 text-xs font-bold uppercase tracking-wider transition-colors",
+ "inline-flex min-h-[44px] items-center rounded-[2px] border px-4 text-[13px] font-semibold transition-colors",
       active
-        ? "border-transparent bg-[color:var(--lime)] text-[color:var(--bg-0)]"
-        : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)] hover:text-white",
+        ? "border-transparent bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
+        : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)] hover:text-white",
     );
 
   return (
@@ -138,7 +138,7 @@ export default async function MatchesPage({
             <Link
               key={m.id}
               href={`/c/${slug}/matches/${m.id}/live`}
-              className="flex min-h-[56px] items-center gap-4 rounded-2xl border border-[color:var(--live)]/40 bg-[color:var(--bg-1)] p-4 transition-colors hover:border-[color:var(--live)]"
+              className="flex min-h-[56px] items-center gap-4 rounded-none border border-[color:var(--live)]/40 bg-[color:var(--pitch-1)] p-4 transition-colors hover:border-[color:var(--live)]"
             >
               <span className="live-dot shrink-0" />
               <span className="min-w-0 flex-1 truncate text-base font-black">
@@ -151,7 +151,7 @@ export default async function MatchesPage({
                 <span className="px-1.5 text-[color:var(--ink-2)]">:</span>
                 {m.scoreB}
               </span>
-              <span className="text-[10px] font-black uppercase tracking-widest text-[color:var(--live)]">
+              <span className="text-[10px] font-black  text-[color:var(--live)]">
                 Live →
               </span>
             </Link>
@@ -163,7 +163,7 @@ export default async function MatchesPage({
       {scheduled.length > 0 && (
         <section className="mt-8">
           <span className="kicker mb-3 block">Programmés</span>
-          <ul className="divide-y divide-[color:var(--stroke)] overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]">
+          <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
             {scheduled.map((m) => (
               <li key={m.id}>
                 <Link
@@ -173,7 +173,7 @@ export default async function MatchesPage({
                   <span className="w-20 shrink-0 text-[11px] uppercase leading-tight tabular-nums text-[color:var(--ink-2)]">
                     {fmtDate(m.scheduledAt ?? m.playedAt)}
                     <br />
-                    <span className="text-[color:var(--lime)]">
+                    <span className="text-[color:var(--ink-1)]">
                       {fmtTime(m.scheduledAt ?? m.playedAt)}
                     </span>
                   </span>
@@ -188,10 +188,10 @@ export default async function MatchesPage({
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0 text-xs font-bold tabular-nums text-[color:var(--a-400)]">
+                  <span className="shrink-0 text-xs font-bold tabular-nums text-[color:var(--bib-a-ink)]">
                     {m._count.rsvps} présent{m._count.rsvps > 1 ? "s" : ""}
                   </span>
-                  <span className="shrink-0 rounded-full border border-[color:var(--b-400)]/40 bg-[color:var(--b-wash)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--b-400)]">
+                  <span className="shrink-0 rounded-[2px] border border-[color:var(--bib-b-ink)]/40 bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--bib-b-ink)]">
                     à venir
                   </span>
                 </Link>
@@ -205,7 +205,7 @@ export default async function MatchesPage({
       {finished.length > 0 && (
         <section className="mt-8">
           <span className="kicker mb-3 block">Joués</span>
-          <ul className="divide-y divide-[color:var(--stroke)] overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]">
+          <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
             {finished.map((m) => (
               <li key={m.id}>
                 <Link
@@ -221,7 +221,7 @@ export default async function MatchesPage({
                       <span className="text-[color:var(--ink-2)]">vs</span>{" "}
                       {opponentOr(m)}
                       {m.mvp && (
-                        <span className="ml-2 inline-flex items-center gap-1 align-middle text-[10px] font-black uppercase tracking-wider text-[color:var(--gold)]">
+                        <span className="ml-2 inline-flex items-center gap-1 align-middle text-[13px] font-semibold text-[color:var(--gold)]">
                           <Icon name="star" size={11} filled />
                           {m.mvp.name}
                         </span>
@@ -239,7 +239,7 @@ export default async function MatchesPage({
                     <span
                       className={
                         m.scoreA > m.scoreB
-                          ? "text-[color:var(--lime)]"
+                          ? "text-[color:var(--ink-1)]"
                           : "text-[color:var(--ink-1)]"
                       }
                     >
@@ -249,7 +249,7 @@ export default async function MatchesPage({
                     <span
                       className={
                         m.scoreB > m.scoreA
-                          ? "text-[color:var(--lime)]"
+                          ? "text-[color:var(--ink-1)]"
                           : "text-[color:var(--ink-1)]"
                       }
                     >

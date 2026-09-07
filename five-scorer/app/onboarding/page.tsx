@@ -74,7 +74,7 @@ export default async function OnboardingPage() {
                 <Link
                   key={org.id}
                   href={`/c/${org.slug}`}
-                  className="edge-top group p-6 transition-colors hover:bg-[color:var(--bg-2)]"
+                  className="edge-top group p-6 transition-colors hover:bg-[color:var(--pitch-2)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="text-lg font-black leading-tight">
@@ -83,16 +83,16 @@ export default async function OnboardingPage() {
                     <span
                       className={
                         role === "owner"
-                          ? "rounded-full bg-[color:var(--gold)]/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[color:var(--gold)]"
+                          ? "rounded-[2px] bg-[color:var(--gold)]/20 px-2 py-0.5 text-[13px] font-semibold text-[color:var(--gold)]"
                           : role === "admin"
-                            ? "rounded-full bg-[color:var(--b-500)]/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[color:var(--b-400)]"
-                            : "rounded-full bg-[color:var(--stroke)] px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[color:var(--ink-1)]"
+                            ? "rounded-[2px] bg-[color:var(--b-500)]/20 px-2 py-0.5 text-[13px] font-semibold text-[color:var(--bib-b-ink)]"
+                            : "rounded-[2px] bg-[color:var(--rule)] px-2 py-0.5 text-[13px] font-semibold text-[color:var(--ink-1)]"
                       }
                     >
                       {ROLE_LABEL[role] ?? "Joueur"}
                     </span>
                   </div>
-                  <div className="mt-3 text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)] group-hover:text-[color:var(--ink-1)]">
+                  <div className="mt-3 text-xs font-bold  text-[color:var(--ink-2)] group-hover:text-[color:var(--ink-1)]">
                     Entrer →
                   </div>
                 </Link>

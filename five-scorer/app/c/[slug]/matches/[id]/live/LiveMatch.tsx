@@ -473,14 +473,14 @@ export default function LiveMatch({
 
   if (data === undefined) {
     return (
-      <main className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--bg-0)] text-gray-400">
+      <main className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--pitch-0)] text-gray-400">
         Chargement…
       </main>
     );
   }
   if (data === null) {
     return (
-      <main className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--bg-0)]">
+      <main className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--pitch-0)]">
         <div className="mx-auto max-w-md p-6 text-center">
           <h1 className="mb-2 text-xl font-bold">Match introuvable</h1>
           <p className="mb-6 text-sm text-gray-400">
@@ -488,7 +488,7 @@ export default function LiveMatch({
           </p>
           <button
             onClick={() => router.replace(`/c/${slug}`)}
-            className="rounded-lg bg-white/10 px-4 py-2"
+            className="rounded-[2px] bg-white/10 px-4 py-2"
           >
             Retour
           </button>
@@ -551,53 +551,19 @@ export default function LiveMatch({
   };
 
   return (
-    <main className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[color:var(--bg-0)]">
+    <main className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[color:var(--pitch-0)]">
       {/* Topbar */}
       <header className="live-topbar">
+        {/* Le bandeau de contexte : l'UNIQUE ligne en capitales tracées de
+            tout l'écran. Le chrono et la période ont rejoint le panneau, où
+            ils sont lisibles à trois mètres ; ici ne restent que le repère et
+            les commandes de temps. */}
         <div className="live-topbar-left">
-          <span
-            className="live-dot"
-            style={paused ? { animation: "none", opacity: 0.3 } : undefined}
-          />
-          {/* Le mot « PAUSE » occupait 53 px, et seulement à l'arrêt —
-              c'est-à-dire précisément dans l'état où la barre débordait et
-              où le bouton « MT » se faisait voler son tap. Le chrono le dit
-              sans rien coûter : il s'éteint quand il ne tourne plus, et le
-              bouton d'à côté montre alors un triangle de lecture. */}
-          <span
-            className={cn(
-              "periode-chip rounded border border-[color:var(--stroke)] px-1 text-[9px] font-black uppercase tracking-wider text-[color:var(--ink-1)]",
-              period === 2 ? "p2" : "p1"
-            )}
-          >
-            {period === 2 ? "2de" : "1re"}
+          <span className="truncate">
+            {new Date(match.playedAt)
+              .toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" })
+              .replace(".", "")}
           </span>
-          {/* Un seul chrono. Le temps additionnel était affiché à part, dans
-              un second compteur : à deux, ils poussaient « MT », les
-              événements et le son les uns sur les autres — trois boutons
-              superposés dès qu'un match dépassait son temps, c'est-à-dire
-              presque toujours. Passé la limite, le chrono cesse d'être
-              plafonné et passe au rouge : on lit le temps réel, et qu'on est
-              au-delà, d'un seul coup d'œil. */}
-          <span
-            className="match-clock"
-            style={
-              paused
-                ? { color: "var(--ink-3)" }
-                : overtime
-                  ? { color: "var(--live)" }
-                  : undefined
-            }
-          >
-            {fmt(overtime ? elapsedMs : Math.min(elapsedMs, limitMs))}
-          </span>
-          {/* Le bouton restait un carré, SAUF juste après la mi-temps où il
-              s'élargissait pour annoncer « 2de mi-temps ». À cet instant
-              précis la barre portait aussi le mot PAUSE et la pastille de
-              période : elle débordait de 85 px et recouvrait entièrement le
-              bouton des événements — taper « 2de mi-temps » ouvrait la
-              chronologie. La pastille « 2de » juste à gauche dit déjà la même
-              chose ; le bouton reprend sa taille fixe. */}
           <button
             onClick={toggleClock}
             className="icon-btn"
@@ -609,7 +575,7 @@ export default function LiveMatch({
           {period !== 2 && (
             <button
               onClick={onHalftime}
-              className="icon-btn w-auto px-1.5 text-[11px] font-black"
+              className="icon-btn w-auto px-1.5 text-[11px] font-bold"
               title="Mi-temps"
             >
               MT
@@ -639,27 +605,65 @@ export default function LiveMatch({
       </header>
 
       {/* Scorebar */}
-      <header className="scorebar">
-        <div className="scorebar-team A">
-          <div className="team-chip A">{match.teamAName}</div>
-        </div>
-        <div className="scoreboard">
-          <span ref={scoreARef} className={`score${aLead ? " leading A" : ""}`}>
+      {/* LE PANNEAU. Collé en haut, opaque — jamais de flou d'arrière-plan :
+          le score se noierait dans ce qui défile dessous, c'est le défaut
+          rédhibitoire d'un scorebug. Les deux bandes de chasuble sont AUX
+          BORDS de l'écran, pleine hauteur : on identifie son équipe en vision
+          périphérique, sans lever les yeux du terrain. A toujours à gauche,
+          B toujours à droite, sur tous les écrans. Le séparateur n'est pas un
+          caractère, c'est l'axe médian du panneau. Et le perdant descend d'un
+          ton d'encre — la hiérarchie se fait au ton, pas à la couleur. */}
+      <header className="panneau">
+        <div className="panneau-bande A" />
+        <div className="panneau-camp A">
+          <span className="panneau-code">{match.teamAName}</span>
+          <span
+            ref={scoreARef}
+            className={cn(
+              "chiffre-panneau panneau-score",
+              bLead && "perd"
+            )}
+          >
             {match.scoreA}
           </span>
-          <span className="sep">:</span>
-          <span ref={scoreBRef} className={`score${bLead ? " leading B" : ""}`}>
+        </div>
+        <div className="panneau-axe" />
+        <div className="panneau-camp B">
+          <span className="panneau-code">{match.teamBName}</span>
+          <span
+            ref={scoreBRef}
+            className={cn(
+              "chiffre-panneau panneau-score",
+              aLead && "perd"
+            )}
+          >
             {match.scoreB}
           </span>
         </div>
-        <div className="scorebar-team B">
-          <div className="team-chip B">{match.teamBName}</div>
+        <div className="panneau-bande B" />
+        <div className="panneau-pied">
+          {!paused && <span className="panneau-direct">Direct</span>}
+          <span
+            className="match-clock"
+            style={
+              paused
+                ? { color: "var(--ink-3)" }
+                : overtime
+                  ? { color: "var(--direct)" }
+                  : undefined
+            }
+          >
+            {fmt(overtime ? elapsedMs : Math.min(elapsedMs, limitMs))}
+          </span>
+          <span className="text-[13px] text-[color:var(--ink-3)]">
+            {period === 2 ? "2de" : "1re"}
+          </span>
         </div>
       </header>
 
       {error && (
         <div
-          className="bg-[color:var(--bg-2)] px-4 py-2 text-sm text-[color:var(--loss)]"
+          className="bg-[color:var(--pitch-2)] px-4 py-2 text-sm text-[color:var(--loss)]"
           onClick={() => setError(null)}
         >
           {error}
@@ -750,7 +754,7 @@ export default function LiveMatch({
 
       <div className="live-container flex-1 overflow-y-auto pb-28">
         <section>
-          <div className="team-label hidden px-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--a-400)]">
+          <div className="team-label hidden px-2 text-[13px] font-semibold text-[color:var(--bib-a-ink)]">
             {match.teamAName}
           </div>
           {teamA.map((p) => (
@@ -782,25 +786,25 @@ export default function LiveMatch({
           )}
         </section>
         <section>
-          <div className="team-label hidden px-2 text-[10px] font-bold uppercase tracking-wider text-[color:var(--b-400)]">
+          <div className="team-label hidden px-2 text-[13px] font-semibold text-[color:var(--bib-b-ink)]">
             {match.teamBName}
           </div>
           {external ? (
             <div className="flex flex-col gap-2 p-2">
               <button
                 onClick={addOpponentGoal}
-                className="big-touch rounded-2xl border border-[color:var(--b-400)]/50 bg-[color:var(--b-wash)] py-8 text-center"
+                className="big-touch rounded-none border border-[color:var(--bib-b-ink)]/50 bg-[color:var(--pitch-2)] py-8 text-center"
               >
-                <div className="text-3xl font-black text-[color:var(--b-400)]">
+                <div className="text-3xl font-black text-[color:var(--bib-b-ink)]">
                   +1
                 </div>
-                <div className="mt-1 text-xs font-bold uppercase tracking-wider text-[color:var(--ink-1)]">
+                <div className="mt-1 text-[13px] font-semibold text-[color:var(--ink-1)]">
                   But {match.teamBName}
                 </div>
               </button>
               <button
                 onClick={undoOpponentGoal}
-                className="rounded-xl border border-[color:var(--stroke)] py-2.5 text-xs font-bold uppercase tracking-wider text-[color:var(--ink-2)] hover:text-white"
+                className="rounded-none border border-[color:var(--rule)] py-2.5 text-[13px] font-semibold text-[color:var(--ink-2)] hover:text-white"
               >
                 Annuler le dernier
               </button>
@@ -848,23 +852,23 @@ export default function LiveMatch({
           csc. Non bloquante — elle s'efface toute seule si personne ne répond,
           et le score n'a jamais attendu la réponse. */}
       {invite && inviteCandidats.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-[70] border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-3">
+        <div className="fixed inset-x-0 bottom-0 z-[70] border-t border-[color:var(--rule-hi)] bg-[color:var(--pitch-1)] p-3">
           <div className="mx-auto flex max-w-3xl items-center gap-2 overflow-x-auto">
-            <span className="shrink-0 text-xs font-black uppercase tracking-wider text-[color:var(--ink-1)]">
+            <span className="shrink-0 text-[13px] font-semibold text-[color:var(--ink-1)]">
               {inviteTitre}
             </span>
             {inviteCandidats.map((p) => (
               <button
                 key={p.id}
                 onClick={() => repondreInvite(p.id)}
-                className="shrink-0 rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 py-2 text-sm font-bold hover:border-[color:var(--lime)]"
+                className="shrink-0 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 py-2 text-sm font-bold hover:border-[color:var(--ink-1)]"
               >
                 {p.name}
               </button>
             ))}
             <button
               onClick={() => repondreInvite(null)}
-              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold uppercase text-[color:var(--ink-2)]"
+              className="flex shrink-0 items-center gap-1.5 rounded-[2px] px-3 py-2 text-xs font-bold uppercase text-[color:var(--ink-2)]"
             >
               {inviteRefus} <Icon name="close" size={12} />
             </button>
@@ -880,13 +884,13 @@ export default function LiveMatch({
             if (e.target === e.currentTarget) setTimelineOpen(false);
           }}
         >
-          <div className="max-h-[70vh] w-full overflow-y-auto rounded-t-3xl border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-5">
+          <div className="max-h-[70vh] w-full overflow-y-auto rounded-t-3xl border-t border-[color:var(--rule-hi)] bg-[color:var(--pitch-1)] p-5">
             <div className="mb-3 flex items-center justify-between">
               <span className="kicker">Événements</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setSoundOn(toggleSound())}
-                  className="icon-btn w-auto gap-1.5 px-3 text-[11px] font-black uppercase tracking-wider"
+                  className="icon-btn w-auto gap-1.5 px-3 text-[13px] font-semibold"
                   aria-label={soundOn ? "Couper le son" : "Activer le son"}
                 >
                   <Icon name={soundOn ? "sound" : "mute"} size={16} />
@@ -906,7 +910,7 @@ export default function LiveMatch({
                 Rien pour l&apos;instant. Ça va venir.
               </p>
             ) : (
-              <ul className="divide-y divide-[color:var(--stroke)]">
+              <ul className="divide-y divide-[color:var(--rule)]">
                 {[...events].reverse().map((e) => (
                   <li key={e.id} className="flex items-center gap-3 py-2.5">
                     <span className="w-10 font-mono text-xs text-[color:var(--ink-2)]">
@@ -914,16 +918,16 @@ export default function LiveMatch({
                     </span>
                     <span>{eventIcon(e.type)}</span>
                     {e.type === "HALF_TIME" ? (
-                      <span className="flex-1 text-xs font-bold uppercase tracking-wider text-[color:var(--ink-2)]">
+                      <span className="flex-1 text-[13px] font-semibold text-[color:var(--ink-2)]">
                         — Mi-temps —
                       </span>
                     ) : (
                       <span
                         className={cn(
-                          "flex-1 text-sm font-bold",
+ "flex-1 text-sm font-bold",
                           e.team === "A"
-                            ? "text-[color:var(--a-400)]"
-                            : "text-[color:var(--b-400)]"
+                            ? "text-[color:var(--bib-a-ink)]"
+                            : "text-[color:var(--bib-b-ink)]"
                         )}
                       >
                         {/* Un csc est crédité à l'équipe qui en profite. Sans
@@ -960,7 +964,7 @@ export default function LiveMatch({
                         }
                         void kickSync();
                       }}
-                      className="rounded-lg border border-[color:var(--stroke)] px-2.5 py-1 text-xs font-bold text-[color:var(--loss)] hover:border-[color:var(--loss)]"
+                      className="rounded-[2px] border border-[color:var(--rule)] px-2.5 py-1 text-xs font-bold text-[color:var(--loss)] hover:border-[color:var(--loss)]"
                     >
                       Annuler
                     </button>
@@ -980,8 +984,8 @@ export default function LiveMatch({
             if (e.target === e.currentTarget) setSheet(null);
           }}
         >
-          <div className="w-full rounded-t-3xl border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-5">
-                <div className="mb-3 flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider">
+          <div className="w-full rounded-t-3xl border-t border-[color:var(--rule-hi)] bg-[color:var(--pitch-1)] p-5">
+                <div className="mb-3 flex items-center gap-2 text-sm font-extrabold ">
                 <Icon
                   name="card"
                   size={16}
@@ -1001,7 +1005,7 @@ export default function LiveMatch({
                   <button
                     key={p.id}
                     onClick={() => onSheetPick(p.id)}
-                    className="big-touch rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-3 text-left font-bold hover:border-[color:var(--stroke-hi)]"
+                    className="big-touch rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-3 text-left font-bold hover:border-[color:var(--rule-hi)]"
                   >
                     {p.name}
                   </button>
@@ -1018,18 +1022,18 @@ export default function LiveMatch({
             if (e.target === e.currentTarget) setConfirmOpen(false);
           }}
         >
-          <div className="rounded-2xl border border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-6 text-center">
+          <div className="rounded-none border border-[color:var(--rule-hi)] bg-[color:var(--pitch-1)] p-6 text-center">
             <h2 className="mb-4 text-lg font-bold">Terminer ce match ?</h2>
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmOpen(false)}
-                className="flex-1 rounded-lg bg-[color:var(--bg-2)] px-4 py-3 font-bold"
+                className="flex-1 rounded-[2px] bg-[color:var(--pitch-2)] px-4 py-3 font-bold"
               >
                 Annuler
               </button>
               <button
                 onClick={requestFinish}
-                className="flex-1 rounded-lg bg-[color:var(--loss)] px-4 py-3 font-bold text-[color:var(--bg-0)]"
+                className="flex-1 rounded-[2px] bg-[color:var(--loss)] px-4 py-3 font-bold text-[color:var(--pitch-0)]"
               >
                 Terminer
               </button>
@@ -1111,7 +1115,7 @@ function TeamToolbar({
   return (
     <div
       className={cn(
-        "flex gap-2 p-2",
+ "flex gap-2 p-2",
         team === "B" && "flex-row-reverse"
       )}
     >
@@ -1119,14 +1123,14 @@ function TeamToolbar({
         <>
           <button
             onClick={() => onCard("YELLOW_CARD")}
-            className="rounded-md px-3 py-2 text-[color:var(--gold)]"
+            className="rounded-[2px] px-3 py-2 text-[color:var(--gold)]"
             aria-label="Carton jaune"
           >
             <Icon name="card" size={15} filled />
           </button>
           <button
             onClick={() => onCard("RED_CARD")}
-            className="rounded-md px-3 py-2 text-[color:var(--loss)]"
+            className="rounded-[2px] px-3 py-2 text-[color:var(--loss)]"
             aria-label="Carton rouge"
           >
             <Icon name="card" size={15} filled />

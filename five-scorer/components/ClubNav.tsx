@@ -24,7 +24,7 @@ export default function ClubNav({
   ];
 
   return (
-    <nav className="scrollbar-none mt-4 hidden gap-1 overflow-x-auto rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-1 sm:flex">
+    <nav className="scrollbar-none mt-4 hidden gap-1 overflow-x-auto rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-1 sm:flex">
       {tabs.map((t) => {
         const active = t.exact
           ? pathname === t.href
@@ -34,9 +34,9 @@ export default function ClubNav({
             key={t.href}
             href={t.href}
             className={cn(
-              "whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-bold uppercase tracking-wider transition-colors",
+ "whitespace-nowrap rounded-[2px] px-3.5 py-2 text-[13px] font-semibold transition-colors",
               active
-                ? "bg-[color:var(--lime)] text-[color:var(--bg-0)]"
+                ? "bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
                 : "text-[color:var(--ink-1)] hover:bg-white/5 hover:text-white"
             )}
           >

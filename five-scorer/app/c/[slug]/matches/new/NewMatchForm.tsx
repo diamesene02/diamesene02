@@ -247,12 +247,12 @@ export default function NewMatchForm({
       <div className="flex items-center justify-between">
         {scheduled ? (
           // Match programmé : le mode est figé par la convocation.
-          <span className="rounded-full border border-[color:var(--b-400)]/40 bg-[color:var(--b-wash)] px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-[color:var(--b-400)]">
+          <span className="rounded-[2px] border border-[color:var(--bib-b-ink)]/40 bg-[color:var(--pitch-2)] px-3.5 py-2 text-[13px] font-semibold text-[color:var(--bib-b-ink)]">
             Match programmé ·{" "}
             {scheduled.kind === "INTERNAL" ? "Entre nous" : "Vs adversaire"}
           </span>
         ) : (
-          <div className="flex gap-1 rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-1">
+          <div className="flex gap-1 rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-1">
             {(
               [
                 ["INTERNAL", "Entre nous"],
@@ -263,9 +263,9 @@ export default function NewMatchForm({
                 key={m}
                 onClick={() => setMode(m)}
                 className={cn(
-                  "min-h-[44px] rounded-lg px-3.5 text-xs font-bold uppercase tracking-wider transition-colors",
+ "min-h-[44px] rounded-[2px] px-3.5 text-[13px] font-semibold transition-colors",
                   mode === m
-                    ? "bg-[color:var(--lime)] text-[color:var(--bg-0)]"
+                    ? "bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
                     : "text-[color:var(--ink-1)] hover:text-white"
                 )}
               >
@@ -284,7 +284,7 @@ export default function NewMatchForm({
             <input
               value={teamAName}
               onChange={(e) => setTeamAName(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--a-500)]"
+              className="mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--bib-a)]"
             />
           </label>
           <label className="block">
@@ -292,12 +292,12 @@ export default function NewMatchForm({
             <input
               value={teamBName}
               onChange={(e) => setTeamBName(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--b-500)]"
+              className="mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--b-500)]"
             />
           </label>
         </div>
       ) : (
-        <div className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-4">
+        <div className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4">
           <span className="kicker">Adversaire</span>
           <div className="mt-2 flex flex-wrap gap-2">
             {opponents.map((o) => (
@@ -305,10 +305,10 @@ export default function NewMatchForm({
                 key={o.id}
                 onClick={() => setOpponentId(o.id)}
                 className={cn(
-                  "inline-flex min-h-[44px] items-center rounded-full border px-4 text-sm font-bold transition-colors",
+ "inline-flex min-h-[44px] items-center rounded-[2px] border px-4 text-sm font-bold transition-colors",
                   opponentId === o.id
-                    ? "border-[color:var(--b-400)] bg-[color:var(--b-wash)] text-[color:var(--b-400)]"
-                    : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)]"
+                    ? "border-[color:var(--bib-b-ink)] bg-[color:var(--pitch-2)] text-[color:var(--bib-b-ink)]"
+                    : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)]"
                 )}
               >
                 {o.name}
@@ -320,11 +320,11 @@ export default function NewMatchForm({
               value={newOpponent}
               onChange={(e) => setNewOpponent(e.target.value)}
               placeholder="Nouvelle équipe adverse…"
-              className="min-h-[44px] flex-1 rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 text-sm outline-none focus:border-[color:var(--b-500)]"
+              className="min-h-[44px] flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm outline-none focus:border-[color:var(--b-500)]"
             />
             <button
               onClick={addOpponent}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 text-sm font-bold hover:border-[color:var(--b-400)]"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 text-sm font-bold hover:border-[color:var(--bib-b-ink)]"
             >
               <Icon name="plus" size={14} />
               Ajouter
@@ -352,13 +352,13 @@ export default function NewMatchForm({
                 key={p.id}
                 onClick={() => cycle(p.id)}
                 className={cn(
-                  "big-touch rounded-xl border px-3 py-3 text-left transition",
+ "big-touch rounded-none border px-3 py-3 text-left transition",
                   a === "none" &&
-                    "border-[color:var(--stroke)] bg-[color:var(--bg-1)]",
+ "border-[color:var(--rule)] bg-[color:var(--pitch-1)]",
                   a === "A" &&
-                    "border-[color:var(--a-500)] bg-[color:var(--a-wash)]",
+ "border-[color:var(--bib-a)] bg-[color:var(--pitch-2)]",
                   a === "B" &&
-                    "border-[color:var(--b-400)] bg-[color:var(--b-wash)]"
+ "border-[color:var(--bib-b-ink)] bg-[color:var(--pitch-2)]"
                 )}
               >
                 <div className="flex items-center justify-between font-semibold">
@@ -414,7 +414,7 @@ export default function NewMatchForm({
       </div>
 
       {mode === "INTERNAL" && selected.length >= 2 && (
-        <div className="rounded-2xl border border-[color:var(--lime)]/30 bg-[color:var(--lime-dim)] p-4">
+        <div className="rounded-none border border-[color:var(--ink-1)]/30 bg-[color:var(--ink-2)] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm font-black">
@@ -427,18 +427,18 @@ export default function NewMatchForm({
             </div>
             <button
               onClick={() => generateTeams()}
-              className="inline-flex min-h-[44px] items-center rounded-full bg-[color:var(--lime)] px-5 text-sm font-black text-[color:var(--bg-0)] transition-transform hover:scale-[1.03]"
+              className="inline-flex min-h-[44px] items-center rounded-[2px] bg-[color:var(--ink-1)] px-5 text-sm font-black text-[color:var(--pitch-0)] transition-transform hover:scale-[1.03]"
             >
               {drawn ? "Re-tirer" : "Équilibrer"}
             </button>
           </div>
           {teamA.length > 0 && teamB.length > 0 && (
             <div className="mt-3 flex items-center gap-3 text-xs tabular-nums text-[color:var(--ink-1)]">
-              <span className="text-[color:var(--a-400)]">
+              <span className="text-[color:var(--bib-a-ink)]">
                 {teamAName} {strength(teamA)}
               </span>
               <span className="text-[color:var(--ink-2)]">vs</span>
-              <span className="text-[color:var(--b-400)]">
+              <span className="text-[color:var(--bib-b-ink)]">
                 {teamBName} {strength(teamB)}
               </span>
               <span className="text-[color:var(--ink-2)]">
@@ -449,7 +449,7 @@ export default function NewMatchForm({
         </div>
       )}
 
-      <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-4">
+      <div className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4">
         <h3 className="kicker mb-2">Ajouter un invité</h3>
         <div className="flex gap-2">
           <input
@@ -457,11 +457,11 @@ export default function NewMatchForm({
             onChange={(e) => setGuestName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addGuest()}
             placeholder="Nom de l'invité"
-            className="min-h-[44px] flex-1 rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]"
+            className="min-h-[44px] flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
           />
           <button
             onClick={addGuest}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 font-bold hover:border-[color:var(--lime)]"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 font-bold hover:border-[color:var(--ink-1)]"
           >
             <Icon name="plus" size={14} />
             Invité
@@ -482,7 +482,7 @@ export default function NewMatchForm({
       <button
         onClick={startMatch}
         disabled={loading}
-        className="w-full rounded-2xl bg-[color:var(--lime)] py-5 text-xl font-black text-[color:var(--bg-0)] disabled:opacity-50"
+        className="w-full rounded-none bg-[color:var(--ink-1)] py-5 text-xl font-black text-[color:var(--pitch-0)] disabled:opacity-50"
       >
         {loading ? "Création…" : "Lancer le match"}
       </button>

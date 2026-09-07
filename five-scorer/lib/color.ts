@@ -88,11 +88,31 @@ export function inkVariant(hex: string, background = CANVAS): string {
 export const DEFAULT_BIB_A = "#FF6B2C";
 export const DEFAULT_BIB_B = "#3D8BFF";
 
+/// Plancher de VISIBILITÉ d'une bande de chasuble.
+///
+/// La bande n'est pas du texte : elle n'a pas besoin de Lc 60. Mais une
+/// chasuble marine sur le gazon nocturne donne Lc 0 — la bande disparaît, et
+/// avec elle le seul repère d'équipe visible en vision périphérique. On
+/// éclaircit donc jusqu'à Lc 30, juste assez pour qu'elle se détache.
+const CIBLE_BANDE = 30;
+
+export function slabVariant(hex: string, background = "#0e1211"): string {
+  const base = parse(hex);
+  if (apca(toHex(base), background) >= CIBLE_BANDE) return toHex(base);
+  for (let t = 0.02; t <= 1.0001; t += 0.02) {
+    const mixed = base.map((v) => v + (255 - v) * t);
+    if (apca(toHex(mixed), background) >= CIBLE_BANDE) return toHex(mixed);
+  }
+  return "#FFFFFF";
+}
+
 export type BibTheme = {
   aFill: string;
   aInk: string;
+  aSlab: string;
   bFill: string;
   bInk: string;
+  bSlab: string;
 };
 
 export function bibTheme(a?: string | null, b?: string | null): BibTheme {
@@ -101,8 +121,10 @@ export function bibTheme(a?: string | null, b?: string | null): BibTheme {
   return {
     aFill,
     aInk: inkVariant(aFill),
+    aSlab: slabVariant(aFill),
     bFill,
     bInk: inkVariant(bFill),
+    bSlab: slabVariant(bFill),
   };
 }
 

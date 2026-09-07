@@ -51,12 +51,12 @@ export default function NewSessionForm({ slug }: { slug: string }) {
   }
 
   const inputCls =
-    "mt-1 w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]";
+ "mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]";
 
   return (
     <form
       onSubmit={submit}
-      className="space-y-5 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5 sm:p-6"
+      className="space-y-5 bande"
     >
       <label className="block">
         <span className="kicker">Date & heure</span>
@@ -94,7 +94,7 @@ export default function NewSessionForm({ slug }: { slug: string }) {
       <button
         type="submit"
         disabled={isPending}
-        className="big-touch w-full rounded-2xl bg-[color:var(--lime)] py-4 text-lg font-black text-[color:var(--bg-0)] disabled:opacity-50"
+        className="big-touch w-full rounded-none bg-[color:var(--ink-1)] py-4 text-lg font-black text-[color:var(--pitch-0)] disabled:opacity-50"
       >
         {isPending ? "Création…" : "Programmer la soirée"}
       </button>

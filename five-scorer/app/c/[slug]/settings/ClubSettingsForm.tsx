@@ -97,13 +97,13 @@ export default function ClubSettingsForm({
   }
 
   const inputCls =
-    "mt-1 min-h-[44px] w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]";
+ "mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]";
 
   const toggleCls =
-    "flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2.5";
+ "flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2.5";
 
   return (
-    <section className="rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5 sm:p-6">
+    <section className="bande">
       <h2 className="kicker">Club</h2>
       <form onSubmit={submit} className="mt-4 space-y-5">
         {/* Les couleurs de chasubles habillent toute l'app : barres
@@ -215,7 +215,7 @@ export default function ClubSettingsForm({
               type="checkbox"
               checked={values.trackAssists}
               onChange={(e) => set("trackAssists", e.target.checked)}
-              className="h-5 w-5 accent-[color:var(--lime)]"
+              className="h-5 w-5 accent-[color:var(--ink-1)]"
             />
           </label>
           <label className={toggleCls}>
@@ -224,7 +224,7 @@ export default function ClubSettingsForm({
               type="checkbox"
               checked={values.trackCards}
               onChange={(e) => set("trackCards", e.target.checked)}
-              className="h-5 w-5 accent-[color:var(--lime)]"
+              className="h-5 w-5 accent-[color:var(--ink-1)]"
             />
           </label>
           <label className={toggleCls}>
@@ -235,7 +235,7 @@ export default function ClubSettingsForm({
               type="checkbox"
               checked={values.membersCanScore}
               onChange={(e) => set("membersCanScore", e.target.checked)}
-              className="h-5 w-5 accent-[color:var(--lime)]"
+              className="h-5 w-5 accent-[color:var(--ink-1)]"
             />
           </label>
           <label className={toggleCls}>
@@ -244,7 +244,7 @@ export default function ClubSettingsForm({
               type="checkbox"
               checked={values.isPublic}
               onChange={(e) => set("isPublic", e.target.checked)}
-              className="h-5 w-5 accent-[color:var(--lime)]"
+              className="h-5 w-5 accent-[color:var(--ink-1)]"
             />
           </label>
         </div>
@@ -256,7 +256,7 @@ export default function ClubSettingsForm({
               href={`/p/${slug}`}
               target="_blank"
               rel="noreferrer"
-              className="font-bold text-[color:var(--lime)] underline underline-offset-2"
+              className="font-bold text-[color:var(--ink-1)] underline underline-offset-2"
             >
               /p/{slug}
             </a>
@@ -286,12 +286,12 @@ export default function ClubSettingsForm({
           <button
             type="submit"
             disabled={isPending}
-            className="inline-flex min-h-[56px] items-center rounded-full bg-[color:var(--lime)] px-6 text-sm font-black text-[color:var(--bg-0)] disabled:opacity-50"
+            className="inline-flex min-h-[56px] items-center rounded-[2px] bg-[color:var(--ink-1)] px-6 text-sm font-black text-[color:var(--pitch-0)] disabled:opacity-50"
           >
             {isPending ? "Enregistrement…" : "Enregistrer"}
           </button>
           {saved && !isPending && (
-            <span className="text-sm font-bold text-[color:var(--a-400)]">
+            <span className="text-sm font-bold text-[color:var(--bib-a-ink)]">
               Enregistré
             </span>
           )}
@@ -316,7 +316,7 @@ function BibPicker({
   return (
     <label className="flex items-center gap-2.5">
       <span
-        className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg"
+        className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[2px]"
         style={{ background: value }}
       >
         <input
@@ -328,14 +328,14 @@ function BibPicker({
         />
       </span>
       <span className="flex flex-col gap-0.5">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-3)]">
+        <span className="text-[13px] font-semibold text-[color:var(--ink-3)]">
           {label}
         </span>
         <input
           value={value}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           spellCheck={false}
-          className="w-24 rounded-md border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2 py-1 text-[13px] tabular-nums outline-none focus:border-[color:var(--rule-hi)]"
+          className="w-24 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 py-1 text-[13px] tabular-nums outline-none focus:border-[color:var(--rule-hi)]"
         />
       </span>
     </label>

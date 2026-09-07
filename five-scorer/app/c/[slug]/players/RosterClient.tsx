@@ -51,7 +51,7 @@ function Stars({ skill }: { skill: number }) {
           className={
             n <= skill
               ? "text-[color:var(--ink-1)]"
-              : "text-[color:var(--stroke-hi)]"
+              : "text-[color:var(--rule-hi)]"
           }
         />
       ))}
@@ -95,7 +95,7 @@ function PlayerForm({
             onChange={(e) => setName(e.target.value)}
             placeholder="Kylian"
             required
-            className="mt-1 w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]"
+            className="mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
           />
         </label>
         <label className="block">
@@ -104,7 +104,7 @@ function PlayerForm({
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder="La Flèche"
-            className="mt-1 w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]"
+            className="mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
           />
         </label>
       </div>
@@ -114,7 +114,7 @@ function PlayerForm({
           <select
             value={skill}
             onChange={(e) => setSkill(Number(e.target.value))}
-            className="rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]"
+            className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
           >
             {[1, 2, 3, 4, 5].map((s) => (
               <option key={s} value={s}>
@@ -128,7 +128,7 @@ function PlayerForm({
             type="checkbox"
             checked={isGk}
             onChange={(e) => setIsGk(e.target.checked)}
-            className="h-4 w-4 accent-[color:var(--lime)]"
+            className="h-4 w-4 accent-[color:var(--ink-1)]"
           />
           Gardien
         </label>
@@ -140,14 +140,14 @@ function PlayerForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-[color:var(--lime)] px-5 py-2 text-sm font-black text-[color:var(--bg-0)] disabled:opacity-50"
+          className="rounded-[2px] bg-[color:var(--ink-1)] px-5 py-2 text-sm font-black text-[color:var(--pitch-0)] disabled:opacity-50"
         >
           {pending ? "…" : submitLabel}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-5 py-2 text-sm font-bold text-[color:var(--ink-1)] hover:text-white"
+          className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-5 py-2 text-sm font-bold text-[color:var(--ink-1)] hover:text-white"
         >
           Annuler
         </button>
@@ -211,14 +211,14 @@ export default function RosterClient({
             setEditingId(null);
             setFormError(null);
           }}
-          className="rounded-full bg-[color:var(--lime)] px-5 py-2.5 text-sm font-black text-[color:var(--bg-0)] transition-transform hover:scale-[1.02]"
+          className="rounded-[2px] bg-[color:var(--ink-1)] px-5 py-2.5 text-sm font-black text-[color:var(--pitch-0)] transition-transform hover:scale-[1.02]"
         >
           Ajouter un joueur
         </button>
       )}
 
       {canManage && showAdd && (
-        <div className="rounded-2xl border border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] p-4">
+        <div className="rounded-none border border-[color:var(--rule-hi)] bg-[color:var(--pitch-1)] p-4">
           <h2 className="kicker mb-3">Nouveau joueur</h2>
           <PlayerForm
             initial={{ name: "", nickname: "", skill: 3, isGk: false }}
@@ -251,7 +251,7 @@ export default function RosterClient({
         {active.map((p) => (
           <div
             key={p.id}
-            className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-4 transition-colors hover:border-[color:var(--stroke-hi)]"
+            className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4 transition-colors hover:border-[color:var(--rule-hi)]"
           >
             {editingId === p.id ? (
               <PlayerForm
@@ -289,7 +289,7 @@ export default function RosterClient({
                     <PlayerAvatar name={p.name} id={p.id} size="md" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-base font-black transition-colors group-hover:text-[color:var(--lime)]">
+                        <span className="truncate text-base font-black transition-colors group-hover:text-[color:var(--ink-1)]">
                           {p.name}
                         </span>
                         {p.isGk && (
@@ -315,7 +315,7 @@ export default function RosterClient({
                         setShowAdd(false);
                         setFormError(null);
                       }}
-                      className="shrink-0 rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-2)] transition-colors hover:text-[color:var(--ink-1)]"
+                      className="shrink-0 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-2)] transition-colors hover:text-[color:var(--ink-1)]"
                     >
                       Modifier
                     </button>
@@ -325,13 +325,13 @@ export default function RosterClient({
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Stars skill={p.skill} />
                   {p.isGuest && (
-                    <span className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-1)]">
+                    <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 py-0.5 text-[13px] font-semibold text-[color:var(--ink-1)]">
                       invité
                     </span>
                   )}
                   {p.isLinked && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--a-400)]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--a-500)]" />
+                    <span className="inline-flex items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 py-0.5 text-[13px] font-semibold text-[color:var(--bib-a-ink)]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--bib-a)]" />
                       compte lié
                     </span>
                   )}
@@ -344,14 +344,14 @@ export default function RosterClient({
 
                 {(canManage ||
                   (!hasLinkedPlayer && !p.isLinked && !p.isGuest)) && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t border-[color:var(--stroke)] pt-3">
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-[color:var(--rule)] pt-3">
                     {!hasLinkedPlayer && !p.isLinked && !p.isGuest && (
                       <button
                         onClick={() =>
                           runList(() => linkPlayerToUser(slug, p.id, userId))
                         }
                         disabled={isPending}
-                        className="rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-3 py-1 text-xs font-black text-[color:var(--ink-1)] disabled:opacity-50"
+                        className="rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-black text-[color:var(--ink-1)] disabled:opacity-50"
                       >
                         C&apos;est moi
                       </button>
@@ -362,7 +362,7 @@ export default function RosterClient({
                           runList(() => setPlayerArchived(slug, p.id, true))
                         }
                         disabled={isPending}
-                        className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] hover:text-white disabled:opacity-50"
+                        className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] hover:text-white disabled:opacity-50"
                       >
                         Archiver
                       </button>
@@ -387,7 +387,7 @@ export default function RosterClient({
           <summary className="kicker cursor-pointer select-none">
             Archivés ({archived.length})
           </summary>
-          <ul className="mt-3 divide-y divide-[color:var(--stroke)] overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]">
+          <ul className="mt-3 divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
             {archived.map((p) => (
               <li
                 key={p.id}
@@ -417,7 +417,7 @@ export default function RosterClient({
                       runList(() => setPlayerArchived(slug, p.id, false))
                     }
                     disabled={isPending}
-                    className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] hover:text-white disabled:opacity-50"
+                    className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] hover:text-white disabled:opacity-50"
                   >
                     Réactiver
                   </button>

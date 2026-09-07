@@ -35,7 +35,7 @@ export default function PlayerAvatar({
   return (
     <span
       aria-hidden
-      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-black uppercase leading-none ${SIZES[size]}`}
+      className={`inline-flex shrink-0 select-none items-center justify-center rounded-[2px] font-black uppercase leading-none ${SIZES[size]}`}
       style={{
         backgroundColor: `hsl(${hue} 45% 28%)`,
         color: `hsl(${hue} 80% 70%)`,

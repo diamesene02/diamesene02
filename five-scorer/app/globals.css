@@ -46,804 +46,626 @@
   font-display: swap;
 }
 
-/* ────────────────────────── JETONS ────────────────────────── */
+/* ────────────────────────── JETONS ──────────────────────────
+
+   RÉGIE — l'app n'affiche pas des matchs, elle est l'habillage de diffusion
+   du lundi soir. Chaque écran est un élément de panneau : bandeau de
+   contexte, panneau de score, rangée de classement, ticker de soirée.
+
+   Trois gestes portent tout, et aucun ne s'obtient par défaut :
+   1. Le chiffre géant en chasse 62 % occupe la place de la photo qu'on n'a
+      pas. Sa présence vient de la CHASSE et de la taille, jamais du gras :
+      sur fond sombre, une graisse 800 lit comme une 900 imprimée (halation).
+      Plafond assumé à 640.
+   2. La bande de chasuble pleine hauteur, collée au bord de l'écran,
+      identifie l'équipe en vision périphérique — la condition exacte du
+      marqueur qui ne regarde pas son téléphone.
+   3. Le rayon zéro. Un panneau de stade est rectangulaire, un scorebug est
+      rectangulaire, une feuille de match est rectangulaire. L'arrondi est le
+      format du widget web, pas celui du sport.
+
+   Et le direct se prouve par une horloge qui avance, jamais par un point qui
+   clignote. Il n'y a aucune pulsation dans ce fichier.
+
+   Contrastes : chaque valeur est MESURÉE en APCA (lib/color.ts), la métrique
+   juste pour le sombre — WCAG 2.x surestime le contraste des fonds noirs.
+   Vérification faite sur --pitch-1 : #f4f6f3 → Lc 100,4 · #c8cfcb → Lc 75,3 ·
+   #adb5b2 → Lc 60,2 · #9aa39f → Lc 50,2. Le quatrième ton passe sous le
+   plancher : il n'existe donc que TROIS encres de texte, et la hiérarchie
+   d'un tableau dense se fait à la taille, à la chasse et à la position — pas
+   à la luminance.
+   ─────────────────────────────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
 
-  /* Gazon — fond de nuit, très légèrement vert. Jamais de noir pur :
-     il provoque un halo et un scintillement au défilement sur OLED. */
-  --pitch-0: #0e1211; /* toile de fond */
-  --pitch-1: #141917; /* surface posée */
-  --pitch-2: #1c2321; /* surface soulevée */
-  --pitch-3: #252d2a; /* pression / survol */
+  /* Gazon — jamais de noir pur : halo et scintillement au défilement sur OLED. */
+  --pitch-0: #0e1211;
+  --pitch-1: #141917;
+  --pitch-2: #1c2321;
+  --pitch-3: #252d2a;
 
-  /* Craie — les lignes du terrain, et l'encre de l'app. */
-  --ink-1: #f4f6f3; /* titres, chiffres, action principale — Lc 100 */
-  --ink-2: #c8cfcb; /* texte courant — Lc 75 */
-  --ink-3: #adb5b2; /* légendes, unités — Lc 60 */
-  --rule: #2c3532; /* filet décoratif (séparation visuelle) */
-  --rule-hi: #616865; /* contour fonctionnel — 3,1:1, exigence WCAG */
+  /* Craie — trois tons, plafond mesuré. */
+  --ink-1: #f4f6f3;
+  --ink-2: #c8cfcb;
+  --ink-3: #adb5b2;
 
-  /* Chasubles — l'identité du club. Redéfinies à l'exécution par
-     ClubTheme d'après les réglages ; ici les couleurs par défaut, celles
-     des vraies chasubles de five. Chaque couleur a deux tons :
-     · -fill  : aplat, pour les barres et pastilles (pas de petit texte)
-     · -ink   : version éclaircie, seule autorisée à porter du texte */
+  /* Filets — non textuels, jamais un mot dedans. */
+  --rule: #2c3532;
+  --rule-hi: #616865;
+
+  /* Chasubles. L'aplat sert la bande, l'encre le libellé isolé, la « slab »
+     garantit qu'une bande reste visible même en couleur sombre (plancher
+     Lc 30, calculé par ClubTheme). */
   --bib-a: #ff6b2c;
   --bib-a-ink: #ff996d;
+  --bib-a-slab: #ff6b2c;
   --bib-b: #3d8bff;
   --bib-b-ink: #83b5ff;
+  --bib-b-slab: #3d8bff;
 
-  /* Signalétique — sémantique, distincte de l'identité du club.
-     Toujours doublée d'une lettre ou d'un mot : la couleur ne porte
-     jamais seule l'information (8 % des hommes sont daltoniens). */
+  /* Le mot DIRECT, et rien d'autre. */
+  --direct: #ff3b30;
+  /* Texte ou filet de 2px, jamais un fond de pastille. */
   --win: #3dd37e;
-  --draw: #adb5b2;
   --loss: #ff9595;
-  --gold: #ffc24d; /* homme du match */
-  --live: #ff938d; /* le mot « direct » */
-  --live-dot: #ff3b30; /* la pastille qui bat — forme, pas texte */
+  --gold: #ffc24d;
 
-  /* Typographie */
   --font: "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  /* Rythme — une seule échelle, pas d'espacement au jugé. */
+  /* Corps — cinq crans, pas trente-neuf. Le 16px est la voix du vestiaire :
+     c'est lui qui manquait, l'app n'avait rien entre 14 et 22. */
+  --t-meta: 0.6875rem;
+  --t-legende: 0.8125rem;
+  --t-lire: 1rem;
+  --t-nom: 1.375rem;
+  --t-titre: 2.125rem;
+
+  /* Crénage indexé sur le corps : une valeur unique appliquée partout est un
+     marqueur mécanique. Le défaut d'approche d'une fonte n'est juste qu'à une
+     seule taille. */
+  --k-xxl: -0.045em;
+  --k-xl: -0.035em;
+  --k-l: -0.02em;
+  --k-m: 0;
+  --k-s: 0.005em;
+  --k-caps: 0.12em;
+
+  /* Rythme — 4/8 DANS un groupe, 32/64 ENTRE deux groupes. Ce qui ne mérite
+     pas 32px ne mérite pas d'être une section. */
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
   --s4: 16px;
-  --s5: 24px;
   --s6: 32px;
-  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
 
-  /* Rayons — francs et rares. Le rectangle est la forme du terrain ;
-     l'arrondi est réservé aux pastilles et aux boutons. */
-  --r-sm: 4px;
-  --r-md: 8px;
-  --r-pill: 999px;
+  /* Deux rayons. Zéro pour la donnée et la structure, 2px pour les seules
+     commandes — juste assez pour ne pas lire comme un div nu. */
+  --r-0: 0px;
+  --r-2: 2px;
+  --r-focus: 4px;
 
-  /* Cibles tactiles — 56 px pour la saisie au bord du terrain (main
-     froide, une seule main), 44 px minimum ailleurs. */
+  --bande-panneau: 10px;
+  --bande-rangee: 6px;
+  --h-saisie: 56px;
+  --h-lecture: 44px;
+  --h-ticker: 32px;
   --tap: 56px;
   --tap-min: 44px;
 
-  /* Mouvement — 120-180 ms pour le retour immédiat, 320 ms élastique
-     pour la célébration d'un but. */
   --t-fast: 120ms;
   --t-mid: 180ms;
   --t-slow: 320ms;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
-  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Une seule courbe. --ease-pop est supprimé : un dépassement élastique est
+     une signature datée, et il coûte du temps à quelqu'un qui compte un but. */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* Marges de sécurité (encoche, barre gestuelle) */
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
-
-  /* ─────────────── Passerelle depuis l'ancien vocabulaire ───────────────
-     Les écrans utilisent encore les noms de la version précédente. Plutôt
-     que de réécrire 46 fichiers, on redirige : la refonte se propage d'un
-     coup et les défauts mesurés se corrigent d'eux-mêmes — l'ancien
-     --ink-2 (3,21:1, sous le seuil AA) pointe désormais sur une valeur
-     à Lc 60. */
-  --bg-0: var(--pitch-0);
-  --bg-1: var(--pitch-1);
-  --bg-2: var(--pitch-2);
-  --stroke: var(--rule);
-  --stroke-hi: var(--rule-hi);
-  --ink-0: var(--ink-1);
-  /* --ink-1 et --ink-2 sont volontairement décalés d'un cran vers le clair */
-
-  /* L'accent de l'app n'est plus une couleur : c'est la craie. */
-  --lime: var(--ink-1);
-  --lime-dim: rgba(244, 246, 243, 0.06);
-
-  /* Équipes : aplat pour les barres, encre éclaircie pour le texte. */
-  --a-500: var(--bib-a);
-  --a-400: var(--bib-a-ink);
-  --a-wash: color-mix(in srgb, var(--bib-a) 12%, transparent);
-  --b-500: var(--bib-b);
-  --b-400: var(--bib-b-ink);
-  --b-wash: color-mix(in srgb, var(--bib-b) 12%, transparent);
-
-  /* Les halos sont neutralisés : ils datent la conception. */
-  --lime-glow: transparent;
-  --a-glow: transparent;
-  --b-glow: transparent;
-  --gold-glow: transparent;
-  --live-pulse: transparent;
-
-  --font-ui: var(--font);
-  --font-mono: var(--font);
 }
 
-/* Les ombres portées colorées de la version précédente s'annulent d'elles-
-   mêmes puisque leurs couleurs valent « transparent » ; restent les ombres
-   noires génériques, que l'on retire ici : dans le sombre, l'élévation se
-   lit par la couleur de surface, pas par une ombre invisible. */
-
-/* La cascade est explicite : les règles de base et de composants vivent
-   dans les couches Tailwind prévues pour elles. Sans ça, toute classe
-   déclarée après @tailwind utilities gagne à spécificité égale et annule
-   en silence un utilitaire posé dans le JSX — `className="kicker flex"`
-   resterait en display:block. */
-
-/* ────────────────────────── BASE ────────────────────────── */
 @layer base {
   * {
-    box-sizing: border-box;
+    border-color: var(--rule);
   }
 
   html {
-    /* Supprime le surlignage bleu au tap : signature « page web ». */
-    -webkit-tap-highlight-color: transparent;
-    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+    scrollbar-color: var(--rule-hi) var(--pitch-0);
   }
 
   body {
-    margin: 0;
     background: var(--pitch-0);
-    color: var(--ink-1);
+    color: var(--ink-2);
     font-family: var(--font);
-    font-stretch: 100%;
-    font-weight: 450;
-    font-size: 16px;
-    line-height: 1.5;
+    /* Compensation du texte clair sur fond sombre, sur les trois axes à la
+       fois : un peu plus d'interlignage, un peu plus d'approche, un cran de
+       graisse. Sans elle, un tableau dense devient une bouillie grise à bout
+       de bras. */
+    font-stretch: 105%;
+    font-weight: 500;
+    font-size: var(--t-lire);
+    line-height: 1.55;
+    letter-spacing: var(--k-s);
     -webkit-font-smoothing: antialiased;
-    /* Pas de rebond élastique : autre signature « page web » dans une WebView. */
-    overscroll-behavior-y: none;
-  }
-
-  /* Le chrome de l'app ne se sélectionne pas ; le contenu, si. */
-  button,
-  nav,
-  header {
-    -webkit-user-select: none;
-    user-select: none;
-  }
-
-  /* Supprime le délai de 300 ms sur les éléments tactiles. */
-  button,
-  a,
-  [role="button"],
-  input,
-  select,
-  textarea {
-    touch-action: manipulation;
-  }
-
-  /* Focus visible au clavier uniquement — jamais au doigt. */
-  :focus-visible {
-    outline: 2px solid var(--ink-1);
-    outline-offset: 2px;
-    border-radius: var(--r-sm);
-  }
-  :focus:not(:focus-visible) {
-    outline: none;
+    text-rendering: optimizeLegibility;
   }
 
   ::selection {
     background: var(--ink-1);
     color: var(--pitch-0);
   }
+
+  :focus-visible {
+    outline: 2px solid var(--ink-1);
+    outline-offset: 2px;
+    border-radius: var(--r-focus);
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--ink-1);
+  }
+
+  /* Les liens de contenu : soulignement tenu à distance, jamais collé. */
+  a.lien {
+    color: var(--ink-1);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    color: var(--ink-1);
+    font-weight: 600;
+  }
+
+  /* L'oblique synthétisée est laide : la fonte n'a pas d'italique dessiné et
+     le navigateur penche les glyphes à la main. On la neutralise. */
+  em,
+  i {
+    font-style: normal;
+    font-stretch: 88%;
+    color: var(--ink-1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
-  /* ═══════════════════ VOIX TYPOGRAPHIQUES ═══════════════════
-   L'axe de chasse fait le travail : condensé = terrain (maillots,
-   scores), chasse normale = lecture (interface, tableaux). */
-
-  /* Numéros de maillot — scores, buts, compteurs. Condensé, très gras,
-   tabulaire pour que les chiffres ne dansent pas à la mise à jour. */
-  .num-sculpt,
-  .score-num,
-  .match-clock,
-  .scoreboard .score {
-    font-stretch: 68%;
-    font-weight: 800;
+  /* ═══════════════ DEUX DESSINS DE CHIFFRE ═══════════════
+     Jamais une homothétie de l'un vers l'autre : un 62 % à 13px bouche le 8
+     et confond le 6 et le 5. */
+  .chiffre-panneau {
+    font-stretch: 62%;
+    font-weight: 640;
+    line-height: 0.82;
+    letter-spacing: var(--k-xxl);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-    line-height: 0.86;
-    font-feature-settings: "tnum" 1;
+    color: var(--ink-1);
+  }
+  .chiffre-ligne {
+    font-stretch: 100%;
+    font-weight: 560;
+    line-height: 1;
+    letter-spacing: var(--k-m);
+    font-variant-numeric: tabular-nums;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 
-  /* Grands titres — chasse resserrée, présence de une, sans être un cri. */
+  /* ═══════════════ TITRES ═══════════════ */
   .display-xl {
-    font-stretch: 84%;
-    font-weight: 800;
-    font-size: clamp(38px, 11vw, 62px);
+    font-size: clamp(2.125rem, 9vw, 3.25rem);
+    font-stretch: 74%;
+    font-weight: 600;
     line-height: 0.94;
-    letter-spacing: -0.02em;
-    text-wrap: balance;
-    margin: 0;
+    letter-spacing: var(--k-xl);
+    color: var(--ink-1);
   }
   .display-md {
-    font-stretch: 88%;
-    font-weight: 800;
-    font-size: clamp(26px, 7vw, 38px);
+    font-size: var(--t-titre);
+    font-stretch: 82%;
+    font-weight: 600;
     line-height: 1.02;
-    letter-spacing: -0.015em;
-    text-wrap: balance;
-    margin: 0;
+    letter-spacing: var(--k-l);
+    color: var(--ink-1);
   }
-  .display-xl em,
-  .display-md em {
-    font-style: normal;
-    font-stretch: 62%;
-    font-weight: 900;
+  .titre-nom {
+    font-size: var(--t-nom);
+    font-stretch: 92%;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: var(--k-l);
+    color: var(--ink-1);
   }
 
-  /* Étiquette de section — la seule majuscule de l'app, tracée comme sur
-   une feuille de match. Remplace les emoji qui servaient de titres. */
+  /* L'étiquette de section. Elle était en capitales tracées à 11px au-dessus
+     de chaque bloc — la signature n°1 d'une interface générée, et la seule
+     règle que les deux corpus de référence qualifient d'interdiction sans
+     exception. Elle devient un vrai petit titre : pas de capitales, pas de
+     tracking, et elle porte le poids toute seule. */
   .kicker,
   .section-title {
     display: block;
+    font-size: var(--t-legende);
     font-stretch: 100%;
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: var(--k-s);
+    text-transform: none;
     color: var(--ink-3);
-    margin: 0;
   }
 
-  /* Données alignées : classements, minutes, montants. */
-  .tabular,
-  .timeline-minute,
-  .goal-dots {
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
+  /* L'UNIQUE majuscule tracée autorisée : le bandeau de contexte, une ligne
+     par écran, tout en haut. */
+  .contexte {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-height: 28px;
+    font-size: var(--t-meta);
+    font-stretch: 100%;
+    font-weight: 700;
+    letter-spacing: var(--k-caps);
+    text-transform: uppercase;
+    color: var(--ink-3);
   }
 
   .muted {
     color: var(--ink-3);
   }
 
-  /* ═══════════════════ STRUCTURE ═══════════════════
-   Le terrain est fait de lignes, pas de boîtes empilées. Les filets
-   séparent ; le panneau ne sert qu'à regrouper ce qui va vraiment
-   ensemble. */
-
-  .rule {
-    height: 1px;
-    background: var(--rule);
-    border: 0;
-    margin: 0;
+  /* ═══════════════ LA BANDE, PAS LA CARTE ═══════════════
+     Une section est une bande pleine largeur posée sur le fond, ouverte par
+     un filet de craie. Aucun contour sur les quatre côtés, aucune ombre,
+     aucune imbrication. */
+  /* La bande touche les deux bords de l'écran : elle sort du rembourrage du
+     conteneur et le reprend à l'intérieur. Un bloc qui flotte entre deux
+     marges fait une pile de cartes ; une bande pleine largeur fait un
+     panneau. */
+  .bande {
+    margin-inline: calc(var(--s4) * -1.25);
+    padding: var(--s4) calc(var(--s4) * 1.25);
+    background: var(--pitch-1);
+    border-top: 3px solid var(--ink-1);
+  }
+  .bande.creuse {
+    background: none;
+    border-top-color: var(--rule-hi);
+  }
+  .bande + .bande {
+    margin-top: var(--s6);
+  }
+  .bande-titre {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s3);
+    margin-bottom: var(--s3);
   }
 
-  /* Panneau — élévation par la couleur, sans ombre ni flou. */
+  /* Les gabarits décoratifs de l'ancienne version. Neutralisés plutôt que
+     supprimés des 26 appels : un dégradé d'ambiance sans fonction est
+     exactement ce que le sport ne fait pas. */
   .aurora,
-  .edge-top,
-  .recap-hero {
-    position: relative;
+  .edge-top {
     background: var(--pitch-1);
     border: 0;
-    border-radius: var(--r-md);
+    border-top: 3px solid var(--ink-1);
+    border-radius: var(--r-0);
   }
-
-  /* Ligne de craie en haut d'un panneau : le marquage du terrain comme
-   élément de structure, pas comme décor. */
+  .aurora::before,
+  .aurora::after,
   .edge-top::before,
-  .aurora::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 2px;
-    background: var(--ink-1);
-    opacity: 0.9;
-    border-radius: var(--r-md) var(--r-md) 0 0;
+  .edge-top::after {
+    content: none;
+  }
+  .pitch-motif,
+  .breathe,
+  .goal-dots {
+    display: none;
   }
 
-  /* Fond ambiant : lignes de terrain, très en retrait. */
-  .pitch-motif {
-    background-image:
-      linear-gradient(var(--rule) 1px, transparent 1px),
-      linear-gradient(90deg, var(--rule) 1px, transparent 1px);
-    background-size: 56px 56px;
-    opacity: 0.5;
-    mask-image: radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 100%);
-  }
-
-  .pad {
-    padding: var(--s4);
-  }
-
-  /* ═══════════════════ MARQUES D'IDENTITÉ ═══════════════════ */
-
-  /* Pastille de marque — sobre, pas un badge fluo. */
-  .brand-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s2);
-    max-width: 60vw;
-    padding: 6px 12px 6px 10px;
-    border-radius: var(--r-pill);
-    background: var(--pitch-2);
-    color: var(--ink-1);
-    font-stretch: 92%;
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* Chasuble : une barre de couleur + un nom en craie. La couleur
-   identifie, la craie se lit. */
-  .team-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s2);
-    font-stretch: 96%;
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ink-2);
-    border: 0;
-    padding: 0;
-    background: none;
-  }
-  .team-chip::before {
-    content: "";
-    width: 12px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--bib-a);
-  }
-  .team-chip.B::before {
-    background: var(--bib-b);
-  }
-  .team-chip.A {
-    color: var(--ink-2);
-  }
-
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 8px;
-    border-radius: var(--r-sm);
-    background: var(--pitch-2);
-    color: var(--ink-2);
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .tag.A {
-    color: var(--bib-a-ink);
-  }
-  .tag.B {
-    color: var(--bib-b-ink);
-  }
-
-  /* Direct — le mot se lit (Lc 60), la pastille bat. */
-  .live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--live-dot);
-    animation: pulse 1.6s var(--ease) infinite;
-  }
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.45;
-      transform: scale(0.82);
-    }
-  }
-
-  /* La pastille est un point de 8 px — mais c'est aussi le seul bouton de
-     l'application qui relance une file d'opérations refusées. Une cible de
-     8 px au bord d'un terrain, doigt mouillé, c'est un but qui ne part jamais.
-     Le disque coloré devient un ::before ; la surface tactile, elle, fait la
-     taille minimale que le projet s'impose. */
-  .sync-dot {
-    display: grid;
-    place-items: center;
-    width: var(--tap-min);
-    height: var(--tap-min);
-    padding: 0;
-    border: 0;
-    background: none;
-  }
-  .sync-dot::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--win);
-  }
-  .sync-dot.warn::before {
-    background: var(--gold);
-  }
-  .sync-dot.off::before {
-    background: var(--loss);
-  }
-
-  .mvp-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s2);
-    padding: 6px 12px;
-    border-radius: var(--r-pill);
-    background: var(--pitch-2);
-    color: var(--gold);
-    font-weight: 700;
-    font-size: 13px;
-  }
-
-  .podium-medal {
-    font-variant-numeric: tabular-nums;
-    font-weight: 800;
-    color: var(--ink-3);
-  }
-
-  /* ═══════════════════ COMMANDES ═══════════════════
-   L'action principale est en craie : contraste maximal (Lc 100), lisible
-   à bout de bras sous les projecteurs. Aucune couleur d'équipe ne sert
-   de fond de bouton — mesuré insuffisant. */
-
+  /* ═══════════════ COMMANDES ═══════════════
+     Un seul plein par écran. Tout le reste est un contour. */
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: var(--s2);
     min-height: var(--tap-min);
-    padding: 0 var(--s5);
-    border: 0;
-    border-radius: var(--r-pill);
-    background: var(--pitch-2);
+    padding: 0 var(--s4);
+    border: 1px solid var(--rule-hi);
+    border-radius: var(--r-2);
+    background: none;
     color: var(--ink-1);
     font-family: var(--font);
     font-stretch: 96%;
-    font-weight: 700;
-    font-size: 15px;
+    font-weight: 600;
+    font-size: var(--t-legende);
+    letter-spacing: var(--k-s);
     cursor: pointer;
     transition:
       background var(--t-fast) var(--ease),
-      transform var(--t-fast) var(--ease);
+      color var(--t-fast) var(--ease);
   }
   .btn:active {
-    transform: scale(0.97);
+    background: var(--pitch-2);
   }
   .btn.primary {
+    border-color: var(--ink-1);
     background: var(--ink-1);
     color: var(--pitch-0);
+    font-weight: 700;
   }
-  .btn.primary:hover {
-    background: #fff;
+  .btn.primary:active {
+    background: var(--ink-2);
   }
   .btn.ghost {
-    background: transparent;
-    box-shadow: inset 0 0 0 1px var(--rule-hi);
+    border-color: var(--rule);
+    color: var(--ink-2);
   }
   .btn.big {
     min-height: var(--tap);
-    font-size: 17px;
+    font-size: var(--t-lire);
   }
   .btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
-
-  .big-touch {
+  .btn-fin {
     min-height: var(--tap-min);
+    padding: 0 var(--s4);
+    border: 1px solid var(--rule-hi);
+    border-radius: var(--r-2);
+    background: none;
+    color: var(--ink-1);
+    font-family: var(--font);
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: var(--t-legende);
+    cursor: pointer;
   }
-
   .icon-btn {
-    display: inline-grid;
+    display: grid;
     place-items: center;
     width: 40px;
     height: 40px;
-    flex: 0 0 auto;
     border: 0;
-    border-radius: var(--r-md);
-    background: transparent;
+    border-radius: var(--r-2);
+    background: none;
     color: var(--ink-2);
     cursor: pointer;
-    transition: background var(--t-fast) var(--ease);
   }
   .icon-btn:active {
-    background: var(--pitch-3);
-  }
-
-  .btn-fin {
-    min-height: 40px;
-    padding: 0 var(--s4);
-    border: 0;
-    border-radius: var(--r-pill);
-    background: var(--ink-1);
-    color: var(--pitch-0);
-    font-family: var(--font);
-    font-stretch: 96%;
-    font-weight: 800;
-    font-size: 14px;
-    letter-spacing: 0.02em;
-    cursor: pointer;
-  }
-  .btn-fin:active {
-    transform: scale(0.97);
-  }
-
-  .tap {
-    transition: transform 60ms var(--ease);
-  }
-  .tap:active {
-    transform: scale(0.96);
-  }
-
-  /* ═══════════════════ ÉCRAN DE SAISIE ═══════════════════ */
-
-  .live-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--s2);
-    padding: calc(var(--safe-t) + var(--s2)) var(--s2) var(--s2);
-    background: var(--pitch-0);
-    border-bottom: 1px solid var(--rule);
-  }
-  /* Le groupe de gauche peut être comprimé (min-width: 0) — il faut donc qu'il
-     CLIPPE au lieu de déborder. Sans overflow, son contenu passait par-dessus
-     les boutons de droite, qui sont postérieurs dans le document et peignent
-     donc au-dessus : le tap destiné à « MT » atterrissait sur les événements.
-     Un dépassement doit se voir, jamais voler un geste. */
-  .live-topbar-left {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    overflow: hidden;
-    font-stretch: 100%;
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--live);
-  }
-  /* Sous 360 px, la barre est encore 23 px trop courte et le bouton « MT » se
-     fait rogner. En 1re période, la pastille est redondante : la présence même
-     du bouton MT dit qu'on n'a pas encore sifflé la mi-temps. On la retire
-     donc, mais seulement là où l'information existe ailleurs — en 2de période
-     elle reste, et MT a disparu, donc la place est là. */
-  @media (max-width: 359px) {
-    .periode-chip.p1 {
-      display: none;
-    }
-  }
-
-  /* Un rappel en tête d'accueil. Assez présent pour être vu en passant, assez
-     sobre pour ne pas hurler chaque semaine — il ne s'affiche que dans les
-     cinq jours qui précèdent une soirée sans compo. */
-  .rappel {
-    display: flex;
-    align-items: center;
-    gap: var(--s3);
-    margin-bottom: var(--s4, 16px);
-    padding: var(--s3);
-    border: 1px solid var(--rule-hi);
-    border-radius: var(--r-lg, 18px);
-    background: var(--pitch-1);
-    color: var(--ink-1);
-  }
-  .rappel-pastille {
-    flex: 0 0 auto;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--gold);
-  }
-  .rappel-corps {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1;
-    min-width: 0;
-  }
-  .rappel-titre {
-    font-stretch: 96%;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--ink-1);
-  }
-  .rappel-aide {
-    font-size: 12px;
-    line-height: 1.35;
-    color: var(--ink-2);
-  }
-
-  /* ═══════════════════ COMPO PRÉPARÉE ═══════════════════
-     La liste des joueurs d'une soirée, remplie au pouce trois jours avant.
-     Un tap fait le tour des trois états ; la barre latérale porte la couleur
-     de la chasuble, comme les tuiles de l'écran live — une seule grammaire
-     dans toute l'application. */
-  .compo-ligne {
-    display: flex;
-    align-items: center;
-    gap: var(--s3);
-    width: 100%;
-    min-height: var(--tap-min);
-    padding: 0 var(--s3) 0 0;
-    border: 0;
-    border-radius: var(--r-md);
-    background: var(--pitch-1);
-    font-family: var(--font);
-    text-align: left;
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease);
-  }
-  .compo-ligne:active {
     background: var(--pitch-2);
   }
-  .compo-barre {
-    width: 4px;
-    flex: 0 0 4px;
+  .icon-btn.est-actif {
+    background: var(--ink-1);
+    color: var(--pitch-0);
+  }
+  .tap,
+  .big-touch {
+    min-height: var(--tap-min);
+  }
+  .champ {
+    width: 100%;
+    min-height: var(--tap-min);
+    padding: 0 var(--s3);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-2);
+    background: var(--pitch-2);
+    color: var(--ink-1);
+    font-family: var(--font);
+    font-size: var(--t-lire);
+  }
+  .champ:focus {
+    border-color: var(--rule-hi);
+    outline: none;
+  }
+
+  /* ═══════════════ LE PANNEAU DE SCORE ═══════════════
+     Collé en haut, opaque. Jamais de backdrop-filter : le score se noierait
+     dans ce qui passe dessous, c'est le défaut rédhibitoire d'un scorebug.
+     Les deux bandes sont AUX BORDS de l'écran, pleine hauteur : on identifie
+     son équipe sans regarder. */
+  .panneau {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns:
+      var(--bande-panneau) minmax(0, 1fr) auto minmax(0, 1fr)
+      var(--bande-panneau);
+    align-items: center;
+    background: var(--pitch-0);
+    border-bottom: 1px solid var(--rule);
+    padding: var(--s4) 0 var(--s3);
+  }
+  /* Placement EXPLICITE de chaque enfant. En auto-placement, une bande qui
+     s'étire sur toutes les rangées casse le flux et la seconde atterrit au
+     milieu, poussant le score hors de l'écran. */
+  .panneau-bande {
+    grid-column: 1;
+    grid-row: 1 / 3;
     align-self: stretch;
-    border-radius: var(--r-md) 0 0 var(--r-md);
-    background: var(--rule);
+    background: var(--bib-a-slab);
   }
-  .compo-ligne.A .compo-barre {
-    background: var(--bib-a);
+  /* Par CLASSE, pas par nth-of-type : celui-ci compte par nom de balise, tous
+     les enfants sont des div, et les deux camps se retrouvaient inversés —
+     l'équipe A à droite de son propre score. */
+  .panneau-camp.A {
+    grid-column: 2;
+    grid-row: 1;
   }
-  .compo-ligne.B .compo-barre {
-    background: var(--bib-b);
+  .panneau-axe {
+    grid-column: 3;
+    grid-row: 1;
   }
-  .compo-nom {
+  .panneau-camp.B {
+    grid-column: 4;
+    grid-row: 1;
+  }
+  /* La bande B porte une ENCOCHE. Deux chasubles sombres et proches donnent
+     deux gris quasi identiques une fois remontées au plancher de visibilité :
+     seule une différence de FORME survit à n'importe quel couple, daltonisme
+     compris. Le côté est absolu — A toujours à gauche, B toujours à droite. */
+  .panneau-bande.B {
+    grid-column: 5;
+    background: repeating-linear-gradient(
+      180deg,
+      var(--bib-b-slab) 0 20px,
+      transparent 20px 24px
+    );
+  }
+  .panneau-camp {
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s1);
+    min-width: 0;
+    padding: 0 var(--s2);
+  }
+  .panneau-code {
+    font-size: var(--t-nom);
+    font-stretch: 74%;
+    font-weight: 600;
+    letter-spacing: var(--k-l);
+    line-height: 1;
+    color: var(--ink-2);
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .panneau-score {
+    font-size: 112px;
+  }
+  @media (min-width: 380px) {
+    .panneau-score {
+      font-size: 132px;
+    }
+  }
+  @media (min-width: 430px) {
+    .panneau-score {
+      font-size: 148px;
+    }
+  }
+  /* Le perdant descend d'un ton : la hiérarchie se fait à l'encre, pas à la
+     couleur. */
+  .panneau-score.perd {
+    color: var(--ink-3);
+  }
+  /* Le séparateur n'est pas un caractère : c'est l'axe médian du panneau. */
+  .panneau-axe {
+    justify-self: center;
+    width: 2px;
+    height: 64px;
+    background: var(--ink-1);
+  }
+  .panneau-pied {
+    grid-row: 2;
+    grid-column: 2 / 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s2);
+    margin-top: var(--s3);
+  }
+  .panneau-direct {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex: 1;
-    min-width: 0;
-    font-stretch: 96%;
-    font-weight: 600;
-    font-size: 15px;
-    color: var(--ink-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .compo-ligne.A .compo-nom,
-  .compo-ligne.B .compo-nom {
-    color: var(--ink-1);
-  }
-  .compo-gk {
-    display: inline-flex;
-    flex: 0 0 auto;
-    color: var(--ink-3);
-  }
-  .compo-camp {
-    flex: 0 0 auto;
-    max-width: 40%;
-    font-stretch: 88%;
+    font-size: var(--t-meta);
     font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--k-caps);
     text-transform: uppercase;
-    color: var(--ink-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: var(--direct);
   }
-  .compo-ligne.A .compo-camp {
-    color: var(--bib-a-ink);
-  }
-  .compo-ligne.B .compo-camp {
-    color: var(--bib-b-ink);
-  }
-
-  /* Le groupe de droite porte « Fin » et la synchro : il ne cède jamais. */
-  .live-topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 0 0 auto;
+  /* Carré STATIQUE. L'horloge qui avance est la preuve du direct ; rien ne
+     clignote nulle part dans cette application. */
+  .panneau-direct::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    background: var(--direct);
   }
   .match-clock {
-    font-size: 18px;
-    font-weight: 800;
+    font-size: 24px;
+    font-stretch: 100%;
+    font-weight: 560;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
     color: var(--ink-1);
-    letter-spacing: 0;
   }
 
-  /* Tableau d'affichage — le score domine, rien ne lui dispute la place.
-   Chiffres tabulaires : passer de 9 à 10 ne décale pas la mise en page. */
-  .scorebar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: var(--s3);
-    padding: var(--s4) var(--s4) var(--s5);
-    background: var(--pitch-0);
+  /* Le balayage du chiffre : le seul instant saturé de l'app, moins de deux
+     dixièmes de seconde, et le score reste lisible pendant toute sa durée. */
+  .chiffre-boite {
+    display: inline-block;
+    overflow: hidden;
   }
-  .scorebar-team {
-    display: flex;
-    min-width: 0;
+  .chiffre-boite.entre {
+    animation: chiffre-entre 160ms var(--ease);
   }
-  .scorebar-team.A {
-    justify-content: flex-start;
-  }
-  .scorebar-team.B {
-    justify-content: flex-end;
-  }
-  .scoreboard {
-    display: flex;
-    align-items: baseline;
-    gap: var(--s3);
-  }
-  .scoreboard .score {
-    font-size: clamp(56px, 17vw, 84px);
-    color: var(--ink-1);
-    transition: color var(--t-mid) var(--ease);
-  }
-  .scoreboard .score.leading.A {
-    color: var(--bib-a-ink);
-  }
-  .scoreboard .score.leading.B {
-    color: var(--bib-b-ink);
-  }
-  .scoreboard .sep {
-    font-size: 28px;
-    font-weight: 400;
-    color: var(--ink-3);
-  }
-  /* Célébration : une impulsion courte, pas de plein écran qui masquerait
-   le score au moment où on veut le lire. */
-  .scoreboard .score.goaled {
-    animation: goaled var(--t-slow) var(--ease-pop);
-  }
-  @keyframes goaled {
-    0% {
-      transform: scale(1);
+  @keyframes chiffre-entre {
+    from {
+      transform: translateY(0.16em);
+      opacity: 0;
     }
-    40% {
-      transform: scale(1.18);
-    }
-    100% {
-      transform: scale(1);
+    to {
+      transform: translateY(0);
+      opacity: 1;
     }
   }
 
-  /* `1fr` vaut `minmax(auto, 1fr)` : une colonne refuse de descendre sous son
-     contenu minimal. Un nom d'équipe ou de joueur un peu long élargissait donc
-     sa colonne et poussait les boutons +1 de l'équipe B hors de l'écran —
-     invisible tant qu'on teste avec « Momo » et « Blanc ». `minmax(0, 1fr)`
-     rend les deux moitiés strictement égales et laisse les points de suspension
-     faire leur travail. */
+  /* ═══════════════ TUILE DE SAISIE ═══════════════
+     56px, aucun rayon, aucun contour : la tuile se détache par 2px de fond.
+     Le bouton +1 est un CARRÉ collé au bord extérieur — la seule géométrie
+     qui se vise sans regarder. */
   .live-container {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--s2);
-    padding: 0 var(--s2);
+    gap: 2px;
+    background: var(--pitch-0);
   }
-
-  /* Tuile joueur — la cible de 56 px, doigt froid, une main.
-   La chasuble est une barre latérale : elle identifie sans jamais
-   passer sous le texte. */
   .fs-tile {
     display: flex;
     align-items: stretch;
-    min-height: var(--tap);
-    margin-bottom: var(--s2);
-    border-radius: var(--r-md);
+    min-height: var(--h-saisie);
+    margin-bottom: 2px;
+    border-radius: var(--r-0);
     background: var(--pitch-1);
     overflow: hidden;
   }
-  .fs-tile.B {
-    flex-direction: row-reverse;
-  }
+  /* Pas d'inversion ici : l'ordre des enfants place déjà le bouton au centre
+     et la bande au bord. Inverser en plus ramenait la bande de chasuble au
+     milieu de l'écran, là où elle ne sert plus de repère périphérique. */
   .fs-tile-accent {
-    width: 4px;
-    flex: 0 0 4px;
-    background: var(--bib-a);
+    width: var(--bande-rangee);
+    flex: 0 0 var(--bande-rangee);
+    background: var(--bib-a-slab);
   }
   .fs-tile.B .fs-tile-accent {
-    background: var(--bib-b);
+    background: repeating-linear-gradient(
+      180deg,
+      var(--bib-b-slab) 0 20px,
+      transparent 20px 24px
+    );
   }
   .fs-tile-body {
     display: flex;
@@ -857,12 +679,15 @@
   .fs-tile.B .fs-tile-body {
     flex-direction: row-reverse;
   }
+  /* 16px : le cran de lecture. L'app n'avait rien entre 14 et 22, et le nom
+     du buteur se lisait en légende. */
   .fs-tile-name {
     flex: 1;
     min-width: 0;
-    font-stretch: 96%;
-    font-weight: 600;
-    font-size: 15px;
+    font-stretch: 100%;
+    font-weight: 560;
+    font-size: var(--t-lire);
+    letter-spacing: var(--k-m);
     color: var(--ink-1);
     white-space: nowrap;
     overflow: hidden;
@@ -882,40 +707,41 @@
     color: var(--ink-3);
   }
   .fs-tile-goals {
-    font-stretch: 68%;
-    font-weight: 800;
+    font-stretch: 100%;
+    font-weight: 560;
     font-size: 20px;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--ink-1);
   }
   .fs-tile-goals:empty {
     display: none;
   }
-  /* Le bouton de but : craie pleine, 56 px, impossible à rater. */
   .fs-tile-plus {
     display: grid;
     place-items: center;
     width: var(--tap);
     flex: 0 0 var(--tap);
     border: 0;
+    border-radius: var(--r-0);
     background: var(--ink-1);
     color: var(--pitch-0);
     font-family: var(--font);
-    font-stretch: 80%;
-    font-weight: 800;
+    font-stretch: 88%;
+    font-weight: 700;
     font-size: 17px;
     cursor: pointer;
     transition: background var(--t-fast) var(--ease);
   }
   .fs-tile-plus:active {
-    background: var(--bib-a);
+    background: var(--bib-a-ink);
   }
   .fs-tile.B .fs-tile-plus:active {
-    background: var(--bib-b);
+    background: var(--bib-b-ink);
   }
-  /* Appui long sur un joueur sans but : rien à annuler. On le signale par une
-     secousse brève plutôt que de ne rien faire — un geste sans réponse se lit
-     comme une panne. */
+  .fs-tile-plus.long-pressing {
+    background: var(--loss);
+  }
   .fs-tile-plus.rien-a-annuler {
     animation: rien-a-annuler 320ms var(--ease);
   }
@@ -931,17 +757,368 @@
       transform: translateX(3px);
     }
   }
-
-  .fs-tile-plus.long-pressing {
-    background: var(--loss);
+  .fs-tile.arrive {
+    animation: fs-arrive 220ms var(--ease);
+  }
+  @keyframes fs-arrive {
+    from {
+      box-shadow: inset 0 0 0 2px var(--ink-1);
+    }
+    to {
+      box-shadow: inset 0 0 0 2px transparent;
+    }
   }
 
-  /* ═══════════════════ CORRECTION DE COMPOSITION ═══════════════════
-     Un mode, pas un geste caché. Le nom du joueur avait d'abord servi de
-     poignée : c'était le remettre en concurrence avec le but, alors que
-     pendant des mois taper la tuile d'un joueur voulait dire « il a marqué ».
-     Ici les tuiles changent de métier en bloc, l'annoncent par un bandeau, et
-     ne comptent plus rien tant qu'il est affiché. */
+  /* Mode correction : la tuile entière devient une cible, rien n'y compte. */
+  .fs-tile-compo {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    font-family: var(--font);
+    cursor: pointer;
+  }
+  .fs-tile-compo .fs-tile-body {
+    padding: 0 var(--s3);
+  }
+  .fs-tile-compo:active {
+    background: var(--pitch-2);
+  }
+  .fs-tile-fleche {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    color: var(--ink-2);
+  }
+  .fs-tile-compo.B .fs-tile-fleche {
+    transform: rotate(180deg);
+  }
+
+  /* Contre son camp — au pied de la colonne de l'équipe qui l'encaisse. */
+  .fs-csc {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .fs-csc.A .fs-tile-accent {
+    background: var(--bib-b-slab);
+  }
+  .fs-csc.B .fs-tile-accent {
+    background: var(--bib-a-slab);
+  }
+  .fs-csc .fs-tile-plus {
+    background: var(--ink-3);
+  }
+  .fs-csc-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .fs-csc.B .fs-csc-label {
+    align-items: flex-end;
+  }
+  .fs-csc-title {
+    font-stretch: 78%;
+    font-weight: 600;
+    font-size: var(--t-legende);
+    letter-spacing: var(--k-s);
+    color: var(--ink-2);
+  }
+  .fs-csc-sub {
+    font-stretch: 100%;
+    font-weight: 500;
+    font-size: var(--t-meta);
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ═══════════════ BARRE DU HAUT ═══════════════ */
+  .live-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s2);
+    padding: calc(var(--safe-t) + var(--s2)) var(--s2) var(--s2);
+    background: var(--pitch-0);
+    border-bottom: 1px solid var(--rule);
+  }
+  .live-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--t-meta);
+    font-weight: 700;
+    letter-spacing: var(--k-caps);
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .live-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    flex: 0 0 auto;
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--direct);
+  }
+  .periode-chip {
+    padding: 2px 5px;
+    border: 1px solid var(--rule-hi);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: var(--k-caps);
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  @media (max-width: 359px) {
+    .periode-chip.p1 {
+      display: none;
+    }
+  }
+
+  /* ═══════════════ RANGÉE ═══════════════
+     Bande de chasuble, nom, puis les chiffres à droite en tabulaire : on
+     compare par la longueur. Un filet ENTRE les rangées seulement — jamais
+     en haut et en bas de chacune, jamais de zébrure. */
+  .rangee {
+    display: grid;
+    grid-template-columns:
+      var(--bande-rangee) minmax(0, 1fr)
+      repeat(var(--cols, 3), 44px);
+    align-items: center;
+    min-height: var(--h-lecture);
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: var(--font);
+    text-align: left;
+  }
+  .rangee + .rangee {
+    border-top: 1px solid var(--rule);
+  }
+  .rangee-bande {
+    align-self: stretch;
+    background: var(--rule);
+  }
+  .rangee.A .rangee-bande {
+    background: var(--bib-a-slab);
+  }
+  .rangee.B .rangee-bande {
+    background: repeating-linear-gradient(
+      180deg,
+      var(--bib-b-slab) 0 20px,
+      transparent 20px 24px
+    );
+  }
+  .rangee-nom {
+    min-width: 0;
+    padding: 0 var(--s3);
+    font-size: var(--t-lire);
+    font-stretch: 105%;
+    font-weight: 560;
+    color: var(--ink-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rangee-num {
+    font-stretch: 100%;
+    font-weight: 560;
+    font-size: var(--t-legende);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    text-align: right;
+    padding-right: var(--s2);
+  }
+  .rangee-num.fort {
+    color: var(--ink-1);
+    font-size: var(--t-lire);
+  }
+  .rangee-tete {
+    display: grid;
+    grid-template-columns:
+      var(--bande-rangee) minmax(0, 1fr)
+      repeat(var(--cols, 3), 44px);
+    align-items: center;
+    min-height: 28px;
+    font-size: var(--t-legende);
+    font-weight: 500;
+    color: var(--ink-3);
+  }
+  .rangee-tete > span:not(:nth-child(2)) {
+    text-align: right;
+    padding-right: var(--s2);
+  }
+  .rangee-tete > span:nth-child(2) {
+    padding: 0 var(--s3);
+  }
+
+  /* ═══════════════ TICKER DE SOIRÉE ═══════════════
+     Un lundi = un bloc. La suite des matchs se lit comme un service de
+     résultats : heure, score, buteurs, sur une seule ligne de 32px. Un seul
+     en-tête pour huit matchs, au lieu de huit fiches indépendantes. */
+  .ticker {
+    display: grid;
+    grid-template-columns: 44px auto 1fr;
+    align-items: center;
+    gap: var(--s3);
+    min-height: var(--h-ticker);
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 0;
+    font-family: var(--font);
+  }
+  .ticker + .ticker {
+    border-top: 1px solid var(--rule);
+  }
+  .ticker-heure {
+    font-size: var(--t-legende);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+  }
+  .ticker-score {
+    font-stretch: 88%;
+    font-weight: 600;
+    font-size: var(--t-lire);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-1);
+    white-space: nowrap;
+  }
+  .ticker-buteurs {
+    min-width: 0;
+    font-size: var(--t-legende);
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ═══════════════ LIGNE DE SYNTHÈSE ═══════════════
+     Remplace les grilles de tuiles « étiquette + gros chiffre ». Une seule
+     ligne dense, sous le filet de craie. */
+  .synthese {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--s2) var(--s3);
+    font-size: var(--t-lire);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+  .synthese b {
+    font-weight: 600;
+    color: var(--ink-1);
+  }
+  .synthese-sep {
+    color: var(--rule-hi);
+  }
+
+  /* ═══════════════ COMPO PRÉPARÉE ═══════════════ */
+  .compo-ligne {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    width: 100%;
+    min-height: var(--h-lecture);
+    padding: 0 var(--s3) 0 0;
+    border: 0;
+    border-radius: var(--r-0);
+    background: var(--pitch-1);
+    font-family: var(--font);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .compo-ligne:active {
+    background: var(--pitch-2);
+  }
+  .compo-barre {
+    width: var(--bande-rangee);
+    flex: 0 0 var(--bande-rangee);
+    align-self: stretch;
+    background: var(--rule);
+  }
+  .compo-ligne.A .compo-barre {
+    background: var(--bib-a-slab);
+  }
+  .compo-ligne.B .compo-barre {
+    background: repeating-linear-gradient(
+      180deg,
+      var(--bib-b-slab) 0 20px,
+      transparent 20px 24px
+    );
+  }
+  .compo-nom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    font-stretch: 105%;
+    font-weight: 560;
+    font-size: var(--t-lire);
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .compo-ligne.A .compo-nom,
+  .compo-ligne.B .compo-nom {
+    color: var(--ink-1);
+  }
+  .compo-gk {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--ink-3);
+  }
+  .compo-camp {
+    flex: 0 0 auto;
+    max-width: 40%;
+    font-stretch: 88%;
+    font-weight: 600;
+    font-size: var(--t-legende);
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .compo-ligne.A .compo-camp {
+    color: var(--bib-a-ink);
+  }
+  .compo-ligne.B .compo-camp {
+    color: var(--bib-b-ink);
+  }
+
+  .compo-entree {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: var(--tap-min);
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: none;
+    color: var(--ink-3);
+    font-family: var(--font);
+    font-stretch: 100%;
+    font-weight: 600;
+    font-size: var(--t-legende);
+    cursor: pointer;
+  }
+  .compo-entree:active {
+    background: var(--pitch-1);
+    color: var(--ink-1);
+  }
   .compo-bandeau {
     display: flex;
     align-items: center;
@@ -952,38 +1129,32 @@
     border-bottom: 1px solid var(--rule-hi);
   }
   .compo-bandeau-titre {
-    font-stretch: 88%;
-    font-weight: 800;
-    font-size: 13px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: var(--t-legende);
     color: var(--ink-1);
   }
   .compo-bandeau-aide {
     margin-top: 2px;
-    font-size: 12px;
-    line-height: 1.35;
+    font-size: var(--t-meta);
+    line-height: 1.4;
     color: var(--ink-2);
   }
   .compo-fini {
     flex: 0 0 auto;
     min-height: var(--tap-min);
-    padding: 0 var(--s4, 16px);
+    padding: 0 var(--s4);
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--r-2);
     background: var(--ink-1);
     color: var(--pitch-0);
     font-family: var(--font);
-    font-stretch: 88%;
-    font-weight: 800;
-    font-size: 13px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: var(--t-legende);
     cursor: pointer;
   }
-  /* Faire entrer un joueur en cours de match. Vit dans le bandeau de
-     correction, jamais ailleurs : c'est le même moment que le reste des
-     retouches de composition. */
+
   .compo-ajout {
     padding: var(--s2) var(--s3) var(--s3);
     border-bottom: 1px solid var(--rule);
@@ -997,27 +1168,24 @@
     gap: 6px;
     width: 100%;
     min-height: var(--tap-min);
-    border: 1px dashed var(--rule-hi);
-    border-radius: var(--r-md);
+    border: 1px solid var(--rule-hi);
+    border-radius: var(--r-2);
     background: none;
     color: var(--ink-2);
     font-family: var(--font);
-    font-stretch: 96%;
-    font-weight: 700;
-    font-size: 13px;
+    font-stretch: 100%;
+    font-weight: 600;
+    font-size: var(--t-legende);
     cursor: pointer;
   }
   .compo-ajout-fermer {
     margin-top: var(--s2);
-    border-style: solid;
   }
   .compo-ajout-titre {
     margin-bottom: var(--s2);
-    font-stretch: 88%;
-    font-weight: 800;
-    font-size: 12px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: var(--t-legende);
     color: var(--ink-1);
   }
   .compo-ajout-liste {
@@ -1026,6 +1194,7 @@
     gap: 6px;
     max-height: 40vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .compo-ajout-liste li {
     display: flex;
@@ -1035,179 +1204,211 @@
   .compo-ajout-nom {
     flex: 1;
     min-width: 0;
-    font-stretch: 96%;
-    font-weight: 600;
-    font-size: 14px;
+    font-stretch: 105%;
+    font-weight: 560;
+    font-size: var(--t-lire);
     color: var(--ink-1);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* La couleur d'équipe ne porte JAMAIS le texte : de l'encre sombre sur une
+     chasuble noire donne Lc 0. Le libellé est en encre dérivée (Lc ≥ 60
+     garanti par inkVariant) sur un contour de la même encre. */
   .compo-ajout-camp {
     flex: 0 0 auto;
     max-width: 34%;
     min-height: var(--tap-min);
     padding: 0 var(--s3);
-    border: 0;
-    border-radius: 999px;
-    color: var(--pitch-0);
+    border: 1px solid currentColor;
+    border-radius: var(--r-2);
+    background: none;
     font-family: var(--font);
-    font-stretch: 88%;
-    font-weight: 800;
-    font-size: 12px;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    font-stretch: 96%;
+    font-weight: 700;
+    font-size: var(--t-legende);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     cursor: pointer;
   }
   .compo-ajout-camp.A {
-    background: var(--bib-a);
+    color: var(--bib-a-ink);
   }
   .compo-ajout-camp.B {
-    background: var(--bib-b);
+    color: var(--bib-b-ink);
   }
 
-  /* La tuile en mode correction : une seule cible, pas de bouton de but, et
-     une flèche qui montre la destination avant qu'on tape. */
-  .fs-tile-compo {
-    width: 100%;
-    padding: 0;
-    border: 0;
-    text-align: left;
-    font-family: var(--font);
-    cursor: pointer;
-  }
-  .fs-tile-compo .fs-tile-body {
-    padding: 0 var(--s3);
-  }
-  .fs-tile-compo:active {
-    background: var(--pitch-3);
-  }
-  .fs-tile-fleche {
-    display: inline-flex;
-    align-items: center;
-    flex: 0 0 auto;
-    color: var(--ink-2);
-  }
-  /* La flèche pointe vers la colonne d'en face. */
-  .fs-tile-compo.B .fs-tile-fleche {
-    transform: rotate(180deg);
-  }
-  /* Point d'entrée fermé : une bande discrète, jamais une tuile. Elle ne
-     dispute rien au score — encre sourde, hauteur minimale — mais reste
-     lisible en toutes lettres, parce qu'on la cherche au coup d'envoi, quand
-     dix personnes attendent. */
-  .compo-entree {
+  /* ═══════════════ RAPPEL ═══════════════ */
+  .rappel {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 100%;
-    min-height: 34px;
+    gap: var(--s3);
+    margin-bottom: var(--s6);
+    padding: var(--s3);
     border: 0;
-    border-bottom: 1px solid var(--rule);
-    background: none;
-    color: var(--ink-3);
-    font-family: var(--font);
-    font-stretch: 96%;
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.03em;
-    cursor: pointer;
-  }
-  .compo-entree:active {
+    border-left: 3px solid var(--gold);
     background: var(--pitch-1);
     color: var(--ink-1);
   }
-
-  /* Le joueur vient de changer de colonne. Sans marque, la tuile disparaît
-     d'un côté et réapparaît de l'autre sans que l'œil suive : on ne sait plus
-     si le geste a porté. Le contour s'allume 220 ms à l'arrivée. */
-  .fs-tile.arrive {
-    animation: fs-arrive 220ms var(--ease);
+  .rappel-pastille {
+    display: none;
   }
-  @keyframes fs-arrive {
-    from {
-      box-shadow: inset 0 0 0 2px var(--ink-1);
-    }
-    to {
-      box-shadow: inset 0 0 0 2px transparent;
-    }
-  }
-
-  /* ═══════════════════ CONTRE SON CAMP ═══════════════════
-     Au pied de la colonne de l'équipe qui l'encaisse, à la jauge d'une tuile
-     de joueur. L'aplat est creusé plutôt que rempli, et le bouton porte
-     l'encre sourde : c'est un but, mais ce n'est pas un buteur. Le liséré et
-     l'éclair d'appui prennent la couleur de l'équipe QUI EN PROFITE — la
-     seule chose qu'on ait besoin de savoir dans la seconde. */
-  .fs-csc {
-    background: none;
-    box-shadow: inset 0 0 0 1px var(--rule);
-  }
-  .fs-csc.A .fs-tile-accent {
-    background: var(--bib-b);
-  }
-  .fs-csc.B .fs-tile-accent {
-    background: var(--bib-a);
-  }
-  .fs-csc .fs-tile-plus {
-    background: var(--ink-3);
-  }
-  .fs-csc.A .fs-tile-plus:active {
-    background: var(--bib-b);
-  }
-  .fs-csc.B .fs-tile-plus:active {
-    background: var(--bib-a);
-  }
-  .fs-csc-label {
+  .rappel-corps {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
+    flex: 1;
     min-width: 0;
   }
-  .fs-csc.B .fs-csc-label {
-    align-items: flex-end;
-  }
-  /* Écrit en toutes lettres, donc large : à 88% de chasse la ligne mesurait
-     98 px pour 91 disponibles, et la colonne s'élargissait assez pour pousser
-     les boutons +1 de l'équipe B hors de l'écran. Archivo a un axe de chasse
-     réel (62–125%) : on resserre à 78%, la ligne tient à 85 px. Le repli sur
-     deux lignes reste autorisé pour les écrans plus étroits que 375 px. */
-  .fs-csc-title {
-    font-stretch: 78%;
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 0.02em;
-    color: var(--ink-2);
-  }
-  .fs-csc-sub {
+  .rappel-titre {
     font-stretch: 100%;
-    font-weight: 500;
-    font-size: 11px;
+    font-weight: 600;
+    font-size: var(--t-lire);
+    color: var(--ink-1);
+  }
+  .rappel-aide {
+    font-size: var(--t-legende);
+    line-height: 1.45;
     color: var(--ink-2);
+  }
+
+  /* ═══════════════ RESTES ═══════════════ */
+  .scorebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s4) var(--s3);
+  }
+  .scorebar-team {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-width: 0;
+  }
+  .scorebar-team.B {
+    justify-content: flex-end;
+  }
+  .team-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--t-legende);
+    font-stretch: 96%;
+    font-weight: 600;
+    color: var(--ink-2);
+    text-transform: uppercase;
+    letter-spacing: var(--k-caps);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  /* ═══════════════════ RATTACHEMENT ═══════════════════
-     Une soirée contient des matchs, et rien ne le disait : les deux notions
-     vivaient dans deux onglets frères, ce qui affirme le contraire. La marque
-     ci-dessous est le coude qu'on trace au stylo sur une feuille de match pour
-     rattacher une ligne à son en-tête. Elle apparaît sur tout match issu d'une
-     soirée, où qu'il s'affiche — la relation devient visible avant d'être lue,
-     et se parcourt dans les deux sens. */
+  .team-chip::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 4px;
+    height: 14px;
+    background: var(--bib-a-slab);
+  }
+  .team-chip.B::before {
+    background: var(--bib-b-slab);
+  }
+  .scoreboard {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+  }
+  .score,
+  .score-num,
+  .num-sculpt {
+    font-stretch: 62%;
+    font-weight: 640;
+    font-size: 56px;
+    line-height: 0.82;
+    letter-spacing: var(--k-xl);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-1);
+  }
+  .score.leading {
+    color: var(--ink-1);
+  }
+  .score-num.lose,
+  .score.lose {
+    color: var(--ink-3);
+  }
+  .sep,
+  .score-sep {
+    width: 2px;
+    height: 40px;
+    background: var(--ink-1);
+    font-size: 0;
+    color: transparent;
+    overflow: hidden;
+  }
+  .mvp-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border: 1px solid var(--gold);
+    border-radius: var(--r-2);
+    font-size: var(--t-meta);
+    font-weight: 700;
+    letter-spacing: var(--k-caps);
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--t-meta);
+    font-weight: 700;
+    letter-spacing: var(--k-caps);
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .tag::before {
+    content: "";
+    width: 3px;
+    height: 11px;
+    background: var(--rule-hi);
+  }
+  .tag.A::before {
+    background: var(--bib-a-slab);
+  }
+  .tag.B::before {
+    background: var(--bib-b-slab);
+  }
+  .sync-dot {
+    display: grid;
+    place-items: center;
+    width: var(--tap-min);
+    height: var(--tap-min);
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .sync-dot::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    background: var(--win);
+  }
+  .sync-dot.warn::before {
+    background: var(--gold);
+  }
+  .sync-dot.off::before {
+    background: var(--loss);
+  }
   .rattache {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     font-stretch: 100%;
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.06em;
+    font-weight: 600;
+    font-size: var(--t-legende);
     color: var(--ink-3);
   }
   .rattache::before {
@@ -1219,99 +1420,45 @@
     border-left: 1px solid var(--rule-hi);
     border-bottom: 1px solid var(--rule-hi);
   }
-  a.rattache:hover {
+  .rule {
+    height: 1px;
+    background: var(--rule);
+  }
+  .brand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: 6px var(--s3);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-2);
+    font-size: var(--t-legende);
+    font-weight: 600;
     color: var(--ink-1);
   }
-  a.rattache:hover::before {
-    border-color: var(--ink-1);
-  }
-
-  /* ═══════════════════ RÉCAP & CHRONOLOGIE ═══════════════════ */
-
-  .recap-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s5);
-  }
-  .recap-header {
-    font-stretch: 100%;
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+  .podium-medal {
+    font-variant-numeric: tabular-nums;
+    font-weight: 640;
     color: var(--ink-3);
-  }
-  .recap-hero {
-    padding: var(--s5) var(--s4);
-  }
-  .recap-teams {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--s3);
-  }
-  .recap-team-name {
-    font-stretch: 92%;
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-2);
-  }
-  .recap-team-name.A {
-    color: var(--bib-a-ink);
-  }
-  .recap-team-name.B {
-    color: var(--bib-b-ink);
-  }
-  .recap-score {
-    display: flex;
-    align-items: baseline;
-    justify-content: center;
-    gap: var(--s4);
-    margin-top: var(--s3);
-  }
-  .score-num {
-    font-size: clamp(64px, 20vw, 104px);
-    color: var(--ink-1);
-  }
-  .score-num.lose {
-    color: var(--ink-3);
-  }
-  .score-sep {
-    font-size: 32px;
-    color: var(--ink-3);
-  }
-
-  /* Chronologie — chaque événement sur une ligne, minute alignée à gauche
-   comme sur une feuille de match. */
-  .timeline {
-    display: flex;
-    flex-direction: column;
   }
   .timeline-row {
     display: flex;
     align-items: center;
     gap: var(--s3);
-    padding: var(--s3) 0;
-    border-bottom: 1px solid var(--rule);
+    min-height: var(--h-ticker);
   }
-  .timeline-row:last-child {
-    border-bottom: 0;
+  .timeline-row + .timeline-row {
+    border-top: 1px solid var(--rule);
   }
   .timeline-minute {
-    width: 34px;
-    flex: 0 0 34px;
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--ink-3);
-  }
-  .timeline-ball {
+    width: 36px;
+    font-size: var(--t-legende);
+    font-variant-numeric: tabular-nums;
     color: var(--ink-3);
   }
   .timeline-scorer {
     flex: 1;
-    font-weight: 600;
-    font-size: 15px;
+    min-width: 0;
+    font-size: var(--t-lire);
     color: var(--ink-1);
   }
   .timeline-row.A .timeline-scorer {
@@ -1320,83 +1467,64 @@
   .timeline-row.B .timeline-scorer {
     color: var(--bib-b-ink);
   }
-
-  .event-list {
-    display: flex;
-    flex-direction: column;
+  .recap-wrap,
+  .recap-header,
+  .recap-hero,
+  .recap-teams {
+    background: var(--pitch-1);
   }
-  .ev {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--s3);
-    padding: var(--s3) 0;
-    border-bottom: 1px solid var(--rule);
-  }
-  .ev:last-child {
-    border-bottom: 0;
-  }
-  .goal-dots {
-    font-stretch: 68%;
-    font-weight: 800;
-    font-size: 18px;
+  .recap-score {
+    font-stretch: 62%;
+    font-weight: 640;
+    font-size: 88px;
+    line-height: 0.82;
+    letter-spacing: var(--k-xl);
+    font-variant-numeric: tabular-nums;
     color: var(--ink-1);
   }
-
-  /* ═══════════════════ MOUVEMENT ═══════════════════ */
-
-  .slide-up {
-    animation: slideUp var(--t-mid) var(--ease);
+  .recap-team-name {
+    font-size: var(--t-legende);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--k-caps);
+    color: var(--ink-2);
   }
-  @keyframes slideUp {
+  .event-list .ev {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-height: var(--h-ticker);
+  }
+  .event-list .ev + .ev {
+    border-top: 1px solid var(--rule);
+  }
+  .pad {
+    padding: var(--s4);
+  }
+  .slide-up {
+    animation: slide-up var(--t-slow) var(--ease);
+  }
+  @keyframes slide-up {
     from {
+      transform: translateY(8px);
       opacity: 0;
-      transform: translateY(12px);
     }
     to {
+      transform: translateY(0);
       opacity: 1;
-      transform: none;
-    }
-  }
-
-  .breathe {
-    animation: breathe 3.2s ease-in-out infinite;
-  }
-  @keyframes breathe {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.72;
     }
   }
 }
 
-/* Environ 5 % des utilisateurs demandent moins d'animation ; on la
-   supprime, on ne la ralentit pas. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* ═══════════════════ DIVERS ═══════════════════ */
 @layer utilities {
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .scrollbar-none {
     scrollbar-width: none;
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
-  }
-
-  /* Tableaux larges : ils défilent dans leur conteneur, jamais la page. */
-  .scroll-x {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 }

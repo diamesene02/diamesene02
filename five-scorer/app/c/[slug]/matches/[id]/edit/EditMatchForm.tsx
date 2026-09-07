@@ -75,12 +75,12 @@ export default function EditMatchForm({
   }
 
   const inputCls =
-    "mt-1 min-h-[44px] w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--lime)]";
+ "mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]";
 
   return (
     <form
       onSubmit={submit}
-      className="space-y-5 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5 sm:p-6"
+      className="space-y-5 bande"
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
@@ -89,7 +89,7 @@ export default function EditMatchForm({
             value={teamAName}
             onChange={(e) => setTeamAName(e.target.value)}
             required
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--a-500)]"
+            className="mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--bib-a)]"
           />
         </label>
         <label className="block">
@@ -98,7 +98,7 @@ export default function EditMatchForm({
             value={teamBName}
             onChange={(e) => setTeamBName(e.target.value)}
             required
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2 outline-none focus:border-[color:var(--b-500)]"
+            className="mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--b-500)]"
           />
         </label>
       </div>
@@ -165,19 +165,19 @@ export default function EditMatchForm({
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex min-h-[56px] items-center rounded-full bg-[color:var(--lime)] px-6 text-sm font-black text-[color:var(--bg-0)] disabled:opacity-50"
+          className="inline-flex min-h-[56px] items-center rounded-[2px] bg-[color:var(--ink-1)] px-6 text-sm font-black text-[color:var(--pitch-0)] disabled:opacity-50"
         >
           {isPending ? "Enregistrement…" : "Enregistrer"}
         </button>
         <Link
           href={`/c/${slug}/matches/${matchId}`}
-          className="inline-flex min-h-[44px] items-center rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-5 text-sm font-bold text-[color:var(--ink-1)] hover:text-white"
+          className="inline-flex min-h-[44px] items-center rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-5 text-sm font-bold text-[color:var(--ink-1)] hover:text-white"
         >
           Annuler
         </Link>
       </div>
 
-      <p className="border-t border-[color:var(--stroke)] pt-4 text-xs text-[color:var(--ink-2)]">
+      <p className="border-t border-[color:var(--rule)] pt-4 text-xs text-[color:var(--ink-2)]">
         Pour corriger les buts, ouvre le match et utilise la timeline.
       </p>
     </form>

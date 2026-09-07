@@ -51,19 +51,19 @@ export default function InviteCard({
   }
 
   return (
-    <section className="rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5 sm:p-6">
+    <section className="bande">
       <h2 className="kicker">Inviter</h2>
       <p className="mt-2 text-sm text-[color:var(--ink-1)]">
         Partage ce lien : celui qui clique rejoint le club direct.
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <code className="flex min-h-[44px] min-w-0 flex-1 items-center truncate rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 text-sm text-[color:var(--lime)]">
+        <code className="flex min-h-[44px] min-w-0 flex-1 items-center truncate rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 text-sm text-[color:var(--ink-1)]">
           {origin ? url : `…/join/${inviteCode}`}
         </code>
         <button
           onClick={copy}
-          className="inline-flex min-h-[44px] items-center rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 text-sm font-bold hover:border-[color:var(--lime)]"
+          className="inline-flex min-h-[44px] items-center rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 text-sm font-bold hover:border-[color:var(--ink-1)]"
         >
           {copied ? "Copié" : "Copier"}
         </button>
@@ -71,17 +71,17 @@ export default function InviteCard({
           href={`https://wa.me/?text=${waText}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex min-h-[44px] items-center rounded-full border border-[color:var(--a-500)]/40 bg-[color:var(--a-wash)] px-4 text-sm font-bold text-[color:var(--a-400)] hover:border-[color:var(--a-500)]"
+          className="inline-flex min-h-[44px] items-center rounded-[2px] border border-[color:var(--bib-a)]/40 bg-[color:var(--pitch-2)] px-4 text-sm font-bold text-[color:var(--bib-a-ink)] hover:border-[color:var(--bib-a)]"
         >
           WhatsApp
         </a>
       </div>
 
-      <div className="mt-4 border-t border-[color:var(--stroke)] pt-4">
+      <div className="mt-4 border-t border-[color:var(--rule)] pt-4">
         {!confirming ? (
           <button
             onClick={() => setConfirming(true)}
-            className="inline-flex min-h-[44px] items-center text-xs font-bold uppercase tracking-wider text-[color:var(--ink-2)] hover:text-white"
+            className="inline-flex min-h-[44px] items-center text-[13px] font-semibold text-[color:var(--ink-2)] hover:text-white"
           >
             Régénérer le code
           </button>
@@ -93,7 +93,7 @@ export default function InviteCard({
             <button
               onClick={regenerate}
               disabled={isPending}
-              className="inline-flex min-h-[44px] items-center rounded-full bg-[color:var(--loss)]/20 px-4 text-xs font-black uppercase tracking-wider text-[color:var(--loss)] disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center rounded-[2px] bg-[color:var(--loss)]/20 px-4 text-[13px] font-semibold text-[color:var(--loss)] disabled:opacity-50"
             >
               {isPending ? "…" : "Oui, régénérer"}
             </button>

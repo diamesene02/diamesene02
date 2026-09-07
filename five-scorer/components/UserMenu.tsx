@@ -28,7 +28,7 @@ export default function UserMenu({
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Menu du compte"
-        className="grid h-9 w-9 place-items-center rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] text-xs font-black text-[color:var(--lime)]"
+        className="grid h-9 w-9 place-items-center rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] text-xs font-black text-[color:var(--ink-1)]"
       >
         {initials || "?"}
       </button>
@@ -38,8 +38,8 @@ export default function UserMenu({
             className="fixed inset-0 z-40"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl border border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] shadow-2xl">
-            <div className="border-b border-[color:var(--stroke)] px-4 py-3 text-sm font-bold">
+          <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-none border border-[color:var(--rule-hi)] bg-[color:var(--pitch-1)] shadow-2xl">
+            <div className="border-b border-[color:var(--rule)] px-4 py-3 text-sm font-bold">
               {name}
             </div>
             <Link
@@ -58,7 +58,7 @@ export default function UserMenu({
                 Réglages
               </Link>
             )}
-            <div className="my-1 border-t border-[color:var(--stroke)]" />
+            <div className="my-1 border-t border-[color:var(--rule)]" />
             <Link
               href="/onboarding"
               className="block px-4 py-2.5 text-sm text-[color:var(--ink-1)] hover:bg-white/5"

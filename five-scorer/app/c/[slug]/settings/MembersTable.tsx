@@ -41,7 +41,7 @@ export default function MembersTable({
   }
 
   return (
-    <section className="rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5 sm:p-6">
+    <section className="bande">
       <h2 className="kicker">Membres</h2>
       <p className="mt-2 text-sm tabular-nums text-[color:var(--ink-1)]">
         {members.length} membre{members.length > 1 ? "s" : ""} dans le club.
@@ -54,14 +54,14 @@ export default function MembersTable({
       <div className="scroll-x mt-4">
         <table className="w-full min-w-[560px] text-sm">
           <thead>
-            <tr className="border-b border-[color:var(--stroke)] text-left text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-2)]">
+            <tr className="border-b border-[color:var(--rule)] text-left text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-2)]">
               <th className="py-3 pr-3">Membre</th>
               <th className="px-3 py-3">Joueur lié</th>
               <th className="px-3 py-3">Rôle</th>
               <th className="py-3 pl-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[color:var(--stroke)]">
+          <tbody className="divide-y divide-[color:var(--rule)]">
             {members.map((m) => {
               const isOwner = m.role === "owner";
               return (
@@ -84,7 +84,7 @@ export default function MembersTable({
                   </td>
                   <td className="px-3 py-3">
                     {isOwner ? (
-                      <span className="rounded-full bg-[color:var(--gold)]/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[color:var(--gold)]">
+                      <span className="rounded-[2px] bg-[color:var(--gold)]/20 px-2.5 py-1 text-[13px] font-semibold text-[color:var(--gold)]">
                         Capitaine
                       </span>
                     ) : (
@@ -100,7 +100,7 @@ export default function MembersTable({
                             )
                           )
                         }
-                        className="min-h-[44px] rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2 text-xs font-bold outline-none focus:border-[color:var(--lime)]"
+                        className="min-h-[44px] rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 text-xs font-bold outline-none focus:border-[color:var(--ink-1)]"
                       >
                         <option value="admin">Admin</option>
                         <option value="member">Membre</option>
@@ -114,7 +114,7 @@ export default function MembersTable({
                           <button
                             onClick={() => run(() => removeMember(slug, m.id))}
                             disabled={isPending}
-                            className="inline-flex min-h-[44px] items-center rounded-full bg-[color:var(--loss)]/20 px-3 text-xs font-black uppercase tracking-wider text-[color:var(--loss)] disabled:opacity-50"
+                            className="inline-flex min-h-[44px] items-center rounded-[2px] bg-[color:var(--loss)]/20 px-3 text-[13px] font-semibold text-[color:var(--loss)] disabled:opacity-50"
                           >
                             {isPending ? "…" : "Confirmer"}
                           </button>
@@ -128,7 +128,7 @@ export default function MembersTable({
                       ) : (
                         <button
                           onClick={() => setConfirmId(m.id)}
-                          className="inline-flex min-h-[44px] items-center text-xs font-bold uppercase tracking-wider text-[color:var(--ink-2)] hover:text-[color:var(--loss)]"
+                          className="inline-flex min-h-[44px] items-center text-[13px] font-semibold text-[color:var(--ink-2)] hover:text-[color:var(--loss)]"
                         >
                           Retirer
                         </button>

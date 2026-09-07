@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 
 const inputCls =
-  "w-full rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2.5 outline-none focus:border-[color:var(--lime)]";
+ "w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2.5 outline-none focus:border-[color:var(--ink-1)]";
 
 export default function LoginForm({
   next,
@@ -54,7 +54,7 @@ export default function LoginForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5">
-        <span className="text-xs font-bold uppercase tracking-wider text-[color:var(--ink-1)]">
+        <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
           Email
         </span>
         <input
@@ -70,7 +70,7 @@ export default function LoginForm({
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-xs font-bold uppercase tracking-wider text-[color:var(--ink-1)]">
+        <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
           Mot de passe
         </span>
         <input
@@ -86,7 +86,7 @@ export default function LoginForm({
       </label>
 
       {error && (
-        <p className="rounded-lg border border-[color:var(--loss)] bg-[color:var(--bg-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)]">
+        <p className="rounded-[2px] border border-[color:var(--loss)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)]">
           {error}
         </p>
       )}
@@ -101,10 +101,10 @@ export default function LoginForm({
 
       {googleEnabled && (
         <>
-          <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
-            <span className="h-px flex-1 bg-[color:var(--stroke)]" />
+          <div className="flex items-center gap-3 text-[10px] font-bold  text-[color:var(--ink-2)]">
+            <span className="h-px flex-1 bg-[color:var(--rule)]" />
             ou
-            <span className="h-px flex-1 bg-[color:var(--stroke)]" />
+            <span className="h-px flex-1 bg-[color:var(--rule)]" />
           </div>
           <button
             type="button"

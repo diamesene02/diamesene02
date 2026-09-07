@@ -10,10 +10,10 @@ export const dynamic = "force-dynamic";
 
 // La lettre reste : la couleur double l'information, elle ne la porte pas.
 function resultBadgeClass(r: Result) {
-  if (r === "W") return "bg-[color:var(--win)] text-[color:var(--bg-0)]";
+  if (r === "W") return "bg-[color:var(--win)] text-[color:var(--pitch-0)]";
   if (r === "D")
-    return "border border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-2)]";
-  return "bg-[color:var(--bg-2)] text-[color:var(--loss)]";
+    return "border border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-2)]";
+  return "bg-[color:var(--pitch-2)] text-[color:var(--loss)]";
 }
 
 // La série est un nombre signé, pas un pictogramme de flamme.
@@ -45,7 +45,7 @@ function SkillStars({ skill }: { skill: number }) {
           className={
             n <= skill
               ? "text-[color:var(--ink-1)]"
-              : "text-[color:var(--stroke-hi)]"
+              : "text-[color:var(--rule-hi)]"
           }
         />
       ))}
@@ -88,7 +88,7 @@ export default async function PlayerDetailPage({
     });
 
   const panel =
-    "rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]";
+ "rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]";
 
   return (
     <main>
@@ -107,18 +107,18 @@ export default async function PlayerDetailPage({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <SkillStars skill={player.skill} />
               {player.isGk && (
-                <span className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-1)]">
+                <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--ink-1)]">
                   gardien
                 </span>
               )}
               {player.isGuest && (
-                <span className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-1)]">
+                <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--ink-1)]">
                   invité
                 </span>
               )}
               {player.userId && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--a-400)]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--a-500)]" />
+                <span className="inline-flex items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--bib-a-ink)]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--bib-a)]" />
                   compte lié
                 </span>
               )}
@@ -132,12 +132,12 @@ export default async function PlayerDetailPage({
         {tiles.map((t) => (
           <div
             key={t.label}
-            className="rounded-lg bg-[color:var(--bg-1)] px-4 py-3"
+            className="rounded-[2px] bg-[color:var(--pitch-1)] px-4 py-3"
           >
             <div className="kicker">{t.label}</div>
             <div
               className={cn(
-                "num-sculpt mt-1 text-2xl",
+ "num-sculpt mt-1 text-2xl",
                 t.tone === "win" && "text-[color:var(--win)]",
                 t.tone === "loss" && "text-[color:var(--loss)]"
               )}
@@ -157,7 +157,7 @@ export default async function PlayerDetailPage({
               <span
                 key={i}
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-lg text-sm font-black",
+ "flex h-9 w-9 items-center justify-center rounded-[2px] text-sm font-black",
                   resultBadgeClass(r)
                 )}
               >
@@ -178,7 +178,7 @@ export default async function PlayerDetailPage({
           <div className={`scroll-x ${panel}`}>
             <table className="w-full min-w-[420px] text-sm">
               <thead>
-                <tr className="border-b border-[color:var(--stroke)] text-left text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-3)]">
+                <tr className="border-b border-[color:var(--rule)] text-left text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-3)]">
                   <th className="px-4 py-3">Saison</th>
                   <th className="px-3 py-3 text-right">J</th>
                   <th className="px-3 py-3 text-right">Buts</th>
@@ -187,7 +187,7 @@ export default async function PlayerDetailPage({
                   <th className="px-4 py-3 text-right">MVP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[color:var(--stroke)]">
+              <tbody className="divide-y divide-[color:var(--rule)]">
                 {bySeason.map((s) => (
                   <tr key={s.seasonId ?? "none"}>
                     <td className="px-4 py-3 font-bold">{s.seasonName}</td>
@@ -219,13 +219,13 @@ export default async function PlayerDetailPage({
         <section className="mt-8">
           <span className="kicker mb-3 block">Derniers matchs</span>
           <ul
-            className={`divide-y divide-[color:var(--stroke)] overflow-hidden ${panel}`}
+            className={`divide-y divide-[color:var(--rule)] overflow-hidden ${panel}`}
           >
             {recentMatches.map((m) => (
               <li key={m.id}>
                 <Link
                   href={`/c/${slug}/matches/${m.id}`}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--bg-2)]"
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
                 >
                   <span className="w-16 shrink-0 text-[11px] uppercase tabular-nums text-[color:var(--ink-3)]">
                     {fmtDate(m.playedAt)}
@@ -253,7 +253,7 @@ export default async function PlayerDetailPage({
                   </span>
                   <span
                     className={cn(
-                      "flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-black",
+ "flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-black",
                       resultBadgeClass(m.result)
                     )}
                   >

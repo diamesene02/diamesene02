@@ -76,7 +76,7 @@ export default async function MatchRecapPage({
     if (match.status === "CANCELED") {
       return (
         <main className="mx-auto max-w-2xl">
-          <section className="rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-6">
+          <section className="bande">
             <span className="kicker" style={{ color: "var(--loss)" }}>
               Match annulé
             </span>
@@ -89,7 +89,7 @@ export default async function MatchRecapPage({
               {match.venue ? ` · ${match.venue}` : ""}
             </p>
             {ctx.canManage && (
-              <div className="mt-6 flex justify-end border-t border-[color:var(--stroke)] pt-4">
+              <div className="mt-6 flex justify-end border-t border-[color:var(--rule)] pt-4">
                 <DeleteMatchButton slug={slug} matchId={match.id} />
               </div>
             )}
@@ -115,10 +115,10 @@ export default async function MatchRecapPage({
 
     return (
       <main className="mx-auto max-w-2xl">
-        <section className="aurora edge-top relative overflow-hidden rounded-3xl border border-[color:var(--stroke)] p-6 sm:p-8">
+        <section className="aurora edge-top relative overflow-hidden bande creuse">
           <div className="relative z-[1]">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[color:var(--b-400)]/40 bg-[color:var(--b-wash)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--b-400)]">
+              <span className="rounded-[2px] border border-[color:var(--bib-b-ink)]/40 bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--bib-b-ink)]">
                 Match programmé
               </span>
               {match.season && <span className="kicker">{match.season.name}</span>}
@@ -126,11 +126,11 @@ export default async function MatchRecapPage({
             <h1 className="display-md mt-3">
               {match.teamAName}{" "}
               <span className="text-[color:var(--ink-2)]">vs</span>{" "}
-              <span className="text-[color:var(--b-400)]">{versus}</span>
+              <span className="text-[color:var(--bib-b-ink)]">{versus}</span>
             </h1>
             <div className="mt-3 text-2xl font-black capitalize">
               {dateLabel}
-              <span className="ml-3 text-xl tabular-nums text-[color:var(--lime)]">
+              <span className="ml-3 text-xl tabular-nums text-[color:var(--ink-1)]">
                 {timeLabel}
               </span>
             </div>
@@ -143,7 +143,7 @@ export default async function MatchRecapPage({
             {ctx.canScore && (
               <Link
                 href={`/c/${slug}/matches/new?scheduled=${match.id}`}
-                className="group mt-5 inline-flex min-h-[56px] items-center gap-2 rounded-full bg-[color:var(--lime)] px-6 text-base font-black tracking-tight text-[color:var(--bg-0)] transition-transform hover:scale-[1.02]"
+                className="group mt-5 inline-flex min-h-[56px] items-center gap-2 rounded-[2px] bg-[color:var(--ink-1)] px-6 text-base font-black tracking-tight text-[color:var(--pitch-0)] transition-transform hover:scale-[1.02]"
               >
                 <span>Composer les équipes et lancer</span>
                 <span className="transition-transform group-hover:translate-x-1">
@@ -154,7 +154,7 @@ export default async function MatchRecapPage({
           </div>
         </section>
 
-        <section className="mt-6 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-5 sm:p-6">
+        <section className="mt-6 bande">
           <span className="kicker mb-3 block">Convocation — qui est là ?</span>
           <MatchRsvpPanel
             slug={slug}
@@ -170,7 +170,7 @@ export default async function MatchRecapPage({
         </section>
 
         {ctx.canManage && (
-          <div className="mt-8 flex justify-end border-t border-[color:var(--stroke)] pt-4">
+          <div className="mt-8 flex justify-end border-t border-[color:var(--rule)] pt-4">
             <CancelMatchButton slug={slug} matchId={match.id} />
           </div>
         )}
@@ -299,10 +299,10 @@ export default async function MatchRecapPage({
       )}
 
       {ctx.canManage && match.status === "FINISHED" && (
-        <div className="mt-8 flex items-center justify-between border-t border-[color:var(--stroke)] pt-4">
+        <div className="mt-8 flex items-center justify-between border-t border-[color:var(--rule)] pt-4">
           <Link
             href={`/c/${slug}/matches/${match.id}/edit`}
-            className="inline-flex min-h-[44px] items-center rounded-lg border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-4 text-sm font-bold hover:border-[color:var(--lime)]"
+            className="inline-flex min-h-[44px] items-center rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 text-sm font-bold hover:border-[color:var(--ink-1)]"
           >
             Corriger
           </Link>

@@ -122,7 +122,7 @@ export default function RecapView({
             {match.scoreB}
           </span>
         </div>
-        <div className="mt-2 text-center text-xs uppercase tracking-widest text-[color:var(--ink-3)]">
+        <div className="mt-2 text-center text-xs  text-[color:var(--ink-3)]">
           {new Date(match.playedAt).toLocaleDateString("fr-FR", {
             weekday: "long",
             day: "2-digit",
@@ -141,7 +141,7 @@ export default function RecapView({
       {showLiveResumeLink && (
         <Link
           href={liveHref ?? `/matches/${match.id}/live`}
-          className="flex items-center justify-center gap-2 rounded-lg bg-[color:var(--ink-1)] px-4 py-3 text-center font-bold text-[color:var(--bg-0)]"
+          className="flex items-center justify-center gap-2 rounded-[2px] bg-[color:var(--ink-1)] px-4 py-3 text-center font-bold text-[color:var(--pitch-0)]"
         >
           Reprendre le match en cours
           <Icon name="chevron" size={14} />
@@ -203,7 +203,7 @@ export default function RecapView({
                   Lien copié
                 </>
               ) : (
-                "Partager lien"
+ "Partager lien"
               )}
             </button>
             <button onClick={onShareImage} className="btn ghost big flex-1">

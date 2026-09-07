@@ -20,6 +20,10 @@ export default function ClubTheme({
   colorB?: string | null;
 }) {
   const t = bibTheme(colorA, colorB);
-  const css = `[data-club-theme]{--bib-a:${t.aFill};--bib-a-ink:${t.aInk};--bib-b:${t.bFill};--bib-b-ink:${t.bInk};}`;
+  // Trois jetons par chasuble, et chacun a un seul emploi :
+  //   -a       l'aplat brut, réservé à l'instant de célébration ;
+  //   -a-ink   l'encre, éclaircie jusqu'à Lc 60 — le seul jeton qui porte du texte ;
+  //   -a-slab  la bande, remontée à Lc 30 pour rester visible même en marine.
+  const css = `[data-club-theme]{--bib-a:${t.aFill};--bib-a-ink:${t.aInk};--bib-a-slab:${t.aSlab};--bib-b:${t.bFill};--bib-b-ink:${t.bInk};--bib-b-slab:${t.bSlab};}`;
   return <style>{css}</style>;
 }

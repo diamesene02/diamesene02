@@ -5,7 +5,7 @@ import RegisterSW from "@/components/RegisterSW";
 export const metadata: Metadata = {
   title: "Five Scorer",
   description:
-    "Le suivi de matchs de ton équipe : scoring live offline, stats de saison, équipes équilibrées, vote MVP.",
+ "Le suivi de matchs de ton équipe : scoring live offline, stats de saison, équipes équilibrées, vote MVP.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [

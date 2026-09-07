@@ -32,13 +32,13 @@ const NEXT: Record<"none" | RsvpStatus, RsvpStatus> = {
 function chipCls(status: RsvpStatus | null) {
   switch (status) {
     case "IN":
-      return "border-[color:var(--a-500)] bg-[color:var(--a-wash)] text-[color:var(--a-400)]";
+      return "border-[color:var(--bib-a)] bg-[color:var(--pitch-2)] text-[color:var(--bib-a-ink)]";
     case "MAYBE":
       return "border-[color:var(--gold)]/60 bg-[color:var(--gold)]/10 text-[color:var(--gold)]";
     case "OUT":
       return "border-[color:var(--loss)]/60 bg-[color:var(--loss)]/10 text-[color:var(--loss)]";
     default:
-      return "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-2)]";
+      return "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-2)]";
   }
 }
 
@@ -95,10 +95,10 @@ export default function MatchRsvpPanel({
               disabled={pending}
               onClick={() => apply(myPlayerId, s)}
               className={cn(
-                "big-touch flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors",
+ "big-touch flex-1 rounded-none border px-3 py-2.5 text-sm font-bold transition-colors",
                 mine === s
                   ? chipCls(s)
-                  : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)] hover:border-[color:var(--stroke-hi)]"
+                  : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)] hover:border-[color:var(--rule-hi)]"
               )}
             >
               {LABELS[s]}
@@ -113,7 +113,7 @@ export default function MatchRsvpPanel({
       {/* Compteurs */}
       <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm tabular-nums">
         <div>
-          <span className="font-black text-[color:var(--a-400)]">
+          <span className="font-black text-[color:var(--bib-a-ink)]">
             {ins.length}
           </span>{" "}
           <span className="text-[color:var(--ink-2)]">présent·s</span>
@@ -139,7 +139,7 @@ export default function MatchRsvpPanel({
       </div>
 
       {/* Liste complète du roster */}
-      <ul className="mt-4 divide-y divide-[color:var(--stroke)] overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-2)]">
+      <ul className="mt-4 divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-2)]">
         {rows.map((r) => (
           <li
             key={r.playerId}
@@ -147,13 +147,13 @@ export default function MatchRsvpPanel({
           >
             <span
               className={cn(
-                "min-w-0 truncate text-sm font-bold",
-                r.playerId === myPlayerId && "text-[color:var(--lime)]"
+ "min-w-0 truncate text-sm font-bold",
+                r.playerId === myPlayerId && "text-[color:var(--ink-1)]"
               )}
             >
               {r.name}
               {r.playerId === myPlayerId && (
-                <span className="ml-1.5 text-[10px] uppercase tracking-wider text-[color:var(--ink-2)]">
+                <span className="ml-1.5 text-[10px]  text-[color:var(--ink-2)]">
                   toi
                 </span>
               )}
@@ -164,7 +164,7 @@ export default function MatchRsvpPanel({
                 onClick={() => apply(r.playerId, NEXT[r.status ?? "none"])}
                 title="Tape pour changer le statut"
                 className={cn(
-                  "inline-flex min-h-[44px] shrink-0 items-center rounded-full border px-4 text-[11px] font-bold uppercase tracking-wider transition-colors",
+ "inline-flex min-h-[44px] shrink-0 items-center rounded-[2px] border px-4 text-[13px] font-semibold transition-colors",
                   chipCls(r.status)
                 )}
               >
@@ -173,7 +173,7 @@ export default function MatchRsvpPanel({
             ) : (
               <span
                 className={cn(
-                  "inline-flex min-h-[36px] shrink-0 items-center rounded-full border px-4 text-[11px] font-bold uppercase tracking-wider",
+ "inline-flex min-h-[36px] shrink-0 items-center rounded-[2px] border px-4 text-[13px] font-semibold",
                   chipCls(r.status)
                 )}
               >

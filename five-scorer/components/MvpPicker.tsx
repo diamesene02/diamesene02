@@ -20,7 +20,7 @@ export default function MvpPicker({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-2 sm:items-center">
-      <div className="w-full max-w-md rounded-2xl bg-[color:var(--bg-1)] p-4">
+      <div className="w-full max-w-md rounded-none bg-[color:var(--pitch-1)] p-4">
         <h2 className="mb-1 text-lg font-bold">Élire le MVP</h2>
         <p className="mb-3 text-xs text-[color:var(--ink-3)]">
           Optionnel — tu peux terminer sans MVP.
@@ -31,10 +31,10 @@ export default function MvpPicker({
               key={p.id}
               onClick={() => setSelected(p.id === selected ? null : p.id)}
               className={
-                "big-touch flex w-full items-center justify-between gap-2 rounded-lg px-4 py-3 text-left transition-colors " +
+ "big-touch flex w-full items-center justify-between gap-2 rounded-[2px] px-4 py-3 text-left transition-colors " +
                 (selected === p.id
                   ? "bg-[color:var(--pitch-3)] ring-1 ring-[color:var(--gold)]"
-                  : "bg-[color:var(--bg-2)] hover:bg-[color:var(--stroke)]")
+                  : "bg-[color:var(--pitch-2)] hover:bg-[color:var(--rule)]")
               }
             >
               <span className="min-w-0 truncate font-semibold">{p.name}</span>

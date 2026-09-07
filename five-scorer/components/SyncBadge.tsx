@@ -73,7 +73,7 @@ export default function SyncBadge({
 
   const pill =
     state === "off"
-      ? "bg-[color:var(--bg-2)] text-[color:var(--loss)] border-[color:var(--loss)]"
+      ? "bg-[color:var(--pitch-2)] text-[color:var(--loss)] border-[color:var(--loss)]"
       : state === "warn"
         ? "bg-amber-900/70 text-amber-200 border-amber-700"
         : "bg-emerald-900/60 text-emerald-200 border-emerald-700";
@@ -90,7 +90,7 @@ export default function SyncBadge({
       onClick={onTap}
       title={s.lastError ?? undefined}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition",
+ "inline-flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1 text-xs font-medium transition",
         pill,
         className,
       )}

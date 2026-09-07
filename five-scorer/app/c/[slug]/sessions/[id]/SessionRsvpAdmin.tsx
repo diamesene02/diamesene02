@@ -26,7 +26,7 @@ function nextStatus(s: RsvpStatus | null): RsvpStatus {
 }
 
 const DOT: Record<RsvpStatus, string> = {
-  IN: "bg-[color:var(--a-400)]",
+  IN: "bg-[color:var(--bib-a-ink)]",
   MAYBE: "bg-[color:var(--gold)]",
   OUT: "bg-[color:var(--loss)]",
 };
@@ -94,14 +94,14 @@ export default function SessionRsvpAdmin({
               disabled={pending}
               onClick={() => apply(myPlayerId, s)}
               className={cn(
-                "big-touch flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors",
+ "big-touch flex-1 rounded-none border px-3 py-2.5 text-sm font-bold transition-colors",
                 mine === s
                   ? s === "IN"
-                    ? "border-[color:var(--a-500)] bg-[color:var(--a-wash)] text-[color:var(--a-400)]"
+                    ? "border-[color:var(--bib-a)] bg-[color:var(--pitch-2)] text-[color:var(--bib-a-ink)]"
                     : s === "OUT"
                       ? "border-[color:var(--loss)]/60 bg-[color:var(--loss)]/10 text-[color:var(--loss)]"
                       : "border-[color:var(--gold)]/60 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
-                  : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)] hover:border-[color:var(--stroke-hi)]"
+                  : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)] hover:border-[color:var(--rule-hi)]"
               )}
             >
               {SELF_LABELS[s]}
@@ -118,7 +118,7 @@ export default function SessionRsvpAdmin({
           (g) =>
             g.list.length > 0 && (
               <div key={g.key}>
-                <div className="mb-1.5 text-[11px] font-black uppercase tracking-widest text-[color:var(--ink-2)]">
+                <div className="mb-1.5 text-[11px] font-black  text-[color:var(--ink-2)]">
                   {g.label}{" "}
                   <span className="tabular-nums">({g.list.length})</span>
                 </div>
@@ -128,7 +128,7 @@ export default function SessionRsvpAdmin({
                       <>
                         <span
                           className={cn(
-                            "inline-block h-1.5 w-1.5 rounded-full",
+ "inline-block h-1.5 w-1.5 rounded-full",
                             p.status
                               ? DOT[p.status]
                               : "bg-[color:var(--ink-2)]/50"
@@ -143,14 +143,14 @@ export default function SessionRsvpAdmin({
                         disabled={pending}
                         onClick={() => apply(p.playerId, nextStatus(p.status))}
                         title="Changer le statut"
-                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3.5 text-sm font-bold transition-colors hover:border-[color:var(--stroke-hi)] disabled:opacity-60"
+                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3.5 text-sm font-bold transition-colors hover:border-[color:var(--rule-hi)] disabled:opacity-60"
                       >
                         {inner}
                       </button>
                     ) : (
                       <span
                         key={p.playerId}
-                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3.5 text-sm font-bold"
+                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3.5 text-sm font-bold"
                       >
                         {inner}
                       </span>

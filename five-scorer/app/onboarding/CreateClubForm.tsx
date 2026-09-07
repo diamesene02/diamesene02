@@ -55,7 +55,7 @@ export default function CreateClubForm() {
         placeholder="FC Les Potos du Jeudi"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="w-full flex-1 rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-2.5 outline-none focus:border-[color:var(--lime)]"
+        className="w-full flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2.5 outline-none focus:border-[color:var(--ink-1)]"
       />
       <button
         type="submit"
@@ -65,7 +65,7 @@ export default function CreateClubForm() {
         {loading ? "Création…" : "Créer le club"}
       </button>
       {error && (
-        <p className="rounded-lg border border-[color:var(--loss)] bg-[color:var(--bg-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)] sm:basis-full">
+        <p className="rounded-[2px] border border-[color:var(--loss)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)] sm:basis-full">
           {error}
         </p>
       )}

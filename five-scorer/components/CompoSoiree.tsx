@@ -146,7 +146,7 @@ export default function CompoSoiree({
   }
 
   const champNom =
-    "min-w-0 flex-1 rounded-lg border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2 py-1.5 text-sm font-bold outline-none focus:border-[color:var(--lime)]";
+ "min-w-0 flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 py-1.5 text-sm font-bold outline-none focus:border-[color:var(--ink-1)]";
 
   return (
     <div>
@@ -202,7 +202,7 @@ export default function CompoSoiree({
                   camp === "A" ? nomA : camp === "B" ? nomB : "hors compo"
                 }`}
                 className={cn(
-                  "compo-ligne",
+ "compo-ligne",
                   camp === "A" && "A",
                   camp === "B" && "B",
                 )}

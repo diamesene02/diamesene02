@@ -44,7 +44,7 @@ export default async function LoginPage({
         </div>
 
         {sessionExpiree && (
-          <p className="mb-4 rounded-lg border border-[color:var(--loss)] bg-[color:var(--bg-2)] p-3 text-sm text-[color:var(--loss)]">
+          <p className="mb-4 rounded-[2px] border border-[color:var(--loss)] bg-[color:var(--pitch-2)] p-3 text-sm text-[color:var(--loss)]">
             Ta session a expiré : reconnecte-toi.
           </p>
         )}

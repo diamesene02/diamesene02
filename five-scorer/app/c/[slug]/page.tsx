@@ -280,7 +280,7 @@ export default async function ClubHomePage({
       {liveMatch ? (
         <Link
           href={`/c/${slug}/matches/${liveMatch.id}/live`}
-          className="aurora edge-top block overflow-hidden rounded-3xl p-6"
+          className="aurora edge-top block overflow-hidden bande"
         >
           <div className="flex items-center gap-2">
             <span className="live-dot" />
@@ -292,7 +292,7 @@ export default async function ClubHomePage({
             <div className="display-md">
               {liveMatch.teamAName}
               <br />
-              <span className="text-[color:var(--b-400)]">
+              <span className="text-[color:var(--bib-b-ink)]">
                 vs {liveMatch.teamBName}
               </span>
             </div>
@@ -304,7 +304,7 @@ export default async function ClubHomePage({
           </div>
         </Link>
       ) : (
-        <section className="aurora edge-top relative overflow-hidden rounded-3xl border border-[color:var(--stroke)] p-8">
+        <section className="aurora edge-top relative overflow-hidden bande creuse">
           <div className="relative z-[1] flex flex-col items-start gap-4">
             <span className="kicker">
               {activeSeason ? activeSeason.name : ctx.org.name}
@@ -387,18 +387,18 @@ export default async function ClubHomePage({
 
       {/* Prochaine session + RSVP */}
       {nextMatchDay && (
-        <section className="mt-8 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-6">
+        <section className="mt-8 bande">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <span className="kicker">Prochaine soirée</span>
               <div className="mt-1 text-xl font-black">
                 <Link
                   href={`/c/${slug}/sessions/${nextMatchDay.id}`}
-                  className="hover:text-[color:var(--lime)]"
+                  className="hover:text-[color:var(--ink-1)]"
                 >
                   {nextMatchDay.title || "Five"}
                 </Link>
-                <span className="ml-3 font-mono text-sm font-bold text-[color:var(--lime)]">
+                <span className="ml-3 font-mono text-sm font-bold text-[color:var(--ink-1)]">
                   {fmtDate(nextMatchDay.date)}
                   {" · "}
                   {nextMatchDay.date.toLocaleTimeString("fr-FR", {
@@ -417,7 +417,7 @@ export default async function ClubHomePage({
             {ctx.canScore && (
               <Link
                 href={`/c/${slug}/matches/new?md=${nextMatchDay.id}`}
-                className="rounded-full bg-[color:var(--lime)] px-4 py-2 text-xs font-black uppercase tracking-wider text-[color:var(--bg-0)]"
+                className="rounded-[2px] bg-[color:var(--ink-1)] px-4 py-2 text-[13px] font-semibold text-[color:var(--pitch-0)]"
               >
                 Lancer un match
               </Link>
@@ -441,7 +441,7 @@ export default async function ClubHomePage({
       {upcomingMatches.length > 0 && (
         <section className="mt-8">
           <span className="kicker mb-3 block">Prochains matchs</span>
-          <ul className="divide-y divide-[color:var(--stroke)] overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]">
+          <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
             {upcomingMatches.map((m) => {
               const when = m.scheduledAt ?? m.playedAt;
               return (
@@ -453,7 +453,7 @@ export default async function ClubHomePage({
                     <span className="w-20 shrink-0 font-mono text-[11px] uppercase leading-tight text-[color:var(--ink-2)]">
                       {fmtDate(when)}
                       <br />
-                      <span className="text-[color:var(--lime)]">
+                      <span className="text-[color:var(--ink-1)]">
                         {when.toLocaleTimeString("fr-FR", {
                           hour: "2-digit",
                           minute: "2-digit",
@@ -467,10 +467,10 @@ export default async function ClubHomePage({
                         ? m.opponent.name
                         : m.teamBName}
                     </span>
-                    <span className="shrink-0 font-mono text-xs font-bold text-[color:var(--a-400)]">
+                    <span className="shrink-0 font-mono text-xs font-bold text-[color:var(--bib-a-ink)]">
                       {m._count.rsvps} présent{m._count.rsvps > 1 ? "s" : ""}
                     </span>
-                    <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-[color:var(--b-400)]">
+                    <span className="shrink-0 text-[10px] font-black  text-[color:var(--bib-b-ink)]">
                       Répondre →
                     </span>
                   </Link>
@@ -502,7 +502,7 @@ export default async function ClubHomePage({
           ].map((s) => (
             <div
               key={s.label}
-              className="rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] px-4 py-3"
+              className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] px-4 py-3"
             >
               <div className="kicker">{s.label}</div>
               <div className="mt-1 truncate text-lg font-black">{s.value}</div>
@@ -518,18 +518,18 @@ export default async function ClubHomePage({
             <span className="kicker">Dernier match</span>
             <Link
               href={`/c/${slug}/matches`}
-              className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)] hover:text-white"
+              className="text-xs font-bold  text-[color:var(--ink-2)] hover:text-white"
             >
               Tout voir →
             </Link>
           </div>
           <Link
             href={`/c/${slug}/matches/${hero.id}`}
-            className="edge-top group block overflow-hidden rounded-3xl border border-[color:var(--stroke)] bg-gradient-to-br from-[color:var(--bg-1)] to-[color:var(--bg-0)] p-6 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] transition-colors hover:border-[color:var(--stroke-hi)]"
+            className="edge-top group block overflow-hidden bande"
           >
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
               <div className="text-right">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--a-400)]">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--bib-a-ink)]">
                   {hero.teamAName}
                 </div>
                 <div
@@ -541,14 +541,14 @@ export default async function ClubHomePage({
                 </div>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="h-16 w-px bg-[color:var(--stroke-hi)]" />
-                <span className="text-xs font-black uppercase tracking-widest text-[color:var(--ink-2)]">
+                <div className="h-16 w-px bg-[color:var(--rule-hi)]" />
+                <span className="text-xs font-black  text-[color:var(--ink-2)]">
                   VS
                 </span>
-                <div className="h-16 w-px bg-[color:var(--stroke-hi)]" />
+                <div className="h-16 w-px bg-[color:var(--rule-hi)]" />
               </div>
               <div className="text-left">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--b-400)]">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--bib-b-ink)]">
                   {hero.kind === "EXTERNAL" && hero.opponent
                     ? hero.opponent.name
                     : hero.teamBName}
@@ -562,7 +562,7 @@ export default async function ClubHomePage({
                 </div>
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--stroke)] pt-4">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--rule)] pt-4">
               <div className="flex items-center gap-2 text-xs">
                 <span className="font-mono font-bold text-[color:var(--ink-1)]">
                   {fmtDate(hero.playedAt)}
@@ -574,14 +574,14 @@ export default async function ClubHomePage({
                 {hero.mvp && (
                   <>
                     <span className="text-[color:var(--ink-2)]">·</span>
-                    <span className="rounded-full bg-[color:var(--gold)]/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[color:var(--gold)]">
+                    <span className="rounded-[2px] bg-[color:var(--gold)]/20 px-2 py-0.5 text-[13px] font-semibold text-[color:var(--gold)]">
                       <Icon name="star" size={11} filled />
                       {hero.mvp.name}
                     </span>
                   </>
                 )}
               </div>
-              <span className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-1)] group-hover:text-[color:var(--lime)]">
+              <span className="text-xs font-bold  text-[color:var(--ink-1)] group-hover:text-[color:var(--ink-1)]">
                 Voir le récap →
               </span>
             </div>
@@ -593,7 +593,7 @@ export default async function ClubHomePage({
       {rest.length > 0 && (
         <section className="mt-8">
           <span className="kicker mb-3 block">Archive</span>
-          <ul className="divide-y divide-[color:var(--stroke)] overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]">
+          <ul className="divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
             {rest.map((m) => (
               <li key={m.id}>
                 <Link
@@ -617,7 +617,7 @@ export default async function ClubHomePage({
                     <span
                       className={
                         m.scoreA > m.scoreB
-                          ? "text-[color:var(--lime)]"
+                          ? "text-[color:var(--ink-1)]"
                           : "text-[color:var(--ink-1)]"
                       }
                     >
@@ -627,7 +627,7 @@ export default async function ClubHomePage({
                     <span
                       className={
                         m.scoreB > m.scoreA
-                          ? "text-[color:var(--lime)]"
+                          ? "text-[color:var(--ink-1)]"
                           : "text-[color:var(--ink-1)]"
                       }
                     >
@@ -645,7 +645,7 @@ export default async function ClubHomePage({
         <div className="mt-8 flex justify-center gap-3">
           <Link
             href={`/c/${slug}/matches/new`}
-            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-5 py-2.5 text-sm font-bold hover:border-[color:var(--lime)]"
+            className="inline-flex items-center gap-2 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-5 py-2.5 text-sm font-bold hover:border-[color:var(--ink-1)]"
           >
             + Nouveau match
           </Link>

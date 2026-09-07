@@ -27,6 +27,9 @@ export default async function ClubLayout({
         <div className="pitch-motif absolute inset-0" />
       </div>
 
+      {/* Plein cadre : les bandes touchent les deux bords de l'écran, et c'est
+          leur contenu qui est rembourré. Un contenu flottant entre deux marges
+          fait une pile de cartes, pas un panneau. */}
       <div className="relative mx-auto max-w-4xl px-5 pb-24 pt-4">
         <header className="flex items-center justify-between gap-3">
           <Link href={`/c/${slug}`} className="brand-pill max-w-[55vw]">

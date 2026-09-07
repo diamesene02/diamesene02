@@ -66,14 +66,14 @@ export default function RsvpPanel({
               disabled={pending}
               onClick={() => respond(s)}
               className={cn(
-                "big-touch flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors",
+ "big-touch flex-1 rounded-none border px-3 py-2.5 text-sm font-bold transition-colors",
                 mine === s
                   ? s === "IN"
-                    ? "border-[color:var(--a-500)] bg-[color:var(--a-wash)] text-[color:var(--a-400)]"
+                    ? "border-[color:var(--bib-a)] bg-[color:var(--pitch-2)] text-[color:var(--bib-a-ink)]"
                     : s === "OUT"
-                      ? "border-[color:var(--loss)] bg-[color:var(--bg-2)] text-[color:var(--loss)]"
+                      ? "border-[color:var(--loss)] bg-[color:var(--pitch-2)] text-[color:var(--loss)]"
                       : "border-[color:var(--gold)]/60 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
-                  : "border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)] hover:border-[color:var(--stroke-hi)]"
+                  : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)] hover:border-[color:var(--rule-hi)]"
               )}
             >
               {LABELS[s]}
@@ -85,7 +85,7 @@ export default function RsvpPanel({
 
       <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
         <div>
-          <span className="font-black text-[color:var(--a-400)]">
+          <span className="font-black text-[color:var(--bib-a-ink)]">
             {ins.length}
           </span>{" "}
           <span className="text-[color:var(--ink-2)]">présent·s</span>

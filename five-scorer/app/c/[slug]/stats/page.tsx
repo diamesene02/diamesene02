@@ -24,10 +24,10 @@ function FormBadges({ form }: { form: Result[] }) {
           key={i}
           className={`inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-black ${
             r === "W"
-              ? "bg-[color:var(--win)] text-[color:var(--bg-0)]"
+              ? "bg-[color:var(--win)] text-[color:var(--pitch-0)]"
               : r === "D"
-                ? "bg-[color:var(--bg-2)] text-[color:var(--ink-3)]"
-                : "bg-[color:var(--bg-2)] text-[color:var(--loss)]"
+                ? "bg-[color:var(--pitch-2)] text-[color:var(--ink-3)]"
+                : "bg-[color:var(--pitch-2)] text-[color:var(--loss)]"
           }`}
         >
           {r}
@@ -151,11 +151,11 @@ export default async function StatsPage({
   }
 
   const th =
-    "px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-3)]";
+ "px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-3)]";
   const td = "px-3 py-2.5";
   const tdNum = `${td} text-center tabular-nums`;
   const panel =
-    "rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)]";
+ "rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]";
 
   return (
     <main>
@@ -173,10 +173,10 @@ export default async function StatsPage({
             <Link
               key={c.id}
               href={`/c/${slug}/stats?saison=${c.id}`}
-              className={`rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
+              className={`rounded-[2px] px-4 py-1.5 text-xs font-bold transition-colors ${
                 selected === c.id
-                  ? "bg-[color:var(--lime)] font-black text-[color:var(--bg-0)]"
-                  : "border border-[color:var(--stroke)] bg-[color:var(--bg-2)] text-[color:var(--ink-1)] hover:border-[color:var(--stroke-hi)]"
+                  ? "bg-[color:var(--ink-1)] font-black text-[color:var(--pitch-0)]"
+                  : "border border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)] hover:border-[color:var(--rule-hi)]"
               }`}
             >
               {c.label}
@@ -185,25 +185,45 @@ export default async function StatsPage({
         </div>
       </div>
 
+      {/* L'état vide n'est ni une carte, ni une icône, ni une pilule centrée :
+          c'est le SQUELETTE de l'écran, avec des tirets à la place des
+          chiffres. Une feuille de match vierge se reconnaît vierge — elle ne
+          se présente pas comme une erreur. */}
       {rows.length === 0 ? (
-        <section className="mt-10 rounded-2xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-10 text-center">
-          <Icon
-            name="ball"
-            size={32}
-            className="mx-auto text-[color:var(--ink-3)]"
-          />
-          <p className="mt-3 font-bold text-[color:var(--ink-1)]">
-            Aucun match terminé sur cette période. Lance le premier.
-          </p>
-          {ctx.canScore && (
-            <Link
-              href={`/c/${slug}/matches/new`}
-              className="mt-5 inline-flex items-center gap-2 rounded-full bg-[color:var(--lime)] px-5 py-2.5 text-sm font-black text-[color:var(--bg-0)]"
+        <section className="bande mt-8">
+          <div className="rangee-tete" style={{ ["--cols" as string]: 3 }}>
+            <span />
+            <span>Joueur</span>
+            <span>J</span>
+            <span>Buts</span>
+            <span>%V</span>
+          </div>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="rangee"
+              style={{ ["--cols" as string]: 3 }}
+              aria-hidden
             >
-              Lancer un match
-              <Icon name="chevron" size={14} />
-            </Link>
-          )}
+              <span className="rangee-bande" />
+              <span className="rangee-nom text-[color:var(--ink-3)]">—</span>
+              <span className="rangee-num">—</span>
+              <span className="rangee-num">—</span>
+              <span className="rangee-num">—</span>
+            </div>
+          ))}
+          <p className="mt-4 text-[color:var(--ink-2)]">
+            Aucun match terminé sur cette période.
+            {ctx.canScore && (
+              <>
+                {" "}
+                <Link href={`/c/${slug}/matches/new`} className="lien">
+                  Lancer le premier
+                </Link>
+                .
+              </>
+            )}
+          </p>
         </section>
       ) : (
         <>
@@ -213,7 +233,7 @@ export default async function StatsPage({
               {podium.map((p, i) => (
                 <div
                   key={p.label}
-                  className={`rounded-lg bg-[color:var(--bg-1)] p-3 ${
+                  className={`rounded-[2px] bg-[color:var(--pitch-1)] p-3 ${
                     i === 0 && podium.length !== 2
                       ? "col-span-2 sm:col-span-1"
                       : ""
@@ -239,7 +259,7 @@ export default async function StatsPage({
               <a
                 href={`/api/clubs/${clubId}/export?type=leaderboard&saison=${selected}`}
                 download
-                className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] transition-colors hover:border-[color:var(--stroke-hi)]"
+                className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] transition-colors hover:border-[color:var(--rule-hi)]"
               >
                 Export CSV
               </a>
@@ -247,7 +267,7 @@ export default async function StatsPage({
             <div className={`scroll-x ${panel}`}>
               <table className="min-w-[640px] w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[color:var(--stroke)]">
+                  <tr className="border-b border-[color:var(--rule)]">
                     <th className={`${th} text-left`}>#</th>
                     <th className={`${th} text-left`}>Joueur</th>
                     <th className={`${th} text-center`}>J</th>
@@ -285,11 +305,11 @@ export default async function StatsPage({
                     <th className={`${th} text-left`}>Série</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[color:var(--stroke)]">
+                <tbody className="divide-y divide-[color:var(--rule)]">
                   {rows.map((r, i) => (
                     <tr
                       key={r.playerId}
-                      className="transition-colors hover:bg-[color:var(--bg-2)]"
+                      className="transition-colors hover:bg-[color:var(--pitch-2)]"
                     >
                       <td
                         className={`${td} text-xs font-bold tabular-nums text-[color:var(--ink-3)]`}
@@ -299,7 +319,7 @@ export default async function StatsPage({
                       <td className={`${td} font-bold`}>
                         <Link
                           href={`/c/${slug}/players/${r.playerId}`}
-                          className="hover:text-[color:var(--lime)]"
+                          className="hover:text-[color:var(--ink-1)]"
                         >
                           {r.name}
                           {r.nickname && (
@@ -422,13 +442,13 @@ export default async function StatsPage({
                   .map((c) => (
                     <div
                       key={c.label}
-                      className="rounded-lg bg-[color:var(--bg-1)] p-3"
+                      className="rounded-[2px] bg-[color:var(--pitch-1)] p-3"
                     >
                       <span className="kicker">{c.label}</span>
                       <div className="mt-1 truncate font-semibold">
                         <Link
                           href={`/c/${slug}/players/${c.entry!.playerId}`}
-                          className="hover:text-[color:var(--lime)]"
+                          className="hover:text-[color:var(--ink-1)]"
                         >
                           {c.entry!.name}
                         </Link>
@@ -456,7 +476,7 @@ export default async function StatsPage({
                 Palmarès des saisons clôturées
               </span>
               <ul
-                className={`divide-y divide-[color:var(--stroke)] overflow-hidden ${panel}`}
+                className={`divide-y divide-[color:var(--rule)] overflow-hidden ${panel}`}
               >
                 {pastHonours.map((h) => (
                   <li
@@ -529,7 +549,7 @@ export default async function StatsPage({
                 ].map((s) => (
                   <div
                     key={s.label}
-                    className="rounded-lg bg-[color:var(--bg-1)] px-4 py-3"
+                    className="rounded-[2px] bg-[color:var(--pitch-1)] px-4 py-3"
                   >
                     <div className="kicker">{s.label}</div>
                     <div className="num-sculpt mt-1 truncate text-lg">
@@ -537,7 +557,7 @@ export default async function StatsPage({
                     </div>
                   </div>
                 ))}
-                <div className="col-span-2 rounded-lg bg-[color:var(--bg-1)] px-4 py-3 sm:col-span-1">
+                <div className="col-span-2 rounded-[2px] bg-[color:var(--pitch-1)] px-4 py-3 sm:col-span-1">
                   <div className="kicker">Forme</div>
                   <div className="mt-2">
                     <FormBadges form={external.form} />
@@ -551,7 +571,7 @@ export default async function StatsPage({
                   <div className={`scroll-x ${panel}`}>
                     <table className="min-w-[640px] w-full text-sm">
                       <thead>
-                        <tr className="border-b border-[color:var(--stroke)]">
+                        <tr className="border-b border-[color:var(--rule)]">
                           <th className={`${th} text-left`}>Adversaire</th>
                           <th className={`${th} text-center`}>J</th>
                           <th className={`${th} text-center`}>V</th>
@@ -562,13 +582,13 @@ export default async function StatsPage({
                           <th className={`${th} text-center`}>Diff</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[color:var(--stroke)]">
+                      <tbody className="divide-y divide-[color:var(--rule)]">
                         {external.byOpponent.map((o) => {
                           const diff = o.goalsFor - o.goalsAgainst;
                           return (
                             <tr
                               key={o.opponentId}
-                              className="transition-colors hover:bg-[color:var(--bg-2)]"
+                              className="transition-colors hover:bg-[color:var(--pitch-2)]"
                             >
                               <td className={`${td} font-bold`}>{o.name}</td>
                               <td className={tdNum}>{o.played}</td>

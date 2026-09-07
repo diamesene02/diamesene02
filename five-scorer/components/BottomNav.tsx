@@ -141,14 +141,18 @@ export default function BottomNav({ slug, canScore }: Props) {
         href={t.href}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "tap flex flex-1 flex-col items-center justify-center gap-1 pb-1.5 pt-2",
-          active ? "text-[color:var(--lime)]" : "text-[color:var(--ink-2)]"
+          "tap relative flex flex-1 flex-col items-center justify-center gap-1 pb-2 pt-2",
+          active ? "text-[color:var(--ink-1)]" : "text-[color:var(--ink-3)]"
         )}
       >
         {t.icon}
-        <span className="text-[10px] font-bold uppercase tracking-wider">
-          {t.label}
-        </span>
+        <span className="text-[13px] font-semibold">{t.label}</span>
+        {active && (
+          <span
+            aria-hidden
+            className="absolute inset-x-3 bottom-0 h-[3px] bg-[color:var(--ink-1)]"
+          />
+        )}
       </Link>
     );
   };
@@ -157,26 +161,23 @@ export default function BottomNav({ slug, canScore }: Props) {
     <>
       <nav
         aria-label="Navigation principale"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--stroke)] bg-[color:var(--bg-1)] sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--rule)] bg-[color:var(--pitch-1)] sm:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="mx-auto flex h-16 max-w-md items-stretch px-1">
           {leftTabs.map(renderTab)}
           {canScore && (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="-translate-y-3">
-                <button
-                  type="button"
-                  onClick={() => setSheetOpen(true)}
-                  aria-label="Créer un match ou une soirée"
-                  aria-haspopup="dialog"
-                  aria-expanded={sheetOpen}
-                  className="tap grid h-[52px] w-[52px] place-items-center rounded-full bg-[color:var(--lime)] text-[color:var(--bg-0)]"
-                >
-                  <Icon name="plus" size={22} />
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              aria-label="Créer un match ou une soirée"
+              aria-haspopup="dialog"
+              aria-expanded={sheetOpen}
+              className="tap flex flex-1 flex-col items-center justify-center gap-1 pb-2 pt-2 text-[color:var(--ink-3)]"
+            >
+              <Icon name="plus" size={20} />
+              <span className="text-[13px] font-semibold">Créer</span>
+            </button>
           )}
           {rightTabs.map(renderTab)}
         </div>
@@ -196,18 +197,18 @@ export default function BottomNav({ slug, canScore }: Props) {
             className="absolute inset-0 h-full w-full bg-black/60"
           />
           <div
-            className="slide-up absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-[color:var(--stroke-hi)] bg-[color:var(--bg-1)] px-4 pt-3"
+            className="slide-up absolute inset-x-0 bottom-0 border-t-[3px] border-[color:var(--ink-1)] bg-[color:var(--pitch-1)] px-4 pt-4"
             style={{
               paddingBottom: "calc(1rem + env(safe-area-inset-bottom))",
             }}
           >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[color:var(--stroke-hi)]" />
+            
             {actions.map((a) => (
               <Link
                 key={a.href}
                 href={a.href}
                 onClick={() => setSheetOpen(false)}
-                className="tap flex min-h-[56px] items-center justify-between gap-4 rounded-2xl px-3 py-3 active:bg-white/5"
+                className="tap flex min-h-[56px] items-center justify-between gap-4 rounded-none px-3 py-3 active:bg-white/5"
               >
                 <span className="min-w-0">
                   <span className="block text-[15px] font-bold text-[color:var(--ink-0)]">

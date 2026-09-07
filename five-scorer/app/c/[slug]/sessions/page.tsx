@@ -69,10 +69,10 @@ export default async function SessionsPage({
       <Link
         href={`/c/${slug}/sessions/${md.id}`}
         className={cn(
-          "block rounded-2xl border bg-[color:var(--bg-1)] p-4 transition-colors",
+ "block rounded-none border bg-[color:var(--pitch-1)] p-4 transition-colors",
           highlight
-            ? "border-[color:var(--lime)]/60 hover:border-[color:var(--lime)]"
-            : "border-[color:var(--stroke)] hover:border-[color:var(--stroke-hi)]"
+            ? "border-[color:var(--ink-1)]/60 hover:border-[color:var(--ink-1)]"
+            : "border-[color:var(--rule)] hover:border-[color:var(--rule-hi)]"
         )}
       >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -81,9 +81,9 @@ export default async function SessionsPage({
               {md.title || "Soirée"}
               <span
                 className={cn(
-                  "ml-3 text-xs font-bold capitalize tabular-nums",
+ "ml-3 text-xs font-bold capitalize tabular-nums",
                   highlight
-                    ? "text-[color:var(--lime)]"
+                    ? "text-[color:var(--ink-1)]"
                     : "text-[color:var(--ink-1)]"
                 )}
               >
@@ -97,15 +97,15 @@ export default async function SessionsPage({
               </div>
             )}
           </div>
-          <span className="text-xs font-bold uppercase tracking-widest text-[color:var(--ink-2)]">
+          <span className="text-xs font-bold  text-[color:var(--ink-2)]">
             Voir →
           </span>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold tabular-nums">
-          <span className="rounded-full border border-[color:var(--a-500)]/40 bg-[color:var(--a-wash)] px-2.5 py-1 text-[color:var(--a-400)]">
+          <span className="rounded-[2px] border border-[color:var(--bib-a)]/40 bg-[color:var(--pitch-2)] px-2.5 py-1 text-[color:var(--bib-a-ink)]">
             {inCount} présent{inCount > 1 ? "s" : ""}
           </span>
-          <span className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--bg-2)] px-2.5 py-1 text-[color:var(--ink-1)]">
+          <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-1 text-[color:var(--ink-1)]">
             {md.matches.length} match{md.matches.length > 1 ? "s" : ""}
             {totalGoals > 0 && (
               <span className="text-[color:var(--ink-2)]">
@@ -117,9 +117,9 @@ export default async function SessionsPage({
           {md.fieldCostCents != null && (
             <span
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1",
+ "inline-flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1",
                 allPaid
-                  ? "border-[color:var(--lime)]/50 bg-[color:var(--lime-dim)] text-[color:var(--lime)]"
+                  ? "border-[color:var(--ink-1)]/50 bg-[color:var(--ink-2)] text-[color:var(--ink-1)]"
                   : "border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
               )}
             >
@@ -150,7 +150,7 @@ export default async function SessionsPage({
         {ctx.canScore && (
           <Link
             href={`/c/${slug}/matches/new-session`}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[color:var(--stroke-hi)] bg-[color:var(--bg-2)] px-5 text-sm font-bold hover:border-[color:var(--lime)]"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-5 text-sm font-bold hover:border-[color:var(--ink-1)]"
           >
             <Icon name="plus" size={16} />
             Programmer une soirée
@@ -172,7 +172,7 @@ export default async function SessionsPage({
       )}
 
       {matchDays.length === 0 ? (
-        <div className="mt-10 rounded-3xl border border-[color:var(--stroke)] bg-[color:var(--bg-1)] p-8 text-center">
+        <div className="mt-10 rounded-3xl border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-8 text-center">
           <p className="text-lg font-black">Aucune soirée pour l&apos;instant.</p>
           <p className="mx-auto mt-2 max-w-sm text-sm text-[color:var(--ink-1)]">
             Une soirée, c&apos;est le créneau : jeudi 19 h, terrain 2. Tu la

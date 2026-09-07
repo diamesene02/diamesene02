@@ -29,7 +29,7 @@ export default function JoinButton({ code }: { code: string }) {
         {loading ? "On te fait entrer…" : "Rejoindre le club"}
       </button>
       {error && (
-        <p className="rounded-lg border border-[color:var(--loss)] bg-[color:var(--bg-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)]">
+        <p className="rounded-[2px] border border-[color:var(--loss)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)]">
           {error}
         </p>
       )}
