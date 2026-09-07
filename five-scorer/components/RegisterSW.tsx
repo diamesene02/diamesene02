@@ -11,8 +11,12 @@ export default function RegisterSW() {
     if (process.env.NODE_ENV !== "production") return;
 
     const register = () => {
+      // L'URL porte le numéro du build : un déploiement change l'URL, donc
+      // le navigateur réinstalle le service worker et évince l'ancien cache.
+      // Sans ça, « v2 » est resté figé pendant des mois.
+      const v = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
       navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
+        .register(`/sw.js?v=${encodeURIComponent(v)}`, { scope: "/" })
         .catch((err) => console.warn("SW registration failed:", err));
     };
 

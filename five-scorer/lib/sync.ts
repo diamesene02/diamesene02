@@ -87,11 +87,23 @@ export async function retryBlockedOps(): Promise<number> {
 
 // --- Network helpers -------------------------------------------------------
 
+/// Aucun rejeu n'attend plus de huit secondes. En réseau dégradé — le cas
+/// réel du gymnase — un fetch sans délai pouvait pendre des minutes, la file
+/// gelée derrière lui et la pastille muette.
+const DELAI_REJEU_MS = 8000;
+function fetchAvecDelai(url: string, init?: RequestInit): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), DELAI_REJEU_MS);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() =>
+    clearTimeout(t),
+  );
+}
+
 async function replayOp(op: OutboxOp): Promise<void> {
   const base = `/api/clubs/${op.clubId}`;
   switch (op.kind) {
     case "createMatch": {
-      const res = await fetch(`${base}/matches`, {
+      const res = await fetchAvecDelai(`${base}/matches`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -100,7 +112,7 @@ async function replayOp(op: OutboxOp): Promise<void> {
       return;
     }
     case "addEvent": {
-      const res = await fetch(`${base}/matches/${op.matchId}/events`, {
+      const res = await fetchAvecDelai(`${base}/matches/${op.matchId}/events`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -109,7 +121,7 @@ async function replayOp(op: OutboxOp): Promise<void> {
       return;
     }
     case "removeEvent": {
-      const res = await fetch(
+      const res = await fetchAvecDelai(
         `${base}/matches/${op.matchId}/events?eventId=${encodeURIComponent(
           op.payload.eventId,
         )}`,
@@ -119,7 +131,7 @@ async function replayOp(op: OutboxOp): Promise<void> {
       return;
     }
     case "setAssist": {
-      const res = await fetch(`${base}/matches/${op.matchId}/events`, {
+      const res = await fetchAvecDelai(`${base}/matches/${op.matchId}/events`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -128,7 +140,7 @@ async function replayOp(op: OutboxOp): Promise<void> {
       return;
     }
     case "setScorer": {
-      const res = await fetch(`${base}/matches/${op.matchId}/events`, {
+      const res = await fetchAvecDelai(`${base}/matches/${op.matchId}/events`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -137,7 +149,7 @@ async function replayOp(op: OutboxOp): Promise<void> {
       return;
     }
     case "addParticipant": {
-      const res = await fetch(`${base}/matches/${op.matchId}/lineup`, {
+      const res = await fetchAvecDelai(`${base}/matches/${op.matchId}/lineup`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -146,7 +158,7 @@ async function replayOp(op: OutboxOp): Promise<void> {
       return;
     }
     case "movePlayer": {
-      const res = await fetch(`${base}/matches/${op.matchId}/lineup`, {
+      const res = await fetchAvecDelai(`${base}/matches/${op.matchId}/lineup`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(op.payload),
@@ -155,7 +167,7 @@ async function replayOp(op: OutboxOp): Promise<void> {
       return;
     }
     case "finishMatch": {
-      const res = await fetch(`${base}/matches/${op.matchId}`, {
+      const res = await fetchAvecDelai(`${base}/matches/${op.matchId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -189,6 +201,26 @@ async function throwIfBad(res: Response, tag: string) {
 // --- Drain ----------------------------------------------------------------
 
 let inflight: Promise<void> | null = null;
+
+// Reprise différée. La file ne repartait que sur les événements `online` et
+// `visibilitychange` : si le réseau revenait pendant que l'app restait au
+// premier plan, rien ne partait tant qu'on ne touchait pas l'écran. Et dans la
+// WebView Android, `online` ne se déclenche parfois jamais. On réessaie donc
+// de nous-mêmes, à intervalle croissant, tant qu'il reste quelque chose à
+// envoyer.
+let relance: ReturnType<typeof setTimeout> | null = null;
+let echecs = 0;
+const RELANCE_MIN_MS = 5000;
+const RELANCE_MAX_MS = 60000;
+
+function planifierRelance() {
+  if (relance) return;
+  const delai = Math.min(RELANCE_MAX_MS, RELANCE_MIN_MS * 2 ** Math.min(echecs, 4));
+  relance = setTimeout(() => {
+    relance = null;
+    void drainOutbox();
+  }, delai);
+}
 
 export function drainOutbox(): Promise<void> {
   if (inflight) return inflight;
@@ -244,6 +276,7 @@ async function drainInner() {
         // était vide et tout parti.
         state.needsAuth = false;
         state.lastSyncedAt = new Date().toISOString();
+        echecs = 0;
       } catch (e) {
         const err = e as Error & { status?: number };
         const retryable =
@@ -304,13 +337,17 @@ async function drainInner() {
           );
           continue;
         }
-        // Retryable: stop the drain and try again later (next online event).
+        // Réessayable : on arrête ce passage et on se replanifie.
+        echecs += 1;
         break;
       }
     }
   } finally {
     state.syncing = false;
     await refreshPending();
+    // S'il reste des opérations actives et que ce n'est pas la session qui
+    // manque, on reviendra sans qu'on nous le demande.
+    if (state.pending > 0 && !state.needsAuth) planifierRelance();
   }
 }
 

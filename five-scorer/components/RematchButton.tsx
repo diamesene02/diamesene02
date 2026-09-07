@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createMatch, saveRoster } from "@/lib/localMatch";
 import { kickSync } from "@/lib/sync";
 import Icon from "@/components/Icon";
@@ -62,7 +61,6 @@ export default function RematchButton({
   /// être un lancement à l'aveugle.
   hint?: string;
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,7 +99,12 @@ export default function RematchButton({
           .map((p) => ({ playerId: p.id, isGk: p.gardienCeMatch })),
       });
       void kickSync();
-      router.replace(`/c/${slug}/matches/${matchId}/live`);
+      // Navigation DURE vers la coquille, pas router.replace : une navigation
+      // client ferait un fetch RSC que le service worker ne peut pas servir
+      // hors-ligne, puis retomberait en navigation dure après un délai. Autant
+      // y aller directement — la coquille est en cache, l'identifiant est
+      // dans l'URL, et le match est déjà dans Dexie.
+      window.location.assign(`/c/${slug}/play?m=${matchId}`);
     } catch (e) {
       setBusy(false);
       setError(e instanceof Error ? e.message : "Erreur");

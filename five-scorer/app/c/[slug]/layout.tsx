@@ -6,6 +6,7 @@ import ClubNav from "@/components/ClubNav";
 import BottomNav from "@/components/BottomNav";
 import Icon from "@/components/Icon";
 import ClubTheme from "@/components/ClubTheme";
+import OfflinePrimer from "@/components/OfflinePrimer";
 
 export default async function ClubLayout({
   children,
@@ -22,6 +23,19 @@ export default async function ClubLayout({
       {/* Les couleurs de chasubles du club redéfinissent les jetons
           d'équipe pour tout ce qui est rendu en dessous. */}
       <ClubTheme colorA={ctx.club.colorA} colorB={ctx.club.colorB} />
+      <OfflinePrimer
+        club={{
+          id: ctx.club.id,
+          slug,
+          name: ctx.org.name,
+          colorA: ctx.club.colorA,
+          colorB: ctx.club.colorB,
+          trackAssists: ctx.club.trackAssists,
+          trackCards: ctx.club.trackCards,
+          motmMode: ctx.club.motmMode,
+          matchDurationMin: ctx.club.matchDurationMin,
+        }}
+      />
 
       <div className="pointer-events-none fixed inset-0 opacity-30">
         <div className="pitch-motif absolute inset-0" />

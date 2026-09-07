@@ -78,6 +78,7 @@ export default function LiveMatch({
   clubId,
   vivier: vivierClub,
   settings,
+  onFinished,
 }: {
   slug: string;
   matchId: string;
@@ -85,6 +86,11 @@ export default function LiveMatch({
   /// Tous les joueurs actifs du club, pour amorcer le cache local.
   vivier: FicheJoueur[];
   settings: Settings;
+  /// Quand il est fourni, la fin de match ne NAVIGUE plus vers le récap
+  /// serveur — elle remonte au parent. Hors-ligne, naviguer vers une page
+  /// serveur pour un match que le serveur ne connaît pas encore, c'était
+  /// perdre l'écran, le score final et la file d'envoi d'un coup.
+  onFinished?: (matchId: string) => void;
 }) {
   const router = useRouter();
   const data = useLiveQuery(() => getLocalMatch(matchId), [matchId]);
@@ -231,9 +237,10 @@ export default function LiveMatch({
   const finished = data?.match?.status === "FINISHED";
   useEffect(() => {
     if (finished) {
-      router.replace(`/c/${slug}/matches/${matchId}`);
+      if (onFinished) onFinished(matchId);
+      else router.replace(`/c/${slug}/matches/${matchId}`);
     }
-  }, [finished, router, slug, matchId]);
+  }, [finished, router, slug, matchId, onFinished]);
 
   const scoreARef = useRef<HTMLSpanElement>(null);
   const scoreBRef = useRef<HTMLSpanElement>(null);
@@ -458,7 +465,8 @@ export default function LiveMatch({
     try {
       await finishMatch(matchId, mvpId);
       void kickSync();
-      router.replace(`/c/${slug}/matches/${matchId}`);
+      if (onFinished) onFinished(matchId);
+      else router.replace(`/c/${slug}/matches/${matchId}`);
     } catch (e) {
       setFinishing(false);
       setError(e instanceof Error ? e.message : "Erreur");

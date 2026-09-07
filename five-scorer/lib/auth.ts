@@ -64,6 +64,13 @@ export const auth = betterAuth({
       }
     : undefined,
   session: {
+    // Le club joue une fois par semaine. Avec l'expiration par défaut (7
+    // jours), une semaine de vacances ou quelques minutes de retard suffisaient
+    // à retomber sur /login au gymnase, sans réseau pour se reconnecter. 90
+    // jours, renouvelés à chaque visite : une session ne meurt qu'après un
+    // trimestre sans jouer.
+    expiresIn: 60 * 60 * 24 * 90,
+    updateAge: 60 * 60 * 24,
     // Évite un aller-retour DB par requête : la session est encodée dans un
     // cookie signé, revalidée toutes les 5 minutes.
     cookieCache: { enabled: true, maxAge: 60 * 5 },

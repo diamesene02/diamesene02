@@ -5,6 +5,7 @@ import { getClubSummary } from "@/lib/stats";
 import RsvpPanel from "@/components/RsvpPanel";
 import Icon from "@/components/Icon";
 import RematchButton from "@/components/RematchButton";
+import ReprendreLocal from "@/components/ReprendreLocal";
 import { nomsChasubles } from "@/lib/color";
 
 export const dynamic = "force-dynamic";
@@ -276,6 +277,11 @@ export default async function ClubHomePage({
           <Icon name="chevron" size={16} />
         </Link>
       )}
+      {/* Le match en cours que le SERVEUR ne connaît pas encore (lancé hors-
+          ligne, ou onglet tué) : il est dans Dexie, et c'est ici qu'on le
+          retrouve. */}
+      {!liveMatch && <ReprendreLocal slug={slug} clubId={clubId} />}
+
       {/* Match en cours */}
       {liveMatch ? (
         <Link

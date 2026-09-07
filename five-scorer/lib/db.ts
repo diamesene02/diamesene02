@@ -163,6 +163,23 @@ export type OutboxOp =
       payload: { mvpId: string | null; durationMin?: number | null };
     };
 
+/// Le club tel que la coquille de match hors-ligne en a besoin : réglages de
+/// saisie, noms et couleurs des chasubles, slug pour les liens. Rempli à
+/// chaque visite EN LIGNE d'une page du club — c'est la seule façon de rendre
+/// l'écran de match sans serveur.
+export type LocalClub = {
+  id: string;
+  slug: string;
+  name: string;
+  colorA: string | null;
+  colorB: string | null;
+  trackAssists: boolean;
+  trackCards: boolean;
+  motmMode: "VOTE" | "ADMIN" | "OFF";
+  matchDurationMin: number;
+  savedAt: string;
+};
+
 export type OutboxEntry = {
   id?: number; // auto-incrément
   createdAt: string; // ISO
@@ -181,6 +198,7 @@ export class FiveScorerDB extends Dexie {
   participants!: Table<LocalParticipant, string>;
   events!: Table<LocalEvent, string>;
   outbox!: Table<OutboxEntry, number>;
+  clubs!: Table<LocalClub, string>;
 
   constructor() {
     super("five-scorer");
@@ -214,6 +232,16 @@ export class FiveScorerDB extends Dexie {
           tx.table("outbox").clear(),
         ]);
       });
+    // v3 : les réglages du club, pour que l'écran de match se rende sans
+    // serveur. Aucune donnée à convertir.
+    this.version(3).stores({
+      roster: "id, clubId, [clubId+isGuest]",
+      matches: "id, clubId, [clubId+status], playedAt",
+      participants: "key, matchId, playerId",
+      events: "id, matchId, createdAt, [matchId+createdAt]",
+      outbox: "++id, createdAt",
+      clubs: "id, slug",
+    });
   }
 }
 

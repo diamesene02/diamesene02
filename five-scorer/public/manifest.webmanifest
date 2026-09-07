@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Five Scorer",
   "short_name": "Five",
   "description": "Le suivi de matchs de ton équipe : scoring live offline, stats de saison, équipes équilibrées, vote MVP.",
@@ -20,4 +21,4 @@
       "purpose": "any maskable"
     }
   ]
-}
+}\n

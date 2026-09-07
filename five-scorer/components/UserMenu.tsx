@@ -68,6 +68,13 @@ export default function UserMenu({
             </Link>
             <button
               onClick={async () => {
+                // Le cache du service worker garde les pages de CET
+                // utilisateur ; sur un appareil partagé, la personne
+                // suivante les verrait hors-ligne. On le vide avant de partir.
+                // Dexie reste : une file d'envoi non partie n'est pas à jeter.
+                navigator.serviceWorker?.controller?.postMessage({
+                  type: "PURGE",
+                });
                 await signOut();
                 router.push("/login");
                 router.refresh();

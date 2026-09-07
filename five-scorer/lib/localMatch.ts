@@ -8,6 +8,7 @@
 import Dexie from "dexie";
 import {
   getDb,
+  type LocalClub,
   type LocalEvent,
   type LocalEventType,
   type LocalMatch,
@@ -64,6 +65,50 @@ export async function addLocalGuest(
     isGuest: true,
   });
   return id;
+}
+
+// --- Cache du club ---------------------------------------------------------
+
+/// Enregistre les réglages du club à chaque visite en ligne. C'est ce qui
+/// permet à la coquille de match de se rendre hors-ligne, pour un match créé
+/// hors-ligne, sans jamais toucher au serveur.
+export async function saveClubSettings(
+  club: Omit<LocalClub, "savedAt">,
+): Promise<void> {
+  const db = getDb();
+  await db.clubs.put({ ...club, savedAt: new Date().toISOString() });
+}
+
+export async function getLocalClub(clubId: string): Promise<LocalClub | undefined> {
+  return getDb().clubs.get(clubId);
+}
+
+export async function getLocalClubBySlug(
+  slug: string,
+): Promise<LocalClub | undefined> {
+  return getDb().clubs.where("slug").equals(slug).first();
+}
+
+/// Le match en cours du club, s'il y en a un dans la mémoire locale. C'est
+/// LE chemin de reprise du lundi soir : l'onglet tué, l'app rouverte, le
+/// match retrouvé — sans serveur.
+export async function getLiveMatchOfClub(
+  clubId: string,
+): Promise<LocalMatch | undefined> {
+  const db = getDb();
+  const live = await db.matches
+    .where("[clubId+status]")
+    .equals([clubId, "LIVE"])
+    .toArray();
+  live.sort((a, b) => (a.playedAt < b.playedAt ? 1 : -1));
+  return live[0];
+}
+
+/// Nombre d'opérations encore à envoyer pour un match. Zéro = le serveur sait
+/// tout, on peut lui faire confiance pour le récap complet.
+export async function pendingOpsForMatch(matchId: string): Promise<number> {
+  const db = getDb();
+  return db.outbox.filter((o) => o.op.matchId === matchId).count();
 }
 
 // --- Cycle de vie du match -------------------------------------------------
