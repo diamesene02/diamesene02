@@ -1438,8 +1438,12 @@
     font-variant-numeric: tabular-nums;
     color: var(--ink-3);
     /* La colonne est fixe : « 10 sept. » s'y cassait en deux lignes et faisait
-       gonfler la rangée à 48 px au milieu d'un service de résultats à 32. */
+       gonfler la rangée à 48 px au milieu d'un service de résultats à 32.
+       Et sans le garde de débordement, une date plus longue (« 25 août 26 »)
+       se posait par-dessus le score de la colonne suivante. */
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .ticker-score {
     font-stretch: 88%;

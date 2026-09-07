@@ -8,23 +8,29 @@ import Icon from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
-// La lettre reste : la couleur double l'information, elle ne la porte pas.
-function resultBadgeClass(r: Result) {
-  if (r === "W") return "bg-[color:var(--win)] text-[color:var(--pitch-0)]";
-  if (r === "D")
-    return "border border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-2)]";
-  return "bg-[color:var(--pitch-2)] text-[color:var(--loss)]";
+/// La forme, au dessin unique de l'app : plein pour une victoire, contour
+/// pour un nul, vide pour une défaite. Elle se lit sans couleur.
+function Forme({ form, grand = false }: { form: Result[]; grand?: boolean }) {
+  return (
+    <span className="forme" style={grand ? { gap: "5px" } : undefined}>
+      {form.map((r, i) => (
+        <span
+          key={i}
+          className={cn("forme-case", r === "W" && "v", r === "D" && "n")}
+          style={grand ? { width: 14, height: 14 } : undefined}
+          title={r === "W" ? "Victoire" : r === "D" ? "Nul" : "Défaite"}
+        />
+      ))}
+    </span>
+  );
 }
 
-// La série est un nombre signé, pas un pictogramme de flamme.
-function streakTile(streak: number | undefined): {
-  value: string;
-  tone?: "win" | "loss";
-} {
-  if (streak === undefined) return { value: "—" };
-  if (streak >= 2) return { value: `+${streak}`, tone: "win" };
-  if (streak <= -2) return { value: `-${Math.abs(streak)}`, tone: "loss" };
-  return { value: "—" };
+/// « 3 victoires d'affilée » — la série ne se dit qu'à partir de deux, sinon
+/// tout joueur en a toujours une et le mot ne veut plus rien dire.
+function phraseSerie(streak: number | undefined): string | null {
+  if (streak === undefined || Math.abs(streak) < 2) return null;
+  const n = Math.abs(streak);
+  return streak > 0 ? `${n} victoires d'affilée` : `${n} défaites d'affilée`;
 }
 
 // Niveau : cinq étoiles du jeu d'icônes, pas des glyphes ★ empruntés à
@@ -65,199 +71,189 @@ export default async function PlayerDetailPage({
 
   const { player, allTime, bySeason, recentMatches } = detail;
 
-  const streak = streakTile(allTime?.streak);
-
-  const tiles: { label: string; value: string; tone?: "win" | "loss" }[] = [
-    { label: "Matchs", value: String(allTime?.matchesPlayed ?? 0) },
-    { label: "Buts", value: String(allTime?.goals ?? 0) },
-    { label: "Passes", value: String(allTime?.assists ?? 0) },
-    {
-      label: "% victoires",
-      value: allTime ? `${allTime.winPct}%` : "—",
-    },
-    { label: "Élo", value: String(allTime?.elo ?? 1000) },
-    { label: "MVP", value: String(allTime?.mvpCount ?? 0) },
-    { label: "Série", value: streak.value, tone: streak.tone },
-  ];
+  const serie = phraseSerie(allTime?.streak);
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString("fr-FR", {
       day: "2-digit",
       month: "short",
-      year: "2-digit",
     });
-
-  const panel =
- "rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]";
 
   return (
     <main>
-      {/* Hero */}
-      <section className="aurora edge-top relative overflow-hidden p-6 sm:p-8">
-        <div className="relative z-[1] flex items-start gap-5">
-          <PlayerAvatar name={player.name} id={player.id} size="lg" />
-          <div className="min-w-0">
-            <span className="kicker">Fiche joueur</span>
-            <h1 className="display-md mt-2">{player.name}</h1>
-            {player.nickname && (
-              <div className="mt-1 text-lg italic text-[color:var(--ink-2)]">
-                « {player.nickname} »
-              </div>
-            )}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <SkillStars skill={player.skill} />
-              {player.isGk && (
-                <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--ink-1)]">
-                  gardien
-                </span>
-              )}
-              {player.isGuest && (
-                <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--ink-1)]">
-                  invité
-                </span>
-              )}
-              {player.userId && (
-                <span className="inline-flex items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2.5 py-0.5 text-[13px] font-semibold text-[color:var(--bib-a-ink)]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--bib-a)]" />
-                  compte lié
-                </span>
-              )}
+      {/* L'EN-TÊTE. Le nom EST la page — comme la date sur l'accueil et sur
+          la soirée. Il était en display-md dans une boîte à dégradé, sous une
+          étiquette « FICHE JOUEUR » en capitales tracées. */}
+      <section className="flex items-start gap-4">
+        <PlayerAvatar name={player.name} id={player.id} size="lg" />
+        <div className="min-w-0 flex-1">
+          <span className="kicker">Fiche joueur</span>
+          <h1 className="display-xl mt-1">{player.name}</h1>
+          {player.nickname && (
+            <div className="mt-1 text-lg italic text-[color:var(--ink-2)]">
+              « {player.nickname} »
             </div>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <SkillStars skill={player.skill} />
+            {player.isGk && (
+              <span className="text-[13px] font-semibold text-[color:var(--ink-2)]">
+                · gardien
+              </span>
+            )}
+            {player.isGuest && (
+              <span className="text-[13px] font-semibold text-[color:var(--ink-2)]">
+                · invité
+              </span>
+            )}
+            {player.userId && (
+              <span
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold"
+                style={{ color: "var(--bib-a-ink)" }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--bib-a)]" />
+                compte lié
+              </span>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Tuiles stats */}
-      <section className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {tiles.map((t) => (
-          <div
-            key={t.label}
-            className="rounded-[2px] bg-[color:var(--pitch-1)] px-4 py-3"
-          >
-            <div className="kicker">{t.label}</div>
-            <div
-              className={cn(
- "num-sculpt mt-1 text-2xl",
-                t.tone === "win" && "text-[color:var(--win)]",
-                t.tone === "loss" && "text-[color:var(--loss)]"
-              )}
-            >
-              {t.value}
-            </div>
+      {/* TOUT LE BILAN EN UNE LIGNE.
+          Sept tuiles « étiquette + gros chiffre » occupaient la moitié de
+          l'écran pour dire sept nombres, dont deux à zéro. C'est le gabarit de
+          tableau de bord, pas la densité d'une page de sport — l'accueil s'en
+          est débarrassé, la fiche joueur le gardait. */}
+      {allTime && allTime.matchesPlayed > 0 && (
+        <section className="bande mt-6">
+          <div className="synthese">
+            <span>
+              <b>{allTime.matchesPlayed}</b> match
+              {allTime.matchesPlayed > 1 ? "s" : ""}
+            </span>
+            <span className="synthese-sep">·</span>
+            <span>
+              <b>{allTime.goals}</b> but{allTime.goals > 1 ? "s" : ""}
+            </span>
+            {ctx.club.trackAssists && allTime.assists > 0 && (
+              <>
+                <span className="synthese-sep">·</span>
+                <span>
+                  <b>{allTime.assists}</b> passes
+                </span>
+              </>
+            )}
+            <span className="synthese-sep">·</span>
+            <span>
+              <b>{allTime.winPct}</b> % de victoires
+            </span>
+            <span className="synthese-sep">·</span>
+            <span>
+              Élo <b>{allTime.elo}</b>
+            </span>
+            {allTime.mvpCount > 0 && (
+              <>
+                <span className="synthese-sep">·</span>
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  style={{ color: "var(--gold)" }}
+                >
+                  <Icon name="star" size={12} filled />
+                  <b>{allTime.mvpCount}</b> fois homme du match
+                </span>
+              </>
+            )}
           </div>
-        ))}
-      </section>
-
-      {/* Forme */}
-      {allTime && allTime.form.length > 0 && (
-        <section className="mt-8">
-          <span className="kicker mb-3 block">Forme</span>
-          <div className="flex gap-2">
-            {allTime.form.map((r, i) => (
-              <span
-                key={i}
-                className={cn(
- "flex h-9 w-9 items-center justify-center rounded-[2px] text-sm font-black",
-                  resultBadgeClass(r)
-                )}
-              >
-                {r}
+          {allTime.form.length > 0 && (
+            <div className="mt-4 flex items-center gap-3">
+              <Forme form={allTime.form} grand />
+              <span className="text-[13px] text-[color:var(--ink-3)]">
+                {serie ?? "cinq derniers, du plus récent au plus ancien"}
               </span>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-[color:var(--ink-3)]">
-            Du plus récent au plus ancien.
-          </p>
+            </div>
+          )}
         </section>
       )}
 
-      {/* Par saison */}
+      {/* Par saison. Un tableau de six colonnes large de 420 px qu'il
+          fallait faire glisser en travers d'un écran de 375, pour deux ou
+          trois lignes : une saison tient dans une phrase. */}
       {bySeason.length > 0 && (
         <section className="mt-8">
           <span className="kicker mb-3 block">Par saison</span>
-          <div className={`scroll-x ${panel}`}>
-            <table className="w-full min-w-[420px] text-sm">
-              <thead>
-                <tr className="border-b border-[color:var(--rule)] text-left text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--ink-3)]">
-                  <th className="px-4 py-3">Saison</th>
-                  <th className="px-3 py-3 text-right">J</th>
-                  <th className="px-3 py-3 text-right">Buts</th>
-                  <th className="px-3 py-3 text-right">Passes</th>
-                  <th className="px-3 py-3 text-right">%V</th>
-                  <th className="px-4 py-3 text-right">MVP</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[color:var(--rule)]">
-                {bySeason.map((s) => (
-                  <tr key={s.seasonId ?? "none"}>
-                    <td className="px-4 py-3 font-bold">{s.seasonName}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">
-                      {s.row.matchesPlayed}
-                    </td>
-                    <td className="px-3 py-3 text-right font-black tabular-nums">
-                      {s.row.goals}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums">
-                      {s.row.assists}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums">
-                      {s.row.winPct}%
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[color:var(--gold)]">
-                      {s.row.mvpCount}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {bySeason.map((sn) => (
+            <div key={sn.seasonId ?? "none"} className="bande mt-4 first:mt-0">
+              <div className="bande-titre">
+                <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
+                  {sn.seasonName}
+                </span>
+                <span className="text-[13px] tabular-nums text-[color:var(--ink-3)]">
+                  {sn.row.matchesPlayed} match
+                  {sn.row.matchesPlayed > 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="synthese">
+                <span>
+                  <b>{sn.row.goals}</b> but{sn.row.goals > 1 ? "s" : ""}
+                </span>
+                {ctx.club.trackAssists && sn.row.assists > 0 && (
+                  <>
+                    <span className="synthese-sep">·</span>
+                    <span>
+                      <b>{sn.row.assists}</b> passes
+                    </span>
+                  </>
+                )}
+                <span className="synthese-sep">·</span>
+                <span>
+                  <b>{sn.row.winPct}</b> % de victoires
+                </span>
+                {sn.row.mvpCount > 0 && (
+                  <>
+                    <span className="synthese-sep">·</span>
+                    <span style={{ color: "var(--gold)" }}>
+                      <b>{sn.row.mvpCount}</b> fois homme du match
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
         </section>
       )}
 
-      {/* Derniers matchs */}
+      {/* Derniers matchs — le ticker commun : date, score, adversaire. */}
       {recentMatches.length > 0 && (
-        <section className="mt-8">
-          <span className="kicker mb-3 block">Derniers matchs</span>
-          <ul
-            className={`divide-y divide-[color:var(--rule)] overflow-hidden ${panel}`}
-          >
+        <section className="bande mt-8">
+          <div className="bande-titre">
+            <span className="kicker">Derniers matchs</span>
+          </div>
+          <ul>
             {recentMatches.map((m) => (
               <li key={m.id}>
-                <Link
-                  href={`/c/${slug}/matches/${m.id}`}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
-                >
-                  <span className="w-16 shrink-0 text-[11px] uppercase tabular-nums text-[color:var(--ink-3)]">
-                    {fmtDate(m.playedAt)}
+                <Link href={`/c/${slug}/matches/${m.id}`} className="ticker">
+                  <span className="ticker-heure">{fmtDate(m.playedAt)}</span>
+                  <span className="ticker-score">
+                    {m.score.replace("-", " — ")}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-bold">
-                    {m.label}
-                  </span>
-                  {m.wasMvp && (
-                    <Icon
-                      name="star"
-                      filled
-                      size={14}
-                      label="MVP du match"
-                      className="shrink-0 text-[color:var(--gold)]"
-                    />
-                  )}
-                  {m.goals > 0 && (
-                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold tabular-nums text-[color:var(--ink-2)]">
-                      <Icon name="ball" size={12} label="Buts marqués" />
-                      {m.goals}
-                    </span>
-                  )}
-                  <span className="text-sm font-black tabular-nums text-[color:var(--ink-1)]">
-                    {m.score}
-                  </span>
-                  <span
-                    className={cn(
- "flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-black",
-                      resultBadgeClass(m.result)
+                  <span className="ticker-buteurs flex items-center gap-2">
+                    <Forme form={[m.result]} />
+                    <span className="min-w-0 truncate">{m.label}</span>
+                    {m.goals > 0 && (
+                      <span className="inline-flex shrink-0 items-center gap-1 tabular-nums text-[color:var(--ink-2)]">
+                        <Icon name="ball" size={11} label="Buts marqués" />
+                        {m.goals}
+                      </span>
                     )}
-                  >
-                    {m.result}
+                    {m.wasMvp && (
+                      <Icon
+                        name="star"
+                        filled
+                        size={11}
+                        label="Homme du match"
+                        className="shrink-0 text-[color:var(--gold)]"
+                      />
+                    )}
                   </span>
                 </Link>
               </li>
