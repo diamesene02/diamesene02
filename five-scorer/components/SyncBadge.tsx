@@ -71,18 +71,22 @@ export default function SyncBadge({
     );
   }
 
+  // Aucune couleur hors palette, et AUCUNE pulsation : rien ne clignote dans
+  // cette application. Un état se lit au ton et au filet, jamais à un
+  // battement — et une pastille qui bat pendant qu'on compte un but vole
+  // l'attention à ce qui compte vraiment.
   const pill =
     state === "off"
       ? "bg-[color:var(--pitch-2)] text-[color:var(--loss)] border-[color:var(--loss)]"
       : state === "warn"
-        ? "bg-amber-900/70 text-amber-200 border-amber-700"
-        : "bg-emerald-900/60 text-emerald-200 border-emerald-700";
+        ? "bg-[color:var(--pitch-2)] text-[color:var(--gold)] border-[color:var(--gold)]"
+        : "bg-[color:var(--pitch-2)] text-[color:var(--win)] border-[color:var(--win)]";
   const dot =
     state === "off"
       ? "bg-[color:var(--loss)]"
       : state === "warn"
-        ? "bg-amber-400 animate-pulse"
-        : "bg-emerald-400";
+        ? "bg-[color:var(--gold)]"
+        : "bg-[color:var(--win)]";
 
   return (
     <button

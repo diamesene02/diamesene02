@@ -37,7 +37,7 @@ export default function ClubNav({
  "whitespace-nowrap rounded-[2px] px-3.5 py-2 text-[13px] font-semibold transition-colors",
               active
                 ? "bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
-                : "text-[color:var(--ink-1)] hover:bg-white/5 hover:text-white"
+                : "text-[color:var(--ink-1)] hover:bg-[color:var(--pitch-2)] hover:text-white"
             )}
           >
             {t.label}

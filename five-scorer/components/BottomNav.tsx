@@ -208,7 +208,7 @@ export default function BottomNav({ slug, canScore }: Props) {
                 key={a.href}
                 href={a.href}
                 onClick={() => setSheetOpen(false)}
-                className="tap flex min-h-[56px] items-center justify-between gap-4 rounded-none px-3 py-3 active:bg-white/5"
+                className="tap flex min-h-[56px] items-center justify-between gap-4 rounded-none px-3 py-3 active:bg-[color:var(--pitch-2)]"
               >
                 <span className="min-w-0">
                   <span className="block text-[15px] font-bold text-[color:var(--ink-0)]">

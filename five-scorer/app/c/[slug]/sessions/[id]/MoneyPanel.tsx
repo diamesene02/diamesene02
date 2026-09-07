@@ -154,7 +154,7 @@ export default function MoneyPanel({
                   <label
                     className={cn(
  "flex min-h-[44px] items-center gap-3 px-4 py-2.5",
-                      canManage && "cursor-pointer hover:bg-white/[0.03]"
+                      canManage && "cursor-pointer hover:bg-[color:var(--pitch-2)]"
                     )}
                   >
                     <input

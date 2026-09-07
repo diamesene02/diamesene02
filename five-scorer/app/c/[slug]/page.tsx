@@ -448,7 +448,7 @@ export default async function ClubHomePage({
                 <li key={m.id}>
                   <Link
                     href={`/c/${slug}/matches/${m.id}`}
-                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
+                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
                   >
                     <span className="w-20 shrink-0 font-mono text-[11px] uppercase leading-tight text-[color:var(--ink-2)]">
                       {fmtDate(when)}
@@ -598,7 +598,7 @@ export default async function ClubHomePage({
               <li key={m.id}>
                 <Link
                   href={`/c/${slug}/matches/${m.id}`}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
                 >
                   <span className="w-14 font-mono text-[11px] uppercase text-[color:var(--ink-2)]">
                     {m.playedAt.toLocaleDateString("fr-FR", {

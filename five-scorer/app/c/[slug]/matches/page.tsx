@@ -168,7 +168,7 @@ export default async function MatchesPage({
               <li key={m.id}>
                 <Link
                   href={`/c/${slug}/matches/${m.id}`}
-                  className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
+                  className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
                 >
                   <span className="w-20 shrink-0 text-[11px] uppercase leading-tight tabular-nums text-[color:var(--ink-2)]">
                     {fmtDate(m.scheduledAt ?? m.playedAt)}
@@ -210,7 +210,7 @@ export default async function MatchesPage({
               <li key={m.id}>
                 <Link
                   href={`/c/${slug}/matches/${m.id}`}
-                  className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
+                  className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
                 >
                   <span className="w-14 shrink-0 text-[11px] uppercase tabular-nums text-[color:var(--ink-2)]">
                     {fmtDate(m.playedAt)}

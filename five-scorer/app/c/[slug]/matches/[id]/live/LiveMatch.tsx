@@ -473,7 +473,7 @@ export default function LiveMatch({
 
   if (data === undefined) {
     return (
-      <main className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--pitch-0)] text-gray-400">
+      <main className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--pitch-0)] text-[color:var(--ink-3)]">
         Chargement…
       </main>
     );
@@ -483,12 +483,12 @@ export default function LiveMatch({
       <main className="fixed inset-0 z-[60] grid place-items-center bg-[color:var(--pitch-0)]">
         <div className="mx-auto max-w-md p-6 text-center">
           <h1 className="mb-2 text-xl font-bold">Match introuvable</h1>
-          <p className="mb-6 text-sm text-gray-400">
+          <p className="mb-6 text-sm text-[color:var(--ink-3)]">
             Ce match n&apos;existe pas dans la mémoire locale de cet appareil.
           </p>
           <button
             onClick={() => router.replace(`/c/${slug}`)}
-            className="rounded-[2px] bg-white/10 px-4 py-2"
+            className="rounded-[2px] bg-[color:var(--pitch-2)] px-4 py-2"
           >
             Retour
           </button>

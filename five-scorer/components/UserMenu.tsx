@@ -44,7 +44,7 @@ export default function UserMenu({
             </div>
             <Link
               href={`/c/${slug}/players`}
-              className="block px-4 py-2.5 text-sm text-[color:var(--ink-1)] hover:bg-white/5"
+              className="block px-4 py-2.5 text-sm text-[color:var(--ink-1)] hover:bg-[color:var(--pitch-2)]"
               onClick={() => setOpen(false)}
             >
               Joueurs
@@ -52,7 +52,7 @@ export default function UserMenu({
             {canManage && (
               <Link
                 href={`/c/${slug}/settings`}
-                className="block px-4 py-2.5 text-sm text-[color:var(--ink-1)] hover:bg-white/5"
+                className="block px-4 py-2.5 text-sm text-[color:var(--ink-1)] hover:bg-[color:var(--pitch-2)]"
                 onClick={() => setOpen(false)}
               >
                 Réglages
@@ -61,7 +61,7 @@ export default function UserMenu({
             <div className="my-1 border-t border-[color:var(--rule)]" />
             <Link
               href="/onboarding"
-              className="block px-4 py-2.5 text-sm text-[color:var(--ink-1)] hover:bg-white/5"
+              className="block px-4 py-2.5 text-sm text-[color:var(--ink-1)] hover:bg-[color:var(--pitch-2)]"
               onClick={() => setOpen(false)}
             >
               Mes clubs
@@ -72,7 +72,7 @@ export default function UserMenu({
                 router.push("/login");
                 router.refresh();
               }}
-              className="block w-full px-4 py-2.5 text-left text-sm text-[color:var(--loss)] hover:bg-white/5"
+              className="block w-full px-4 py-2.5 text-left text-sm text-[color:var(--loss)] hover:bg-[color:var(--pitch-2)]"
             >
               Se déconnecter
             </button>

@@ -255,7 +255,7 @@ export default async function SessionDetailPage({
                   <li key={m.id}>
                     <Link
                       href={`/c/${slug}/matches/${m.id}`}
-                      className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
+                      className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--pitch-2)]"
                     >
                       <span className="w-12 shrink-0 text-[11px] tabular-nums text-[color:var(--ink-2)]">
                         {fmtShort(m.playedAt)}
@@ -326,7 +326,7 @@ export default async function SessionDetailPage({
               </thead>
               <tbody className="divide-y divide-[color:var(--rule)]">
                 {leaderboard.map((r, i) => (
-                  <tr key={r.playerId} className="hover:bg-white/[0.03]">
+                  <tr key={r.playerId} className="hover:bg-[color:var(--pitch-2)]">
                     <td className="px-4 py-2.5 font-bold">
                       <Link
                         href={`/c/${slug}/players/${r.playerId}`}
