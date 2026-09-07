@@ -453,11 +453,13 @@ export default async function ClubHomePage({
         <section className="bande mt-8">
           <div className="synthese">
             <span>
-              <b>{summary.matchesPlayed}</b> matchs
+              <b>{summary.matchesPlayed}</b> match
+              {summary.matchesPlayed > 1 ? "s" : ""}
             </span>
             <span className="synthese-sep">·</span>
             <span>
-              <b>{summary.totalGoals}</b> buts
+              <b>{summary.totalGoals}</b> but
+              {summary.totalGoals > 1 ? "s" : ""}
             </span>
             {summary.topScorer && (
               <>

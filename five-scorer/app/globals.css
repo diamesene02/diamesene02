@@ -1379,6 +1379,40 @@
     padding: 0 var(--s3);
   }
 
+  /* Le rang, dans la rangée : sourd, tabulaire, il précède le nom sans lui
+     voler la place. */
+  .rangee-rang {
+    display: inline-block;
+    min-width: 20px;
+    margin-right: var(--s2);
+    font-variant-numeric: tabular-nums;
+    font-weight: 560;
+    color: var(--ink-3);
+  }
+  .rangee-detail {
+    padding: var(--s3) var(--s3) var(--s3)
+      calc(var(--bande-rangee) + var(--s3));
+    background: var(--pitch-2);
+  }
+  /* La forme : cinq carrés. Plein = victoire, contour = nul, vide = défaite.
+     Elle se lit sans couleur, donc elle se lit aussi en daltonisme. */
+  .forme {
+    display: inline-flex;
+    gap: 3px;
+  }
+  .forme-case {
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--rule-hi);
+  }
+  .forme-case.v {
+    border-color: var(--ink-1);
+    background: var(--ink-1);
+  }
+  .forme-case.n {
+    border-color: var(--ink-2);
+  }
+
   /* ═══════════════ TICKER DE SOIRÉE ═══════════════
      Un lundi = un bloc. La suite des matchs se lit comme un service de
      résultats : heure, score, buteurs, sur une seule ligne de 32px. Un seul

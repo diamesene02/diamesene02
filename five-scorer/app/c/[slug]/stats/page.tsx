@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import Icon from "@/components/Icon";
+import Classement from "@/components/Classement";
 import {
   getExternalRecord,
   getLeaderboard,
@@ -264,128 +265,31 @@ export default async function StatsPage({
                 Export CSV
               </a>
             </div>
-            <div className={`scroll-x ${panel}`}>
-              <table className="min-w-[640px] w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[color:var(--rule)]">
-                    <th className={`${th} text-left`}>#</th>
-                    <th className={`${th} text-left`}>Joueur</th>
-                    <th className={`${th} text-center`}>J</th>
-                    <th className={`${th} text-center`}>V</th>
-                    <th className={`${th} text-center`}>N</th>
-                    <th className={`${th} text-center`}>D</th>
-                    <th className={`${th} text-center`}>%V</th>
-                    <th className={`${th} text-center`}>Élo</th>
-                    <th className={`${th} text-center`}>Buts</th>
-                    {club.trackAssists && (
-                      <th className={`${th} text-center`}>Passes</th>
-                    )}
-                    {club.trackCards && (
-                      <th className={`${th} text-center`}>
-                        <span className="inline-flex items-center justify-center gap-1">
-                          <Icon
-                            name="card"
-                            filled
-                            size={12}
-                            label="Cartons jaunes"
-                            className="text-[color:var(--gold)]"
-                          />
-                          <Icon
-                            name="card"
-                            filled
-                            size={12}
-                            label="Cartons rouges"
-                            className="text-[color:var(--loss)]"
-                          />
-                        </span>
-                      </th>
-                    )}
-                    <th className={`${th} text-center`}>MVP</th>
-                    <th className={`${th} text-left`}>Forme</th>
-                    <th className={`${th} text-left`}>Série</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[color:var(--rule)]">
-                  {rows.map((r, i) => (
-                    <tr
-                      key={r.playerId}
-                      className="transition-colors hover:bg-[color:var(--pitch-2)]"
-                    >
-                      <td
-                        className={`${td} text-xs font-bold tabular-nums text-[color:var(--ink-3)]`}
-                      >
-                        {i + 1}
-                      </td>
-                      <td className={`${td} font-bold`}>
-                        <Link
-                          href={`/c/${slug}/players/${r.playerId}`}
-                          className="hover:text-[color:var(--ink-1)]"
-                        >
-                          {r.name}
-                          {r.nickname && (
-                            <span className="ml-1.5 font-normal text-[color:var(--ink-3)]">
-                              {r.nickname}
-                            </span>
-                          )}
-                          {r.isGuest && (
-                            <span className="ml-1.5 font-normal text-[color:var(--ink-3)]">
-                              (inv.)
-                            </span>
-                          )}
-                        </Link>
-                      </td>
-                      <td className={tdNum}>{r.matchesPlayed}</td>
-                      <td className={tdNum}>{r.wins}</td>
-                      <td className={tdNum}>{r.draws}</td>
-                      <td className={tdNum}>{r.losses}</td>
-                      <td className={`${tdNum} text-[color:var(--ink-1)]`}>
-                        {r.winPct}
-                      </td>
-                      <td className={`${tdNum} whitespace-nowrap`}>
-                        <span className="font-bold">{r.elo}</span>{" "}
-                        {r.eloTrend > 0 ? (
-                          <span className="text-[10px] font-black text-[color:var(--win)]">
-                            +{r.eloTrend}
-                          </span>
-                        ) : r.eloTrend < 0 ? (
-                          <span className="text-[10px] font-black text-[color:var(--loss)]">
-                            -{Math.abs(r.eloTrend)}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-[color:var(--ink-3)]">
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className={`${tdNum} font-black`}>{r.goals}</td>
-                      {club.trackAssists && (
-                        <td className={tdNum}>{r.assists}</td>
-                      )}
-                      {club.trackCards && (
-                        <td className={tdNum}>
-                          <span className="text-[color:var(--gold)]">
-                            {r.yellow}
-                          </span>
-                          <span className="text-[color:var(--ink-3)]">/</span>
-                          <span className="text-[color:var(--loss)]">
-                            {r.red}
-                          </span>
-                        </td>
-                      )}
-                      <td className={`${tdNum} text-[color:var(--gold)]`}>
-                        {r.mvpCount}
-                      </td>
-                      <td className={td}>
-                        <FormBadges form={r.form} />
-                      </td>
-                      <td className={td}>
-                        <StreakBadge streak={r.streak} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Classement
+              slug={slug}
+              lignes={rows.map((r) => ({
+                playerId: r.playerId,
+                name: r.name,
+                nickname: r.nickname,
+                isGuest: r.isGuest,
+                matchesPlayed: r.matchesPlayed,
+                goals: r.goals,
+                assists: r.assists,
+                yellow: r.yellow,
+                red: r.red,
+                wins: r.wins,
+                draws: r.draws,
+                losses: r.losses,
+                winPct: r.winPct,
+                mvpCount: r.mvpCount,
+                form: r.form,
+                streak: r.streak,
+                elo: r.elo,
+                eloTrend: r.eloTrend,
+              }))}
+              trackAssists={club.trackAssists}
+              trackCards={club.trackCards}
+            />
           </section>
 
           {/* Palmarès — saison clôturée sélectionnée */}
