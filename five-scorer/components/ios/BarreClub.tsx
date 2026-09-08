@@ -23,9 +23,15 @@ export default function BarreClub(props: {
   const router = useRouter();
   const base = `/c/${props.slug}`;
   const accueil = pathname === base;
-  // Le live prend tout l'écran et a sa propre barre.
-  if (/\/matches\/[^/]+\/live$/.test(pathname) || pathname.endsWith("/play"))
+  // Le live et le récap prennent tout l'écran et ont leur propre barre.
+  if (
+    /\/matches\/[^/]+(\/live)?$/.test(pathname) &&
+    !pathname.endsWith("/matches/new") &&
+    !pathname.endsWith("/matches/schedule") &&
+    !pathname.endsWith("/matches/new-session")
+  )
     return null;
+  if (pathname.endsWith("/play")) return null;
 
   const retour = () => {
     if (window.history.length > 1) router.back();

@@ -211,6 +211,9 @@ export default async function MatchRecapPage({
           : match.kind === "EXTERNAL" && e.team === "B"
             ? (match.opponent?.name ?? match.teamBName)
             : "?",
+      assistName: ctx.club.trackAssists
+        ? (match.participants.find((p) => p.playerId === e.assistPlayerId)?.player.name ?? null)
+        : undefined,
     }));
 
   // Les joueurs archivés depuis ne sont pas reconduits — l'accueil le faisait
@@ -229,8 +232,51 @@ export default async function MatchRecapPage({
     match.status === "FINISHED" &&
     players.length > 0;
 
+  // Le contexte de la barre : « Soirée du 7 sept. · Match 2 ».
+  let contexte: string | undefined;
+  if (match.matchDay) {
+    const freres = await prisma.match.findMany({
+      where: { matchDayId: match.matchDay.id, status: { in: ["LIVE", "FINISHED"] } },
+      orderBy: { playedAt: "asc" },
+      select: { id: true },
+    });
+    const n = freres.findIndex((m) => m.id === match.id) + 1;
+    contexte = `Soirée du ${match.matchDay.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}${n > 0 ? ` · Match ${n}` : ""}`;
+  }
+
+  // Le bilan de la saison entre ces deux chasubles : « 9-2-3 » sous chaque
+  // écusson, comme sur la maquette.
+  const memesEquipes = await prisma.match.findMany({
+    where: {
+      clubId: ctx.club.id,
+      status: "FINISHED",
+      kind: "INTERNAL",
+      seasonId: match.seasonId,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+    },
+    select: { scoreA: true, scoreB: true },
+  });
+  let vA = 0, vB = 0, nul = 0;
+  for (const m of memesEquipes) {
+    if (m.scoreA > m.scoreB) vA += 1;
+    else if (m.scoreB > m.scoreA) vB += 1;
+    else nul += 1;
+  }
+  const bilanA = memesEquipes.length > 1 ? `${vA}-${nul}-${vB}` : null;
+  const bilanB = memesEquipes.length > 1 ? `${vB}-${nul}-${vA}` : null;
+
+  const cartons = ctx.club.trackCards
+    ? {
+        a: match.events.filter((e) => (e.type === "YELLOW_CARD" || e.type === "RED_CARD") && e.team === "A").length,
+        b: match.events.filter((e) => (e.type === "YELLOW_CARD" || e.type === "RED_CARD") && e.team === "B").length,
+      }
+    : null;
+  const votesPour = match.mvpId ? (votesByPlayer.get(match.mvpId) ?? 0) : 0;
+  const votesTotal = match.motmVotes.length;
+
   return (
-    <main className="mx-auto max-w-2xl">
+    <main>
       <RecapView
         match={{
           id: match.id,
@@ -246,9 +292,15 @@ export default async function MatchRecapPage({
           mvpId: match.mvpId,
         }}
         mvpName={match.mvp?.name ?? null}
+        mvpHref={match.mvpId ? `/c/${slug}/players/${match.mvpId}` : undefined}
+        votes={votesTotal > 0 ? { pour: votesPour, total: votesTotal } : null}
         teamA={teamA}
         teamB={teamB}
         goals={goals}
+        cartons={cartons}
+        bilanA={bilanA}
+        bilanB={bilanB}
+        contexte={contexte}
         showLiveResumeLink={match.status === "LIVE" && ctx.canScore}
         liveHref={`/c/${slug}/matches/${match.id}/live`}
         club={{
@@ -256,40 +308,38 @@ export default async function MatchRecapPage({
           colorA: ctx.club.colorA,
           colorB: ctx.club.colorB,
         }}
-      />
+      >
+        {/* Une soirée, c'est plusieurs matchs. Le suivant part d'ici, avec la
+            composition qu'on vient de jouer. Pas de « on rejoue » tant qu'un
+            match tourne : deux matchs LIVE, c'est deux tableaux pour un seul
+            terrain. */}
+        {match.status === "FINISHED" &&
+          ctx.canScore &&
+          !matchEnCours &&
+          rejouables.length > 0 && (
+            <RematchButton
+              clubId={ctx.club.id}
+              slug={slug}
+              teamAName={match.teamAName}
+              teamBName={match.teamBName}
+              kind={match.kind === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"}
+              opponentId={match.opponentId}
+              matchDayId={soireeEnCours}
+              seasonId={saisonActive?.id ?? null}
+              players={rejouables.map((p) => ({
+                id: p.player.id,
+                name: p.player.name,
+                nickname: p.player.nickname,
+                skill: p.player.skill,
+                estGardien: p.player.isGk,
+                gardienCeMatch: p.isGk,
+                isGuest: p.player.isGuest,
+                team: p.team as "A" | "B",
+              }))}
+            />
+          )}
 
-      {/* Une soirée, c'est plusieurs matchs. Le suivant part d'ici, avec la
-          composition qu'on vient de jouer — pas de l'écran de création. */}
-      {/* Pas de « on rejoue » tant qu'un match tourne : deux matchs LIVE en
-          même temps, c'est deux tableaux d'affichage pour un seul terrain. */}
-      {match.status === "FINISHED" &&
-        ctx.canScore &&
-        !matchEnCours &&
-        rejouables.length > 0 && (
-          <RematchButton
-            clubId={ctx.club.id}
-            slug={slug}
-            teamAName={match.teamAName}
-            teamBName={match.teamBName}
-            kind={match.kind === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"}
-            opponentId={match.opponentId}
-            matchDayId={soireeEnCours}
-            seasonId={saisonActive?.id ?? null}
-            players={rejouables.map((p) => ({
-              id: p.player.id,
-              name: p.player.name,
-              nickname: p.player.nickname,
-              skill: p.player.skill,
-              estGardien: p.player.isGk,
-              gardienCeMatch: p.isGk,
-              isGuest: p.player.isGuest,
-              team: p.team as "A" | "B",
-            }))}
-          />
-        )}
-
-      {showVoting && (
-        <div className="mt-6">
+        {showVoting && (
           <MotmVotePanel
             slug={slug}
             matchId={match.id}
@@ -300,20 +350,17 @@ export default async function MatchRecapPage({
               votes: votesByPlayer.get(p.id) ?? 0,
             }))}
           />
-        </div>
-      )}
+        )}
 
-      {ctx.canManage && match.status === "FINISHED" && (
-        <div className="mt-8 flex items-center justify-between border-t border-[color:var(--rule)] pt-4">
-          <Link
-            href={`/c/${slug}/matches/${match.id}/edit`}
-            className="inline-flex min-h-[44px] items-center rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 text-sm font-bold hover:border-[color:var(--ink-1)]"
-          >
-            Corriger
-          </Link>
-          <DeleteMatchButton slug={slug} matchId={match.id} />
-        </div>
-      )}
+        {ctx.canManage && match.status === "FINISHED" && (
+          <div className="flex items-center justify-between gap-3">
+            <Link href={`/c/${slug}/matches/${match.id}/edit`} className="verre">
+              Corriger
+            </Link>
+            <DeleteMatchButton slug={slug} matchId={match.id} />
+          </div>
+        )}
+      </RecapView>
     </main>
   );
 }

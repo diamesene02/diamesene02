@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import RecapView from "@/components/RecapView";
-import Icon from "@/components/Icon";
+import ClubTheme from "@/components/ClubTheme";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,7 @@ export default async function PublicRecapPage({ params }: Params) {
       opponent: true,
       participants: { include: { player: true } },
       events: { orderBy: { createdAt: "asc" }, include: { player: true } },
+      club: { select: { colorA: true, colorB: true, organization: { select: { name: true } } } },
     },
   });
   if (!match || match.status !== "FINISHED") notFound();
@@ -103,19 +104,9 @@ export default async function PublicRecapPage({ params }: Params) {
     }));
 
   return (
-    <div className="relative min-h-screen">
-      <div className="pointer-events-none fixed inset-0 opacity-30">
-        <div className="pitch-motif absolute inset-0" />
-      </div>
-
-      <main className="relative mx-auto max-w-2xl px-5 pb-16 pt-6">
-        <div className="mb-4 text-center">
-          <span className="brand-pill">
-            <Icon name="ball" size={14} />
-            Five Scorer
-          </span>
-        </div>
-
+    <div data-club-theme data-theme="dark" className="relative min-h-dvh">
+      <ClubTheme colorA={match.club.colorA} colorB={match.club.colorB} theme="dark" />
+      <main className="relative mx-auto max-w-[520px] px-[14px] pt-4">
         <RecapView
           match={{
             id: match.id,
@@ -132,17 +123,12 @@ export default async function PublicRecapPage({ params }: Params) {
           teamB={teamB}
           goals={goals}
           showActions={false}
-        />
-
-        <footer className="mt-10 text-center text-xs text-[color:var(--ink-2)]">
-          Suivi avec{" "}
-          <Link
-            href="/"
-            className="font-bold text-[color:var(--ink-1)] underline underline-offset-2"
-          >
-            Five Scorer
-          </Link>
-        </footer>
+          club={{ name: match.club.organization.name, colorA: match.club.colorA, colorB: match.club.colorB }}
+        >
+          <footer className="recap-pied">
+            Suivi avec <Link href="/">Five Scorer</Link>
+          </footer>
+        </RecapView>
       </main>
     </div>
   );

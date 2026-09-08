@@ -1,0 +1,371 @@
+/* Le récap de match — la feuille sombre de la maquette (tour 4, « Match »).
+   Toutes les classes sont préfixées .recap- ; le fond et ses jetons viennent
+   de .fond-match (globals.css). */
+
+.recap {
+  position: relative;
+  /* La feuille sort du conteneur (14px de côté, 16px en haut) pour toucher
+     les bords : c'est un écran, pas une carte. */
+  margin: -16px -14px 0;
+  min-height: 100dvh;
+  padding-bottom: 48px;
+  animation: fsIn 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.recap-entete {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: calc(var(--safe-t) + 68px);
+  margin-bottom: calc(-1 * (var(--safe-t) + 68px));
+  background: var(--mn);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--sep);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 14px 10px;
+}
+.recap-entete.visible {
+  opacity: 1;
+}
+.recap-entete-ligne {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+.recap-entete-camp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.recap-entete-camp.B {
+  justify-content: flex-end;
+}
+.recap-entete-chiffre {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.recap-entete-chiffre.perd {
+  color: rgba(255, 255, 255, 0.4);
+}
+.recap-entete-milieu {
+  text-align: center;
+}
+.recap-entete-milieu .etat {
+  font-size: 15px;
+  font-weight: 600;
+}
+.recap-entete-milieu .date {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.recap-barre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px 0;
+}
+.recap-legende {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Le score */
+.recap-marque {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 18px 24px 0;
+}
+.recap-chiffre {
+  font-size: 148px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.recap-chiffre.perd {
+  color: rgba(255, 255, 255, 0.35);
+}
+.recap-etat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 12px;
+  gap: 2px;
+}
+.recap-etat .etat {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.recap-etat .date {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+}
+.recap-etat .direct {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--bad);
+}
+.recap-etat .direct::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+
+.recap-equipes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 8px 24px 0;
+}
+.recap-equipe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.recap-equipe .ecusson {
+  width: 76px;
+  height: 76px;
+  font-size: 30px;
+  box-shadow:
+    inset 0 0 0 5px rgba(255, 255, 255, 0.3),
+    0 8px 18px rgba(0, 0, 0, 0.4);
+}
+.recap-equipe .nom {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recap-equipe .bilan {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: -6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.recap-buteurs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 16px 28px 0;
+  font-size: 17px;
+  line-height: 1.6;
+}
+.recap-buteurs > div {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+.recap-buteurs > div.B {
+  justify-content: flex-end;
+  text-align: right;
+}
+.recap-buteurs svg {
+  flex: none;
+  margin-top: 4px;
+  opacity: 0.85;
+}
+.recap-buteurs .mins {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Le segment Statistiques · Chronologie · Feuille */
+.recap-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  text-align: center;
+  padding: 24px 14px 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.recap-onglet {
+  height: 48px;
+  border: 0;
+  border-radius: 24px;
+  background: none;
+  color: rgba(255, 255, 255, 0.7);
+  font: inherit;
+  cursor: pointer;
+}
+.recap-onglet.actif {
+  background: #fff;
+  color: #111;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+/* Les cartes du récap */
+.recap .carte {
+  margin: 14px 14px 0;
+}
+.recap-motm {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  margin: 18px 14px 0;
+  width: calc(100% - 28px);
+  padding: 18px 20px;
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+}
+.recap-motm .corps {
+  flex: 1;
+  min-width: 0;
+}
+.recap-motm .corps > span {
+  display: block;
+}
+.recap-motm .corps .legende {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.recap-motm .corps .nom {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.recap-motm .corps .detail {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.62);
+}
+.recap-carte-corps {
+  padding: 0 20px 8px;
+}
+.recap-chrono {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  min-height: 52px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.recap-chrono .minute {
+  color: rgba(255, 255, 255, 0.55);
+}
+.recap-chrono .qui {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.recap-chrono .qui .point {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.recap-chrono .qui .point.A {
+  background: var(--ta);
+}
+.recap-chrono .qui .point.B {
+  background: var(--tb);
+}
+.recap-chrono .qui .note {
+  color: rgba(255, 255, 255, 0.5);
+}
+.recap-chrono .marque {
+  font-weight: 600;
+}
+.recap-effectifs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 0 20px 14px;
+}
+.recap-effectif-tete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
+  padding: 4px 0 8px;
+}
+.recap-joueur {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 17px;
+  min-width: 0;
+}
+.recap-joueur .nom {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recap-joueur .buts {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.recap-vide {
+  padding: 14px 0 12px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.recap-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 18px 14px 0;
+}
+.recap-actions > * {
+  flex: 1 1 auto;
+}
+.recap-reprendre {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 14px 0;
+}
+.recap-suite {
+  padding: 0 14px;
+}
+.recap-suite > * + * {
+  margin-top: 14px;
+}
+.recap-pied {
+  margin-top: 26px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.recap-pied a {
+  color: #fff;
+  font-weight: 600;
+}
