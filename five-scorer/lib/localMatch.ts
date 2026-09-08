@@ -15,6 +15,7 @@ import {
   type OutboxOp,
 } from "./db";
 import { newId } from "./ids";
+import { RETRO_APRES_MS } from "./retro";
 
 function pKey(matchId: string, playerId: string) {
   return `${matchId}::${playerId}`;
@@ -123,12 +124,15 @@ export type CreateMatchInput = {
   teamBName: string;
   teamA: { playerId: string; isGk: boolean }[];
   teamB: { playerId: string; isGk: boolean }[];
+  /// Quand le match a été joué (ISO). Absent = maintenant. Une date passée
+  /// crée une feuille rétro : pas d'horloge, pas de minutes (cf. lib/retro).
+  playedAt?: string | null;
 };
 
 export async function createMatch(input: CreateMatchInput): Promise<string> {
   const db = getDb();
   const id = newId();
-  const playedAt = new Date().toISOString();
+  const playedAt = input.playedAt ?? new Date().toISOString();
 
   await db.transaction(
     "rw",
@@ -326,9 +330,17 @@ export async function addEvent(
         }
       }
 
-      const started = new Date(match.playedAt).getTime();
+      // La minute se déduit du temps écoulé depuis le coup d'envoi — sauf
+      // sur une feuille saisie après coup, qui n'a pas d'horloge : le premier
+      // but d'un match d'hier s'y serait inscrit à la 1 440e minute, et la
+      // chronologie du récap l'aurait affiché tel quel.
+      const ecoule = Date.now() - new Date(match.playedAt).getTime();
       const minute =
-        input.minute ?? Math.max(0, Math.floor((Date.now() - started) / 60000));
+        input.minute !== undefined && input.minute !== null
+          ? input.minute
+          : ecoule < 0 || ecoule > RETRO_APRES_MS
+            ? null
+            : Math.max(0, Math.floor(ecoule / 60000));
 
       const event: LocalEvent = {
         id: eventId,

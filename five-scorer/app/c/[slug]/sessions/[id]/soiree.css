@@ -358,3 +358,10 @@
   font-size: 15px;
   color: var(--bad);
 }
+
+.soiree-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}

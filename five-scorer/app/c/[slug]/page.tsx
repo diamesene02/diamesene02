@@ -13,6 +13,7 @@ import LigneScore from "@/components/ios/LigneScore";
 import { nomsChasubles, DEFAULT_BIB_B } from "@/lib/color";
 import { lum, mix, normaliseCouleur } from "@/lib/theme";
 import { ini, lettre } from "@/lib/ini";
+import { estRetro } from "@/lib/retro";
 import EnteteCollante from "./_accueil/EnteteCollante";
 import Banniere from "./_accueil/Banniere";
 import BoutonPresence from "./_accueil/BoutonPresence";
@@ -226,7 +227,7 @@ export default async function ClubHomePage({
   // par définition, calendrier ou pas.
   const ceSoirExiste = soireeDuJour != null || liveMatch != null;
 
-  const [matchsCeSoir, dernierFini] = await Promise.all([
+  const [matchsCeSoir, dernierFini, soireesSansResultat] = await Promise.all([
     ceSoirExiste
       ? prisma.match.findMany({
           where: {
@@ -251,6 +252,28 @@ export default async function ClubHomePage({
       },
       orderBy: { playedAt: "desc" },
       include: { matchDay: { select: { id: true, date: true } } },
+    }),
+    // Les soirées passées dont personne n'a fait la feuille.
+    //
+    // Le club joue tous les lundis. Quand le téléphone reste dans le sac —
+    // ou que l'app n'est pas au rendez-vous — la soirée disparaît purement et
+    // simplement : pas de buts, pas de victoires, pas d'Élo, et rien à
+    // l'écran pour dire qu'il manque quelque chose. Six semaines de retard
+    // sont rattrapables ; au-delà, plus personne ne se souvient du score.
+    prisma.matchDay.findMany({
+      where: {
+        clubId,
+        canceledAt: null,
+        date: {
+          lt: debutDeCeJour,
+          gte: new Date(debutDeCeJour.getTime() - 42 * 86_400_000),
+        },
+        // Un match seulement PROGRAMMÉ ne compte pas pour un résultat.
+        matches: { none: { status: { in: ["LIVE", "FINISHED"] } } },
+      },
+      orderBy: { date: "desc" },
+      take: 3,
+      select: { id: true, date: true },
     }),
   ]);
 
@@ -686,6 +709,53 @@ export default async function ClubHomePage({
           ligne, ou onglet tué) : il est dans Dexie, et c'est ici qu'on le
           retrouve. */}
       {!liveMatch && <ReprendreLocal slug={slug} clubId={clubId} />}
+
+      {/* La feuille qu'on a oublié de fermer.
+          Un match reste LIVE tant que personne n'a sifflé la fin — et une
+          soirée se termine rarement par un tap sur « Terminer » : on range le
+          téléphone, on rentre. Le lendemain ce match n'apparaissait NULLE PART
+          sur l'accueil (il n'est ni de ce soir, ni terminé), tout en bloquant
+          le coup d'envoi suivant et en gardant ses buts hors des
+          statistiques. Il fallait le dire. */}
+      {ctx.canScore && liveMatch && estRetro(liveMatch.playedAt) && (
+        <section className="accueil-rattrapage">
+          <div className="titre">Feuille restée ouverte</div>
+          <Link
+            href={`/c/${slug}/matches/${liveMatch.id}/live`}
+            className="rangee"
+          >
+            <span className="quand">
+              {jourLong(liveMatch.playedAt)} · {liveMatch.scoreA}–
+              {liveMatch.scoreB}
+            </span>
+            <span className="acte">Terminer</span>
+            <Icon name="chevron" size={16} />
+          </Link>
+        </section>
+      )}
+
+      {/* Le rattrapage : une soirée jouée n'a pas de feuille. Le geste est
+          le même que le coup d'envoi, la date en plus. */}
+      {ctx.canScore && soireesSansResultat.length > 0 && (
+        <section className="accueil-rattrapage">
+          <div className="titre">
+            {soireesSansResultat.length > 1
+              ? `${soireesSansResultat.length} soirées sans résultat`
+              : "Une soirée sans résultat"}
+          </div>
+          {soireesSansResultat.map((s) => (
+            <Link
+              key={s.id}
+              href={`/c/${slug}/matches/new?md=${s.id}&joue=1`}
+              className="rangee"
+            >
+              <span className="quand">{jourLong(s.date)}</span>
+              <span className="acte">Saisir la feuille</span>
+              <Icon name="chevron" size={16} />
+            </Link>
+          ))}
+        </section>
+      )}
 
       {/* LA CARTE DES MATCHS : dernière soirée · ce soir · à venir. Seuls
           les onglets qui ont quelque chose à montrer existent. */}

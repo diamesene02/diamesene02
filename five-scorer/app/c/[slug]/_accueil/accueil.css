@@ -194,3 +194,49 @@
   width: 100%;
   margin-top: 12px;
 }
+
+/* ── Le rattrapage : une soirée jouée dont la feuille n'a jamais été faite ─ */
+.accueil-rattrapage {
+  margin: 0 14px 14px;
+  padding: 14px 16px 6px;
+  border-radius: 22px;
+  border: 1px solid var(--cb);
+  background: var(--cd);
+  box-shadow: var(--cs);
+}
+.accueil-rattrapage .titre {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--or);
+}
+.accueil-rattrapage .rangee {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.accueil-rattrapage .rangee + .rangee {
+  border-top: 1px solid var(--sep);
+}
+.accueil-rattrapage .quand {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.accueil-rattrapage .acte {
+  font-size: 15px;
+  color: var(--i2);
+  white-space: nowrap;
+}
+.accueil-rattrapage .rangee > svg {
+  flex: none;
+  color: var(--i3);
+}

@@ -34,6 +34,18 @@ type ScheduledInfo = {
   teamBName: string;
 };
 
+function valeurLocale(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function veille(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  d.setHours(20, 0, 0, 0);
+  return d;
+}
+
 // Le roster rendu côté serveur est un premier paint optimiste ; le client lit
 // ensuite Dexie pour que la page marche aussi ouverte hors-ligne.
 export default function NewMatchForm({
@@ -46,6 +58,9 @@ export default function NewMatchForm({
   presentPlayerIds,
   scheduled = null,
   nomsParDefaut = { a: "Blanc", b: "Noir" },
+  dateSoiree = null,
+  saisieApresCoup = false,
+  compoPreparee = [],
 }: {
   clubId: string;
   slug: string;
@@ -58,6 +73,14 @@ export default function NewMatchForm({
   /// Les noms d'équipe se DÉDUISENT des chasubles du club : « Blanc » et
   /// « Noir » écrits en dur contredisaient les écussons orange et bleu.
   nomsParDefaut?: { a: string; b: string };
+  /// Date de la soirée visée (ISO) quand on vient saisir après coup.
+  dateSoiree?: string | null;
+  /// Ouvrir d'emblée en « déjà joué » — le lien « Saisir les résultats ».
+  saisieApresCoup?: boolean;
+  /// La compo préparée pour la soirée. Le club décide ses équipes trois à
+  /// quatre jours avant de jouer : quand elle existe, elle est la bonne
+  /// réponse — bien plus que « tous les présents dans l'équipe A ».
+  compoPreparee?: { playerId: string; team: "A" | "B" }[];
 }) {
   const router = useRouter();
 
@@ -93,9 +116,13 @@ export default function NewMatchForm({
   );
   const [newOpponent, setNewOpponent] = useState("");
   const [assignments, setAssignments] = useState<Record<string, Assignment>>(
-    // Session avec RSVP : les présents sont présélectionnés (côté A, à
-    // répartir via le générateur).
-    Object.fromEntries(presentPlayerIds.map((id) => [id, "A" as Assignment]))
+    // La compo préparée pour la soirée d'abord ; à défaut, les présents,
+    // présélectionnés côté A et à répartir via le générateur.
+    compoPreparee.length > 0
+      ? Object.fromEntries(
+          compoPreparee.map((l) => [l.playerId, l.team as Assignment])
+        )
+      : Object.fromEntries(presentPlayerIds.map((id) => [id, "A" as Assignment]))
   );
   const [guestName, setGuestName] = useState("");
   // Le générateur est déterministe : à graine égale et effectif égal, il
@@ -110,6 +137,20 @@ export default function NewMatchForm({
   }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Saisie après coup. La date se calcule au montage, côté client : comme
+  // partout ailleurs dans l'app, c'est le fuseau de celui qui joue qui fait
+  // foi — pas celui du serveur, qui est en UTC.
+  const [retro, setRetro] = useState(saisieApresCoup);
+  const [quand, setQuand] = useState("");
+  useEffect(() => {
+    const d = dateSoiree ? new Date(dateSoiree) : veille();
+    if (Number.isNaN(d.getTime())) return;
+    // Une soirée est stockée à la date du jour, souvent à minuit : l'heure de
+    // coup d'envoi du club est plus juste que 00:00 pour trier les matchs.
+    if (d.getHours() === 0 && d.getMinutes() === 0) d.setHours(20, 0, 0, 0);
+    setQuand(valeurLocale(d));
+  }, [dateSoiree]);
 
   const sortedPlayers = useMemo(
     () =>
@@ -204,6 +245,22 @@ export default function NewMatchForm({
       setError("Choisis l'équipe adverse");
       return;
     }
+    // Match déjà joué : la date choisie fait la feuille rétro. Une date
+    // illisible vaut mieux refusée que silencieusement remplacée par « il y a
+    // une minute » — la soirée finirait rangée au mauvais jour.
+    let quandISO: string | undefined;
+    if (retro && !scheduled) {
+      const d = new Date(quand);
+      if (!quand || Number.isNaN(d.getTime())) {
+        setError("Choisis la date du match.");
+        return;
+      }
+      if (d.getTime() > Date.now()) {
+        setError("Cette date est dans le futur — programme le match plutôt.");
+        return;
+      }
+      quandISO = d.toISOString();
+    }
     setLoading(true);
     setError(null);
     try {
@@ -235,6 +292,7 @@ export default function NewMatchForm({
             seasonId,
             kind: mode,
             opponentId: external ? opponentId : null,
+            playedAt: quandISO,
             ...compo,
           });
       void kickSync();
@@ -272,6 +330,48 @@ export default function NewMatchForm({
         )}
         <SyncBadge compact />
       </div>
+
+      {/* Quand ? — un match se saisit aussi le lendemain. Sans cette porte,
+          une soirée jouée sans téléphone n'entrait jamais dans les stats. */}
+      {!scheduled && (
+        <div className="carte" style={{ padding: "16px 18px" }}>
+          <div className="text-[17px] font-semibold">Quand ?</div>
+          <div className="mt-0.5 text-[13px]" style={{ color: "var(--i2)" }}>
+            {retro
+              ? "Feuille sans chrono : tu tapes les buts, tu enregistres."
+              : "La feuille s'ouvre en direct, chrono lancé."}
+          </div>
+          <div className="segment plein-large mt-3" role="radiogroup" aria-label="Quand le match a été joué">
+            {(
+              [
+                [false, "Maintenant"],
+                [true, "Déjà joué"],
+              ] as const
+            ).map(([v, label]) => (
+              <button
+                key={label}
+                type="button"
+                role="radio"
+                aria-checked={retro === v}
+                onClick={() => setRetro(v)}
+                className={cn(retro === v && "actif")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {retro && (
+            <input
+              type="datetime-local"
+              value={quand}
+              max={valeurLocale(new Date())}
+              onChange={(e) => setQuand(e.target.value)}
+              aria-label="Date et heure du match"
+              className="mt-2.5 w-full"
+            />
+          )}
+        </div>
+      )}
 
       {mode === "INTERNAL" ? (
         <div className="carte" style={{ padding: "6px 0 14px" }}>
@@ -405,7 +505,7 @@ export default function NewMatchForm({
         className="plein w-full"
         style={{ height: 56, fontSize: 19 }}
       >
-        {loading ? "Création…" : "Coup d'envoi"}
+        {loading ? "Création…" : retro ? "Ouvrir la feuille" : "Coup d'envoi"}
       </button>
     </div>
   );

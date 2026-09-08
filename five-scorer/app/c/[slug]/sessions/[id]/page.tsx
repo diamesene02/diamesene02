@@ -123,6 +123,9 @@ export default async function SessionDetailPage({
 
   const showMoney = ctx.canManage || md.fieldCostCents != null;
   const commencee = md.matches.length > 0;
+  /// Soirée dont le jour est passé : on ne lui propose plus un coup d'envoi
+  /// mais une saisie.
+  const passee = md.date.getTime() < new Date().setHours(0, 0, 0, 0);
 
   const preparation = (
     <>
@@ -274,10 +277,28 @@ export default async function SessionDetailPage({
         </div>
         {md.notes && <p className="soiree-notes">{md.notes}</p>}
         {ctx.canScore && liveMatches.length === 0 && (
-          <div style={{ marginTop: 14 }}>
-            <Link href={`/c/${slug}/matches/new?md=${md.id}`} className="verre">
-              Lancer un match
-            </Link>
+          <div className="soiree-actions">
+            {/* Une soirée passée ne se « lance » pas : elle se saisit. */}
+            {passee ? (
+              <Link
+                href={`/c/${slug}/matches/new?md=${md.id}&joue=1`}
+                className="verre"
+              >
+                Saisir un match joué
+              </Link>
+            ) : (
+              <>
+                <Link href={`/c/${slug}/matches/new?md=${md.id}`} className="verre">
+                  Lancer un match
+                </Link>
+                <Link
+                  href={`/c/${slug}/matches/new?md=${md.id}&joue=1`}
+                  className="verre"
+                >
+                  Saisir un match joué
+                </Link>
+              </>
+            )}
           </div>
         )}
       </div>

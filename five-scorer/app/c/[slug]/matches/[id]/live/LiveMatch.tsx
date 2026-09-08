@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import Icon from "@/components/Icon";
 import Ecusson from "@/components/ios/Ecusson";
 import { lettre } from "@/lib/ini";
+import { estRetro } from "@/lib/retro";
 import "./live.css";
 import {
   addEvent,
@@ -154,7 +155,16 @@ export default function LiveMatch({
   const paused = clockState.runningSince == null;
 
   // Minute de jeu courante, lue via ref pour ne pas invalider les callbacks.
-  const liveMinute = useCallback(() => minuteOf(nowElapsed(clockRef.current)), []);
+  //
+  // Une feuille saisie après coup n'a pas d'horloge : ses buts n'ont donc pas
+  // de minute, et surtout pas la 0e. « Karim 0′, 0′, 0′ » sur un récap, c'est
+  // une information fausse là où il n'y en avait aucune à donner.
+  const retroRef = useRef(false);
+  retroRef.current = data?.match ? estRetro(data.match.playedAt) : false;
+  const liveMinute = useCallback(
+    () => (retroRef.current ? null : minuteOf(nowElapsed(clockRef.current))),
+    [],
+  );
 
   // Premier open d'un match live sans état de chrono → on l'initialise. Les
   // matchs lancés avant cette fonctionnalité repartent de playedAt (≈ 0 pour
@@ -165,9 +175,16 @@ export default function LiveMatch({
     if (!m || m.status !== "LIVE" || clockInitRef.current) return;
     clockInitRef.current = true;
     if (m.clockRunningSince == null && m.clockElapsedMs == null) {
+      // Feuille saisie après coup : aucune horloge à lancer. Sans ce test,
+      // `Date.now() - playedAt` démarrait le chrono d'un match d'hier à
+      // 24:00:00, et tout de suite au-delà du temps réglementaire — sirène de
+      // fin de match comprise, dès l'ouverture.
+      const rattrapage = estRetro(m.playedAt);
       void getDb().matches.update(matchId, {
-        clockElapsedMs: Math.max(0, Date.now() - Date.parse(m.playedAt)),
-        clockRunningSince: new Date().toISOString(),
+        clockElapsedMs: rattrapage
+          ? 0
+          : Math.max(0, Date.now() - Date.parse(m.playedAt)),
+        clockRunningSince: rattrapage ? null : new Date().toISOString(),
         period: 1,
       });
     }
@@ -294,7 +311,13 @@ export default function LiveMatch({
           playerId,
           minute: liveMinute(),
         });
-        if (settings.trackAssists) {
+        // La barre « passe décisive ? » couvre le pied de page quinze
+        // secondes. En direct c'est le bon compromis : après un but, on ne
+        // termine pas le match. Sur une feuille saisie après coup, on tape
+        // vingt-sept buts d'affilée — la barre ne redescend jamais, et le
+        // bouton « Enregistrer » devient inatteignable. On ne la propose
+        // donc pas là ; la passe reste saisissable en direct.
+        if (settings.trackAssists && !retroRef.current) {
           ouvrirInvite({ kind: "passe", eventId, team, scorerId: playerId });
         } else {
           fermerInvite();
@@ -546,6 +569,9 @@ export default function LiveMatch({
 
   const external = match.kind === "EXTERNAL";
   const period = match.period ?? 1;
+  /// Feuille d'un match déjà joué : pas de chrono, pas de mi-temps, pas de
+  /// pause — il ne reste que les buts et le bouton d'enregistrement.
+  const retro = estRetro(match.playedAt);
   const aLead = match.scoreA > match.scoreB;
   const bLead = match.scoreB > match.scoreA;
   const sheetPlayers: LivePlayer[] =
@@ -639,18 +665,30 @@ export default function LiveMatch({
             <span className="score-lourd">{match.scoreA}</span>
           </div>
           <div className="live-milieu">
-            <span className={cn("etat", paused && "pause")}>{paused ? "Pause" : "En direct"}</span>
-            <span className={cn("horloge", overtime && "depasse")}>
-              {fmt(overtime ? elapsedMs : Math.min(elapsedMs, limitMs))}
-            </span>
-            {period !== 2 ? (
-              <button type="button" className="periode" onClick={onHalftime} title="Siffler la mi-temps">
-                1re · mi-temps ›
-              </button>
+            {retro ? (
+              <>
+                <span className="etat pause">Saisie</span>
+                <span className="horloge">{dateLabel}</span>
+                <span className="periode" style={{ cursor: "default" }}>
+                  match déjà joué
+                </span>
+              </>
             ) : (
-              <span className="periode" style={{ cursor: "default" }}>
-                {halftimeJustSet && paused ? "2de · à reprendre" : "2de"}
-              </span>
+              <>
+                <span className={cn("etat", paused && "pause")}>{paused ? "Pause" : "En direct"}</span>
+                <span className={cn("horloge", overtime && "depasse")}>
+                  {fmt(overtime ? elapsedMs : Math.min(elapsedMs, limitMs))}
+                </span>
+                {period !== 2 ? (
+                  <button type="button" className="periode" onClick={onHalftime} title="Siffler la mi-temps">
+                    1re · mi-temps ›
+                  </button>
+                ) : (
+                  <span className="periode" style={{ cursor: "default" }}>
+                    {halftimeJustSet && paused ? "2de · à reprendre" : "2de"}
+                  </span>
+                )}
+              </>
             )}
           </div>
           <div className={cn("live-chiffre", aLead && "perd")}>
@@ -845,11 +883,13 @@ export default function LiveMatch({
           </svg>
           Annuler
         </button>
-        <button type="button" onClick={toggleClock} className="verre grand pause">
-          {paused ? (halftimeJustSet ? "2de mi-temps" : "Reprendre") : "Pause"}
-        </button>
+        {!retro && (
+          <button type="button" onClick={toggleClock} className="verre grand pause">
+            {paused ? (halftimeJustSet ? "2de mi-temps" : "Reprendre") : "Pause"}
+          </button>
+        )}
         <button type="button" onClick={() => setConfirmOpen(true)} className="plein fin">
-          Terminer
+          {retro ? "Enregistrer" : "Terminer"}
         </button>
       </div>
 
@@ -955,13 +995,13 @@ export default function LiveMatch({
       {confirmOpen && (
         <div className="live-voile centre" onClick={(e) => { if (e.target === e.currentTarget) setConfirmOpen(false); }}>
           <div className="live-confirm">
-            <h2>Terminer ce match ?</h2>
+            <h2>{retro ? "Enregistrer cette feuille ?" : "Terminer ce match ?"}</h2>
             <div className="boutons">
               <button type="button" onClick={() => setConfirmOpen(false)} className="verre grand">
                 Pas encore
               </button>
               <button type="button" onClick={requestFinish} className="plein">
-                Terminer
+                {retro ? "Enregistrer" : "Terminer"}
               </button>
             </div>
           </div>

@@ -44,6 +44,7 @@ export default function RematchButton({
   seasonId,
   label = "On rejoue — mêmes équipes",
   hint,
+  playedAt = null,
 }: {
   clubId: string;
   slug: string;
@@ -60,6 +61,9 @@ export default function RematchButton({
   /// Qui va jouer, annoncé avant le tap : un lancement en un geste ne doit pas
   /// être un lancement à l'aveugle.
   hint?: string;
+  /// Saisie après coup : le match suivant appartient à la MÊME soirée que
+  /// celui qu'on vient d'enregistrer, pas à ce soir (cf. lib/retro).
+  playedAt?: string | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +95,7 @@ export default function RematchButton({
         opponentId,
         teamAName,
         teamBName,
+        playedAt,
         teamA: players
           .filter((p) => p.team === "A")
           .map((p) => ({ playerId: p.id, isGk: p.gardienCeMatch })),

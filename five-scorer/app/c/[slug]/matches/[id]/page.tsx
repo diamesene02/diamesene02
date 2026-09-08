@@ -6,6 +6,7 @@ import RecapView from "@/components/RecapView";
 import MotmVotePanel from "@/components/MotmVotePanel";
 import DeleteMatchButton from "@/components/DeleteMatchButton";
 import RematchButton from "@/components/RematchButton";
+import { estRetro } from "@/lib/retro";
 import Icon from "@/components/Icon";
 import MatchRsvpPanel from "./MatchRsvpPanel";
 import CancelMatchButton from "./CancelMatchButton";
@@ -55,6 +56,13 @@ export default async function MatchRecapPage({
     Math.abs(match.matchDay.date.getTime() - Date.now()) < 12 * 3600_000
       ? match.matchDay.id
       : null;
+  // Sauf quand on est en train de rattraper une soirée passée : là, « le
+  // match suivant » est le deuxième match de CETTE soirée-là, pas un match de
+  // ce soir. Une soirée de four s'enchaîne ainsi feuille après feuille.
+  const rattrapage = estRetro(match.playedAt) && match.matchDayId != null;
+  const suivantLe = new Date(
+    Math.min(match.playedAt.getTime() + 30 * 60_000, Date.now()),
+  ).toISOString();
 
   // ── Match programmé / annulé : vue convocation, pas de récap ──────────────
   if (match.status === "SCHEDULED" || match.status === "CANCELED") {
@@ -324,8 +332,10 @@ export default async function MatchRecapPage({
               teamBName={match.teamBName}
               kind={match.kind === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"}
               opponentId={match.opponentId}
-              matchDayId={soireeEnCours}
-              seasonId={saisonActive?.id ?? null}
+              matchDayId={rattrapage ? match.matchDayId : soireeEnCours}
+              seasonId={rattrapage ? match.seasonId : (saisonActive?.id ?? null)}
+              playedAt={rattrapage ? suivantLe : null}
+              label={rattrapage ? "Saisir le match suivant" : undefined}
               players={rejouables.map((p) => ({
                 id: p.player.id,
                 name: p.player.name,

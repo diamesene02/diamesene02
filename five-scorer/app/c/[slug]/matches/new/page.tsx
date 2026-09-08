@@ -11,10 +11,10 @@ export default async function NewMatchPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ md?: string; scheduled?: string }>;
+  searchParams: Promise<{ md?: string; scheduled?: string; joue?: string }>;
 }) {
   const { slug } = await params;
-  const { md, scheduled: scheduledId } = await searchParams;
+  const { md, scheduled: scheduledId, joue } = await searchParams;
   const ctx = await requireClub(slug);
   if (!ctx.canScore) redirect(`/c/${slug}`);
 
@@ -47,6 +47,12 @@ export default async function NewMatchPage({
             where: { id: md, clubId: ctx.club.id },
             include: {
               rsvps: { where: { status: "IN" }, select: { playerId: true } },
+              // La compo préparée trois jours plus tôt : elle vaut mieux
+              // qu'une préselection « tout le monde en A ».
+              lineup: {
+                where: { player: { isArchived: false } },
+                select: { playerId: true, team: true, isGk: true },
+              },
             },
           })
         : null,
@@ -83,7 +89,11 @@ export default async function NewMatchPage({
   return (
     <main className="ecran">
       <div className="titre-ecran" style={{ padding: "18px 4px 16px" }}>
-        {scheduled ? "Composer les équipes" : "Nouveau match"}
+        {scheduled
+          ? "Composer les équipes"
+          : joue === "1"
+            ? "Saisir un match joué"
+            : "Nouveau match"}
       </div>
       <NewMatchForm
         clubId={ctx.club.id}
@@ -94,6 +104,14 @@ export default async function NewMatchPage({
         matchDayId={matchDay?.id ?? null}
         presentPlayerIds={presentPlayerIds}
         scheduled={scheduled}
+        compoPreparee={
+          matchDay?.lineup.map((l) => ({
+            playerId: l.playerId,
+            team: l.team as "A" | "B",
+          })) ?? []
+        }
+        dateSoiree={matchDay?.date.toISOString() ?? null}
+        saisieApresCoup={joue === "1"}
         nomsParDefaut={
           matchDay?.teamAName && matchDay?.teamBName
             ? { a: matchDay.teamAName, b: matchDay.teamBName }

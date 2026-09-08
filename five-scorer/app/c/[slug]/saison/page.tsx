@@ -89,6 +89,7 @@ export default async function SaisonPage({
     let sous = md.location ?? md.title ?? "";
     let etiquette = "";
     let ton: Entree["ton"] = "neutre";
+    let href = `/c/${slug}/sessions/${md.id}`;
     if (md.canceledAt) {
       sous = md.cancelReason ? `${md.cancelReason} — annulée` : "Annulée";
       etiquette = "Annulée";
@@ -101,6 +102,15 @@ export default async function SaisonPage({
       sous = [md.location, joues ? `${joues} match${joues > 1 ? "s" : ""} joué${joues > 1 ? "s" : ""}` : "aucun match"].filter(Boolean).join(" · ");
       etiquette = joues ? "Jouée" : "";
       ton = "muet";
+      // Une soirée jouée sans feuille ne disparaît pas en silence : le
+      // calendrier la réclame, et le lien mène droit à la saisie. Au-delà de
+      // six semaines on se tait — le score, plus personne ne l'a en tête.
+      const rattrapable = now - md.date.getTime() < 42 * 86400_000;
+      if (!joues && rattrapable && ctx.canScore) {
+        etiquette = "Saisir";
+        ton = "appel";
+        href = `/c/${slug}/matches/new?md=${md.id}&joue=1`;
+      }
     } else {
       sous = [md.location, `${reponses} réponse${reponses > 1 ? "s" : ""}`, md.lineup.length ? "équipes prêtes" : "équipes à préparer"]
         .filter(Boolean)
@@ -119,7 +129,7 @@ export default async function SaisonPage({
     entrees.push({
       cle: `md-${md.id}`,
       date: md.date,
-      href: `/c/${slug}/sessions/${md.id}`,
+      href,
       titre: `Soirée · ${heure}`,
       sous,
       etiquette,
