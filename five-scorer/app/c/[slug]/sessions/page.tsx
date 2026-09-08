@@ -44,6 +44,17 @@ export default async function SessionsPage({
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const past = matchDays.filter((md) => md.date < startOfToday);
 
+  // « Je ne vois pas la soirée d'hier. »
+  //
+  // Un club qui pose sa saison d'un coup a quarante-quatre lundis devant lui.
+  // « Déjà jouées » se retrouvait donc sous quarante-quatre rangées : la
+  // soirée qu'on vient de jouer — celle dont on vient chercher le résultat —
+  // était la dernière chose de la page. On montre les six prochaines, puis le
+  // passé ; le reste de la saison se déplie en bas, où il ne gêne personne.
+  const PROCHAINES = 6;
+  const prochaines = upcoming.slice(0, PROCHAINES);
+  const resteSaison = upcoming.slice(PROCHAINES);
+
   // La colonne d'en-tête du ticker fait 52 px : « lun. 07 » y tient, « lundi
   // 07 sept. » non. Le mois est porté par l'en-tête de groupe.
   const fmtCourt = (d: Date) =>
@@ -239,10 +250,10 @@ export default async function SessionsPage({
         </div>
       ) : (
         <>
-          {upcoming.length > 0 && (
+          {prochaines.length > 0 && (
             <section className="mt-8">
               <span className="kicker mb-3 block">À venir</span>
-              <Mois liste={upcoming} aVenir />
+              <Mois liste={prochaines} aVenir />
             </section>
           )}
           {past.length > 0 && (
@@ -250,6 +261,16 @@ export default async function SessionsPage({
               <span className="kicker mb-3 block">Déjà jouées</span>
               <Mois liste={past} />
             </section>
+          )}
+          {resteSaison.length > 0 && (
+            <details className="mt-8">
+              <summary className="kicker cursor-pointer select-none">
+                Le reste de la saison ({resteSaison.length})
+              </summary>
+              <div className="mt-3">
+                <Mois liste={resteSaison} aVenir />
+              </div>
+            </details>
           )}
         </>
       )}
