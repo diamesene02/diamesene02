@@ -25,16 +25,26 @@ function inputDate(d: Date): string {
   return cle(d);
 }
 
+// Le générateur de calendrier, replié derrière « Poser toute la saison ».
+//
+// Il avait sa page à lui ; il vit maintenant au pied du calendrier, là où
+// l'on constate qu'il manque des lundis. Fermé, c'est un bouton en verre ;
+// ouvert, le formulaire et la liste des dates prennent la suite de la carte.
 export default function CalendrierForm({
   slug,
   lieuParDefaut,
+  ouvertParDefaut = false,
 }: {
   slug: string;
   lieuParDefaut: string | null;
+  /// Un club sans aucune soirée n'a pas à chercher le bouton : le
+  /// formulaire est déjà ouvert.
+  ouvertParDefaut?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [ouvert, setOuvert] = useState(ouvertParDefaut);
 
   // Bornes proposées : la saison en cours si on est dedans, jamais dans le passé.
   const defauts = useMemo(() => saisonParDefaut(new Date()), []);
@@ -100,183 +110,164 @@ export default function CalendrierForm({
         setError(res.error ?? "Erreur");
         return;
       }
-      router.push(`/c/${slug}/sessions`);
+      // Le calendrier est juste au-dessus : on y reste, il se recharge.
+      setOuvert(false);
+      router.push(`/c/${slug}/saison`);
       router.refresh();
     });
   }
 
-  const champ =
- "mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]";
-  const etiquette = "kicker";
+  if (!ouvert) {
+    return (
+      <div className="saison-actions">
+        <button
+          type="button"
+          className="verre grand"
+          onClick={() => setOuvert(true)}
+        >
+          <Icon name="calendar" size={18} />
+          Poser toute la saison
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-4 bande">
-        <label className="block">
-          <span className={etiquette}>Nom de la saison</span>
+    <div className="saison-form">
+      <div className="saison-form-tete">
+        <span className="titre">Poser toute la saison</span>
+        <button
+          type="button"
+          className="verre"
+          onClick={() => setOuvert(false)}
+        >
+          Fermer
+        </button>
+      </div>
+      <p className="saison-form-aide">
+        Choisis le jour et l&apos;heure, vérifie la liste : toute la saison est
+        en place, il ne restera qu&apos;à préparer les équipes avant chaque
+        soirée.
+      </p>
+
+      <div className="saison-champs">
+        <label className="saison-champ large">
+          <span className="libelle">Nom de la saison</span>
+          <input value={nom} onChange={(e) => setNom(e.target.value)} />
+        </label>
+
+        <label className="saison-champ">
+          <span className="libelle">Jour</span>
+          <select
+            value={jour}
+            onChange={(e) => setJour(Number(e.target.value) as JourSemaine)}
+          >
+            {JOURS.map((j) => (
+              <option key={j.v} value={j.v}>
+                {j.nom}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="saison-champ">
+          <span className="libelle">Heure</span>
           <input
-            value={nom}
-            onChange={(e) => setNom(e.target.value)}
-            className={champ}
+            type="time"
+            value={heure}
+            onChange={(e) => setHeure(e.target.value)}
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className={etiquette}>Jour</span>
-            <select
-              value={jour}
-              onChange={(e) => setJour(Number(e.target.value) as JourSemaine)}
-              className={champ}
-            >
-              {JOURS.map((j) => (
-                <option key={j.v} value={j.v}>
-                  {j.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className={etiquette}>Heure</span>
-            <input
-              type="time"
-              value={heure}
-              onChange={(e) => setHeure(e.target.value)}
-              className={champ}
-            />
-          </label>
-        </div>
+        <label className="saison-champ">
+          <span className="libelle">Du</span>
+          <input
+            type="date"
+            value={debut}
+            onChange={(e) => setDebut(e.target.value)}
+          />
+        </label>
+        <label className="saison-champ">
+          <span className="libelle">Au</span>
+          <input
+            type="date"
+            value={fin}
+            onChange={(e) => setFin(e.target.value)}
+          />
+        </label>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className={etiquette}>Du</span>
-            <input
-              type="date"
-              value={debut}
-              onChange={(e) => setDebut(e.target.value)}
-              className={champ}
-            />
-          </label>
-          <label className="block">
-            <span className={etiquette}>Au</span>
-            <input
-              type="date"
-              value={fin}
-              onChange={(e) => setFin(e.target.value)}
-              className={champ}
-            />
-          </label>
-        </div>
+        <label className="saison-champ">
+          <span className="libelle">Lieu</span>
+          <input
+            value={lieu}
+            onChange={(e) => setLieu(e.target.value)}
+            placeholder="Urban Soccer…"
+          />
+        </label>
+        <label className="saison-champ">
+          <span className="libelle">Titre</span>
+          <input
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="Soirée"
+          />
+        </label>
+      </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className={etiquette}>Lieu</span>
-            <input
-              value={lieu}
-              onChange={(e) => setLieu(e.target.value)}
-              placeholder="Urban Soccer…"
-              className={champ}
-            />
-          </label>
-          <label className="block">
-            <span className={etiquette}>Titre</span>
-            <input
-              value={titre}
-              onChange={(e) => setTitre(e.target.value)}
-              placeholder="Five du lundi"
-              className={champ}
-            />
-          </label>
-        </div>
-      </section>
+      <div className="saison-compte">
+        <span>
+          À créer — fériés et trêve de Noël retirés d&apos;office, chaque date
+          se rétablit d&apos;un tap.
+        </span>
+        <span>
+          <b>{retenues.length}</b> / {occurrences.length}
+        </span>
+      </div>
 
-      <section className="bande">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="kicker">À créer</span>
-          <span className="text-sm tabular-nums text-[color:var(--ink-2)]">
-            <strong className="text-[color:var(--ink-1)]">
-              {retenues.length}
-            </strong>{" "}
-            sur {occurrences.length}
-          </span>
-        </div>
-        <p className="mt-2 text-sm text-[color:var(--ink-2)]">
-          Les jours fériés et la trêve de Noël sont retirés d&apos;office, avec
-          leur motif. Tu peux rétablir ou retirer n&apos;importe quelle date.
-        </p>
+      <div className="saison-liste">
+        {parMois.map(([mois, jours]) => (
+          <div key={mois}>
+            <div className="saison-mois">{mois}</div>
+            {jours.map((o) => {
+              const k = cle(o.date);
+              const prise = retenue(k, o.exclu);
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setBascules((b) => ({ ...b, [k]: !prise }))}
+                  className={"saison-occ" + (prise ? "" : " retiree")}
+                >
+                  <span className={"saison-coche" + (prise ? " on" : "")}>
+                    {prise && <Icon name="check" size={13} />}
+                  </span>
+                  <span className="date">
+                    {o.date.toLocaleDateString("fr-FR", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                    })}
+                  </span>
+                  {o.exclu && <span className="motif">{o.exclu}</span>}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
 
-        <div className="mt-4 space-y-4">
-          {parMois.map(([mois, jours]) => (
-            <div key={mois}>
-              <div className="mb-1.5 text-[13px] font-semibold text-[color:var(--ink-3)]">
-                {mois}
-              </div>
-              <ul className="space-y-1">
-                {jours.map((o) => {
-                  const k = cle(o.date);
-                  const prise = retenue(k, o.exclu);
-                  return (
-                    <li key={k}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setBascules((b) => ({ ...b, [k]: !prise }))
-                        }
-                        className="flex w-full items-center gap-3 rounded-[2px] px-2 py-2 text-left hover:bg-[color:var(--pitch-2)]"
-                      >
-                        <span
-                          className={
- "grid h-5 w-5 shrink-0 place-items-center rounded border " +
-                            (prise
-                              ? "border-transparent bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
-                              : "border-[color:var(--rule-hi)]")
-                          }
-                        >
-                          {prise && <Icon name="check" size={12} />}
-                        </span>
-                        <span
-                          className={
- "flex-1 text-sm tabular-nums " +
-                            (prise
-                              ? "text-[color:var(--ink-1)]"
-                              : "text-[color:var(--ink-3)] line-through")
-                          }
-                        >
-                          {o.date.toLocaleDateString("fr-FR", {
-                            weekday: "short",
-                            day: "2-digit",
-                            month: "short",
-                          })}
-                        </span>
-                        {o.exclu && (
-                          <span className="shrink-0 text-[13px] font-semibold text-[color:var(--gold)]">
-                            {o.exclu}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {error && (
-        <p className="text-center text-sm text-[color:var(--loss)]">{error}</p>
-      )}
+      {error && <p className="saison-erreur">{error}</p>}
 
       <button
+        type="button"
         onClick={soumettre}
         disabled={pending || retenues.length === 0}
-        className="btn primary big w-full disabled:opacity-60"
+        className="plein"
       >
         {pending
           ? "Création…"
-          : `Créer ${retenues.length} soirée${retenues.length > 1 ? "s" : ""}`}
+          : `Poser ${retenues.length} soirée${retenues.length > 1 ? "s" : ""}`}
       </button>
-      <p className="text-center text-xs text-[color:var(--ink-3)]">
+      <p className="petit">
         Une soirée déjà présente à l&apos;une de ces dates est laissée telle
         quelle — sa compo ne sera pas écrasée.
       </p>

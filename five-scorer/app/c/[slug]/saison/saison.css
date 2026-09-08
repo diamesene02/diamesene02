@@ -1,0 +1,206 @@
+/* L'écran de la saison — maquette tour 4, « Saison ». Préfixe .saison- */
+
+.saison-tete {
+  padding: 18px 4px 0;
+}
+.saison-carte {
+  margin-top: 18px;
+  padding-bottom: 8px;
+}
+.saison-mois {
+  padding: 14px 20px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--i2);
+}
+.saison-rangee {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 20px;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.saison-rangee:active {
+  opacity: 0.6;
+}
+.saison-rangee.annulee {
+  opacity: 0.55;
+}
+.saison-rangee.annulee .titre {
+  text-decoration: line-through;
+}
+.saison-date {
+  display: flex;
+  flex-direction: column;
+}
+.saison-date .jour {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--i2);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.saison-date .numero {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.saison-corps {
+  min-width: 0;
+}
+.saison-corps .titre {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saison-corps .sous {
+  display: block;
+  font-size: 15px;
+  color: var(--i2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saison-etiquette {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--i2);
+}
+.saison-etiquette.direct {
+  color: var(--bad);
+}
+.saison-etiquette.appel {
+  color: var(--ink);
+}
+.saison-etiquette.muet {
+  color: var(--i3);
+}
+.saison-ajout {
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px 4px;
+}
+.saison-ajout > * {
+  flex: 1;
+}
+.saison-vide {
+  padding: 20px;
+  font-size: 15px;
+  color: var(--i2);
+}
+
+/* Adversaires */
+.saison-tableau-tete,
+.saison-tableau-rangee {
+  display: grid;
+  grid-template-columns: 24px 36px 1fr 30px 26px 26px 26px 36px 40px;
+  align-items: center;
+  padding: 0 14px;
+  font-variant-numeric: tabular-nums;
+}
+.saison-tableau-tete {
+  padding-top: 12px;
+  padding-bottom: 8px;
+  font-size: 15px;
+  color: var(--i2);
+}
+.saison-tableau-tete > span,
+.saison-tableau-rangee > span {
+  text-align: center;
+  min-width: 0;
+}
+.saison-tableau-tete > span:nth-child(3),
+.saison-tableau-rangee > span:nth-child(3) {
+  text-align: left;
+  padding-left: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saison-tableau-rangee {
+  height: 56px;
+  border-top: 1px solid var(--sep);
+  font-size: 17px;
+}
+.saison-tableau-rangee.club {
+  font-weight: 700;
+}
+.saison-tableau-rangee > span:first-child {
+  text-align: left;
+}
+.saison-tableau-rangee > span:last-child {
+  font-weight: 700;
+}
+.saison-note {
+  padding: 12px 20px 6px;
+  font-size: 13px;
+  color: var(--i3);
+}
+
+/* Bilan */
+.saison-chiffres {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 18px 8px 6px;
+  text-align: center;
+}
+.saison-chiffres .n {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.saison-chiffres .l {
+  font-size: 13px;
+  color: var(--i2);
+}
+.saison-bilan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  margin: 0 20px;
+  border-top: 1px solid var(--sep);
+  font-size: 17px;
+}
+.saison-bilan:first-of-type {
+  margin-top: 8px;
+}
+.saison-bilan b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.saison-choix {
+  position: relative;
+}
+.saison-choix select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  min-height: 0;
+  width: 100%;
+  cursor: pointer;
+}
+.saison-form {
+  padding: 8px 20px 12px;
+}
