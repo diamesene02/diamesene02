@@ -791,6 +791,7 @@ export default function LiveMatch({
               <PlayerTile
                 key={p.id}
                 name={p.name}
+                photo={p.photo}
                 goals={p.goals}
                 tint="pitch"
                 justMoved={justMoved === p.id}
@@ -838,6 +839,7 @@ export default function LiveMatch({
                   <PlayerTile
                     key={p.id}
                     name={p.name}
+                    photo={p.photo}
                     goals={p.goals}
                     tint="blue"
                     justMoved={justMoved === p.id}

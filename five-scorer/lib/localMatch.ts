@@ -632,6 +632,7 @@ export async function finishMatch(
 export type LivePlayer = {
   id: string;
   name: string;
+  photo?: string | null;
   goals: number;
   assists: number;
   yellow: number;
@@ -680,6 +681,7 @@ export async function getLocalMatch(matchId: string) {
         return {
           id: p.playerId,
           name: rosterById.get(p.playerId)?.name ?? "?",
+          photo: rosterById.get(p.playerId)?.photo ?? null,
           goals: t?.goals ?? 0,
           assists: t?.assists ?? 0,
           yellow: t?.yellow ?? 0,

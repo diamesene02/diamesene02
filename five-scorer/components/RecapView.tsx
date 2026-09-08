@@ -10,7 +10,7 @@ import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import PartageFeuille from "@/components/PartageFeuille";
 import "./recap.css";
 
-type Player = { id: string; name: string; goals: number; team: "A" | "B" };
+type Player = { id: string; name: string; photo?: string | null; goals: number; team: "A" | "B" };
 type Goal = {
   id: string;
   scorerId: string;
@@ -299,7 +299,7 @@ export default function RecapView({
       {mvpName &&
         (mvpHref ? (
           <Link href={mvpHref} className="carte recap-motm">
-            <AvatarAnneau nom={mvpName} camp={teamA.some((p) => p.id === match.mvpId) ? "A" : teamB.some((p) => p.id === match.mvpId) ? "B" : null} taille={60} />
+            <AvatarAnneau nom={mvpName} photo={[...teamA, ...teamB].find((p) => p.id === match.mvpId)?.photo} camp={teamA.some((p) => p.id === match.mvpId) ? "A" : teamB.some((p) => p.id === match.mvpId) ? "B" : null} taille={60} />
             <span className="corps">
               <span className="legende">Homme du match</span>
               <span className="nom">{mvpName}</span>
@@ -316,7 +316,7 @@ export default function RecapView({
           </Link>
         ) : (
           <div className="carte recap-motm">
-            <AvatarAnneau nom={mvpName} taille={60} />
+            <AvatarAnneau nom={mvpName} photo={[...teamA, ...teamB].find((p) => p.id === match.mvpId)?.photo} taille={60} />
             <span className="corps">
               <span className="legende">Homme du match</span>
               <span className="nom">{mvpName}</span>
@@ -390,7 +390,7 @@ export default function RecapView({
                 {joueurs.length === 0 && <div className="recap-vide">—</div>}
                 {joueurs.map((p) => (
                   <div key={p.id} className="recap-joueur">
-                    <AvatarAnneau nom={p.name} camp={camp} taille={30} />
+                    <AvatarAnneau nom={p.name} photo={p.photo} camp={camp} taille={30} />
                     <span className="nom">{p.name}</span>
                     {p.goals > 0 && <span className="buts">{p.goals}</span>}
                   </div>

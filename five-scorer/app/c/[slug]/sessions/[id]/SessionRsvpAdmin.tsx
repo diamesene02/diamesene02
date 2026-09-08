@@ -10,6 +10,7 @@ import type { RsvpStatus } from "@prisma/client";
 export type SessionPlayerRow = {
   playerId: string;
   name: string;
+  photo?: string | null;
   status: RsvpStatus | null; // null = sans réponse
   /// Le camp dans la compo de la soirée : donne la couleur de l'anneau.
   camp?: "A" | "B" | null;
@@ -145,7 +146,7 @@ export default function SessionRsvpAdmin({
         const moi = p.playerId === myPlayerId;
         const contenu = (
           <>
-            <AvatarAnneau nom={p.name} camp={p.camp ?? null} />
+            <AvatarAnneau nom={p.name} photo={p.photo} camp={p.camp ?? null} />
             <span className="nom">
               {p.name}
               {moi && " (moi)"}

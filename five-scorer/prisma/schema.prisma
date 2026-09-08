@@ -189,6 +189,13 @@ model Player {
   club       Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
   name       String
   nickname   String?
+  /// La photo du joueur, en data-URL JPEG carrée de 256 px (~20 ko).
+  ///
+  /// Stockée dans la base plutôt que sur un service de fichiers : un club de
+  /// quinze joueurs, c'est trois cents kilo-octets. Un bucket, c'est un
+  /// compte de plus, une clé de plus, une panne de plus — pour la même image.
+  /// Le redimensionnement se fait sur le téléphone avant l'envoi.
+  photo      String?  @db.Text
   /// Compte utilisateur lié (un membre peut revendiquer son profil joueur).
   userId     String?
   /// Note de niveau 1..5, réglée par les admins — alimente le générateur d'équipes.

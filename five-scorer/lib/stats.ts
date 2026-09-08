@@ -99,6 +99,7 @@ export type LeaderboardRow = {
   playerId: string;
   name: string;
   nickname: string | null;
+  photo: string | null;
   isGuest: boolean;
   matchesPlayed: number;
   goals: number;
@@ -131,7 +132,7 @@ export async function getLeaderboard(
     loadFinishedMatches(scope),
     prisma.player.findMany({
       where: { clubId: scope.clubId },
-      select: { id: true, name: true, nickname: true, isGuest: true },
+      select: { id: true, name: true, nickname: true, photo: true, isGuest: true },
     }),
   ]);
   const byId = new Map(players.map((p) => [p.id, p]));
@@ -170,6 +171,7 @@ export async function getLeaderboard(
         playerId,
         name: p.name,
         nickname: p.nickname,
+        photo: p.photo,
         isGuest: p.isGuest,
         matchesPlayed: 0,
         goals: 0,
@@ -343,6 +345,7 @@ export type PlayerDetail = {
     id: string;
     name: string;
     nickname: string | null;
+    photo: string | null;
     isGuest: boolean;
     skill: number;
     isGk: boolean;
@@ -375,6 +378,7 @@ export async function getPlayerDetail(
       id: true,
       name: true,
       nickname: true,
+      photo: true,
       isGuest: true,
       skill: true,
       isGk: true,

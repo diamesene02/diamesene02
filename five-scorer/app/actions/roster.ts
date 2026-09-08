@@ -11,7 +11,22 @@ export type PlayerInput = {
   skill?: number;
   isGk?: boolean;
   isGuest?: boolean;
+  /// Data-URL JPEG carrée, réduite sur l'appareil (cf. PhotoJoueur).
+  /// `null` retire la photo.
+  photo?: string | null;
 };
+
+/// La photo arrive du client : on ne la croit pas sur parole.
+///
+/// Seul un JPEG en data-URL est accepté, et sous 200 ko — le composant en
+/// produit une vingtaine. Sans ce plafond, n'importe qui pourrait pousser
+/// plusieurs mégaoctets dans une colonne texte à chaque enregistrement de
+/// fiche, et la lire ensuite sur toutes les pages du club.
+const PHOTO_MAX = 200_000;
+
+function photoValide(v: string): boolean {
+  return v.startsWith("data:image/jpeg;base64,") && v.length <= PHOTO_MAX;
+}
 
 function sanitize(input: PlayerInput) {
   const name = input.name?.trim().slice(0, 60);
@@ -25,6 +40,9 @@ function sanitize(input: PlayerInput) {
       : {}),
     ...(input.isGk !== undefined ? { isGk: input.isGk } : {}),
     ...(input.isGuest !== undefined ? { isGuest: input.isGuest } : {}),
+    ...(input.photo !== undefined
+      ? { photo: input.photo && photoValide(input.photo) ? input.photo : null }
+      : {}),
   };
 }
 

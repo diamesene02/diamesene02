@@ -25,6 +25,7 @@ export default async function LiveMatchPage({
       id: true,
       name: true,
       nickname: true,
+      photo: true,
       skill: true,
       isGk: true,
       isGuest: true,

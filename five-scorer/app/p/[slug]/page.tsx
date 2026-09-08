@@ -123,6 +123,7 @@ export default async function PublicClubPage({ params }: Params) {
                 trackCards={club.trackCards}
                 lignes={top.map((r) => ({
                   playerId: r.playerId,
+                  photo: r.photo,
                   name: r.name,
                   nickname: r.nickname,
                   isGuest: r.isGuest,

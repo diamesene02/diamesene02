@@ -11,6 +11,7 @@ import AvatarAnneau from "@/components/ios/AvatarAnneau";
 export type JoueurClub = {
   id: string;
   name: string;
+  photo?: string | null;
   skill: number;
   isGk: boolean;
 };
@@ -219,7 +220,7 @@ export default function CompoSoiree({
       aria-label={`${j.name} — ${camp === "A" ? nomA : nomB}`}
     >
       <span className="pelouse-avatar">
-        <AvatarAnneau nom={j.name} camp={camp} taille={54} />
+        <AvatarAnneau nom={j.name} photo={j.photo} camp={camp} taille={54} />
         <span className="niveau" title={`Niveau ${j.skill}`}>{j.isGk ? "G" : j.skill}</span>
       </span>
       <span className="nom">{j.name}</span>
@@ -329,7 +330,7 @@ export default function CompoSoiree({
                 onClick={() => basculer(j.id)}
                 aria-label={`${j.name} — hors compo, ajouter à ${cible === "A" ? nomA : nomB}`}
               >
-                <AvatarAnneau nom={j.name} taille={28} />
+                <AvatarAnneau nom={j.name} photo={j.photo} taille={28} />
                 <span className="nom">{j.name}</span>
               </button>
             ))}

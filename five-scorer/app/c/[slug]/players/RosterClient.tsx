@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
+import PhotoJoueur from "@/components/ios/PhotoJoueur";
 import Icon from "@/components/Icon";
 import {
   addPlayer,
@@ -17,6 +18,7 @@ type RosterPlayer = {
   id: string;
   name: string;
   nickname: string | null;
+  photo: string | null;
   skill: number;
   isGk: boolean;
   isGuest: boolean;
@@ -31,11 +33,12 @@ type PlayerFormValues = {
   nickname: string;
   skill: number;
   isGk: boolean;
+  photo: string | null;
 };
 
 // Niveau : cinq étoiles du jeu d'icônes. Le glyphe ★ n'existe pas dans
 // Archivo — il partait en police de repli et cassait le dessin.
-function Stars({ skill }: { skill: number }) {
+function Etoiles({ skill, taille = 13 }: { skill: number; taille?: number }) {
   return (
     <span
       className="inline-flex items-center gap-0.5"
@@ -47,12 +50,8 @@ function Stars({ skill }: { skill: number }) {
           key={n}
           name="star"
           filled={n <= skill}
-          size={14}
-          className={
-            n <= skill
-              ? "text-[color:var(--ink-1)]"
-              : "text-[color:var(--rule-hi)]"
-          }
+          size={taille}
+          className={n <= skill ? "" : "opacity-30"}
         />
       ))}
     </span>
@@ -78,77 +77,65 @@ function PlayerForm({
   const [nickname, setNickname] = useState(initial.nickname);
   const [skill, setSkill] = useState(initial.skill);
   const [isGk, setIsGk] = useState(initial.isGk);
+  const [photo, setPhoto] = useState<string | null>(initial.photo);
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ name, nickname, skill, isGk });
+        onSubmit({ name, nickname, skill, isGk, photo });
       }}
-      className="space-y-3"
+      className="roster-form"
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="kicker">Nom</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Kylian"
-            required
-            className="mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
-          />
-        </label>
-        <label className="block">
-          <span className="kicker">Surnom</span>
-          <input
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="La Flèche"
-            className="mt-1 w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
-          />
-        </label>
+      <PhotoJoueur nom={name || "ce joueur"} photo={photo} onChange={setPhoto} disabled={pending} />
+
+      <label className="roster-champ">
+        <span>Nom</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Kylian" required />
+      </label>
+      <label className="roster-champ">
+        <span>Surnom</span>
+        <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="La Flèche" />
+      </label>
+
+      <div className="roster-champ">
+        <span>Niveau</span>
+        <div className="segment plein-large" role="radiogroup" aria-label="Niveau">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={skill === n}
+              onClick={() => setSkill(n)}
+              className={cn(skill === n && "actif")}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2">
-          <span className="kicker">Niveau</span>
-          <select
-            value={skill}
-            onChange={(e) => setSkill(Number(e.target.value))}
-            className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
-          >
-            {[1, 2, 3, 4, 5].map((s) => (
-              <option key={s} value={s}>
-                {s} / 5
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm font-bold">
-          <input
-            type="checkbox"
-            checked={isGk}
-            onChange={(e) => setIsGk(e.target.checked)}
-            className="h-4 w-4 accent-[color:var(--ink-1)]"
-          />
+
+      <button
+        type="button"
+        className="rangee-ios"
+        onClick={() => setIsGk((g) => !g)}
+        aria-pressed={isGk}
+      >
+        <span className="libelle">
           Gardien
-        </label>
-      </div>
-      {error && (
-        <p className="text-sm text-[color:var(--loss)]">{error}</p>
-      )}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="plein"
-        >
+          <span className="aide">Le générateur d&apos;équipes les sépare en premier.</span>
+        </span>
+        <span className="valeur">{isGk ? "Oui" : "Non"}</span>
+      </button>
+
+      {error && <p className="text-[15px]" style={{ color: "var(--bad)" }}>{error}</p>}
+
+      <div className="roster-actions">
+        <button type="submit" disabled={pending} className="plein">
           {pending ? "…" : submitLabel}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="verre grand"
-        >
+        <button type="button" onClick={onCancel} className="verre grand">
           Annuler
         </button>
       </div>
@@ -162,17 +149,22 @@ export default function RosterClient({
   userId,
   hasLinkedPlayer,
   players,
+  editInitial = null,
 }: {
   slug: string;
   canManage: boolean;
   userId: string;
   hasLinkedPlayer: boolean;
   players: RosterPlayer[];
+  /// `?edit=<id>` — le bouton « Modifier » de la fiche joueur renvoie ici.
+  /// Le paramètre était posé dans le lien mais personne ne le lisait : le
+  /// bouton ramenait à l'effectif et ne faisait rien.
+  editInitial?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(editInitial);
   const [formError, setFormError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
 
@@ -183,9 +175,8 @@ export default function RosterClient({
     setFormError(null);
     startTransition(async () => {
       const res = await action();
-      if (!res.ok) {
-        setFormError(res.error ?? "Erreur");
-      } else {
+      if (!res.ok) setFormError(res.error ?? "Erreur");
+      else {
         setShowAdd(false);
         setEditingId(null);
         router.refresh();
@@ -203,25 +194,25 @@ export default function RosterClient({
   }
 
   return (
-    <div className="mt-6">
-      {canManage && !showAdd && (
+    <div>
+      {canManage && !showAdd && !editingId && (
         <button
           onClick={() => {
             setShowAdd(true);
-            setEditingId(null);
             setFormError(null);
           }}
-          className="plein w-full"
+          className="verre grand w-full"
         >
+          <Icon name="plus" size={15} />
           Ajouter un joueur
         </button>
       )}
 
       {canManage && showAdd && (
         <div className="carte" style={{ padding: "16px 18px 18px" }}>
-          <h2 className="carte-titre" style={{ padding: "0 0 12px" }}>Nouveau joueur</h2>
+          <div className="carte-titre" style={{ padding: "0 0 12px" }}>Nouveau joueur</div>
           <PlayerForm
-            initial={{ name: "", nickname: "", skill: 3, isGk: false }}
+            initial={{ name: "", nickname: "", skill: 3, isGk: false, photo: null }}
             submitLabel="Ajouter"
             pending={isPending}
             error={formError}
@@ -232,7 +223,8 @@ export default function RosterClient({
                   nickname: v.nickname || null,
                   skill: v.skill,
                   isGk: v.isGk,
-                })
+                  photo: v.photo,
+                }),
               )
             }
             onCancel={() => {
@@ -244,23 +236,25 @@ export default function RosterClient({
       )}
 
       {listError && (
-        <p className="mt-4 text-sm text-[color:var(--loss)]">{listError}</p>
+        <p className="mt-4 text-[15px]" style={{ color: "var(--bad)" }}>{listError}</p>
       )}
 
-      <div className="carte mt-4" style={{ padding: "0 18px" }}>
-        {active.map((p) => (
-          <div
-            key={p.id}
-            className="border-t py-3 first:border-t-0"
-            style={{ borderColor: "var(--sep)" }}
-          >
-            {editingId === p.id ? (
+      {/* UN JOUEUR, UNE RANGÉE.
+          Chacun tenait sur cinq lignes — nom, étoiles, compteurs, puis les
+          boutons « Modifier » et « Archiver » affichés en permanence. Quinze
+          joueurs faisaient une page à faire défiler deux fois. La rangée mène
+          à la fiche ; la gestion se déplie sur demande. */}
+      <div className="carte mt-4" style={{ padding: "0 16px" }}>
+        {active.map((p) =>
+          editingId === p.id ? (
+            <div key={p.id} className="roster-edition">
               <PlayerForm
                 initial={{
                   name: p.name,
                   nickname: p.nickname ?? "",
                   skill: p.skill,
                   isGk: p.isGk,
+                  photo: p.photo,
                 }}
                 submitLabel="Enregistrer"
                 pending={isPending}
@@ -272,7 +266,8 @@ export default function RosterClient({
                       nickname: v.nickname || null,
                       skill: v.skill,
                       isGk: v.isGk,
-                    })
+                      photo: v.photo,
+                    }),
                   )
                 }
                 onCancel={() => {
@@ -280,102 +275,62 @@ export default function RosterClient({
                   setFormError(null);
                 }}
               />
-            ) : (
-              <>
-                <div className="flex items-start justify-between gap-2">
-                  <Link
-                    href={`/c/${slug}/players/${p.id}`}
-                    className="group flex min-w-0 flex-1 items-center gap-3"
+              <div className="roster-secondaire">
+                <button
+                  onClick={() => runList(() => setPlayerArchived(slug, p.id, true))}
+                  disabled={isPending}
+                  className="verre"
+                >
+                  Archiver {p.name}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div key={p.id} className="roster-rangee">
+              <Link href={`/c/${slug}/players/${p.id}`} className="lien">
+                <AvatarAnneau nom={p.name} photo={p.photo} taille={44} />
+                <span className="corps">
+                  <span className="nom">
+                    {p.name}
+                    {p.isGk && (
+                      <Icon name="glove" size={13} label="Gardien" className="gant" />
+                    )}
+                    {p.isLinked && <span className="lie" title="Compte lié" />}
+                  </span>
+                  <span className="sous">
+                    <Etoiles skill={p.skill} />
+                    <span className="chiffres">
+                      {p.matchesPlayed} match{p.matchesPlayed > 1 ? "s" : ""} · {p.goals} but
+                      {p.goals > 1 ? "s" : ""}
+                      {p.isGuest && " · invité"}
+                    </span>
+                  </span>
+                </span>
+                <Icon name="chevron" size={15} className="chev" />
+              </Link>
+              {/* « C'est moi » n'existe qu'au premier passage, tant que le
+                  membre n'a pas revendiqué son profil. « Modifier » a
+                  disparu d'ici : un bouton par rangée, c'était dix boutons
+                  pour une action qu'on fait deux fois par saison. Il vit sur
+                  la fiche du joueur, qui est au bout de la rangée. */}
+              {!hasLinkedPlayer && !p.isLinked && !p.isGuest && (
+                <div className="outils">
+                  <button
+                    onClick={() => runList(() => linkPlayerToUser(slug, p.id, userId))}
+                    disabled={isPending}
+                    className="verre"
                   >
-                    <AvatarAnneau nom={p.name} taille={44} />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-base font-black transition-colors group-hover:text-[color:var(--ink-1)]">
-                          {p.name}
-                        </span>
-                        {p.isGk && (
-                          <Icon
-                            name="glove"
-                            size={14}
-                            label="Gardien"
-                            className="shrink-0 text-[color:var(--ink-3)]"
-                          />
-                        )}
-                      </div>
-                      {p.nickname && (
-                        <div className="mt-0.5 truncate text-xs italic text-[color:var(--ink-2)]">
-                          « {p.nickname} »
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                  {canManage && (
-                    <button
-                      onClick={() => {
-                        setEditingId(p.id);
-                        setShowAdd(false);
-                        setFormError(null);
-                      }}
-                      className="verre shrink-0"
-                      style={{ height: 36, fontSize: 15, padding: "0 14px" }}
-                    >
-                      Modifier
-                    </button>
-                  )}
+                    C&apos;est moi
+                  </button>
                 </div>
-
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Stars skill={p.skill} />
-                  {p.isGuest && (
-                    <span className="text-[13px]" style={{ color: "var(--i2)" }}>· invité</span>
-                  )}
-                  {p.isLinked && (
-                    <span className="text-[13px]" style={{ color: "var(--ok)" }}>· compte lié</span>
-                  )}
-                </div>
-
-                <div className="mt-2 text-xs tabular-nums text-[color:var(--ink-2)]">
-                  {p.matchesPlayed} match{p.matchesPlayed > 1 ? "s" : ""} ·{" "}
-                  {p.goals} but{p.goals > 1 ? "s" : ""}
-                </div>
-
-                {(canManage ||
-                  (!hasLinkedPlayer && !p.isLinked && !p.isGuest)) && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {!hasLinkedPlayer && !p.isLinked && !p.isGuest && (
-                      <button
-                        onClick={() =>
-                          runList(() => linkPlayerToUser(slug, p.id, userId))
-                        }
-                        disabled={isPending}
-                        className="plein"
-                        style={{ height: 36, fontSize: 15, padding: "0 14px" }}
-                      >
-                        C&apos;est moi
-                      </button>
-                    )}
-                    {canManage && (
-                      <button
-                        onClick={() =>
-                          runList(() => setPlayerArchived(slug, p.id, true))
-                        }
-                        disabled={isPending}
-                        className="verre"
-                        style={{ height: 36, fontSize: 15, padding: "0 14px" }}
-                      >
-                        Archiver
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          ),
+        )}
       </div>
 
       {active.length === 0 && (
-        <p className="mt-6 text-sm text-[color:var(--ink-2)]">
+        <p className="mt-6 text-[15px]" style={{ color: "var(--i2)" }}>
           Personne dans le vestiaire pour l&apos;instant.
           {canManage && " Ajoute tes premiers joueurs."}
         </p>
@@ -386,45 +341,35 @@ export default function RosterClient({
           <summary className="kicker cursor-pointer select-none">
             Archivés ({archived.length})
           </summary>
-          <ul className="carte mt-3" style={{ padding: "0 18px" }}>
+          <div className="carte mt-3" style={{ padding: "0 16px" }}>
             {archived.map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center justify-between gap-3 border-t py-3 first:border-t-0" style={{ borderColor: "var(--sep)" }}
-              >
-                <Link
-                  href={`/c/${slug}/players/${p.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-sm font-bold text-[color:var(--ink-2)] transition-colors hover:text-[color:var(--ink-1)]"
-                >
-                  <AvatarAnneau nom={p.name} taille={30} />
-                  <span className="truncate">{p.name}</span>
-                  {p.isGk && (
-                    <Icon
-                      name="glove"
-                      size={14}
-                      label="Gardien"
-                      className="shrink-0 text-[color:var(--ink-3)]"
-                    />
-                  )}
+              <div key={p.id} className="roster-rangee archive">
+                <Link href={`/c/${slug}/players/${p.id}`} className="lien">
+                  <AvatarAnneau nom={p.name} photo={p.photo} taille={34} />
+                  <span className="corps">
+                    <span className="nom">{p.name}</span>
+                    <span className="sous">
+                      <span className="chiffres">
+                        {p.matchesPlayed} match{p.matchesPlayed > 1 ? "s" : ""} · {p.goals} but
+                        {p.goals > 1 ? "s" : ""}
+                      </span>
+                    </span>
+                  </span>
                 </Link>
-                <span className="text-xs tabular-nums text-[color:var(--ink-3)]">
-                  {p.matchesPlayed} m · {p.goals} b
-                </span>
                 {canManage && (
-                  <button
-                    onClick={() =>
-                      runList(() => setPlayerArchived(slug, p.id, false))
-                    }
-                    disabled={isPending}
-                    className="verre"
-                    style={{ height: 36, fontSize: 15, padding: "0 14px" }}
-                  >
-                    Réactiver
-                  </button>
+                  <div className="outils">
+                    <button
+                      onClick={() => runList(() => setPlayerArchived(slug, p.id, false))}
+                      disabled={isPending}
+                      className="verre"
+                    >
+                      Réactiver
+                    </button>
+                  </div>
                 )}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </details>
       )}
     </div>

@@ -11,6 +11,9 @@ export type LocalPlayer = {
   clubId: string;
   name: string;
   nickname?: string | null;
+  /// La photo, mise en cache comme le reste : la feuille de match doit
+  /// montrer les visages même sans réseau, au bord du terrain.
+  photo?: string | null;
   skill: number;
   isGk: boolean;
   isGuest: boolean;

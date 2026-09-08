@@ -2162,6 +2162,16 @@
   color: var(--ink);
   box-shadow: inset 0 0 0 2px var(--anneau, var(--gb));
 }
+.avatar-anneau.photo {
+  background: var(--seg);
+  overflow: hidden;
+}
+.avatar-anneau.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .avatar-anneau.A {
   --anneau: var(--taR, var(--ta));
 }
@@ -2692,6 +2702,29 @@
   background: var(--tbG);
   color: var(--tbF);
 }
+/* Avec une photo, l'écusson de chasuble est recouvert : sur la pelouse, on ne
+   distinguait plus les deux équipes. L'anneau devient alors le repère, et il
+   doit être vu à cinquante centimètres — donc épais, et posé PAR-DESSUS
+   l'image, pas dessous. */
+.pelouse-joueur .avatar-anneau.photo {
+  /* La photo est posée EN RETRAIT : le fond de chasuble reste visible tout
+     autour, et c'est lui qui dit l'équipe. Un simple liseré se perdait sur
+     les photos claires, à cinquante centimètres d'un téléphone posé sur le
+     capot d'une voiture. */
+  padding: 4px;
+  background-clip: padding-box;
+}
+.pelouse-joueur .avatar-anneau.photo img {
+  border-radius: 50%;
+}
+/* Partout ailleurs, une photo garde un anneau un peu plus marqué que des
+   initiales : le disque n'est plus uni, le liseré doit tenir tout seul. */
+.avatar-anneau.photo.A,
+.avatar-anneau.photo.B {
+  box-shadow:
+    inset 0 0 0 2.5px var(--anneau),
+    inset 0 0 0 4px rgba(0, 0, 0, 0.25);
+}
 .pelouse-avatar .niveau {
   position: absolute;
   right: -4px;
@@ -3185,4 +3218,39 @@
 }
 [data-club-theme] .rounded-3xl {
   border-radius: 28px;
+}
+
+/* ── Choisir une photo de joueur ──────────────────────────────────────── */
+.photo-choix {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.photo-apercu {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px dashed var(--gb);
+  background: var(--seg);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--i3);
+  font-size: 28px;
+  font-family: inherit;
+}
+.photo-apercu img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }

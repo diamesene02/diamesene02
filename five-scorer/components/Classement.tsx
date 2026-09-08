@@ -15,6 +15,7 @@ export type LigneClassement = {
   playerId: string;
   name: string;
   nickname: string | null;
+  photo?: string | null;
   isGuest: boolean;
   matchesPlayed: number;
   goals: number;
@@ -101,7 +102,7 @@ export default function Classement({
         const cellules = (
           <>
             <span>{i + 1}</span>
-            <AvatarAnneau nom={r.name} camp={camps?.[r.playerId] ?? null} taille={30} />
+            <AvatarAnneau nom={r.name} photo={r.photo} camp={camps?.[r.playerId] ?? null} taille={30} />
             <span>
               {r.name}
               {r.isGuest && (

@@ -58,7 +58,7 @@ export default async function SessionDetailPage({
     prisma.player.findMany({
       where: { clubId, isArchived: false },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, skill: true, isGk: true },
+      select: { id: true, name: true, photo: true, skill: true, isGk: true },
     }),
     prisma.player.findFirst({
       where: { clubId, userId: ctx.user.id },
@@ -71,6 +71,7 @@ export default async function SessionDetailPage({
   const rsvpRows: SessionPlayerRow[] = players.map((p) => ({
     playerId: p.id,
     name: p.name,
+    photo: p.photo,
     status: rsvpByPlayer.get(p.id)?.status ?? null,
     camp: campDe.get(p.id) ?? null,
   }));
@@ -284,7 +285,7 @@ export default async function SessionDetailPage({
           <Classement
             slug={slug}
             lignes={classement.slice(0, 10).map((r) => ({
-              playerId: r.playerId, name: r.name, nickname: r.nickname, isGuest: r.isGuest,
+              playerId: r.playerId, name: r.name, nickname: r.nickname, photo: r.photo, isGuest: r.isGuest,
               matchesPlayed: r.matchesPlayed, goals: r.goals, assists: r.assists, yellow: r.yellow, red: r.red,
               wins: r.wins, draws: r.draws, losses: r.losses, winPct: r.winPct, mvpCount: r.mvpCount,
               form: r.form, streak: r.streak, elo: r.elo, eloTrend: r.eloTrend,

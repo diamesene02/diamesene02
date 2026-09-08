@@ -127,3 +127,123 @@
   font-size: 15px;
   color: var(--i2);
 }
+
+/* ── L'effectif : une rangée par joueur, la fiche au bout ──────────────── */
+.roster-rangee {
+  border-top: 1px solid var(--sep);
+}
+.roster-rangee:first-child {
+  border-top: 0;
+}
+.roster-rangee .lien {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.roster-rangee .corps {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.roster-rangee .nom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 17px;
+  font-weight: 600;
+  min-width: 0;
+}
+.roster-rangee .nom .gant {
+  color: var(--i3);
+  flex: none;
+}
+.roster-rangee .nom .lie {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+.roster-rangee .sous {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--i2);
+  min-width: 0;
+}
+.roster-rangee .sous .chiffres {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.roster-rangee .chev {
+  color: var(--i3);
+  flex: none;
+}
+.roster-rangee .outils {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 0 12px 56px;
+}
+.roster-rangee .lien:active {
+  opacity: 0.7;
+}
+.roster-rangee .outils .verre {
+  height: 34px;
+  font-size: 15px;
+  padding: 0 14px;
+}
+.roster-rangee.archive .lien {
+  min-height: 52px;
+  color: var(--i2);
+}
+.roster-rangee.archive .outils {
+  padding-left: 46px;
+}
+
+.roster-edition {
+  border-top: 1px solid var(--sep);
+  padding: 16px 0 18px;
+}
+.roster-edition:first-child {
+  border-top: 0;
+}
+.roster-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.roster-champ {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.roster-champ > span:first-child {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--i2);
+}
+.roster-champ input {
+  width: 100%;
+}
+.roster-actions {
+  display: flex;
+  gap: 10px;
+}
+.roster-actions > * {
+  flex: 1;
+}
+.roster-secondaire {
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+}

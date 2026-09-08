@@ -183,6 +183,7 @@ export default async function MatchRecapPage({
   const players = match.participants.map((p) => ({
     id: p.player.id,
     name: p.player.name,
+    photo: p.player.photo,
     team: p.team as "A" | "B",
     goals: match.events.filter(
       (e) => e.type === "GOAL" && e.playerId === p.player.id
@@ -351,6 +352,7 @@ export default async function MatchRecapPage({
             candidates={players.map((p) => ({
               id: p.id,
               name: p.name,
+              photo: p.photo,
               votes: votesByPlayer.get(p.id) ?? 0,
             }))}
           />

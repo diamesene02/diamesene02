@@ -12,6 +12,7 @@ const SUPPRESS_TAP_MS = 700;
 
 type Props = {
   name: string;
+  photo?: string | null;
   goals: number;
   tint: "pitch" | "blue";
   /// Vient de changer de camp : un éclair de contour pour que l'œil suive.
@@ -35,6 +36,7 @@ type Props = {
 // = annuler son dernier but.
 function PlayerTileImpl({
   name,
+  photo,
   goals,
   tint,
   justMoved,
@@ -107,7 +109,7 @@ function PlayerTileImpl({
         className={cn("live-joueur compo", camp, justMoved && "arrive")}
         aria-label={`${name} — envoyer dans l'autre équipe`}
       >
-        <AvatarAnneau nom={name} camp={camp} />
+        <AvatarAnneau nom={name} photo={photo} camp={camp} />
         <span className="nom">{name}</span>
         <span className="fleche" aria-hidden>
           {camp === "A" ? "→" : "←"}
@@ -128,7 +130,7 @@ function PlayerTileImpl({
       onContextMenu={(e) => e.preventDefault()}
       className={cn("live-joueur", camp, justMoved && "arrive")}
     >
-      <AvatarAnneau nom={name} camp={camp} />
+      <AvatarAnneau nom={name} photo={photo} camp={camp} />
       <span className="nom">{name}</span>
       <span className="buts">{goals > 0 ? goals : ""}</span>
     </button>

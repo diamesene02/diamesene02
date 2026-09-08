@@ -73,7 +73,7 @@ export default async function PlayerDetailPage({
       )}
       <div className="fiche-tete">
         <div className="fiche-photo">
-          <AvatarAnneau nom={player.name} camp={camp} taille={128} />
+          <AvatarAnneau nom={player.name} photo={player.photo} camp={camp} taille={128} />
           {camp && <Ecusson camp={camp} lettre={player.isGk ? "G" : String(player.skill)} taille={40} className="badge" />}
         </div>
         <div className="fiche-nom">{player.name}</div>

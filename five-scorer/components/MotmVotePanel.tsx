@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 import { voteMotm } from "@/app/actions/motm";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 
-type Candidate = { id: string; name: string; votes: number };
+type Candidate = { id: string; name: string; photo?: string | null; votes: number };
 
 // Le vote de l'homme du match : une carte, une rangée par joueur avec sa
 // barre de voix. Un tap = ma voix ; on peut la déplacer à tout moment.
@@ -68,7 +68,7 @@ export default function MotmVotePanel({
             className="flex w-full items-center gap-3 border-t text-left"
             style={{ minHeight: 56, borderColor: "var(--sep)", background: "none", color: "var(--ink)", fontFamily: "inherit", padding: "6px 0" }}
           >
-            <AvatarAnneau nom={c.name} taille={32} />
+            <AvatarAnneau nom={c.name} photo={c.photo} taille={32} />
             <span className="flex min-w-0 flex-1 flex-col gap-1.5">
               <span className={cn("truncate text-[17px]", selected === c.id ? "font-semibold" : "font-medium")}>
                 {c.name}

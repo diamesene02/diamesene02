@@ -793,6 +793,7 @@ export default async function ClubHomePage({
               <span>{i + 1}</span>
               <AvatarAnneau
                 nom={r.name}
+                photo={r.photo}
                 camp={chasubleDe.get(r.playerId) ?? null}
                 taille={30}
               />

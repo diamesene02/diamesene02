@@ -203,6 +203,7 @@ export default async function StatsPage({
 
   const lignes = rows.map((r) => ({
     playerId: r.playerId,
+    photo: r.photo,
     name: r.name,
     nickname: r.nickname,
     isGuest: r.isGuest,
@@ -357,7 +358,7 @@ export default async function StatsPage({
                             className="stats-rangee stats-buteur"
                           >
                             <span>{i + 1}</span>
-                            <AvatarAnneau nom={r.name} camp={camp ?? null} taille={30} />
+                            <AvatarAnneau nom={r.name} photo={r.photo} camp={camp ?? null} taille={30} />
                             <span className="bloc">
                               <span className="nom">{r.name}</span>
                               <span className="barre" aria-hidden>
@@ -389,6 +390,7 @@ export default async function StatsPage({
                         >
                           <AvatarAnneau
                             nom={r.name}
+                            photo={r.photo}
                             camp={camps[r.playerId] ?? null}
                             taille={30}
                           />

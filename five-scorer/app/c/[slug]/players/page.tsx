@@ -2,15 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { getLeaderboard } from "@/lib/stats";
 import RosterClient from "./RosterClient";
+import "./player.css";
 
 export const dynamic = "force-dynamic";
 
 export default async function PlayersPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { slug } = await params;
+  const { edit } = await searchParams;
   const ctx = await requireClub(slug);
   const clubId = ctx.club.id;
 
@@ -29,6 +33,7 @@ export default async function PlayersPage({
     id: p.id,
     name: p.name,
     nickname: p.nickname,
+    photo: p.photo,
     skill: p.skill,
     isGk: p.isGk,
     isGuest: p.isGuest,
@@ -42,14 +47,11 @@ export default async function PlayersPage({
 
   return (
     <main>
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <span className="kicker">Le vestiaire</span>
-          <h1 className="display-md mt-1">Effectif</h1>
-        </div>
-        <span className="font-mono text-sm font-bold text-[color:var(--ink-2)]">
-          {activeCount} joueur{activeCount > 1 ? "s" : ""}
-        </span>
+      <div className="titre-ecran" style={{ padding: "18px 4px 2px" }}>
+        Effectif
+      </div>
+      <div className="sous-titre" style={{ padding: "0 4px 14px" }}>
+        {activeCount} joueur{activeCount > 1 ? "s" : ""} au vestiaire
       </div>
 
       <RosterClient
@@ -58,6 +60,7 @@ export default async function PlayersPage({
         userId={ctx.user.id}
         hasLinkedPlayer={hasLinkedPlayer}
         players={players}
+        editInitial={ctx.canManage && edit ? edit : null}
       />
     </main>
   );

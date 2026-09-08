@@ -425,7 +425,7 @@ export default function NewMatchForm({
           const camp = a === "A" ? "A" : a === "B" ? "B" : null;
           return (
             <button key={p.id} type="button" onClick={() => cycle(p.id)} className="rangee-ios" aria-pressed={a !== "none"} style={{ minHeight: 56, cursor: "pointer" }}>
-              <AvatarAnneau nom={p.name} camp={camp} />
+              <AvatarAnneau nom={p.name} photo={p.photo} camp={camp} />
               <span className="libelle">
                 <span style={{ fontWeight: a === "none" ? 400 : 600, color: a === "none" ? "var(--i2)" : "var(--ink)" }}>
                   {p.name}
