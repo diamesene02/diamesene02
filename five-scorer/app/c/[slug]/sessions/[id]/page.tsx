@@ -14,6 +14,7 @@ import MoneyPanel from "./MoneyPanel";
 import SessionRsvpAdmin, { type SessionPlayerRow } from "./SessionRsvpAdmin";
 import DeleteSessionButton from "./DeleteSessionButton";
 import MotDeLaSoiree from "./MotDeLaSoiree";
+import { calculerPresences, phraseEtat } from "@/lib/presences";
 import "./soiree.css";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export default async function SessionDetailPage({
   const md = await prisma.matchDay.findFirst({
     where: { id, clubId },
     include: {
-      rsvps: { select: { playerId: true, status: true, hasPaid: true } },
+      rsvps: { select: { playerId: true, status: true, hasPaid: true, respondedAt: true } },
       lineup: { select: { playerId: true, team: true } },
       matches: {
         orderBy: { playedAt: "asc" },
@@ -59,7 +60,7 @@ export default async function SessionDetailPage({
     prisma.player.findMany({
       where: { clubId, isArchived: false },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, photo: true, skill: true, isGk: true },
+      select: { id: true, name: true, photo: true, skill: true, isGk: true, abonne: true },
     }),
     prisma.player.findFirst({
       where: { clubId, userId: ctx.user.id },
@@ -69,15 +70,35 @@ export default async function SessionDetailPage({
 
   const campDe = new Map(md.lineup.map((l) => [l.playerId, l.team as "A" | "B"]));
   const rsvpByPlayer = new Map(md.rsvps.map((r) => [r.playerId, r]));
+  // Qui vient : réponses explicites, abonnements, seuil de confirmation et
+  // liste d'attente — une seule règle, partagée avec l'accueil et le
+  // calendrier (cf. lib/presences).
+  const presences = calculerPresences({
+    entrees: players.map((p) => ({
+      playerId: p.id,
+      reponse: rsvpByPlayer.get(p.id)?.status ?? null,
+      repondueLe: rsvpByPlayer.get(p.id)?.respondedAt ?? null,
+      abonne: p.abonne,
+    })),
+    creeeLe: md.createdAt,
+    minJoueurs: ctx.club.minJoueurs,
+    capacite: ctx.club.capaciteSoiree,
+    annulee: md.canceledAt != null,
+  });
+
   const rsvpRows: SessionPlayerRow[] = players.map((p) => ({
     playerId: p.id,
     name: p.name,
     photo: p.photo,
     status: rsvpByPlayer.get(p.id)?.status ?? null,
+    abonne: p.abonne,
+    enAttente: presences.lignes.get(p.id)?.enAttente ?? false,
     camp: campDe.get(p.id) ?? null,
   }));
+  // Le terrain se partage entre ceux qui JOUENT : un remplaçant sur la liste
+  // d'attente ne paie pas la place qu'il n'a pas eue.
   const payers = players
-    .filter((p) => rsvpByPlayer.get(p.id)?.status === "IN")
+    .filter((p) => presences.titulaires.includes(p.id))
     .map((p) => ({
       playerId: p.id,
       name: p.name,
@@ -189,6 +210,7 @@ export default async function SessionDetailPage({
           myPlayerId={myPlayer?.id ?? null}
           canManage={ctx.canManage}
           players={rsvpRows}
+          etat={{ statut: presences.etat.statut, phrase: phraseEtat(presences.etat) }}
           argent={
             <MoneyPanel
               mode="resume"

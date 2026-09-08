@@ -1,5 +1,6 @@
 import Link from "next/link";
 import * as D from "@/lib/dates";
+import { calculerPresences, phraseEtat } from "@/lib/presences";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { getLeaderboard } from "@/lib/stats";
@@ -96,6 +97,7 @@ export default async function ClubHomePage({
     myPlayer,
     lastLineup,
     classement,
+    vivier,
   ] = await Promise.all([
     prisma.match.findFirst({
       where: { clubId, status: "LIVE" },
@@ -119,7 +121,7 @@ export default async function ClubHomePage({
       orderBy: { date: "asc" },
       take: 2,
       include: {
-        rsvps: { select: { playerId: true, status: true } },
+        rsvps: { select: { playerId: true, status: true, respondedAt: true } },
         lineup: {
           where: { player: { isArchived: false } },
           select: {
@@ -186,6 +188,12 @@ export default async function ClubHomePage({
       },
     }),
     getLeaderboard({ clubId, seasonId: activeSeason?.id ?? null }),
+    // Le vivier, pour savoir qui est abonné : sans lui, une soirée à laquelle
+    // onze habitués viennent s'annonce « 1 présent ».
+    prisma.player.findMany({
+      where: { clubId, isArchived: false },
+      select: { id: true, abonne: true },
+    }),
   ]);
 
   const nextMatchDay = prochainesSoirees[0] ?? null;
@@ -361,6 +369,29 @@ export default async function ClubHomePage({
 
   // ── La bannière : ce soir, sinon la prochaine soirée ───────────────────
   const soireeBanniere = soireeDuJour ?? prochaineSoiree;
+  // L'état d'une soirée se calcule d'un seul endroit (lib/presences) : le
+  // compte brut des « IN » ignorait les abonnés, et affichait « 1 présent »
+  // pour une soirée à laquelle onze habitués venaient.
+  const etatDe = (md: {
+    createdAt: Date;
+    canceledAt: Date | null;
+    rsvps: { playerId: string; status: "IN" | "MAYBE" | "OUT"; respondedAt: Date }[];
+  }) =>
+    calculerPresences({
+      entrees: vivier.map((j) => {
+        const r = md.rsvps.find((x) => x.playerId === j.id);
+        return {
+          playerId: j.id,
+          reponse: r?.status ?? null,
+          repondueLe: r?.respondedAt ?? null,
+          abonne: j.abonne,
+        };
+      }),
+      creeeLe: md.createdAt,
+      minJoueurs: ctx.club.minJoueurs,
+      capacite: ctx.club.capaciteSoiree,
+      annulee: md.canceledAt != null,
+    }).etat;
   const presents = (md: { rsvps: { status: string }[] }) =>
     md.rsvps.filter((r) => r.status === "IN").length;
   const maReponse = (md: { rsvps: { playerId: string; status: "IN" | "MAYBE" | "OUT" }[] }) =>
@@ -619,7 +650,7 @@ export default async function ClubHomePage({
               ? `Ce soir ${heureFr(soireeDuJour.date)}${soireeDuJour.location ? ` — ${soireeDuJour.location}` : ""}.`
               : `${jourAbrege(soireeBanniere.date)} ${heureFr(soireeBanniere.date)}${soireeBanniere.location ? ` — ${soireeBanniere.location}` : ""}.`
           }
-          aide={`${presents(soireeBanniere)} présent${presents(soireeBanniere) > 1 ? "s" : ""} · ${
+          aide={`${phraseEtat(etatDe(soireeBanniere))} · ${
             maReponse(soireeBanniere) ? "Touchez pour la soirée." : "Touchez pour répondre."
           }`}
         />

@@ -8,6 +8,7 @@ import { nomsChasubles } from "@/lib/color";
 import { cn } from "@/lib/cn";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Ecusson from "@/components/ios/Ecusson";
+import Abonnement from "./Abonnement";
 import "../player.css";
 
 export const dynamic = "force-dynamic";
@@ -163,6 +164,14 @@ export default async function PlayerDetailPage({
           )}
 
           <section className="carte fiche-carte">
+            {(ctx.canManage || player.userId === ctx.user.id) && (
+              <Abonnement
+                slug={slug}
+                playerId={player.id}
+                initial={player.abonne}
+                nom={player.userId === ctx.user.id ? "Tu" : player.name}
+              />
+            )}
             <div className="fiche-ligne">
               <span className="l">Forme</span>
               <span className="forme">

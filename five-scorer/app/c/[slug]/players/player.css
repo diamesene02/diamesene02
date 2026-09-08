@@ -326,3 +326,13 @@
   color: var(--i3);
   margin-top: 2px;
 }
+
+.fiche-ligne .l .aide {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--i2);
+  max-width: 30ch;
+}

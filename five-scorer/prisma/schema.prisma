@@ -161,6 +161,16 @@ model Club {
   motmMode         MotmMode     @default(VOTE)
   /// Les membres (rôle member) peuvent-ils saisir en live ? Sinon admin+ uniquement.
   membersCanScore  Boolean      @default(true)
+  /// Combien de présents il faut pour que la soirée ait lieu.
+  ///
+  /// Une soirée n'avait que deux états : elle existait, ou elle avait été
+  /// jouée. Entre les deux, personne ne savait jamais si ça tenait — et la
+  /// question « on est combien ? » repartait sur WhatsApp chaque semaine.
+  minJoueurs       Int          @default(8)
+  /// Au-delà de combien de présents on ouvre une liste d'attente. 0 = jamais.
+  /// Un terrain de five tient dix ou douze joueurs ; le onzième doit savoir
+  /// qu'il est onzième AVANT de venir.
+  capaciteSoiree   Int          @default(12)
   /// Couleurs des chasubles — l'identité visuelle du club. L'app est
   /// neutre ; ce sont ces deux couleurs qui l'habillent (barres d'équipe,
   /// scores, classements). La variante lisible pour le texte est dérivée
@@ -209,6 +219,14 @@ model Player {
   skill      Int      @default(3)
   /// Gardien attitré (le générateur répartit les GK en premier).
   isGk       Boolean  @default(false)
+  /// « Je viens tous les lundis. »
+  ///
+  /// Le modèle demandait à chacun de se déclarer chaque semaine, ce que
+  /// personne ne fait : d'où quinze soirées à « 1 réponse ». Pour un groupe
+  /// d'habitués, la bonne question n'est pas « qui vient ? » mais « qui ne
+  /// peut pas ? ». Un abonné est compté présent tant qu'il n'a rien dit ;
+  /// une réponse explicite, dans un sens ou dans l'autre, gagne toujours.
+  abonne     Boolean  @default(false)
   isGuest    Boolean  @default(false)
   isArchived Boolean  @default(false)
   createdAt  DateTime @default(now())

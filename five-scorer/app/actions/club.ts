@@ -105,6 +105,8 @@ export type ClubSettingsInput = {
   colorB?: string;
   format?: SportFormat;
   matchDurationMin?: number;
+  minJoueurs?: number;
+  capaciteSoiree?: number;
   pointsWin?: number;
   pointsDraw?: number;
   trackAssists?: boolean;
@@ -144,6 +146,14 @@ export async function updateClubSettings(
       data: {
         ...(input.format && FORMATS.includes(input.format)
           ? { format: input.format }
+          : {}),
+        ...(input.minJoueurs !== undefined
+          ? { minJoueurs: clamp(input.minJoueurs, 2, 30) }
+          : {}),
+        // 0 = pas de liste d'attente : un club qui prend tout le monde et
+        // s'arrange sur place doit pouvoir le dire.
+        ...(input.capaciteSoiree !== undefined
+          ? { capaciteSoiree: clamp(input.capaciteSoiree, 0, 40) }
           : {}),
         ...(input.matchDurationMin !== undefined
           ? { matchDurationMin: clamp(input.matchDurationMin, 1, 120) }

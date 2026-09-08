@@ -3,6 +3,7 @@ import * as D from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { nomsChasubles } from "@/lib/color";
+import { calculerPresences, phraseEtat } from "@/lib/presences";
 import Onglets from "@/components/ios/Onglets";
 import Ecusson from "@/components/ios/Ecusson";
 import CalendrierForm from "./CalendrierForm";
@@ -42,13 +43,17 @@ export default async function SaisonPage({
   const active = saisons.find((s) => s.isActive) ?? saisons[0] ?? null;
   const saison = saisons.find((s) => s.id === sp.saison) ?? active;
 
-  const [moi, soirees, matchs, derniere] = await Promise.all([
+  const [moi, vivier, soirees, matchs, derniere] = await Promise.all([
     prisma.player.findFirst({ where: { clubId, userId: ctx.user.id }, select: { id: true } }),
+    prisma.player.findMany({
+      where: { clubId, isArchived: false },
+      select: { id: true, abonne: true },
+    }),
     prisma.matchDay.findMany({
       where: { clubId, ...(saison ? { seasonId: saison.id } : {}) },
       orderBy: { date: "asc" },
       include: {
-        rsvps: { select: { playerId: true, status: true } },
+        rsvps: { select: { playerId: true, status: true, respondedAt: true } },
         lineup: { select: { playerId: true } },
         matches: { select: { id: true, status: true, scoreA: true, scoreB: true, kind: true } },
       },
@@ -113,7 +118,23 @@ export default async function SaisonPage({
         href = `/c/${slug}/matches/new?md=${md.id}&joue=1`;
       }
     } else {
-      sous = [md.location, `${reponses} réponse${reponses > 1 ? "s" : ""}`, md.lineup.length ? "équipes prêtes" : "équipes à préparer"]
+      // « 3 réponses » ne dit pas si la soirée tient. L'état, oui — et il
+      // compte les abonnés, qui n'ont rien à répondre (cf. lib/presences).
+      const etat = calculerPresences({
+        entrees: vivier.map((j) => {
+          const r = md.rsvps.find((x) => x.playerId === j.id);
+          return {
+            playerId: j.id,
+            reponse: r?.status ?? null,
+            repondueLe: r?.respondedAt ?? null,
+            abonne: j.abonne,
+          };
+        }),
+        creeeLe: md.createdAt,
+        minJoueurs: ctx.club.minJoueurs,
+        capacite: ctx.club.capaciteSoiree,
+      }).etat;
+      sous = [md.location, phraseEtat(etat), md.lineup.length ? "équipes prêtes" : "équipes à préparer"]
         .filter(Boolean)
         .join(" · ");
       // « Répondre » n'appelle que pour les deux prochaines semaines : sur un

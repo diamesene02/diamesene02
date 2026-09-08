@@ -356,6 +356,7 @@ export type PlayerDetail = {
     isGuest: boolean;
     skill: number;
     isGk: boolean;
+    abonne: boolean;
     userId: string | null;
   };
   allTime: LeaderboardRow | null;
@@ -386,6 +387,7 @@ export async function getPlayerDetail(
       name: true,
       nickname: true,
       photo: true,
+      abonne: true,
       isGuest: true,
       skill: true,
       isGk: true,

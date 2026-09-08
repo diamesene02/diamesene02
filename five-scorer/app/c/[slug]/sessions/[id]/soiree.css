@@ -471,3 +471,32 @@
   font-size: 13px;
   color: var(--i2);
 }
+
+/* ── L'état de la soirée : est-ce que ça tient ? ───────────────────────── */
+.soiree-etat {
+  margin: 0 4px 4px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+.soiree-etat.confirmee {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.soiree-etat.en-attente {
+  color: var(--or);
+  background: color-mix(in srgb, var(--or) 14%, transparent);
+}
+.soiree-etat.annulee {
+  color: var(--i2);
+  background: var(--seg);
+}
+.soiree-rangee .statut .via {
+  color: var(--i3);
+  font-weight: 400;
+}
+.soiree-rangee .statut.attente {
+  color: var(--or);
+}

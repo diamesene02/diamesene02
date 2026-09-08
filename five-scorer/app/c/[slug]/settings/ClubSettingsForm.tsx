@@ -22,6 +22,8 @@ type Values = {
   colorB: string;
   format: Format;
   matchDurationMin: number;
+  minJoueurs: number;
+  capaciteSoiree: number;
   pointsWin: number;
   pointsDraw: number;
   trackAssists: boolean;
@@ -222,6 +224,53 @@ export default function ClubSettingsForm({
           <span className="libelle">Apparence</span>
           <ThemeSwitch initial={theme} />
         </div>
+      </section>
+
+      {/* LA SOIRÉE TIENT-ELLE ?
+          Une soirée n'avait que deux états : elle existait, ou elle avait été
+          jouée. Entre les deux, la question « on est combien ? » repartait sur
+          WhatsApp chaque semaine. */}
+      <div className="section-ios">La soirée</div>
+      <section className="carte">
+        <label className="rangee-ios">
+          <span className="libelle">
+            Il faut au moins
+            <span className="aide">
+              En dessous, la soirée s&apos;annonce comme menacée.
+            </span>
+          </span>
+          <input
+            className="reg-champ court"
+            type="number"
+            min={2}
+            max={30}
+            value={values.minJoueurs}
+            onChange={(e) => taper("minJoueurs", Number(e.target.value) || 2)}
+            onBlur={() => valider("minJoueurs")}
+            aria-label="Nombre minimum de joueurs pour que la soirée ait lieu"
+          />
+          <span className="valeur">joueurs</span>
+        </label>
+        <label className="rangee-ios">
+          <span className="libelle">
+            Le terrain tient
+            <span className="aide">
+              Au-delà, les suivants passent en liste d&apos;attente. 0 pour ne
+              jamais limiter.
+            </span>
+          </span>
+          <input
+            className="reg-champ court"
+            type="number"
+            min={0}
+            max={40}
+            value={values.capaciteSoiree}
+            onChange={(e) => taper("capaciteSoiree", Number(e.target.value) || 0)}
+            onBlur={() => valider("capaciteSoiree")}
+            aria-label="Capacité de la soirée"
+          />
+          <span className="valeur">joueurs</span>
+        </label>
       </section>
 
       <div className="section-ios">Match</div>

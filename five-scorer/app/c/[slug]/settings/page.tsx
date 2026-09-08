@@ -61,6 +61,8 @@ export default async function SettingsPage({
           colorB: ctx.club.colorB,
           format: ctx.club.format,
           matchDurationMin: ctx.club.matchDurationMin,
+          minJoueurs: ctx.club.minJoueurs,
+          capaciteSoiree: ctx.club.capaciteSoiree,
           pointsWin: ctx.club.pointsWin,
           pointsDraw: ctx.club.pointsDraw,
           trackAssists: ctx.club.trackAssists,

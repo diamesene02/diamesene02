@@ -12,9 +12,18 @@ export type SessionPlayerRow = {
   name: string;
   photo?: string | null;
   status: RsvpStatus | null; // null = sans réponse
+  /// « Je viens tous les lundis » : compté présent tant qu'il n'a rien dit.
+  abonne?: boolean;
+  /// Au-delà de la capacité du terrain, les derniers engagés attendent.
+  enAttente?: boolean;
   /// Le camp dans la compo de la soirée : donne la couleur de l'anneau.
   camp?: "A" | "B" | null;
 };
+
+/// Le statut RETENU : une réponse explicite gagne toujours sur l'abonnement.
+function effectif(r: SessionPlayerRow): RsvpStatus | null {
+  return r.status ?? (r.abonne ? "IN" : null);
+}
 
 const LIBELLES: Record<RsvpStatus, string> = {
   IN: "Présent",
@@ -43,12 +52,17 @@ export default function SessionRsvpAdmin({
   canManage,
   players,
   argent,
+  etat,
 }: {
   slug: string;
   matchDayId: string;
   myPlayerId: string | null;
   canManage: boolean;
   players: SessionPlayerRow[];
+  /// L'état de la soirée, calculé côté serveur : « confirmée », « il en
+  /// manque 3 ». Une soirée n'avait que deux états — elle existait, ou elle
+  /// avait été jouée. Entre les deux, personne ne savait si ça tenait.
+  etat?: { statut: "annulee" | "confirmee" | "en-attente"; phrase: string };
   /// « 48 € · 5,33 € chacun » — rendu par MoneyPanel, posé à droite du compte.
   argent?: React.ReactNode;
 }) {
@@ -58,9 +72,10 @@ export default function SessionRsvpAdmin({
   const [error, setError] = useState<string | null>(null);
   const [deplie, setDeplie] = useState(false);
 
-  const mine = myPlayerId
-    ? rows.find((r) => r.playerId === myPlayerId)?.status ?? null
+  const moiLigne = myPlayerId
+    ? (rows.find((r) => r.playerId === myPlayerId) ?? null)
     : null;
+  const mine = moiLigne ? effectif(moiLigne) : null;
 
   function apply(playerId: string, status: RsvpStatus) {
     setError(null);
@@ -77,20 +92,28 @@ export default function SessionRsvpAdmin({
     });
   }
 
-  const presents = rows.filter((r) => r.status === "IN").length;
-  const absents = rows.filter((r) => r.status === "OUT").length;
-  const peutEtre = rows.filter((r) => r.status === "MAYBE").length;
+  // « Présents » = ceux qui JOUENT. Compter les remplaçants avec eux donnait
+  // « 10 présents » au-dessus de « complet à 6 » : deux chiffres qui se
+  // contredisent sur la même carte.
+  const presents = rows.filter((r) => effectif(r) === "IN" && !r.enAttente).length;
+  const enAttente = rows.filter((r) => effectif(r) === "IN" && r.enAttente).length;
+  const absents = rows.filter((r) => effectif(r) === "OUT").length;
+  const peutEtre = rows.filter((r) => effectif(r) === "MAYBE").length;
 
   const tries = [...rows].sort((a, b) => {
     if (a.playerId === myPlayerId) return -1;
     if (b.playerId === myPlayerId) return 1;
-    return ORDRE[a.status ?? "none"] - ORDRE[b.status ?? "none"];
+    // Les remplaçants après les titulaires, quel que soit leur statut.
+    if (!!a.enAttente !== !!b.enAttente) return a.enAttente ? 1 : -1;
+    return ORDRE[effectif(a) ?? "none"] - ORDRE[effectif(b) ?? "none"];
   });
   const VISIBLES = 4;
   const visibles = deplie ? tries : tries.slice(0, VISIBLES);
   const caches = tries.slice(VISIBLES);
-  const cachesIn = caches.filter((r) => r.status === "IN").length;
-  const cachesNone = caches.filter((r) => r.status === null).length;
+  const cachesIn = caches.filter(
+    (r) => effectif(r) === "IN" && !r.enAttente,
+  ).length;
+  const cachesNone = caches.filter((r) => effectif(r) === null).length;
   const libelleAutres =
     caches.length === cachesIn
       ? `et ${caches.length} autre${caches.length > 1 ? "s" : ""} présent${caches.length > 1 ? "s" : ""}`
@@ -100,6 +123,7 @@ export default function SessionRsvpAdmin({
 
   const compte = [
     `${presents} présent${presents > 1 ? "s" : ""}`,
+    enAttente > 0 ? `${enAttente} en attente` : null,
     peutEtre > 0 ? `${peutEtre} peut-être` : null,
     `${absents} absent${absents > 1 ? "s" : ""}`,
   ]
@@ -140,6 +164,9 @@ export default function SessionRsvpAdmin({
         <span>{compte}</span>
         {argent && <span className="argent">{argent}</span>}
       </div>
+      {etat && (
+        <div className={`soiree-etat ${etat.statut}`}>{etat.phrase}</div>
+      )}
       {error && <p className="soiree-erreur">{error}</p>}
 
       {visibles.map((p) => {
@@ -154,13 +181,22 @@ export default function SessionRsvpAdmin({
             <span
               className={cn(
                 "statut",
-                p.status === "IN" && "in",
-                p.status === "OUT" && "out",
-                p.status === "MAYBE" && "maybe",
-                !p.status && "none",
+                effectif(p) === "IN" && "in",
+                effectif(p) === "OUT" && "out",
+                effectif(p) === "MAYBE" && "maybe",
+                !effectif(p) && "none",
+                p.enAttente && "attente",
               )}
             >
-              {p.status ? LIBELLES[p.status] : "—"}
+              {p.enAttente
+                ? "En attente"
+                : effectif(p)
+                  ? LIBELLES[effectif(p)!]
+                  : "—"}
+              {/* Un abonné n'a rien répondu : le lui faire croire serait
+                  mentir, et l'empêcherait de se désister le jour où il ne
+                  peut pas. */}
+              {!p.status && p.abonne && <span className="via"> · abonné</span>}
             </span>
           </>
         );

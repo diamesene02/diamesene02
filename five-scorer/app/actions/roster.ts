@@ -14,6 +14,8 @@ export type PlayerInput = {
   /// Data-URL JPEG carrée, réduite sur l'appareil (cf. PhotoJoueur).
   /// `null` retire la photo.
   photo?: string | null;
+  /// « Je viens tous les lundis » (cf. lib/presences).
+  abonne?: boolean;
 };
 
 /// La photo arrive du client : on ne la croit pas sur parole.
@@ -43,7 +45,37 @@ function sanitize(input: PlayerInput) {
     ...(input.photo !== undefined
       ? { photo: input.photo && photoValide(input.photo) ? input.photo : null }
       : {}),
+    ...(input.abonne !== undefined ? { abonne: input.abonne } : {}),
   };
+}
+
+/// S'abonner aux lundis, ou s'en désabonner.
+///
+/// Séparé de `updatePlayer`, qui est réservé aux admins : c'est une décision
+/// PERSONNELLE. Chacun doit pouvoir dire « je viens tous les lundis » pour
+/// lui-même sans passer par le capitaine — sinon on retombe sur une seule
+/// personne qui gère les quinze, ce que ce réglage sert justement à éviter.
+export async function setAbonnement(
+  slug: string,
+  playerId: string,
+  abonne: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!idsValides(playerId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+  const ctx = await requireClub(slug);
+  const joueur = await prisma.player.findFirst({
+    where: { id: playerId, clubId: ctx.club.id },
+    select: { id: true, userId: true },
+  });
+  if (!joueur) return { ok: false, error: "Joueur introuvable." };
+  if (joueur.userId !== ctx.user.id && !ctx.canManage) {
+    return { ok: false, error: "Tu ne peux régler que ton propre abonnement." };
+  }
+  await prisma.player.update({ where: { id: playerId }, data: { abonne } });
+  revalidatePath(`/c/${slug}`);
+  revalidatePath(`/c/${slug}/players/${playerId}`);
+  return { ok: true };
 }
 
 export async function addPlayer(
