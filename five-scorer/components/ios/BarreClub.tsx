@@ -43,7 +43,7 @@ export default function BarreClub(props: {
       {accueil ? (
         <Link href={base} className="flex min-w-0 flex-1 items-center gap-2">
           <Ecusson camp="A" lettre="F" taille={34} style={{ borderRadius: 9 }} />
-          <span className="truncate text-[30px] font-bold leading-none tracking-[-.5px] text-[color:var(--ink)]">
+          <span className="truncate text-[26px] font-bold leading-none tracking-[-.5px] text-[color:var(--ink)]">
             Five Scorer
           </span>
         </Link>
@@ -65,7 +65,7 @@ export default function BarreClub(props: {
           </svg>
         </button>
       )}
-      <div className="flex flex-none items-center gap-3" style={{ maxWidth: "46%" }}>
+      <div className="flex flex-none items-center gap-3" style={{ maxWidth: "44%" }}>
         <SyncBadge compact />
         <MenuClub {...props} />
       </div>

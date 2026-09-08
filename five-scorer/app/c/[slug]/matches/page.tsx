@@ -121,8 +121,8 @@ export default async function MatchesPage({
     cn(
  "inline-flex min-h-[44px] items-center rounded-[2px] border px-4 text-[13px] font-semibold transition-colors",
       active
-        ? "border-transparent bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
-        : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)] hover:text-white",
+        ? "border-transparent bg-[color:var(--bt)] text-[color:var(--bf)]"
+        : "border-[color:var(--gb)] bg-[color:var(--gl)] text-[color:var(--ink)]",
     );
 
   return (

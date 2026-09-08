@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import PlayerAvatar from "@/components/PlayerAvatar";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Icon from "@/components/Icon";
 import {
   addPlayer,
@@ -140,14 +140,14 @@ function PlayerForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-[2px] bg-[color:var(--ink-1)] px-5 py-2 text-sm font-black text-[color:var(--pitch-0)] disabled:opacity-50"
+          className="plein"
         >
           {pending ? "…" : submitLabel}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-5 py-2 text-sm font-bold text-[color:var(--ink-1)] hover:text-white"
+          className="verre grand"
         >
           Annuler
         </button>
@@ -211,15 +211,15 @@ export default function RosterClient({
             setEditingId(null);
             setFormError(null);
           }}
-          className="rounded-[2px] bg-[color:var(--ink-1)] px-5 py-2.5 text-sm font-black text-[color:var(--pitch-0)] transition-transform hover:scale-[1.02]"
+          className="plein w-full"
         >
           Ajouter un joueur
         </button>
       )}
 
       {canManage && showAdd && (
-        <div className="rounded-none border border-[color:var(--rule-hi)] bg-[color:var(--pitch-1)] p-4">
-          <h2 className="kicker mb-3">Nouveau joueur</h2>
+        <div className="carte" style={{ padding: "16px 18px 18px" }}>
+          <h2 className="carte-titre" style={{ padding: "0 0 12px" }}>Nouveau joueur</h2>
           <PlayerForm
             initial={{ name: "", nickname: "", skill: 3, isGk: false }}
             submitLabel="Ajouter"
@@ -247,11 +247,12 @@ export default function RosterClient({
         <p className="mt-4 text-sm text-[color:var(--loss)]">{listError}</p>
       )}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className="carte mt-4" style={{ padding: "0 18px" }}>
         {active.map((p) => (
           <div
             key={p.id}
-            className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4 transition-colors hover:border-[color:var(--rule-hi)]"
+            className="border-t py-3 first:border-t-0"
+            style={{ borderColor: "var(--sep)" }}
           >
             {editingId === p.id ? (
               <PlayerForm
@@ -286,7 +287,7 @@ export default function RosterClient({
                     href={`/c/${slug}/players/${p.id}`}
                     className="group flex min-w-0 flex-1 items-center gap-3"
                   >
-                    <PlayerAvatar name={p.name} id={p.id} size="md" />
+                    <AvatarAnneau nom={p.name} taille={44} />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-base font-black transition-colors group-hover:text-[color:var(--ink-1)]">
@@ -315,7 +316,8 @@ export default function RosterClient({
                         setShowAdd(false);
                         setFormError(null);
                       }}
-                      className="shrink-0 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-2)] transition-colors hover:text-[color:var(--ink-1)]"
+                      className="verre shrink-0"
+                      style={{ height: 36, fontSize: 15, padding: "0 14px" }}
                     >
                       Modifier
                     </button>
@@ -325,15 +327,10 @@ export default function RosterClient({
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Stars skill={p.skill} />
                   {p.isGuest && (
-                    <span className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 py-0.5 text-[13px] font-semibold text-[color:var(--ink-1)]">
-                      invité
-                    </span>
+                    <span className="text-[13px]" style={{ color: "var(--i2)" }}>· invité</span>
                   )}
                   {p.isLinked && (
-                    <span className="inline-flex items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-2 py-0.5 text-[13px] font-semibold text-[color:var(--bib-a-ink)]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--bib-a)]" />
-                      compte lié
-                    </span>
+                    <span className="text-[13px]" style={{ color: "var(--ok)" }}>· compte lié</span>
                   )}
                 </div>
 
@@ -344,14 +341,15 @@ export default function RosterClient({
 
                 {(canManage ||
                   (!hasLinkedPlayer && !p.isLinked && !p.isGuest)) && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t border-[color:var(--rule)] pt-3">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     {!hasLinkedPlayer && !p.isLinked && !p.isGuest && (
                       <button
                         onClick={() =>
                           runList(() => linkPlayerToUser(slug, p.id, userId))
                         }
                         disabled={isPending}
-                        className="rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-black text-[color:var(--ink-1)] disabled:opacity-50"
+                        className="plein"
+                        style={{ height: 36, fontSize: 15, padding: "0 14px" }}
                       >
                         C&apos;est moi
                       </button>
@@ -362,7 +360,8 @@ export default function RosterClient({
                           runList(() => setPlayerArchived(slug, p.id, true))
                         }
                         disabled={isPending}
-                        className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] hover:text-white disabled:opacity-50"
+                        className="verre"
+                        style={{ height: 36, fontSize: 15, padding: "0 14px" }}
                       >
                         Archiver
                       </button>
@@ -387,17 +386,17 @@ export default function RosterClient({
           <summary className="kicker cursor-pointer select-none">
             Archivés ({archived.length})
           </summary>
-          <ul className="mt-3 divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)]">
+          <ul className="carte mt-3" style={{ padding: "0 18px" }}>
             {archived.map((p) => (
               <li
                 key={p.id}
-                className="flex items-center justify-between gap-3 px-4 py-3"
+                className="flex items-center justify-between gap-3 border-t py-3 first:border-t-0" style={{ borderColor: "var(--sep)" }}
               >
                 <Link
                   href={`/c/${slug}/players/${p.id}`}
                   className="flex min-w-0 flex-1 items-center gap-2 text-sm font-bold text-[color:var(--ink-2)] transition-colors hover:text-[color:var(--ink-1)]"
                 >
-                  <PlayerAvatar name={p.name} id={p.id} size="sm" />
+                  <AvatarAnneau nom={p.name} taille={30} />
                   <span className="truncate">{p.name}</span>
                   {p.isGk && (
                     <Icon
@@ -417,7 +416,8 @@ export default function RosterClient({
                       runList(() => setPlayerArchived(slug, p.id, false))
                     }
                     disabled={isPending}
-                    className="rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-1 text-xs font-bold text-[color:var(--ink-1)] hover:text-white disabled:opacity-50"
+                    className="verre"
+                    style={{ height: 36, fontSize: 15, padding: "0 14px" }}
                   >
                     Réactiver
                   </button>

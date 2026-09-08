@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import ScheduleMatchForm from "./ScheduleMatchForm";
+import { nomsChasubles } from "@/lib/color";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function ScheduleMatchPage({
     <main className="mx-auto max-w-2xl">
       <span className="kicker">Convocation</span>
       <h1 className="display-md mt-1 mb-6">Programmer un match</h1>
-      <ScheduleMatchForm slug={slug} opponents={opponents} />
+      <ScheduleMatchForm slug={slug} opponents={opponents} nomsParDefaut={nomsChasubles(ctx.club.colorA, ctx.club.colorB)} />
     </main>
   );
 }

@@ -3171,3 +3171,17 @@
 [data-club-theme] .compo-barre {
   border-radius: 3px;
 }
+
+/* Les restes carrés de l'ancienne version (rayon 0 ou 2 px) deviennent des
+   pilules et des cartes : un seul remap plutôt que trente-neuf fichiers. */
+[data-club-theme] [class~="rounded-[2px]"],
+[data-club-theme] .rounded-none {
+  border-radius: 22px;
+}
+[data-club-theme] [class~="rounded-[2px]"]:is(input, select, textarea),
+[data-club-theme] .rounded-none:is(input, select, textarea) {
+  border-radius: 14px;
+}
+[data-club-theme] .rounded-3xl {
+  border-radius: 28px;
+}

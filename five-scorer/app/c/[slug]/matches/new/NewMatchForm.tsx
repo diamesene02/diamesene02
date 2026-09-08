@@ -16,6 +16,8 @@ import { balanceTeams } from "@/lib/balance";
 import { createOpponent } from "@/app/actions/opponents";
 import SyncBadge from "@/components/SyncBadge";
 import Icon from "@/components/Icon";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
+import LigneScore from "@/components/ios/LigneScore";
 
 type Assignment = "none" | "A" | "B";
 type Mode = "INTERNAL" | "EXTERNAL";
@@ -247,73 +249,48 @@ export default function NewMatchForm({
     team.reduce((s, p) => s + (p.skill ?? 3), 0);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         {scheduled ? (
           // Match programmé : le mode est figé par la convocation.
-          <span className="rounded-[2px] border border-[color:var(--bib-b-ink)]/40 bg-[color:var(--pitch-2)] px-3.5 py-2 text-[13px] font-semibold text-[color:var(--bib-b-ink)]">
-            Match programmé ·{" "}
-            {scheduled.kind === "INTERNAL" ? "Entre nous" : "Vs adversaire"}
+          <span className="verre" style={{ color: "var(--i2)" }}>
+            Match programmé · {scheduled.kind === "INTERNAL" ? "Entre nous" : "Vs adversaire"}
           </span>
         ) : (
-          <div className="flex gap-1 rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-1">
+          <div className="segment" role="radiogroup" aria-label="Type de match">
             {(
               [
                 ["INTERNAL", "Entre nous"],
                 ["EXTERNAL", "Vs adversaire"],
               ] as const
             ).map(([m, label]) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={cn(
- "min-h-[44px] rounded-[2px] px-3.5 text-[13px] font-semibold transition-colors",
-                  mode === m
-                    ? "bg-[color:var(--ink-1)] text-[color:var(--pitch-0)]"
-                    : "text-[color:var(--ink-1)] hover:text-white"
-                )}
-              >
+              <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={cn(mode === m && "actif")}>
                 {label}
               </button>
             ))}
           </div>
         )}
-        <SyncBadge />
+        <SyncBadge compact />
       </div>
 
       {mode === "INTERNAL" ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="kicker">Équipe A</span>
-            <input
-              value={teamAName}
-              onChange={(e) => setTeamAName(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--bib-a)]"
-            />
-          </label>
-          <label className="block">
-            <span className="kicker">Équipe B</span>
-            <input
-              value={teamBName}
-              onChange={(e) => setTeamBName(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--b-500)]"
-            />
-          </label>
+        <div className="carte" style={{ padding: "6px 0 14px" }}>
+          <LigneScore nomA={teamAName || "A"} nomB={teamBName || "B"} scoreA={teamA.length} scoreB={teamB.length} etat="Effectif" heure="joueurs par équipe" />
+          <div className="grid grid-cols-2 gap-2.5" style={{ padding: "0 14px" }}>
+            <input value={teamAName} onChange={(e) => setTeamAName(e.target.value)} aria-label="Nom de la première équipe" className="w-full" />
+            <input value={teamBName} onChange={(e) => setTeamBName(e.target.value)} aria-label="Nom de la seconde équipe" className="w-full" />
+          </div>
         </div>
       ) : (
-        <div className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4">
+        <div className="carte" style={{ padding: "16px 18px 18px" }}>
           <span className="kicker">Adversaire</span>
           <div className="mt-2 flex flex-wrap gap-2">
             {opponents.map((o) => (
               <button
                 key={o.id}
                 onClick={() => setOpponentId(o.id)}
-                className={cn(
- "inline-flex min-h-[44px] items-center rounded-[2px] border px-4 text-sm font-bold transition-colors",
-                  opponentId === o.id
-                    ? "border-[color:var(--bib-b-ink)] bg-[color:var(--pitch-2)] text-[color:var(--bib-b-ink)]"
-                    : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)]"
-                )}
+                className={cn(opponentId === o.id ? "plein" : "verre")}
+                style={{ height: 44 }}
               >
                 {o.name}
               </button>
@@ -324,12 +301,9 @@ export default function NewMatchForm({
               value={newOpponent}
               onChange={(e) => setNewOpponent(e.target.value)}
               placeholder="Nouvelle équipe adverse…"
-              className="min-h-[44px] flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm outline-none focus:border-[color:var(--b-500)]"
+              className="min-w-0 flex-1"
             />
-            <button
-              onClick={addOpponent}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 text-sm font-bold hover:border-[color:var(--bib-b-ink)]"
-            >
+            <button onClick={addOpponent} className="verre grand">
               <Icon name="plus" size={14} />
               Ajouter
             </button>
@@ -337,103 +311,48 @@ export default function NewMatchForm({
         </div>
       )}
 
-      <div>
-        <div className="mb-2 flex items-baseline justify-between">
-          <h2 className="kicker">
-            {mode === "INTERNAL"
-              ? "Joueurs — tape pour assigner : aucun → A → B"
-              : "Qui joue ? — tape pour sélectionner"}
+      <div className="carte" style={{ padding: "0 18px 6px" }}>
+        <div className="flex items-baseline justify-between" style={{ padding: "16px 0 6px" }}>
+          <h2 className="kicker" style={{ color: "var(--ink)" }}>
+            {mode === "INTERNAL" ? "Qui joue ? — tape : aucun → A → B" : "Qui joue ? — tape pour sélectionner"}
           </h2>
-          <span className="text-xs font-bold tabular-nums text-[color:var(--ink-2)]">
-            {selected.length} sélectionné·s
+          <span className="text-[15px] tabular-nums" style={{ color: "var(--i2)" }}>
+            {selected.length}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {sortedPlayers.map((p) => {
-            const a = assignments[p.id] ?? "none";
-            return (
-              <button
-                key={p.id}
-                onClick={() => cycle(p.id)}
-                className={cn(
- "big-touch rounded-none border px-3 py-3 text-left transition",
-                  a === "none" &&
- "border-[color:var(--rule)] bg-[color:var(--pitch-1)]",
-                  a === "A" &&
- "border-[color:var(--bib-a)] bg-[color:var(--pitch-2)]",
-                  a === "B" &&
- "border-[color:var(--bib-b-ink)] bg-[color:var(--pitch-2)]"
-                )}
-              >
-                <div className="flex items-center justify-between font-semibold">
-                  <span className="truncate">
-                    {p.name}
-                    {p.isGuest && (
-                      <span className="ml-1 text-xs text-[color:var(--ink-2)]">
-                        (inv.)
-                      </span>
-                    )}
-                  </span>
-                  {p.isGk && (
-                    <Icon
-                      name="glove"
-                      size={14}
-                      label="Gardien"
-                      className="shrink-0 text-[color:var(--ink-2)]"
-                    />
-                  )}
-                </div>
-                <div className="mt-0.5 flex items-center justify-between text-xs text-[color:var(--ink-1)]">
-                  <span>
-                    {a === "none"
-                      ? "—"
-                      : mode === "EXTERNAL"
-                        ? "Joue"
-                        : a === "A"
-                          ? teamAName
-                          : teamBName}
-                  </span>
-                  {/* Le glyphe ★ n'existe pas dans Archivo : il basculerait
-                      en police système. On dessine les étoiles. */}
-                  <span
-                    className="flex items-center gap-0.5 text-[color:var(--ink-3)]"
-                    role="img"
-                    aria-label={`Niveau ${p.skill ?? 3} sur 5`}
-                  >
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <Icon
-                        key={n}
-                        name="star"
-                        size={9}
-                        filled={n <= (p.skill ?? 3)}
-                        className={n <= (p.skill ?? 3) ? "" : "opacity-35"}
-                      />
-                    ))}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {sortedPlayers.map((p) => {
+          const a = assignments[p.id] ?? "none";
+          const camp = a === "A" ? "A" : a === "B" ? "B" : null;
+          return (
+            <button key={p.id} type="button" onClick={() => cycle(p.id)} className="rangee-ios" aria-pressed={a !== "none"} style={{ minHeight: 56, cursor: "pointer" }}>
+              <AvatarAnneau nom={p.name} camp={camp} />
+              <span className="libelle">
+                <span style={{ fontWeight: a === "none" ? 400 : 600, color: a === "none" ? "var(--i2)" : "var(--ink)" }}>
+                  {p.name}
+                  {p.isGuest && <span style={{ color: "var(--i3)" }}> (inv.)</span>}
+                  {p.isGk && <span style={{ color: "var(--i3)" }}> · gardien</span>}
+                </span>
+                <span className="aide">Niveau {p.skill ?? 3}</span>
+              </span>
+              <span className="valeur" style={{ fontWeight: 600, color: a === "none" ? "var(--i3)" : "var(--ink)" }}>
+                {a === "none" ? "—" : mode === "EXTERNAL" ? "Joue" : a === "A" ? teamAName : teamBName}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {mode === "INTERNAL" && selected.length >= 2 && (
-        <div className="rounded-none border border-[color:var(--ink-1)]/30 bg-[color:var(--ink-2)] p-4">
+        <div className="carte" style={{ padding: "16px 18px" }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-black">
-                Générateur d&apos;équipes équilibrées
-              </div>
-              <div className="mt-0.5 text-xs text-[color:var(--ink-1)]">
-                Répartit les {selected.length} sélectionnés selon leur niveau
-                (et sépare les gardiens).
+            <div className="min-w-0">
+              <div className="text-[17px] font-semibold">Équipes équilibrées</div>
+              <div className="text-[13px]" style={{ color: "var(--i2)" }}>
+                Répartit les {selected.length} sélectionnés selon leur niveau, gardiens séparés.
               </div>
             </div>
-            <button
-              onClick={() => generateTeams()}
-              className="inline-flex min-h-[44px] items-center rounded-[2px] bg-[color:var(--ink-1)] px-5 text-sm font-black text-[color:var(--pitch-0)] transition-transform hover:scale-[1.03]"
-            >
-              {drawn ? "Re-tirer" : "Équilibrer"}
+            <button onClick={() => generateTeams()} className="verre grand">
+              {drawn ? "Retirer au sort" : "Équilibrer"}
             </button>
           </div>
           {teamA.length > 0 && teamB.length > 0 && (
@@ -453,7 +372,7 @@ export default function NewMatchForm({
         </div>
       )}
 
-      <div className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4">
+      <div className="carte" style={{ padding: "16px 18px 18px" }}>
         <h3 className="kicker mb-2">Ajouter un invité</h3>
         <div className="flex gap-2">
           <input
@@ -461,12 +380,9 @@ export default function NewMatchForm({
             onChange={(e) => setGuestName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addGuest()}
             placeholder="Nom de l'invité"
-            className="min-h-[44px] flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2 outline-none focus:border-[color:var(--ink-1)]"
+            className="min-w-0 flex-1"
           />
-          <button
-            onClick={addGuest}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 font-bold hover:border-[color:var(--ink-1)]"
-          >
+          <button onClick={addGuest} className="verre grand">
             <Icon name="plus" size={14} />
             Invité
           </button>
@@ -486,9 +402,10 @@ export default function NewMatchForm({
       <button
         onClick={startMatch}
         disabled={loading}
-        className="w-full rounded-none bg-[color:var(--ink-1)] py-5 text-xl font-black text-[color:var(--pitch-0)] disabled:opacity-50"
+        className="plein w-full"
+        style={{ height: 56, fontSize: 19 }}
       >
-        {loading ? "Création…" : "Lancer le match"}
+        {loading ? "Création…" : "Coup d'envoi"}
       </button>
     </div>
   );

@@ -18,9 +18,12 @@ function toLocalInput(d: Date) {
 export default function ScheduleMatchForm({
   slug,
   opponents,
+  nomsParDefaut = { a: "Blanc", b: "Noir" },
 }: {
   slug: string;
   opponents: { id: string; name: string }[];
+  /// Les noms d'équipe se déduisent des chasubles du club.
+  nomsParDefaut?: { a: string; b: string };
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -28,8 +31,8 @@ export default function ScheduleMatchForm({
   const [mode, setMode] = useState<Mode>("INTERNAL");
   const [date, setDate] = useState("");
   const [venue, setVenue] = useState("");
-  const [teamAName, setTeamAName] = useState("Blanc");
-  const [teamBName, setTeamBName] = useState("Noir");
+  const [teamAName, setTeamAName] = useState(nomsParDefaut.a);
+  const [teamBName, setTeamBName] = useState(nomsParDefaut.b);
   const [opponentId, setOpponentId] = useState<string>(opponents[0]?.id ?? "");
   const [newOpponent, setNewOpponent] = useState("");
   const [error, setError] = useState<string | null>(null);
