@@ -1,0 +1,599 @@
+/* Le live scoring — la feuille sombre de la maquette (tour 4, « Live »).
+   Préfixe .live- ; le fond et ses jetons viennent de .fond-match. */
+
+.live {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  animation: fsIn 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.live-barre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px 0;
+}
+.live-barre .legende {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.62);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+}
+.live-barre .droite {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* La zone du score et l'éclair du but */
+.live-tete {
+  position: relative;
+  flex: none;
+}
+.live-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.live-flash.A {
+  background: linear-gradient(90deg, var(--taH), transparent 60%);
+}
+.live-flash.B {
+  background: linear-gradient(270deg, var(--tbH), transparent 60%);
+}
+.live-flash.joue {
+  animation: liveFlash 680ms ease-out both;
+}
+@keyframes liveFlash {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.live-marque {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 10px 24px 0;
+}
+.live-chiffre {
+  font-size: 132px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.live-chiffre.perd {
+  color: rgba(255, 255, 255, 0.4);
+}
+.live-milieu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+}
+.live-milieu .etat {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #ff453a;
+  white-space: nowrap;
+}
+.live-milieu .etat::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff453a;
+}
+.live-milieu .etat.pause {
+  color: rgba(255, 255, 255, 0.7);
+}
+.live-milieu .etat.pause::before {
+  background: rgba(255, 255, 255, 0.5);
+}
+.live-milieu .horloge {
+  font-size: 17px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+.live-milieu .horloge.depasse {
+  color: #ff453a;
+}
+.live-milieu .periode {
+  border: 0;
+  background: none;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+.live-equipes {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px 24px 0;
+}
+.live-equipe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.live-equipe .ecusson {
+  width: 76px;
+  height: 76px;
+  font-size: 30px;
+  box-shadow:
+    inset 0 0 0 5px rgba(255, 255, 255, 0.3),
+    0 8px 18px rgba(0, 0, 0, 0.4);
+}
+.live-equipe .nom {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-buteurs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 10px 26px 0;
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: 52px;
+}
+.live-buteurs > div {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.live-buteurs > div.B {
+  justify-content: flex-end;
+  text-align: right;
+}
+.live-buteurs svg {
+  flex: none;
+  margin-top: 3px;
+  opacity: 0.8;
+}
+.live-buteurs .mins {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Les deux cartes d'équipe */
+.live-corps {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 0;
+  -webkit-overflow-scrolling: touch;
+}
+.live-cartes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.live-carte {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  overflow: hidden;
+  min-width: 0;
+}
+.live-joueur {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 58px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: none;
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 140ms;
+}
+.live-joueur.A:active,
+.live-joueur.A.long-pressing {
+  background: var(--taH);
+}
+.live-joueur.B:active,
+.live-joueur.B.long-pressing {
+  background: var(--tbH);
+}
+.live-joueur.rien-a-annuler {
+  animation: liveSecoue 320ms ease-in-out;
+}
+@keyframes liveSecoue {
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+.live-joueur.arrive {
+  animation: liveArrive 400ms ease-out;
+}
+@keyframes liveArrive {
+  from {
+    background: rgba(255, 255, 255, 0.25);
+  }
+}
+.live-joueur .nom {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-joueur .buts {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 14px;
+  text-align: right;
+}
+.live-joueur .fleche {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.live-joueur.compo {
+  background: rgba(255, 255, 255, 0.04);
+}
+.live-csc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 46px;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.live-csc:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+.live-cartons {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+.live-cartons button {
+  width: 44px;
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.live-adverse {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 116px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: none;
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+}
+.live-adverse:active {
+  background: var(--tbH);
+}
+.live-adverse .plus {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+}
+.live-adverse .l {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Le bandeau du mode compo, le retardataire */
+.live-compo {
+  margin: 12px 14px 0;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.live-compo .titre {
+  font-size: 17px;
+  font-weight: 600;
+}
+.live-compo .aide {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.62);
+}
+.live-compo > div {
+  flex: 1;
+  min-width: 0;
+}
+.live-compo-entree {
+  display: block;
+  margin: 10px auto 0;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 12px;
+}
+.live-ajout {
+  margin: 10px 14px 0;
+  padding: 12px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.live-ajout .titre {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.live-ajout ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.live-ajout li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.live-ajout li .nom {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-ajout li button {
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 17px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+}
+.live-ajout li button.A {
+  background: var(--ta);
+  color: var(--taF);
+}
+.live-ajout li button.B {
+  background: var(--tb);
+  color: var(--tbF);
+}
+
+/* La barre du bas */
+.live-pied {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px calc(var(--safe-b) + 14px);
+  flex: none;
+}
+.live-pied .pause {
+  flex: 1;
+}
+.live-pied .fin {
+  flex: 1.3;
+}
+.live-erreur {
+  margin: 8px 14px 0;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(255, 69, 58, 0.18);
+  color: #ffb4ae;
+  font-size: 15px;
+}
+
+/* L'invite (passe, auteur du csc) */
+.live-invite {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 70;
+  padding: 12px 14px calc(var(--safe-b) + 14px);
+  background: rgba(14, 14, 24, 0.9);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.live-invite .titre {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.live-invite .choix {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.live-invite .choix > * {
+  flex: none;
+}
+
+/* Les feuilles (événements, cartons) et la confirmation */
+.live-voile {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.55);
+}
+.live-voile.centre {
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  padding: 24px;
+}
+.live-feuille {
+  width: 100%;
+  max-height: 72vh;
+  overflow-y: auto;
+  border-radius: 28px 28px 0 0;
+  background: rgba(20, 21, 42, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 8px 18px calc(var(--safe-b) + 18px);
+  color: #fff;
+}
+.live-feuille .tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.live-feuille .tete .actions {
+  display: flex;
+  gap: 8px;
+}
+.live-evt {
+  display: grid;
+  grid-template-columns: 44px 20px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.live-evt .minute {
+  color: rgba(255, 255, 255, 0.55);
+}
+.live-evt .qui {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-evt .qui .note {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 400;
+}
+.live-evt .qui.A {
+  color: var(--taInk, #fff);
+}
+.live-evt .qui.B {
+  color: var(--tbInk, #fff);
+}
+.live-evt .annuler {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: none;
+  color: #ff453a;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.live-grille {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+.live-confirm {
+  width: 100%;
+  max-width: 340px;
+  border-radius: 28px;
+  background: rgba(20, 21, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 22px 18px 18px;
+  text-align: center;
+  color: #fff;
+}
+.live-confirm h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #fff;
+}
+.live-confirm .boutons {
+  display: flex;
+  gap: 10px;
+}
+.live-confirm .boutons > * {
+  flex: 1;
+}
+.live-vide {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.live-plein {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+}

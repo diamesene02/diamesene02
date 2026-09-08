@@ -3,7 +3,7 @@
 import { memo, useCallback, useRef } from "react";
 import { cn } from "@/lib/cn";
 import { unlockAudio, playGoalSound, playUndoSound } from "@/lib/audio";
-import Icon from "@/components/Icon";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
 
 // Module-level guard: suppress taps for a short window after a long-press
 // fires, so the release doesn't accidentally add a goal after undoing.
@@ -16,13 +16,12 @@ type Props = {
   tint: "pitch" | "blue";
   /// Vient de changer de camp : un éclair de contour pour que l'œil suive.
   justMoved?: boolean;
-  /// « score » : la tuile compte les buts, et RIEN d'autre. « compo » : le
-  /// match est en pause de correction, la tuile ne sert plus qu'à faire
+  /// « score » : la rangée compte les buts, et RIEN d'autre. « compo » : le
+  /// match est en pause de correction, la rangée ne sert plus qu'à faire
   /// changer un joueur de camp. Les deux ne coexistent jamais.
   ///
-  /// La séparation est délibérée. Marquer un but s'est fait pendant des mois
-  /// en appuyant sur la tuile du joueur ; brancher « changer d'équipe » sur
-  /// la même surface, c'était rendre le geste le plus fréquent du match
+  /// La séparation est délibérée. Brancher « changer d'équipe » sur la même
+  /// surface que le but, c'était rendre le geste le plus fréquent du match
   /// ambigu — un appui censé compter un but ouvrant une fenêtre à la place.
   mode?: "score" | "compo";
   onGoal: () => void;
@@ -31,13 +30,9 @@ type Props = {
   onMove?: () => void;
 };
 
-// Le ballon du jeu d'icônes commun, à la taille de la tuile.
-const BallIcon = () => (
-  <span className="fs-tile-ball">
-    <Icon name="ball" size={12} />
-  </span>
-);
-
+// La rangée de joueur du live, comme sur la maquette : avatar à l'anneau de
+// la chasuble, nom, buts. TOUTE la rangée est la cible — tape = but, maintiens
+// = annuler son dernier but.
 function PlayerTileImpl({
   name,
   goals,
@@ -51,6 +46,7 @@ function PlayerTileImpl({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didLongRef = useRef(false);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const camp = tint === "pitch" ? "A" : "B";
 
   const startPress = useCallback(
     (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -63,11 +59,10 @@ function PlayerTileImpl({
         didLongRef.current = true;
         btnRef.current?.classList.remove("long-pressing");
         if (goals > 0) {
-          // Le garde n'est armé QUE si une annulation a réellement eu lieu : il
-          // sert à absorber le relâchement du doigt, qui sinon rajouterait le but
+          // Le garde n'est armé QUE si une annulation a réellement eu lieu :
+          // il absorbe le relâchement du doigt, qui sinon rajouterait le but
           // qu'on vient de retirer. L'armer sur un appui sans effet rendait
-          // muette la tuile suivante pendant 700 ms — le buteur tapait, rien ne
-          // se passait, le but était perdu au milieu du match.
+          // muette la rangée suivante pendant 700 ms.
           suppressTapUntil = Date.now() + SUPPRESS_TAP_MS;
           if (navigator.vibrate) navigator.vibrate(30);
           playUndoSound();
@@ -76,10 +71,7 @@ function PlayerTileImpl({
           // Rien à annuler : on le dit au doigt plutôt que de ne rien faire.
           if (navigator.vibrate) navigator.vibrate([12, 40, 12]);
           btnRef.current?.classList.add("rien-a-annuler");
-          setTimeout(
-            () => btnRef.current?.classList.remove("rien-a-annuler"),
-            320,
-          );
+          setTimeout(() => btnRef.current?.classList.remove("rien-a-annuler"), 320);
         }
       }, 500);
     },
@@ -94,12 +86,12 @@ function PlayerTileImpl({
       if (!didLongRef.current && !suppressed) {
         unlockAudio();
         if (navigator.vibrate) navigator.vibrate(12);
-        playGoalSound(tint === "pitch" ? "A" : "B");
+        playGoalSound(camp);
         onGoal();
       }
       e.preventDefault();
     },
-    [onGoal, tint],
+    [onGoal, camp],
   );
 
   const cancelPress = useCallback(() => {
@@ -107,72 +99,39 @@ function PlayerTileImpl({
     btnRef.current?.classList.remove("long-pressing");
   }, []);
 
-  const teamCls = tint === "pitch" ? "A" : "B";
-
-  // ── Mode correction de compo ───────────────────────────────────────────
-  // La tuile entière devient une seule cible, et rien n'y compte de but. La
-  // flèche pointe vers la colonne d'en face : la destination se lit avant le
-  // geste, pas après.
   if (mode === "compo") {
     return (
       <button
         type="button"
         onClick={onMove}
-        className={cn("fs-tile fs-tile-compo", teamCls, justMoved && "arrive")}
+        className={cn("live-joueur compo", camp, justMoved && "arrive")}
         aria-label={`${name} — envoyer dans l'autre équipe`}
       >
-        <div className="fs-tile-accent" />
-        <div className="fs-tile-body">
-          <span className="fs-tile-name">{name}</span>
-          <span className="fs-tile-fleche">
-            <Icon name="chevron" size={16} />
-          </span>
-        </div>
+        <AvatarAnneau nom={name} camp={camp} />
+        <span className="nom">{name}</span>
+        <span className="fleche" aria-hidden>
+          {camp === "A" ? "→" : "←"}
+        </span>
       </button>
     );
   }
 
-  const body = (
-    <div className="fs-tile-body">
-      <div className="fs-tile-name">{name}</div>
-      <div className="fs-tile-goals-wrap">
-        {goals > 0 && <BallIcon />}
-        <span className="fs-tile-goals">{goals > 0 ? goals : ""}</span>
-      </div>
-    </div>
-  );
-
-  const accent = <div className="fs-tile-accent" />;
-  const plus = (
+  return (
     <button
       ref={btnRef}
-      aria-label="Ajouter un but (maintenir pour annuler)"
+      type="button"
+      aria-label={`${name} — but (maintenir pour annuler)`}
       onPointerDown={startPress}
       onPointerUp={endPress}
       onPointerLeave={cancelPress}
       onPointerCancel={cancelPress}
-      className="fs-tile-plus"
+      onContextMenu={(e) => e.preventDefault()}
+      className={cn("live-joueur", camp, justMoved && "arrive")}
     >
-      +1
+      <AvatarAnneau nom={name} camp={camp} />
+      <span className="nom">{name}</span>
+      <span className="buts">{goals > 0 ? goals : ""}</span>
     </button>
-  );
-
-  return (
-    <div className={cn("fs-tile", teamCls, justMoved && "arrive")}>
-      {tint === "pitch" ? (
-        <>
-          {accent}
-          {body}
-          {plus}
-        </>
-      ) : (
-        <>
-          {plus}
-          {body}
-          {accent}
-        </>
-      )}
-    </div>
   );
 }
 
