@@ -1,0 +1,178 @@
+/* Les réglages — listes groupées iOS de la maquette (tour 4). Préfixe .reg- */
+
+.reg-tete {
+  padding: 18px 4px 0;
+}
+.reg-groupe {
+  margin-top: 0;
+}
+.reg-groupe .carte {
+  margin: 0 0;
+  padding: 0 18px;
+  border-radius: 22px;
+}
+.reg-groupe .section-ios {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.reg-champ {
+  min-width: 0;
+  flex: 1;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--seg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  text-align: right;
+}
+.reg-champ.court {
+  flex: none;
+  width: 84px;
+  font-variant-numeric: tabular-nums;
+}
+.reg-champ.nom {
+  text-align: left;
+}
+.reg-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--i2);
+  font-size: 17px;
+}
+.reg-select select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  min-height: 0;
+  width: 100%;
+  cursor: pointer;
+}
+.reg-pastilles {
+  display: flex;
+  gap: 6px;
+}
+.reg-pastille {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+.reg-chasubles {
+  padding: 4px 0 16px;
+  border-top: 1px solid var(--sep);
+}
+.reg-chasubles .titre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 17px;
+  font-weight: 600;
+  margin-top: 16px;
+}
+.reg-chasubles .titre span:last-child {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--i2);
+}
+.reg-swatches {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.reg-swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 150ms;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+.reg-swatch.actif {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 3px var(--bgSolid),
+    0 0 0 5px var(--ink);
+}
+.reg-swatch.libre {
+  position: relative;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+}
+.reg-swatch.libre input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  min-height: 0;
+  padding: 0;
+}
+.reg-apercu {
+  margin-top: 18px;
+  border-radius: 18px;
+  background: var(--seg);
+  padding: 4px 0;
+}
+.reg-apercu .ligne-score {
+  padding: 8px 4px 10px;
+}
+.reg-apercu .ligne-score .camp .ecusson {
+  width: 44px;
+  height: 44px;
+  font-size: 17px;
+}
+.reg-apercu .ligne-score .chiffre {
+  font-size: 30px;
+  height: 44px;
+}
+.reg-apercu .ligne-score .camp .nom {
+  font-size: 13px;
+}
+.reg-etat {
+  font-size: 13px;
+  color: var(--i3);
+  text-align: right;
+  padding: 6px 0 0;
+  min-height: 22px;
+}
+.reg-etat.erreur {
+  color: var(--bad);
+}
+.reg-detail {
+  padding: 8px 0 14px;
+  border-top: 1px solid var(--sep);
+}
+.reg-detail .bande {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.reg-detail .bande .kicker {
+  display: none;
+}
+.reg-pied {
+  padding: 22px 0 0;
+}
+.reg-pied .plein {
+  width: 100%;
+}
+.reg-version {
+  text-align: center;
+  padding: 16px 0 0;
+  font-size: 13px;
+  color: var(--i3);
+}
+.reg-version .version-badge {
+  display: inline;
+  font-size: 13px;
+  color: var(--i3);
+}
