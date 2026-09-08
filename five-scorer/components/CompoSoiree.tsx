@@ -32,31 +32,31 @@ type Camp = "A" | "B" | null;
 function placer(n: number, avecGk: boolean): { x: number; y: number }[] {
   const out: { x: number; y: number }[] = [];
   if (n === 0) return out;
-  if (avecGk) out.push({ x: 50, y: 9 });
+  if (avecGk) out.push({ x: 50, y: 10 });
   const reste = avecGk ? n - 1 : n;
   if (reste === 0) return out;
-  const lignes =
-    reste <= 4 ? Math.ceil(reste / 2) : reste <= 9 ? Math.ceil(reste / 3) : Math.ceil(reste / 4);
+  // Un joueur avec son nom prend ~90 px : une moitié de terrain n'en loge
+  // que deux rangées lisibles. Trois par rangée avant d'en ouvrir une autre ;
+  // une troisième rangée seulement au-delà de six joueurs de champ.
+  const lignes = reste <= 3 ? 1 : reste <= 6 ? 2 : 3;
   const YS: Record<string, number[]> = {
-    gk1: [33],
-    gk2: [26, 41],
-    gk3: [22, 32, 42],
-    gk4: [17, 26, 34, 42],
-    nogk1: [28],
-    nogk2: [18, 38],
-    nogk3: [12, 27, 42],
-    nogk4: [9, 20, 31, 42],
+    gk1: [32],
+    gk2: [24, 40],
+    gk3: [21, 31, 41],
+    nogk1: [26],
+    nogk2: [15, 37],
+    nogk3: [11, 26, 41],
   };
-  const ys = YS[`${avecGk ? "gk" : "nogk"}${Math.min(lignes, 4)}`];
-  // Les lignes proches du rond central prennent le surplus : la défense
+  const ys = YS[`${avecGk ? "gk" : "nogk"}${lignes}`];
+  // Les rangées proches du rond central prennent le surplus : la défense
   // reste à deux quand l'attaque passe à trois.
   const base = Math.floor(reste / lignes);
   const extra = reste % lignes;
   for (let l = 0; l < lignes; l++) {
     const k = base + (l >= lignes - extra ? 1 : 0);
-    const pas = k <= 1 ? 0 : k === 2 ? 44 : k === 3 ? 28 : 60 / (k - 1);
+    const pas = k <= 1 ? 0 : k === 2 ? 40 : k === 3 ? 30 : 66 / (k - 1);
     for (let i = 0; i < k; i++) {
-      out.push({ x: 50 + (i - (k - 1) / 2) * pas, y: ys[Math.min(l, ys.length - 1)] });
+      out.push({ x: 50 + (i - (k - 1) / 2) * pas, y: ys[l] });
     }
   }
   return out;
@@ -218,9 +218,11 @@ export default function CompoSoiree({
       disabled={!peutModifier}
       aria-label={`${j.name} — ${camp === "A" ? nomA : nomB}`}
     >
-      <AvatarAnneau nom={j.name} camp={camp} taille={54} />
+      <span className="pelouse-avatar">
+        <AvatarAnneau nom={j.name} camp={camp} taille={54} />
+        <span className="niveau" title={`Niveau ${j.skill}`}>{j.isGk ? "G" : j.skill}</span>
+      </span>
       <span className="nom">{j.name}</span>
-      <span className="num">{j.isGk ? `GB · Niv. ${j.skill}` : `Niv. ${j.skill}`}</span>
     </button>
   );
 

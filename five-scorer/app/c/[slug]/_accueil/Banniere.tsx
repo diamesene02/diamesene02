@@ -40,7 +40,7 @@ export default function Banniere({
       <Link
         href={href}
         className="banniere"
-        style={{ ["--banniere-fond" as string]: fond }}
+        style={{ ["--banniere-fond" as string]: fond, background: fond, color: "#fff" }}
       >
         <span className="voile" />
         <span className="texte">

@@ -11,7 +11,7 @@ import Ecusson from "@/components/ios/Ecusson";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import LigneScore from "@/components/ios/LigneScore";
 import { nomsChasubles, DEFAULT_BIB_B } from "@/lib/color";
-import { mix, normaliseCouleur } from "@/lib/theme";
+import { lum, mix, normaliseCouleur } from "@/lib/theme";
 import { ini, lettre } from "@/lib/ini";
 import EnteteCollante from "./_accueil/EnteteCollante";
 import Banniere from "./_accueil/Banniere";
@@ -372,11 +372,11 @@ export default async function ClubHomePage({
   const maReponse = (md: { rsvps: { playerId: string; status: "IN" | "MAYBE" | "OUT" }[] }) =>
     myPlayer ? (md.rsvps.find((r) => r.playerId === myPlayer.id)?.status ?? null) : null;
   // Le voile de la bannière : la chasuble B assombrie de moitié.
-  const fondBanniere = mix(
-    normaliseCouleur(ctx.club.colorB, DEFAULT_BIB_B),
-    "#000000",
-    0.5,
-  );
+  // Le fond de la bannière dérive de la chasuble B, mais il doit rester
+  // SOMBRE sous du texte blanc : une chasuble blanche donnait un voile blanc
+  // et un titre illisible. On assombrit jusqu'à une luminance ≤ 0,3.
+  let fondBanniere = mix(ctx.club.colorB, "#000000", 0.5);
+  for (let i = 0; i < 6 && lum(fondBanniere) > 0.3; i++) fondBanniere = mix(fondBanniere, "#000000", 0.35);
 
   // ── Les onglets de la carte des matchs ─────────────────────────────────
   const nomAdverse = (m: {

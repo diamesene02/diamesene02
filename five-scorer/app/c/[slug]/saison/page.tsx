@@ -105,7 +105,11 @@ export default async function SaisonPage({
       sous = [md.location, `${reponses} réponse${reponses > 1 ? "s" : ""}`, md.lineup.length ? "équipes prêtes" : "équipes à préparer"]
         .filter(Boolean)
         .join(" · ");
-      if (moi && !maReponse) {
+      // « Répondre » n'appelle que pour les deux prochaines semaines : sur un
+      // calendrier de quarante lundis, le même mot répété jusqu'en juillet ne
+      // dit plus rien.
+      const bientot = md.date.getTime() - now < 15 * 86400_000;
+      if (moi && !maReponse && bientot) {
         etiquette = "Répondre";
         ton = "appel";
       } else {

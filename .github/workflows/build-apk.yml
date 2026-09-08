@@ -1,0 +1,61 @@
+name: Build APK
+
+# Construit l'APK Android (coquille Capacitor sur l'app web) et l'attache à la
+# release "apk-latest" — URL de téléchargement stable pour le sideload :
+# https://github.com/diamesene02/diamesene02/releases/tag/apk-latest
+#
+# Sécurité : aucun input non fiable (titres d'issues, messages de commit…)
+# n'est interpolé dans les commandes run.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "five-scorer-android/**"
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: five-scorer-android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install deps
+        run: npm ci || npm install
+
+      - name: Build debug APK
+        run: npm run build:apk
+
+      - name: Rename artifact
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk five-scorer.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: five-scorer-apk
+          path: five-scorer-android/five-scorer.apk
+
+      - name: Publish to release apk-latest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: "Five Scorer — APK Android"
+          body: |
+            APK Android de Five Scorer (sideload — autoriser les sources inconnues).
+            Construit automatiquement depuis `five-scorer-android/` à chaque push.
+          files: five-scorer-android/five-scorer.apk

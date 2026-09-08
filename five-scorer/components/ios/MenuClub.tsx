@@ -109,10 +109,10 @@ export default function MenuClub({
         aria-haspopup="menu"
         aria-expanded={open}
         className="verre lueur"
-        style={{ height: 50, borderRadius: 25, padding: "0 18px 0 11px", gap: 10 }}
+        style={{ height: 50, borderRadius: 25, padding: "0 18px 0 11px", gap: 10, maxWidth: "100%" }}
       >
         <Ecusson camp="A" lettre={clubShort[0]?.toUpperCase() ?? "?"} taille={28} />
-        <span className="max-w-[38vw] truncate">{clubShort}</span>
+        <span className="min-w-0 truncate">{clubShort}</span>
       </button>
 
       {open && (

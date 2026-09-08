@@ -95,11 +95,12 @@
 }
 .saison-ajout {
   display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 12px 20px 4px;
 }
 .saison-ajout > * {
-  flex: 1;
+  width: 100%;
 }
 .saison-vide {
   padding: 20px;
