@@ -2904,32 +2904,33 @@
 }
 
 /* ── Bannière « Ce soir » ─────────────────────────────────────────────── */
+/* La bannière de la soirée.
+   Elle peignait un APLAT de la chasuble B sur toute sa surface. Un club en
+   vert et rouge se retrouvait donc avec un pavé bordeaux posé sur un fond
+   vert — trois couleurs qui se disputent l'écran, sur la première chose
+   qu'on voit. L'identité du club est déjà partout : le fond de page, les
+   écussons, les barres d'équipe. Ici elle se contente d'un halo. */
 .banniere {
   display: block;
   position: relative;
   width: 100%;
-  height: 126px;
-  border: 0;
+  min-height: 112px;
+  border: 1px solid var(--cb);
   border-radius: 24px;
   overflow: hidden;
-  background: var(--tb);
-  color: #fff;
+  background: var(--cd);
+  color: var(--ink);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
-  padding: 0;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  padding: 0 0 20px;
+  box-shadow: var(--cs);
   text-decoration: none;
 }
 .banniere .voile {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    var(--banniere-fond) 0%,
-    var(--banniere-fond) 52%,
-    transparent 100%
-  );
+  background: radial-gradient(130% 150% at 100% 0%, var(--taH), transparent 60%);
   pointer-events: none;
 }
 .banniere .texte {
@@ -2946,7 +2947,7 @@
 }
 .banniere .texte .aide {
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--i2);
   margin-top: 6px;
 }
 

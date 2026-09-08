@@ -70,13 +70,18 @@ export function themeTokens(
   const dots = light
     ? "radial-gradient(rgba(0,0,0,.035) .8px,transparent 1.3px) 0 0/5px 5px"
     : "radial-gradient(rgba(255,255,255,.05) .8px,transparent 1.3px) 0 0/5px 5px";
+  // Le fond porte les deux chasubles — mais comme une TEINTE, pas comme deux
+  // aplats. Il gardait 58 % de la première couleur en haut : un club en vert
+  // et rouge obtenait une page verte qui virait bordeaux, deux blocs cousus
+  // l'un à l'autre. Les couleurs sombres (noir, bleu marine) ne le montraient
+  // pas, les couleurs vives oui — et c'est le club qui les choisit.
   const bg = light
-    ? `${dots},linear-gradient(180deg,${mix(A, "#ffffff", 0.8)} 0%,#f2f2f7 42%,${mix(B, "#ffffff", 0.86)} 100%)`
-    : `${dots},linear-gradient(180deg,${mix(A, "#000000", 0.42)} 0%,${mix(A, "#000000", 0.66)} 34%,${mix(B, "#000000", 0.76)} 70%,${mix(B, "#000000", 0.9)} 100%)`;
+    ? `${dots},linear-gradient(180deg,${mix(A, "#ffffff", 0.88)} 0%,#f2f2f7 44%,${mix(B, "#ffffff", 0.92)} 100%)`
+    : `${dots},linear-gradient(180deg,${mix(A, "#000000", 0.72)} 0%,${mix(A, "#000000", 0.85)} 38%,${mix(B, "#000000", 0.9)} 74%,${mix(B, "#000000", 0.95)} 100%)`;
 
   // Une couleur unie équivalente au fond, pour ce qui ne sait pas peindre un
   // dégradé (barre système, overscroll, couleur de thème du manifeste).
-  const bgSolid = light ? "#f2f2f7" : mix(A, "#000000", 0.66);
+  const bgSolid = light ? "#f2f2f7" : mix(A, "#000000", 0.78);
 
   const v: Record<string, string> = light
     ? {

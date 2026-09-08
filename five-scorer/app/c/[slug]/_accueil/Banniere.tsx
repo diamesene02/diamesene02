@@ -12,14 +12,11 @@ export default function Banniere({
   href,
   titre,
   aide,
-  fond,
 }: {
   cle: string;
   href: string;
   titre: string;
   aide: string;
-  /// La couleur du voile, calculée côté serveur depuis la chasuble B.
-  fond: string;
 }) {
   const stockage = `fs-banniere-${cle}`;
   const [masquee, setMasquee] = useState(false);
@@ -37,11 +34,7 @@ export default function Banniere({
   };
   return (
     <div className="accueil-banniere">
-      <Link
-        href={href}
-        className="banniere"
-        style={{ ["--banniere-fond" as string]: fond, background: fond, color: "#fff" }}
-      >
+      <Link href={href} className="banniere">
         <span className="voile" />
         <span className="texte">
           <span className="titre block">{titre}</span>
