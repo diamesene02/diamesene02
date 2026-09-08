@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { cn } from "@/lib/cn";
@@ -68,11 +69,9 @@ export default async function MatchesPage({
   const href = (s: string, t: string) =>
     `/c/${slug}/matches?saison=${encodeURIComponent(s)}&type=${t}`;
 
-  const fmtDate = (d: Date) =>
-    d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+  const fmtDate = D.jourCourt2;
 
-  const fmtTime = (d: Date) =>
-    d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const fmtTime = D.heure;
 
   const opponentOr = (m: (typeof matches)[number]) =>
     m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName;
@@ -110,12 +109,7 @@ export default async function MatchesPage({
   for (const g of groupes)
     g.matchs.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
 
-  const fmtJour = (d: Date) =>
-    d.toLocaleDateString("fr-FR", {
-      weekday: "long",
-      day: "2-digit",
-      month: "long",
-    });
+  const fmtJour = D.jourLong2;
 
   const chip = (active: boolean) =>
     cn(

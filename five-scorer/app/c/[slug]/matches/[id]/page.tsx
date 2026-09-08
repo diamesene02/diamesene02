@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
@@ -67,15 +68,8 @@ export default async function MatchRecapPage({
   // ── Match programmé / annulé : vue convocation, pas de récap ──────────────
   if (match.status === "SCHEDULED" || match.status === "CANCELED") {
     const scheduledAt = match.scheduledAt ?? match.playedAt;
-    const dateLabel = scheduledAt.toLocaleDateString("fr-FR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
-    const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const dateLabel = D.jourLong(scheduledAt);
+    const timeLabel = D.heure(scheduledAt);
     const versus =
       match.kind === "EXTERNAL" && match.opponent
         ? match.opponent.name
@@ -249,7 +243,7 @@ export default async function MatchRecapPage({
       select: { id: true },
     });
     const n = freres.findIndex((m) => m.id === match.id) + 1;
-    contexte = `Soirée du ${match.matchDay.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}${n > 0 ? ` · Match ${n}` : ""}`;
+    contexte = `Soirée du ${D.jourCourt(match.matchDay.date)}${n > 0 ? ` · Match ${n}` : ""}`;
   }
 
   // Le bilan de la saison entre ces deux chasubles : « 9-2-3 » sous chaque

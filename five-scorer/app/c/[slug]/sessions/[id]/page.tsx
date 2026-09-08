@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
@@ -106,9 +107,9 @@ export default async function SessionDetailPage({
   const buteurDuSoir = [...classement].filter((r) => r.goals > 0).sort((a, b) => b.goals - a.goals)[0];
   const mvpDuSoir = [...classement].filter((r) => r.mvpCount > 0).sort((a, b) => b.mvpCount - a.mvpCount)[0];
 
-  const dateLabel = md.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-  const timeLabel = md.date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  const fmtShort = (d: Date) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const dateLabel = D.jourLong(md.date);
+  const timeLabel = D.heure(md.date);
+  const fmtShort = D.heure;
   const opponentOr = (m: (typeof md.matches)[number]) =>
     m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName;
   const buteursDe = (m: (typeof md.matches)[number]) => {
@@ -125,7 +126,7 @@ export default async function SessionDetailPage({
   const commencee = md.matches.length > 0;
   /// Soirée dont le jour est passé : on ne lui propose plus un coup d'envoi
   /// mais une saisie.
-  const passee = md.date.getTime() < new Date().setHours(0, 0, 0, 0);
+  const passee = md.date.getTime() < D.minuit(new Date());
 
   const preparation = (
     <>

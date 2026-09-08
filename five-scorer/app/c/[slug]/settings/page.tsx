@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import * as D from "@/lib/dates";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
@@ -39,7 +40,7 @@ export default async function SettingsPage({
   ]);
   const playerByUser = new Map(linkedPlayers.map((p) => [p.userId as string, p.name]));
   const admins = members.filter((m) => m.role === "owner" || m.role === "admin").length;
-  const fmtDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+  const fmtDate = D.dateComplete;
 
   return (
     <main className="ecran">

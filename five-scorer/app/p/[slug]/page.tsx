@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
@@ -65,11 +66,7 @@ export default async function PublicClubPage({ params }: Params) {
   const totalButs = rows.reduce((s, r) => s + r.goals, 0);
   const meilleurButeur = rows.filter((r) => r.goals > 0)[0] ?? null;
 
-  const fmtDate = (d: Date) =>
-    d.toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "short",
-    });
+  const fmtDate = D.jourCourt2;
 
   return (
     <div data-club-theme data-theme="dark" className="relative min-h-dvh">

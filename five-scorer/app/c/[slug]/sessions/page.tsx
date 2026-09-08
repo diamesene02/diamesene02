@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import Icon from "@/components/Icon";
@@ -37,8 +38,7 @@ export default async function SessionsPage({
     },
   });
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  const startOfToday = D.debutDuJour();
   const upcoming = matchDays
     .filter((md) => md.date >= startOfToday)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -57,10 +57,8 @@ export default async function SessionsPage({
 
   // La colonne d'en-tête du ticker fait 52 px : « lun. 07 » y tient, « lundi
   // 07 sept. » non. Le mois est porté par l'en-tête de groupe.
-  const fmtCourt = (d: Date) =>
-    d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit" });
-  const fmtHeure = (d: Date) =>
-    d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const fmtCourt = D.jourSemaineNumero;
+  const fmtHeure = D.heure;
 
   // UNE SOIRÉE, UNE LIGNE.
   //
@@ -146,10 +144,7 @@ export default async function SessionsPage({
       if (!g) {
         g = {
           cle,
-          titre: md.date.toLocaleDateString("fr-FR", {
-            month: "long",
-            year: "numeric",
-          }),
+          titre: D.moisAnnee(md.date),
           jours: [],
         };
         index.set(cle, g);

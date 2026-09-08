@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
@@ -33,10 +34,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       ? match.opponent.name
       : match.teamBName;
   const title = `${match.teamAName} ${match.scoreA} — ${match.scoreB} ${teamBName}`;
-  const date = match.playedAt.toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "long",
-  });
+  const date = D.jourMoisLong(match.playedAt);
   return {
     title: `${title} · Five Scorer`,
     description: `Match du ${date}`,

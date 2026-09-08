@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
@@ -59,7 +60,7 @@ export default async function PlayerDetailPage({
     .filter(Boolean)
     .join(" · ");
 
-  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  const fmtDate = (iso: string) => D.jourCourt(new Date(iso));
 
   return (
     <main className="ecran">

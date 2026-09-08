@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { getLeaderboard } from "@/lib/stats";
@@ -62,37 +63,14 @@ function LigneSoiree({ texte, href }: { texte: string; href?: string }) {
   );
 }
 
-const majuscule = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const heureFr = (d: Date) =>
-  d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-/// « 7 sept. »
-const jourCourt = (d: Date) =>
-  d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-/// « Lundi 31 »
-const ongletJour = (d: Date) =>
-  majuscule(
-    d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric" }),
-  );
-/// « Lundi 14 septembre »
-const jourLong = (d: Date) =>
-  majuscule(
-    d.toLocaleDateString("fr-FR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }),
-  );
-/// « Sam. 19 sept. »
-const jourAbrege = (d: Date) =>
-  majuscule(
-    d.toLocaleDateString("fr-FR", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    }),
-  );
-const minuit = (d: Date) =>
-  new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+// Toutes les dates passent par lib/dates : rendues côté serveur, elles
+// sortaient dans le fuseau du processus — UTC en production.
+const heureFr = D.heure;
+const jourCourt = D.jourCourt;
+const ongletJour = D.jourEtNumero;
+const jourLong = D.jourLong;
+const jourAbrege = D.jourAbrege;
+const minuit = D.minuit;
 
 export default async function ClubHomePage({
   params,
@@ -103,11 +81,7 @@ export default async function ClubHomePage({
   const ctx = await requireClub(slug);
   const clubId = ctx.club.id;
 
-  const debutDeCeJour = (() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  })();
+  const debutDeCeJour = D.debutDuJour();
   const finDeCeJour = new Date(debutDeCeJour.getTime() + 86_400_000);
 
   const activeSeason = await prisma.season.findFirst({
@@ -377,9 +351,7 @@ export default async function ClubHomePage({
       ? "ce soir"
       : joursAvant === 1
         ? "demain"
-        : (nextMatchDay?.date.toLocaleDateString("fr-FR", {
-            weekday: "long",
-          }) ?? "la prochaine soirée");
+        : (nextMatchDay ? D.jourSemaineLong(nextMatchDay.date) : "la prochaine soirée");
   const compoAFaire =
     nextMatchDay != null &&
     nextMatchDay.lineup.length === 0 &&

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as D from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { nomsChasubles } from "@/lib/color";
@@ -80,7 +81,7 @@ export default async function SaisonPage({
   };
   const entrees: Entree[] = [];
   for (const md of soirees) {
-    const heure = md.date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    const heure = D.heure(md.date);
     const joues = md.matches.filter((m) => m.status === "FINISHED").length;
     const direct = md.matches.some((m) => m.status === "LIVE");
     const reponses = md.rsvps.filter((r) => r.status !== null).length;
@@ -139,7 +140,7 @@ export default async function SaisonPage({
   }
   for (const m of matchs.filter((x) => x.kind === "EXTERNAL")) {
     const quand = m.scheduledAt ?? m.playedAt;
-    const heure = quand.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    const heure = D.heure(quand);
     const fini = m.status === "FINISHED";
     entrees.push({
       cle: `m-${m.id}`,
@@ -160,7 +161,7 @@ export default async function SaisonPage({
     const cle = `${e.date.getFullYear()}-${e.date.getMonth()}`;
     let g = groupes.find((x) => x.cle === cle);
     if (!g) {
-      g = { cle, titre: e.date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }), entrees: [] };
+      g = { cle, titre: D.moisAnnee(e.date), entrees: [] };
       groupes.push(g);
     }
     g.entrees.push(e);
@@ -220,8 +221,8 @@ export default async function SaisonPage({
           {g.entrees.map((e) => (
             <Link key={e.cle} href={e.href} className={`saison-rangee${e.annulee ? " annulee" : ""}`}>
               <span className="saison-date">
-                <span className="jour">{e.date.toLocaleDateString("fr-FR", { weekday: "short" })}</span>
-                <span className="numero">{e.date.getDate()}</span>
+                <span className="jour">{D.jourSemaine(e.date)}</span>
+                <span className="numero">{D.quantieme(e.date)}</span>
               </span>
               <span className="saison-corps">
                 <span className="titre">{e.titre}</span>
@@ -317,7 +318,7 @@ export default async function SaisonPage({
         <div className="saison-bilan">
           <span>Plus gros score</span>
           <b>
-            {plusGros.scoreA} – {plusGros.scoreB} · {plusGros.playedAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+            {plusGros.scoreA} – {plusGros.scoreB} · {D.jourCourt(plusGros.playedAt)}
           </b>
         </div>
       )}
