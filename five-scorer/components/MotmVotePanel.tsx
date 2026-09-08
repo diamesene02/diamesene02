@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
-import Icon from "@/components/Icon";
 import { voteMotm } from "@/app/actions/motm";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
 
 type Candidate = { id: string; name: string; votes: number };
 
+// Le vote de l'homme du match : une carte, une rangée par joueur avec sa
+// barre de voix. Un tap = ma voix ; on peut la déplacer à tout moment.
 export default function MotmVotePanel({
   slug,
   matchId,
@@ -34,13 +36,8 @@ export default function MotmVotePanel({
     setRows((rs) =>
       rs.map((c) => ({
         ...c,
-        votes:
-          c.id === playerId
-            ? c.votes + (prev === playerId ? 0 : 1)
-            : c.id === prev
-              ? Math.max(0, c.votes - 1)
-              : c.votes,
-      }))
+        votes: c.id === playerId ? c.votes + (prev === playerId ? 0 : 1) : c.id === prev ? Math.max(0, c.votes - 1) : c.votes,
+      })),
     );
     startTransition(async () => {
       const res = await voteMotm(slug, matchId, playerId);
@@ -54,59 +51,39 @@ export default function MotmVotePanel({
   const max = Math.max(1, ...rows.map((c) => c.votes));
 
   return (
-    <div className="rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-4">
-      <div className="mb-1 text-[13px] font-semibold text-[color:var(--gold)]">
-        Homme du match — vote des membres
-      </div>
-      <p className="mb-3 text-xs tabular-nums text-[color:var(--ink-3)]">
-        {totalVotes} vote{totalVotes > 1 ? "s" : ""} · tu peux changer ton vote
-        à tout moment.
+    <section className="carte" style={{ padding: "0 20px 8px" }}>
+      <div className="carte-titre">Homme du match</div>
+      <p className="text-center text-[15px]" style={{ color: "var(--i2)", marginTop: -6, paddingBottom: 8 }}>
+        {totalVotes} vote{totalVotes > 1 ? "s" : ""} · touche pour voter, tu peux changer d&apos;avis.
       </p>
-      <div className="space-y-1.5">
-        {[...rows]
-          .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name))
-          .map((c) => (
-            <button
-              key={c.id}
-              disabled={pending}
-              onClick={() => vote(c.id)}
-              className={cn(
- "relative block w-full overflow-hidden rounded-none border px-4 py-2.5 text-left transition-colors",
-                selected === c.id
-                  ? "border-[color:var(--gold)] bg-[color:var(--pitch-2)]"
-                  : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] hover:border-[color:var(--rule-hi)]"
-              )}
-            >
-              <span
-                className="absolute inset-y-0 left-0"
-                style={{
-                  width: `${(c.votes / max) * 100}%`,
-                  background:
- "color-mix(in srgb, var(--gold) 16%, transparent)",
-                }}
-              />
-              <span className="relative flex items-center justify-between gap-2">
-                <span className="inline-flex min-w-0 items-center gap-1.5 font-bold">
-                  <span className="truncate">{c.name}</span>
-                  {selected === c.id && (
-                    <Icon
-                      name="check"
-                      size={14}
-                      label="Ton vote"
-                      className="shrink-0 text-[color:var(--gold)]"
-                    />
-                  )}
-                </span>
-                <span className="text-sm font-black tabular-nums text-[color:var(--gold)]">
-                  {c.votes}
-                </span>
+      {[...rows]
+        .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name))
+        .map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            disabled={pending}
+            onClick={() => vote(c.id)}
+            aria-pressed={selected === c.id}
+            className="flex w-full items-center gap-3 border-t text-left"
+            style={{ minHeight: 56, borderColor: "var(--sep)", background: "none", color: "var(--ink)", fontFamily: "inherit", padding: "6px 0" }}
+          >
+            <AvatarAnneau nom={c.name} taille={32} />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <span className={cn("truncate text-[17px]", selected === c.id ? "font-semibold" : "font-medium")}>
+                {c.name}
+                {selected === c.id && <span style={{ color: "var(--or)" }}> ★</span>}
               </span>
-            </button>
-          ))}
-      </div>
-      {error && (
-        <p className="mt-2 text-sm text-[color:var(--loss)]">{error}</p>
-      )}
-    </div>
+              <span style={{ height: 4, borderRadius: 2, background: "var(--sep)", overflow: "hidden" }}>
+                <span style={{ display: "block", height: 4, borderRadius: 2, width: `${(c.votes / max) * 100}%`, background: "var(--or)" }} />
+              </span>
+            </span>
+            <span className="text-[22px] font-bold tabular-nums" style={{ color: c.votes ? "var(--or)" : "var(--i3)" }}>
+              {c.votes}
+            </span>
+          </button>
+        ))}
+      {error && <p className="pt-2 text-[15px]" style={{ color: "var(--bad)" }}>{error}</p>}
+    </section>
   );
 }

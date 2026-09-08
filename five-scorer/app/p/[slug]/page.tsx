@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { getLeaderboard } from "@/lib/stats";
-import Icon from "@/components/Icon";
+import Ecusson from "@/components/ios/Ecusson";
+import LigneScore from "@/components/ios/LigneScore";
+import { lettre } from "@/lib/ini";
 import ClubTheme from "@/components/ClubTheme";
 import Classement from "@/components/Classement";
 
@@ -70,32 +72,23 @@ export default async function PublicClubPage({ params }: Params) {
     });
 
   return (
-    <div data-club-theme className="relative min-h-screen">
+    <div data-club-theme data-theme="dark" className="relative min-h-dvh">
       {/* La vitrine publique porte aussi les couleurs du club. */}
-      <ClubTheme colorA={club.colorA} colorB={club.colorB} />
-      <div className="pointer-events-none fixed inset-0 opacity-30">
-        <div className="pitch-motif absolute inset-0" />
-      </div>
-
-      <div className="relative mx-auto max-w-3xl px-5 pb-16 pt-4">
-        <header className="flex items-center justify-between gap-3">
-          <span className="brand-pill">
-            <Icon name="ball" size={14} />
-            {org.name}
+      <ClubTheme colorA={club.colorA} colorB={club.colorB} theme="dark" />
+      <div className="relative mx-auto max-w-[520px] px-[14px] pb-16">
+        <header className="barre-haut" style={{ padding: "calc(var(--safe-t) + 14px) 0 0" }}>
+          <span className="verre lueur" style={{ height: 50, borderRadius: 25, padding: "0 18px 0 11px", gap: 10 }}>
+            <Ecusson camp="A" lettre={lettre(org.name)} taille={28} />
+            <span className="max-w-[46vw] truncate">{org.name}</span>
           </span>
-          <Link
-            href="/"
-            className="text-xs font-bold  text-[color:var(--ink-2)] hover:text-[color:var(--ink-1)]"
-          >
+          <Link href="/" className="text-[13px] font-semibold" style={{ color: "var(--i2)" }}>
             Créé avec Five Scorer
           </Link>
         </header>
 
-        <main className="mt-10">
-          <span className="kicker">
-            {activeSeason ? activeSeason.name : "Toutes saisons"}
-          </span>
-          <h1 className="display-xl mt-2">{org.name}</h1>
+        <main className="ecran mt-6">
+          <span className="kicker">{activeSeason ? activeSeason.name : "Toutes saisons"}</span>
+          <h1 className="titre-ecran mt-1">{org.name}</h1>
           {totalMatchs > 0 && (
             <div className="synthese mt-3">
               <span>
@@ -119,10 +112,8 @@ export default async function PublicClubPage({ params }: Params) {
           {/* Classement — le même dessin que dans l'app, sans le lien vers la
               fiche joueur : le visiteur n'a pas de compte. C'était un tableau
               de cinq colonnes à en-têtes en capitales tracées. */}
-          <section className="bande mt-8">
-            <div className="bande-titre">
-              <span className="kicker">Classement</span>
-            </div>
+          <section className="carte mt-[18px]" style={{ padding: "0 10px 8px" }}>
+            <div className="carte-titre">Classement</div>
             {top.length === 0 ? (
               <p className="text-sm text-[color:var(--ink-2)]">
                 Pas encore de match terminé.
@@ -157,71 +148,33 @@ export default async function PublicClubPage({ params }: Params) {
             )}
           </section>
 
-          {/* Derniers résultats — le ticker commun. Le score s'écrivait ici
-              avec un « : » et une taille à lui, la sixième dans l'app. */}
+          {/* Derniers résultats — la ligne de score de l'app. */}
           {lastMatches.length > 0 && (
-            <section className="bande mt-8">
-              <div className="bande-titre">
-                <span className="kicker">Derniers résultats</span>
-              </div>
-              <ul>
-                {lastMatches.map((m) => {
-                  const aGagne = m.scoreA > m.scoreB;
-                  const bGagne = m.scoreB > m.scoreA;
-                  return (
-                    <li key={m.id}>
-                      <Link href={`/r/${m.id}`} className="ticker">
-                        <span className="ticker-heure">
-                          {fmtDate(m.playedAt)}
-                        </span>
-                        <span className="ticker-score">
-                          <span
-                            className={aGagne ? "" : "text-[color:var(--ink-3)]"}
-                          >
-                            {m.scoreA}
-                          </span>
-                          <span className="px-1.5 text-[color:var(--rule-hi)]">
-                            —
-                          </span>
-                          <span
-                            className={bGagne ? "" : "text-[color:var(--ink-3)]"}
-                          >
-                            {m.scoreB}
-                          </span>
-                        </span>
-                        <span className="ticker-buteurs">
-                          {m.teamAName}
-                          <span className="text-[color:var(--rule-hi)]"> vs </span>
-                          {m.kind === "EXTERNAL" && m.opponent
-                            ? m.opponent.name
-                            : m.teamBName}
-                          {m.mvp && (
-                            <span
-                              className="inline-flex items-center gap-1.5 align-middle"
-                              style={{ color: "var(--gold)" }}
-                            >
-                              {" · "}
-                              <Icon name="star" size={11} filled />
-                              {m.mvp.name}
-                            </span>
-                          )}
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+            <section className="carte mt-[18px]">
+              <div className="carte-titre">Derniers résultats</div>
+              {lastMatches.map((m) => (
+                <LigneScore
+                  key={m.id}
+                  nomA={m.teamAName}
+                  nomB={m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName}
+                  scoreA={m.scoreA}
+                  scoreB={m.scoreB}
+                  etat="Terminé"
+                  heure={fmtDate(m.playedAt)}
+                  href={`/r/${m.id}`}
+                  pied={m.mvp ? <span style={{ color: "var(--or)" }}>★ {m.mvp.name}</span> : undefined}
+                />
+              ))}
             </section>
           )}
 
           {/* CTA */}
-          <section className="aurora edge-top mt-12 p-8 text-center">
+          <section className="carte mt-[18px] p-6 text-center">
             <span className="kicker">Ton équipe aussi</span>
-            <p className="mx-auto mt-3 max-w-md text-xl font-black leading-tight tracking-tight">
-              Monte le tien. Scoring live, stats, équipes équilibrées —
-              gratuit.
+            <p className="mx-auto mt-2 max-w-md text-[22px] font-semibold leading-tight tracking-[-.3px]" style={{ color: "var(--ink)" }}>
+              Monte le tien. Scoring live, stats, équipes équilibrées — gratuit.
             </p>
-            <Link href="/signup" className="btn primary big mt-6">
+            <Link href="/signup" className="plein mt-5">
               Créer mon club
             </Link>
           </section>
