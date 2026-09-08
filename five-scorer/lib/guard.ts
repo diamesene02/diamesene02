@@ -29,22 +29,25 @@ export async function requireUser() {
   // Pas vers /login : le cookie survit à la session et le middleware
   // renverrait aussitôt ici. On passe par la sortie qui efface le cookie.
   if (!session) redirect("/session-expiree");
-
-  // La session vit cinq minutes dans un cookie signé, sans relecture de la
-  // base : elle peut donc survivre au compte qu'elle désigne. On vérifie que
-  // l'utilisateur existe encore, sinon les pages suivantes travaillent sur un
-  // fantôme — écrans vides, ou échec sur une contrainte de clé étrangère dès
-  // la première écriture. Une requête sur clé primaire, dédupliquée par
-  // React.cache pour toute la requête : le coût est négligeable devant le
-  // risque de laisser un accès ouvert après une révocation.
-  const stillExists = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true },
-  });
-  if (!stillExists) redirect("/session-expiree");
-
+  if (!(await utilisateurExisteEncore(session.user.id))) {
+    redirect("/session-expiree");
+  }
   return session;
 }
+
+/// La session vit cinq minutes dans un cookie signé, sans relecture de la
+/// base : elle peut donc survivre au compte qu'elle désigne. On vérifie que
+/// l'utilisateur existe encore, sinon les pages suivantes travaillent sur un
+/// fantôme — écrans vides, ou échec sur une contrainte de clé étrangère dès
+/// la première écriture.
+///
+/// Extrait de `requireUser` pour pouvoir être lancé EN PARALLÈLE du reste :
+/// un aller-retour vers la base coûte le trajet réseau, et trois requêtes
+/// enchaînées coûtent trois fois ce trajet même si chacune est instantanée.
+const utilisateurExisteEncore = cache(async (id: string) => {
+  const u = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  return u != null;
+});
 
 function toContext(
   user: ClubContext["user"],
@@ -66,15 +69,22 @@ function toContext(
 
 /// Garde des pages /c/[slug]/** : session requise + appartenance au club.
 export const requireClub = cache(async (slug: string): Promise<ClubContext> => {
-  const session = await requireUser();
-  const org = await prisma.organization.findUnique({
-    where: { slug },
-    include: { club: true },
-  });
+  const session = await getUserSession();
+  if (!session) redirect("/session-expiree");
+
+  // Ces trois lectures ne dépendent pas les unes des autres — l'appartenance
+  // se filtre par le SLUG de l'organisation plutôt que par son identifiant,
+  // ce qui la libère de l'attente. Enchaînées, elles coûtaient trois trajets
+  // réseau sur chaque page ; ensemble, un seul.
+  const [existe, org, member] = await Promise.all([
+    utilisateurExisteEncore(session.user.id),
+    prisma.organization.findUnique({ where: { slug }, include: { club: true } }),
+    prisma.member.findFirst({
+      where: { userId: session.user.id, organization: { slug } },
+    }),
+  ]);
+  if (!existe) redirect("/session-expiree");
   if (!org?.club) notFound();
-  const member = await prisma.member.findFirst({
-    where: { organizationId: org.id, userId: session.user.id },
-  });
   if (!member) redirect("/onboarding");
   const { club, ...orgOnly } = org;
   return toContext(session.user, orgOnly, club, member.role);
@@ -86,14 +96,13 @@ export async function getClubApiContext(
 ): Promise<ClubContext | null> {
   const session = await getUserSession();
   if (!session) return null;
-  const org = await prisma.organization.findUnique({
-    where: { id: clubId },
-    include: { club: true },
-  });
+  const [org, member] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: clubId }, include: { club: true } }),
+    prisma.member.findFirst({
+      where: { organizationId: clubId, userId: session.user.id },
+    }),
+  ]);
   if (!org?.club) return null;
-  const member = await prisma.member.findFirst({
-    where: { organizationId: org.id, userId: session.user.id },
-  });
   if (!member) return null;
   const { club, ...orgOnly } = org;
   return toContext(session.user, orgOnly, club, member.role);
