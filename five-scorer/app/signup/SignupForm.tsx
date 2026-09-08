@@ -59,7 +59,7 @@ export default function SignupForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
+        <span className="text-[15px] text-[color:var(--i2)]">
           Ton nom
         </span>
         <input
@@ -78,7 +78,7 @@ export default function SignupForm({
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
+        <span className="text-[15px] text-[color:var(--i2)]">
           Email
         </span>
         <input
@@ -94,7 +94,7 @@ export default function SignupForm({
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
+        <span className="text-[15px] text-[color:var(--i2)]">
           Mot de passe
         </span>
         <input
@@ -114,7 +114,7 @@ export default function SignupForm({
       </label>
 
       {error && (
-        <p className="rounded-[2px] border border-[color:var(--loss)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)]">
+        <p className="bv-erreur">
           {error}
         </p>
       )}
@@ -122,18 +122,18 @@ export default function SignupForm({
       <button
         type="submit"
         disabled={loading}
-        className="btn primary big w-full disabled:cursor-not-allowed disabled:opacity-60"
+        className="plein w-full"
       >
         {loading ? "Création…" : "Créer mon compte"}
       </button>
 
-      <p className="text-center text-[11px] leading-relaxed text-[color:var(--ink-2)]">
+      <p className="bv-pied">
         En créant un compte, tu acceptes les{" "}
-        <Link href="/terms" className="underline hover:text-white">
+        <Link href="/terms" >
           CGU
         </Link>{" "}
         et la{" "}
-        <Link href="/privacy" className="underline hover:text-white">
+        <Link href="/privacy" >
           politique de confidentialité
         </Link>
         .
@@ -141,16 +141,12 @@ export default function SignupForm({
 
       {googleEnabled && (
         <>
-          <div className="flex items-center gap-3 text-[10px] font-bold  text-[color:var(--ink-2)]">
-            <span className="h-px flex-1 bg-[color:var(--rule)]" />
-            ou
-            <span className="h-px flex-1 bg-[color:var(--rule)]" />
-          </div>
+          <div className="bv-ou">ou</div>
           <button
             type="button"
             onClick={onGoogle}
             disabled={loading}
-            className="btn ghost w-full disabled:cursor-not-allowed disabled:opacity-60"
+            className="verre grand w-full"
           >
             Continuer avec Google
           </button>

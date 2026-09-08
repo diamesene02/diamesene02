@@ -22,7 +22,7 @@ export default function JoinClubForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+    <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <input
         type="text"
         name="inviteCode"
@@ -33,17 +33,17 @@ export default function JoinClubForm() {
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        className="w-full flex-1 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2.5 font-mono outline-none focus:border-[color:var(--ink-1)]"
+        className="w-full"
       />
       <button
         type="submit"
         disabled={loading}
-        className="btn shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+        className="plein"
       >
         {loading ? "…" : "Rejoindre"}
       </button>
       {error && (
-        <p className="rounded-[2px] border border-[color:var(--loss)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)] sm:basis-full">
+        <p className="bv-erreur">
           {error}
         </p>
       )}

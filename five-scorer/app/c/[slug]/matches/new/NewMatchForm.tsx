@@ -43,6 +43,7 @@ export default function NewMatchForm({
   matchDayId,
   presentPlayerIds,
   scheduled = null,
+  nomsParDefaut = { a: "Blanc", b: "Noir" },
 }: {
   clubId: string;
   slug: string;
@@ -52,6 +53,9 @@ export default function NewMatchForm({
   matchDayId: string | null;
   presentPlayerIds: string[];
   scheduled?: ScheduledInfo | null;
+  /// Les noms d'équipe se DÉDUISENT des chasubles du club : « Blanc » et
+  /// « Noir » écrits en dur contredisaient les écussons orange et bleu.
+  nomsParDefaut?: { a: string; b: string };
 }) {
   const router = useRouter();
 
@@ -77,10 +81,10 @@ export default function NewMatchForm({
   // Lancement d'un match programmé : mode verrouillé, config préremplie.
   const [mode, setMode] = useState<Mode>(scheduled?.kind ?? "INTERNAL");
   const [teamAName, setTeamAName] = useState(
-    scheduled && scheduled.kind === "INTERNAL" ? scheduled.teamAName : "Blanc"
+    scheduled && scheduled.kind === "INTERNAL" ? scheduled.teamAName : nomsParDefaut.a
   );
   const [teamBName, setTeamBName] = useState(
-    scheduled && scheduled.kind === "INTERNAL" ? scheduled.teamBName : "Noir"
+    scheduled && scheduled.kind === "INTERNAL" ? scheduled.teamBName : nomsParDefaut.b
   );
   const [opponentId, setOpponentId] = useState<string>(
     scheduled?.opponentId ?? opponents[0]?.id ?? ""

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import NewMatchForm from "./NewMatchForm";
+import { nomsChasubles } from "@/lib/color";
 
 export const dynamic = "force-dynamic";
 
@@ -80,10 +81,10 @@ export default async function NewMatchPage({
   );
 
   return (
-    <main>
-      <h1 className="display-md mb-6">
+    <main className="ecran">
+      <div className="titre-ecran" style={{ padding: "18px 4px 16px" }}>
         {scheduled ? "Composer les équipes" : "Nouveau match"}
-      </h1>
+      </div>
       <NewMatchForm
         clubId={ctx.club.id}
         slug={slug}
@@ -93,6 +94,11 @@ export default async function NewMatchPage({
         matchDayId={matchDay?.id ?? null}
         presentPlayerIds={presentPlayerIds}
         scheduled={scheduled}
+        nomsParDefaut={
+          matchDay?.teamAName && matchDay?.teamBName
+            ? { a: matchDay.teamAName, b: matchDay.teamBName }
+            : nomsChasubles(ctx.club.colorA, ctx.club.colorB)
+        }
       />
     </main>
   );

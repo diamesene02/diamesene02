@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 
@@ -10,9 +10,13 @@ const inputCls =
 export default function LoginForm({
   next,
   googleEnabled,
+  googleDirect = false,
 }: {
   next?: string;
   googleEnabled: boolean;
+  /// Arrivé depuis « Continuer avec Google » sur l'accueil : on lance tout
+  /// de suite, sans redemander.
+  googleDirect?: boolean;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -50,11 +54,15 @@ export default function LoginForm({
     setLoading(true);
     await signIn.social({ provider: "google", callbackURL: destination });
   }
+  useEffect(() => {
+    if (googleDirect && googleEnabled) void onGoogle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
+        <span className="text-[15px] text-[color:var(--i2)]">
           Email
         </span>
         <input
@@ -70,7 +78,7 @@ export default function LoginForm({
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
+        <span className="text-[15px] text-[color:var(--i2)]">
           Mot de passe
         </span>
         <input
@@ -86,7 +94,7 @@ export default function LoginForm({
       </label>
 
       {error && (
-        <p className="rounded-[2px] border border-[color:var(--loss)] bg-[color:var(--pitch-2)] px-3 py-2 text-sm font-bold text-[color:var(--loss)]">
+        <p className="bv-erreur">
           {error}
         </p>
       )}
@@ -94,23 +102,19 @@ export default function LoginForm({
       <button
         type="submit"
         disabled={loading}
-        className="btn primary big w-full disabled:cursor-not-allowed disabled:opacity-60"
+        className="plein w-full"
       >
         {loading ? "Connexion…" : "Se connecter"}
       </button>
 
       {googleEnabled && (
         <>
-          <div className="flex items-center gap-3 text-[10px] font-bold  text-[color:var(--ink-2)]">
-            <span className="h-px flex-1 bg-[color:var(--rule)]" />
-            ou
-            <span className="h-px flex-1 bg-[color:var(--rule)]" />
-          </div>
+          <div className="bv-ou">ou</div>
           <button
             type="button"
             onClick={onGoogle}
             disabled={loading}
-            className="btn ghost w-full disabled:cursor-not-allowed disabled:opacity-60"
+            className="verre grand w-full"
           >
             Continuer avec Google
           </button>

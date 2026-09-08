@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Icon from "@/components/Icon";
+import Bienvenue from "@/components/ios/Bienvenue";
 import SignupForm from "./SignupForm";
 
 export const metadata: Metadata = {
@@ -14,48 +14,22 @@ export default async function SignupPage({
 }) {
   const sp = await searchParams;
   // Redirection interne uniquement — jamais vers un domaine externe.
-  const next =
-    typeof sp.next === "string" && sp.next.startsWith("/") ? sp.next : undefined;
+  const next = typeof sp.next === "string" && sp.next.startsWith("/") ? sp.next : undefined;
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center px-5 py-12">
-      {/* Lignes de terrain en fond */}
-      <div className="pointer-events-none fixed inset-0 opacity-30">
-        <div className="pitch-motif absolute inset-0" />
-      </div>
-
-      <div className="relative w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-start gap-4">
-          <Link href="/">
-            <span className="brand-pill">
-              <Icon name="ball" size={14} />
-              Five Scorer
-            </span>
-          </Link>
-          <h1 className="display-md">
-            Entre dans
-            <br />
-            le <em>match</em>.
-          </h1>
-        </div>
-
-        <div className="edge-top p-6">
-          <SignupForm
-            next={next}
-            googleEnabled={Boolean(process.env.GOOGLE_CLIENT_ID)}
-          />
-        </div>
-
-        <p className="mt-6 text-center text-sm text-[color:var(--ink-1)]">
+    <Bienvenue
+      compact
+      accroche="Entre dans le match."
+      pied={
+        <>
           Déjà un compte ?{" "}
-          <Link
-            href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
-            className="font-bold underline underline-offset-2"
-          >
-            Connecte-toi
-          </Link>
-        </p>
-      </div>
-    </main>
+          <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}>Connecte-toi</Link>
+        </>
+      }
+    >
+      <section className="carte bv-carte">
+        <SignupForm next={next} googleEnabled={Boolean(process.env.GOOGLE_CLIENT_ID)} />
+      </section>
+    </Bienvenue>
   );
 }
