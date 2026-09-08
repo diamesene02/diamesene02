@@ -6,6 +6,8 @@ import { requireClub } from "@/lib/guard";
 import CompoSoiree from "@/components/CompoSoiree";
 import Classement from "@/components/Classement";
 import LigneScore from "@/components/ios/LigneScore";
+import Ecusson from "@/components/ios/Ecusson";
+import { lettre } from "@/lib/ini";
 import { nomsChasubles } from "@/lib/color";
 import { getLeaderboard } from "@/lib/stats";
 import MoneyPanel from "./MoneyPanel";
@@ -188,25 +190,53 @@ export default async function SessionDetailPage({
 
   const resultats = (
     <>
+      {/* Le bilan de la soirée — un COMPTE de matchs gagnés, pas un score.
+          Il empruntait la ligne de score : deux écussons, deux gros chiffres
+          face à face et « Terminé » au milieu. Une soirée gagnée un match à
+          zéro se lisait donc comme un match gagné 1-0, juste au-dessus du
+          vrai 18-9. On écrit l'unité sous le chiffre, et la barre montre le
+          rapport de force au lieu de mimer un tableau d'affichage. */}
       {internes.length > 0 && (
         <section className="carte soiree-carte">
-          <div className="carte-titre">Matchs gagnés</div>
-          <LigneScore
-            nomA={nomA}
-            nomB={nomB}
-            scoreA={victoiresA}
-            scoreB={victoiresB}
-            etat={soireeFinie ? "Terminé" : "En cours"}
-            direct={!soireeFinie}
-            heure={`${internes.length} match${internes.length > 1 ? "s" : ""}${nuls ? ` · ${nuls} nul${nuls > 1 ? "s" : ""}` : ""}`}
-            pied={
-              <>
-                <b>{butsDuSoir}</b> but{butsDuSoir > 1 ? "s" : ""}
-                {buteurDuSoir && <> · {buteurDuSoir.name} <b>{buteurDuSoir.goals}</b></>}
-                {mvpDuSoir && <> · <span style={{ color: "var(--or)" }}>★ {mvpDuSoir.name}</span></>}
-              </>
-            }
-          />
+          <div className="carte-titre">
+            Le bilan de la soirée
+            {!soireeFinie && <span className="soiree-encours"> · en cours</span>}
+          </div>
+          <div className="soiree-bilan">
+            <div className="camp">
+              <Ecusson camp="A" lettre={lettre(nomA)} taille={44} />
+              <span className="nom">{nomA}</span>
+              <span className="compte">{victoiresA}</span>
+              <span className="unite">
+                match{victoiresA > 1 ? "s" : ""} gagné{victoiresA > 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="camp">
+              <Ecusson camp="B" lettre={lettre(nomB)} taille={44} />
+              <span className="nom">{nomB}</span>
+              <span className="compte">{victoiresB}</span>
+              <span className="unite">
+                match{victoiresB > 1 ? "s" : ""} gagné{victoiresB > 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
+          <div
+            className="soiree-jauge"
+            role="img"
+            aria-label={`${nomA} ${victoiresA}, ${nomB} ${victoiresB}, ${nuls} nul${nuls > 1 ? "s" : ""}`}
+          >
+            <span className="a" style={{ flexGrow: victoiresA }} />
+            <span className="nul" style={{ flexGrow: nuls }} />
+            <span className="b" style={{ flexGrow: victoiresB }} />
+          </div>
+          <div className="soiree-resume">
+            {internes.length} match{internes.length > 1 ? "s" : ""} joué
+            {internes.length > 1 ? "s" : ""}
+            {nuls > 0 && <> · {nuls} nul{nuls > 1 ? "s" : ""}</>} ·{" "}
+            <b>{butsDuSoir}</b> but{butsDuSoir > 1 ? "s" : ""}
+            {buteurDuSoir && <> · {buteurDuSoir.name} <b>{buteurDuSoir.goals}</b></>}
+            {mvpDuSoir && <> · <span style={{ color: "var(--or)" }}>★ {mvpDuSoir.name}</span></>}
+          </div>
         </section>
       )}
 

@@ -365,3 +365,76 @@
   gap: 8px;
   margin-top: 14px;
 }
+
+/* ── Le bilan de la soirée : un compte, pas un score ───────────────────── */
+.soiree-encours {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--i2);
+}
+.soiree-bilan {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 2px 16px 0;
+}
+.soiree-bilan .camp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.soiree-bilan .camp .nom {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--i2);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.soiree-bilan .camp .compte {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.soiree-bilan .camp .unite {
+  font-size: 13px;
+  color: var(--i2);
+  text-align: center;
+}
+.soiree-jauge {
+  display: flex;
+  height: 6px;
+  margin: 14px 18px 0;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--sep);
+}
+.soiree-jauge > span {
+  flex-basis: 0;
+  min-width: 0;
+}
+.soiree-jauge .a {
+  background: var(--taG);
+}
+.soiree-jauge .b {
+  background: var(--tbG);
+}
+.soiree-jauge .nul {
+  background: var(--i3);
+}
+.soiree-resume {
+  padding: 10px 18px 16px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--i2);
+}
+.soiree-resume b {
+  color: var(--ink);
+  font-weight: 600;
+}
