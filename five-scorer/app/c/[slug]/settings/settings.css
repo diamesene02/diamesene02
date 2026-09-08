@@ -176,3 +176,25 @@
   font-size: 13px;
   color: var(--i3);
 }
+
+/* ── L'abonnement à l'agenda ───────────────────────────────────────────── */
+.reg-detail-corps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+.reg-detail-corps .aide {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--i2);
+}
+.agenda-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.agenda-actions > * {
+  flex: 1;
+  min-width: 140px;
+}

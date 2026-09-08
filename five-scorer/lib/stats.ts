@@ -35,6 +35,7 @@ type LoadedMatch = {
     playerId: string;
     team: "A" | "B";
     initialTeam: "A" | "B";
+    isGk: boolean;
   }[];
   events: {
     type: "GOAL" | "OWN_GOAL" | "YELLOW_CARD" | "RED_CARD" | "HALF_TIME";
@@ -56,7 +57,7 @@ async function loadFinishedMatches(scope: StatsScope): Promise<LoadedMatch[]> {
     include: {
       opponent: { select: { name: true } },
       participants: {
-        select: { playerId: true, team: true, initialTeam: true },
+        select: { playerId: true, team: true, initialTeam: true, isGk: true },
       },
       events: {
         select: {
@@ -1060,4 +1061,98 @@ export async function getTropheesJoueur(
   ].filter((p): p is Palier => p !== null);
 
   return { obtenus, paliers };
+}
+
+// ---------------------------------------------------------------------------
+// Le gardien
+// ---------------------------------------------------------------------------
+
+/// Le poste que l'app enregistrait sans jamais le regarder.
+///
+/// Chaque feuille de match note qui garde les buts — c'est dans les compos
+/// depuis le premier jour. Aucun écran ne s'en servait : un gardien
+/// n'apparaissait au classement que par ses buts, c'est-à-dire par ce qu'il
+/// ne fait pas. Ses chiffres à lui sont les buts encaissés, les matchs sans
+/// encaisser, et ce que devient l'équipe quand il est derrière.
+export type StatsGardien = {
+  playerId: string;
+  name: string;
+  photo: string | null;
+  matchs: number;
+  encaisses: number;
+  /// Buts encaissés par match, à une décimale.
+  moyenne: number;
+  cleanSheets: number;
+  victoires: number;
+  nuls: number;
+  defaites: number;
+  /// Pourcentage de victoires quand il garde.
+  pctVictoires: number;
+};
+
+export async function getGardiens(scope: StatsScope): Promise<StatsGardien[]> {
+  const [matches, players] = await Promise.all([
+    loadFinishedMatches(scope),
+    prisma.player.findMany({
+      where: { clubId: scope.clubId },
+      select: { id: true, name: true, photo: true },
+    }),
+  ]);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const acc = new Map<string, StatsGardien>();
+
+  for (const m of matches) {
+    if (m.kind !== "INTERNAL") continue;
+    for (const part of m.participants) {
+      if (!part.isGk) continue;
+      const p = byId.get(part.playerId);
+      if (!p) continue;
+      let g = acc.get(part.playerId);
+      if (!g) {
+        g = {
+          playerId: p.id,
+          name: p.name,
+          photo: p.photo,
+          matchs: 0,
+          encaisses: 0,
+          moyenne: 0,
+          cleanSheets: 0,
+          victoires: 0,
+          nuls: 0,
+          defaites: 0,
+          pctVictoires: 0,
+        };
+        acc.set(part.playerId, g);
+      }
+      // Encaissé = ce que l'AUTRE camp a marqué. Un contre son camp compte
+      // pour l'équipe qui en profite, il est donc déjà du bon côté du score.
+      const pris = part.initialTeam === "A" ? m.scoreB : m.scoreA;
+      g.matchs += 1;
+      g.encaisses += pris;
+      if (pris === 0) g.cleanSheets += 1;
+      const r = resultFor(part.initialTeam, m);
+      if (r === "W") g.victoires += 1;
+      else if (r === "D") g.nuls += 1;
+      else g.defaites += 1;
+    }
+  }
+
+  const out = [...acc.values()].map((g) => ({
+    ...g,
+    moyenne: g.matchs > 0 ? Math.round((g.encaisses / g.matchs) * 10) / 10 : 0,
+    pctVictoires: g.matchs > 0 ? Math.round((g.victoires / g.matchs) * 100) : 0,
+  }));
+  // Le meilleur d'abord : moins on encaisse, mieux c'est.
+  //
+  // Mais une moyenne sur un match n'est pas une moyenne : celui qui a pris un
+  // but le seul soir où il a mis les gants se retrouvait en tête devant celui
+  // qui garde tous les lundis. Les gardiens réguliers sont classés entre eux,
+  // les dépanneurs viennent après — la colonne MJ dit pourquoi.
+  const REGULIER = 3;
+  out.sort((a, b) => {
+    const ra = a.matchs >= REGULIER ? 0 : 1;
+    const rb = b.matchs >= REGULIER ? 0 : 1;
+    return ra - rb || a.moyenne - b.moyenne || b.matchs - a.matchs;
+  });
+  return out;
 }

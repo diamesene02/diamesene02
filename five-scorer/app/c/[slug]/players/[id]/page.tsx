@@ -3,7 +3,7 @@ import * as D from "@/lib/dates";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
-import { getLeaderboard, getPlayerDetail, getTropheesJoueur } from "@/lib/stats";
+import { getGardiens, getLeaderboard, getPlayerDetail, getTropheesJoueur } from "@/lib/stats";
 import { nomsChasubles } from "@/lib/color";
 import { cn } from "@/lib/cn";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
@@ -34,7 +34,7 @@ export default async function PlayerDetailPage({
     orderBy: { startsAt: "desc" },
     select: { id: true },
   });
-  const [apparitions, classement, trophees] = await Promise.all([
+  const [apparitions, classement, trophees, gardiens] = await Promise.all([
     prisma.matchParticipant.findMany({
       where: {
         playerId: id,
@@ -44,7 +44,9 @@ export default async function PlayerDetailPage({
     }),
     getLeaderboard({ clubId: ctx.club.id, seasonId: saison?.id ?? null }),
     getTropheesJoueur(ctx.club.id, id),
+    getGardiens({ clubId: ctx.club.id }),
   ]);
+  const gardien = gardiens.find((g) => g.playerId === id) ?? null;
   const nA = apparitions.filter((a) => a.initialTeam === "A").length;
   const nB = apparitions.length - nA;
   const camp: "A" | "B" | null = apparitions.length === 0 ? null : nA >= nB ? "A" : "B";
@@ -105,6 +107,35 @@ export default async function PlayerDetailPage({
               <div className="l">Victoires</div>
             </div>
           </section>
+
+          {gardien && (
+            <section className="carte fiche-carte">
+              <div className="carte-titre" style={{ padding: "20px 0 8px" }}>
+                Dans les buts
+              </div>
+              <div className="fiche-ligne">
+                <span className="l">Matchs gardés</span>
+                <span className="v">{gardien.matchs}</span>
+              </div>
+              <div className="fiche-ligne">
+                <span className="l">Buts encaissés</span>
+                <span className="v">
+                  {gardien.encaisses}{" "}
+                  <span style={{ color: "var(--i2)", fontWeight: 400 }}>
+                    · {gardien.moyenne.toLocaleString("fr-FR", { minimumFractionDigits: 1 })} par match
+                  </span>
+                </span>
+              </div>
+              <div className="fiche-ligne">
+                <span className="l">Matchs sans encaisser</span>
+                <span className="v">{gardien.cleanSheets}</span>
+              </div>
+              <div className="fiche-ligne">
+                <span className="l">Victoires quand il garde</span>
+                <span className="v">{gardien.pctVictoires} %</span>
+              </div>
+            </section>
+          )}
 
           {trophees.paliers.length > 0 && (
             <section className="carte fiche-paliers">

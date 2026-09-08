@@ -7,12 +7,14 @@ import Carte from "@/components/ios/Carte";
 import Onglets from "@/components/ios/Onglets";
 import Records from "./Records";
 import DerbyCarte from "./Derby";
+import Gardiens from "./Gardiens";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Classement, { trierParPoints } from "@/components/Classement";
 import {
   getClubRecords,
   getDerby,
   getExternalRecord,
+  getGardiens,
   getLeaderboard,
   getSeasonHonours,
   type Result,
@@ -110,11 +112,12 @@ export default async function StatsPage({
     seasonId: selected === "all" ? null : selected,
   };
 
-  const [rows, external, records, derby, participations] = await Promise.all([
+  const [rows, external, records, derby, gardiens, participations] = await Promise.all([
     getLeaderboard(scope),
     getExternalRecord(scope, { win: club.pointsWin, draw: club.pointsDraw }),
     getClubRecords(scope),
     getDerby(scope),
+    getGardiens(scope),
     // La chasuble de chacun, pour l'anneau de son avatar : celle de son
     // dernier match terminé dans la période. Un joueur n'a pas d'équipe
     // fixe au five, on lui prête la dernière portée.
@@ -539,6 +542,9 @@ export default async function StatsPage({
           {/* LE DERBY : le club joue contre lui-même toute l'année, avec
               les deux mêmes chasubles. C'est la confrontation qui dure. */}
           <DerbyCarte derby={derby} />
+
+          {/* LES GARDIENS : le poste que l'app notait sans le regarder. */}
+          <Gardiens slug={slug} gardiens={gardiens} />
 
           {/* LES RECORDS : ce dont on parle en se rhabillant, et que le
               classement ne dit pas. */}

@@ -489,3 +489,48 @@
   font-size: 13px;
   color: var(--i2);
 }
+
+/* ── Les gardiens ──────────────────────────────────────────────────────── */
+.stats-gardiens {
+  padding: 0 12px 6px;
+}
+.stats-gardiens .tete,
+.stats-gardiens .rangee {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 26px 26px 34px 26px 30px;
+  align-items: center;
+  gap: 8px;
+}
+.stats-gardiens .tete {
+  padding: 6px 4px 8px;
+  font-size: 13px;
+  color: var(--i3);
+}
+.stats-gardiens .tete > span:nth-child(n + 3),
+.stats-gardiens .rangee > span:nth-child(n + 3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.stats-gardiens .rangee {
+  min-height: 46px;
+  padding: 0 4px;
+  border-top: 1px solid var(--sep);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 15px;
+}
+.stats-gardiens .rangee .nom {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stats-gardiens .rangee .moy {
+  font-weight: 700;
+}
+.stats-gardiens .legende {
+  padding: 10px 4px 12px;
+  border-top: 1px solid var(--sep);
+  font-size: 13px;
+  color: var(--i3);
+}

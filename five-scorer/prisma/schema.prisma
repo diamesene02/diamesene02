@@ -171,6 +171,13 @@ model Club {
   isPublic         Boolean      @default(false)
   /// Code d'invitation court, régénérable (rejoindre sans email).
   inviteCode       String       @unique @default(cuid())
+  /// Jeton du flux iCal des soirées.
+  ///
+  /// DISTINCT du code d'invitation : un agenda se colle dans le téléphone de
+  /// quinze personnes, se resynchronise tout seul et finit par circuler. S'il
+  /// portait le code d'invitation, s'abonner au calendrier reviendrait à
+  /// distribuer le droit d'entrer dans le club.
+  calendarToken    String       @unique @default(cuid())
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 

@@ -7,6 +7,7 @@ import { parseTheme, THEME_COOKIE } from "@/lib/theme";
 import VersionBadge from "@/components/VersionBadge";
 import ClubSettingsForm from "./ClubSettingsForm";
 import InviteCard from "./InviteCard";
+import AgendaCard from "./AgendaCard";
 import MembersTable from "./MembersTable";
 import SeasonsCard from "./SeasonsCard";
 import Deplier from "./Deplier";
@@ -89,6 +90,9 @@ export default async function SettingsPage({
                 role: m.role,
               }))}
             />
+          </Deplier>
+          <Deplier libelle="Le calendrier dans le téléphone" valeur="iCal">
+            <AgendaCard token={ctx.club.calendarToken} />
           </Deplier>
           <Deplier libelle="Saisons" valeur={`${seasons.length}`}>
             <SeasonsCard
