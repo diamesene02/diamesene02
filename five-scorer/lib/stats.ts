@@ -808,3 +808,256 @@ export async function getClubRecords(scope: StatsScope): Promise<ClubRecords> {
     matchsPrisEnCompte: matches.length,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Le derby de la saison : les deux chasubles, sur toute l'année
+// ---------------------------------------------------------------------------
+
+/// Un club de five joue toute la saison avec les deux MÊMES chasubles.
+///
+/// C'est même sa singularité : ce n'est pas une équipe contre des adversaires
+/// qui changent, c'est un derby permanent — quarante lundis, quatre à huit
+/// matchs par soir, toujours Blanc contre Noir. Personne ne tenait ce compte,
+/// alors que c'est la seule confrontation qui dure toute l'année.
+export type Derby = {
+  nomA: string;
+  nomB: string;
+  matchs: number;
+  victoiresA: number;
+  victoiresB: number;
+  nuls: number;
+  butsA: number;
+  butsB: number;
+  /// La série en cours, du point de vue de la chasuble qui mène : positive
+  /// pour A, négative pour B, 0 si le dernier match était nul.
+  serie: number;
+  /// Les soirées gagnées : une soirée revient à qui a gagné le plus de matchs.
+  soireesA: number;
+  soireesB: number;
+  soireesPartagees: number;
+};
+
+export async function getDerby(scope: StatsScope): Promise<Derby | null> {
+  const matches = (await loadFinishedMatches(scope)).filter(
+    (m) => m.kind === "INTERNAL",
+  );
+  if (matches.length === 0) return null;
+
+  // Les noms : ceux du match le plus récent, qui reflètent les chasubles
+  // réglées aujourd'hui.
+  const dernier = matches[matches.length - 1];
+  const d: Derby = {
+    nomA: dernier.teamAName,
+    nomB: dernier.teamBName,
+    matchs: matches.length,
+    victoiresA: 0,
+    victoiresB: 0,
+    nuls: 0,
+    butsA: 0,
+    butsB: 0,
+    serie: 0,
+    soireesA: 0,
+    soireesB: 0,
+    soireesPartagees: 0,
+  };
+
+  for (const m of matches) {
+    d.butsA += m.scoreA;
+    d.butsB += m.scoreB;
+    if (m.scoreA > m.scoreB) d.victoiresA += 1;
+    else if (m.scoreB > m.scoreA) d.victoiresB += 1;
+    else d.nuls += 1;
+  }
+
+  // La série : on remonte le temps tant que le même camp gagne.
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const m = matches[i];
+    const vainqueur = m.scoreA > m.scoreB ? 1 : m.scoreB > m.scoreA ? -1 : 0;
+    if (vainqueur === 0) break;
+    if (d.serie === 0) d.serie = vainqueur;
+    else if (Math.sign(d.serie) !== vainqueur) break;
+    else d.serie += vainqueur;
+  }
+
+  // Les soirées : une soirée revient à qui y a gagné le plus de matchs.
+  const parSoiree = new Map<string, { a: number; b: number }>();
+  for (const m of matches) {
+    if (!m.matchDayId) continue;
+    const s = parSoiree.get(m.matchDayId) ?? { a: 0, b: 0 };
+    if (m.scoreA > m.scoreB) s.a += 1;
+    else if (m.scoreB > m.scoreA) s.b += 1;
+    parSoiree.set(m.matchDayId, s);
+  }
+  for (const s of parSoiree.values()) {
+    if (s.a > s.b) d.soireesA += 1;
+    else if (s.b > s.a) d.soireesB += 1;
+    else d.soireesPartagees += 1;
+  }
+
+  return d;
+}
+
+// ---------------------------------------------------------------------------
+// Trophées et paliers d'un joueur
+// ---------------------------------------------------------------------------
+
+/// Ce qu'un joueur a décroché, et ce qui lui reste à deux pas.
+///
+/// Un classement ne récompense que le premier. Or dans un five, le dixième
+/// aussi a une histoire : son premier but, son premier triplé, sa série de
+/// trois. Ces jalons existaient déjà dans les données — personne ne les
+/// nommait.
+///
+/// Les paliers comptent autant que les trophées : « encore deux buts » fait
+/// revenir le lundi suivant, là où « 8 buts » ne dit rien.
+export type Trophee = {
+  cle: string;
+  nom: string;
+  detail: string;
+  /// Date d'obtention — seulement pour ceux qu'on sait dater.
+  date?: Date;
+};
+
+export type Palier = {
+  cle: string;
+  /// L'intitulé de la rangée : « Buts », « Homme du match ».
+  titre: string;
+  /// L'unité, aux deux nombres. Un `replace` du « s » final marchait pour
+  /// « buts », pas pour « titres d'homme du match » — la marque du pluriel
+  /// n'est pas toujours à la fin, et l'intitulé porte déjà le contexte.
+  nom: string;
+  nomSingulier: string;
+  actuel: number;
+  objectif: number;
+};
+
+export type TropheesJoueur = {
+  obtenus: Trophee[];
+  paliers: Palier[];
+};
+
+const PALIERS_BUTS = [1, 5, 10, 25, 50, 100, 200];
+const PALIERS_MATCHS = [1, 10, 25, 50, 100, 200];
+const PALIERS_VICTOIRES = [1, 10, 25, 50, 100];
+const PALIERS_MVP = [1, 3, 5, 10, 25];
+
+export async function getTropheesJoueur(
+  clubId: string,
+  playerId: string,
+): Promise<TropheesJoueur> {
+  const matches = (await loadFinishedMatches({ clubId })).filter((m) =>
+    m.participants.some((p) => p.playerId === playerId),
+  );
+
+  let buts = 0;
+  let joues = 0;
+  let victoires = 0;
+  let mvp = 0;
+  let serie = 0;
+  let meilleureSerie = 0;
+  let meilleurMatch = 0;
+  const dates = new Map<string, Date>();
+  const marque = (cle: string, d: Date) => {
+    if (!dates.has(cle)) dates.set(cle, d);
+  };
+
+  for (const m of matches) {
+    const part = m.participants.find((p) => p.playerId === playerId);
+    if (!part) continue;
+    joues += 1;
+    for (const seuil of PALIERS_MATCHS) {
+      if (joues === seuil) marque(`matchs-${seuil}`, m.playedAt);
+    }
+
+    const butsDuMatch = m.events.filter(
+      (e) => e.type === "GOAL" && e.playerId === playerId,
+    ).length;
+    for (let i = 1; i <= butsDuMatch; i++) {
+      buts += 1;
+      for (const seuil of PALIERS_BUTS) {
+        if (buts === seuil) marque(`buts-${seuil}`, m.playedAt);
+      }
+    }
+    if (butsDuMatch > meilleurMatch) meilleurMatch = butsDuMatch;
+    if (butsDuMatch >= 3) marque("triple", m.playedAt);
+    if (butsDuMatch >= 4) marque("quadruple", m.playedAt);
+
+    const res = resultFor(part.initialTeam, m);
+    if (res === "W") {
+      victoires += 1;
+      for (const seuil of PALIERS_VICTOIRES) {
+        if (victoires === seuil) marque(`victoires-${seuil}`, m.playedAt);
+      }
+      serie += 1;
+      if (serie > meilleureSerie) meilleureSerie = serie;
+      if (serie === 3) marque("serie-3", m.playedAt);
+      if (serie === 5) marque("serie-5", m.playedAt);
+      if (serie === 10) marque("serie-10", m.playedAt);
+    } else {
+      serie = 0;
+    }
+
+    if (m.mvpId === playerId) {
+      mvp += 1;
+      for (const seuil of PALIERS_MVP) {
+        if (mvp === seuil) marque(`mvp-${seuil}`, m.playedAt);
+      }
+    }
+  }
+
+  const obtenus: Trophee[] = [];
+  const ajoute = (cle: string, nom: string, detail: string) => {
+    const date = dates.get(cle);
+    if (date) obtenus.push({ cle, nom, detail, date });
+  };
+
+  ajoute("matchs-1", "Première", "Premier match sous ces couleurs");
+  ajoute("buts-1", "Premier but", "Le premier, on s'en souvient");
+  ajoute("triple", "Triplé", "Trois buts dans le même match");
+  ajoute("quadruple", "Quadruplé", "Quatre buts dans le même match");
+  for (const s of [5, 10, 25, 50, 100, 200]) {
+    ajoute(`buts-${s}`, `${s} buts`, "Au compteur");
+  }
+  for (const s of [10, 25, 50, 100, 200]) {
+    ajoute(`matchs-${s}`, `${s} matchs`, "Toujours là");
+  }
+  for (const s of [10, 25, 50, 100]) {
+    ajoute(`victoires-${s}`, `${s} victoires`, "Du bon côté");
+  }
+  ajoute("serie-3", "Série de 3", "Trois victoires d'affilée");
+  ajoute("serie-5", "Série de 5", "Cinq victoires d'affilée");
+  ajoute("serie-10", "Série de 10", "Dix victoires d'affilée");
+  ajoute("mvp-1", "Homme du match", "Élu une fois");
+  for (const s of [3, 5, 10, 25]) {
+    ajoute(`mvp-${s}`, `${s} fois homme du match`, "Le patron");
+  }
+
+  // Le plus récent d'abord : un trophée d'hier vaut mieux qu'un d'il y a un an.
+  obtenus.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+
+  const prochain = (
+    cle: string,
+    titre: string,
+    nom: string,
+    nomSingulier: string,
+    actuel: number,
+    seuils: number[],
+  ): Palier | null => {
+    const objectif = seuils.find((s) => s > actuel);
+    return objectif ? { cle, titre, nom, nomSingulier, actuel, objectif } : null;
+  };
+
+  const paliers = [
+    prochain("buts", "Buts", "buts", "but", buts, PALIERS_BUTS),
+    prochain("matchs", "Matchs", "matchs", "match", joues, PALIERS_MATCHS),
+    prochain("victoires", "Victoires", "victoires", "victoire", victoires, PALIERS_VICTOIRES),
+    // Le palier « homme du match » n'a de sens qu'une fois lancé : proposer
+    // « 1 titre » à quelqu'un qui n'en a aucun, c'est lui rappeler qu'il n'en
+    // a aucun.
+    mvp > 0
+      ? prochain("mvp", "Homme du match", "titres", "titre", mvp, PALIERS_MVP)
+      : null,
+  ].filter((p): p is Palier => p !== null);
+
+  return { obtenus, paliers };
+}

@@ -247,3 +247,82 @@
   justify-content: center;
   padding-top: 14px;
 }
+
+/* ── Les paliers : ce qui reste à deux pas ─────────────────────────────── */
+.fiche-paliers {
+  padding: 0 18px 16px;
+}
+.fiche-paliers .palier {
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--sep);
+}
+.fiche-paliers .palier:first-of-type {
+  border-top: 0;
+}
+.fiche-paliers .tete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 15px;
+}
+.fiche-paliers .quoi {
+  font-weight: 600;
+  min-width: 0;
+}
+.fiche-paliers .compte {
+  font-size: 13px;
+  color: var(--i2);
+  white-space: nowrap;
+}
+.fiche-paliers .compte b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.fiche-paliers .barre {
+  display: block;
+  height: 5px;
+  margin-top: 7px;
+  border-radius: 3px;
+  background: var(--sep);
+  overflow: hidden;
+}
+.fiche-paliers .barre i {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--taG);
+}
+
+/* ── Les trophées ──────────────────────────────────────────────────────── */
+.fiche-trophees {
+  padding: 0 18px 18px;
+}
+.fiche-trophees .grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.fiche-trophees .trophee {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--seg);
+  box-shadow: inset 0 0 0 1px var(--gb);
+  min-width: 0;
+}
+.fiche-trophees .trophee .nom {
+  font-size: 15px;
+  font-weight: 700;
+}
+.fiche-trophees .trophee .detail {
+  font-size: 13px;
+  color: var(--i2);
+}
+.fiche-trophees .trophee .quand {
+  font-size: 13px;
+  color: var(--i3);
+  margin-top: 2px;
+}

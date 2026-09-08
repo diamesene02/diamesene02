@@ -3,7 +3,7 @@ import * as D from "@/lib/dates";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
-import { getLeaderboard, getPlayerDetail } from "@/lib/stats";
+import { getLeaderboard, getPlayerDetail, getTropheesJoueur } from "@/lib/stats";
 import { nomsChasubles } from "@/lib/color";
 import { cn } from "@/lib/cn";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
@@ -34,7 +34,7 @@ export default async function PlayerDetailPage({
     orderBy: { startsAt: "desc" },
     select: { id: true },
   });
-  const [apparitions, classement] = await Promise.all([
+  const [apparitions, classement, trophees] = await Promise.all([
     prisma.matchParticipant.findMany({
       where: {
         playerId: id,
@@ -43,6 +43,7 @@ export default async function PlayerDetailPage({
       select: { initialTeam: true },
     }),
     getLeaderboard({ clubId: ctx.club.id, seasonId: saison?.id ?? null }),
+    getTropheesJoueur(ctx.club.id, id),
   ]);
   const nA = apparitions.filter((a) => a.initialTeam === "A").length;
   const nB = apparitions.length - nA;
@@ -105,6 +106,31 @@ export default async function PlayerDetailPage({
             </div>
           </section>
 
+          {trophees.paliers.length > 0 && (
+            <section className="carte fiche-paliers">
+              <div className="carte-titre" style={{ padding: "18px 0 4px" }}>
+                Prochains paliers
+              </div>
+              {trophees.paliers.map((p) => {
+                const reste = p.objectif - p.actuel;
+                return (
+                  <div key={p.cle} className="palier">
+                    <span className="tete">
+                      <span className="quoi">{p.titre}</span>
+                      <span className="compte">
+                        encore <b>{reste}</b>{" "}
+                        {reste > 1 ? p.nom : p.nomSingulier} pour {p.objectif}
+                      </span>
+                    </span>
+                    <span className="barre" aria-hidden>
+                      <i style={{ width: `${Math.round((p.actuel / p.objectif) * 100)}%` }} />
+                    </span>
+                  </div>
+                );
+              })}
+            </section>
+          )}
+
           <section className="carte fiche-carte">
             <div className="fiche-ligne">
               <span className="l">Forme</span>
@@ -163,6 +189,23 @@ export default async function PlayerDetailPage({
               );
             })}
           </section>
+
+          {trophees.obtenus.length > 0 && (
+            <section className="carte fiche-trophees">
+              <div className="carte-titre" style={{ padding: "20px 0 10px" }}>
+                Trophées
+              </div>
+              <div className="grille">
+                {trophees.obtenus.map((t) => (
+                  <div key={t.cle} className="trophee" title={t.detail}>
+                    <span className="nom">{t.nom}</span>
+                    <span className="detail">{t.detail}</span>
+                    {t.date && <span className="quand">{fmtDate(t.date.toISOString())}</span>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {bySeason.length > 1 && (
             <section className="carte fiche-carte">

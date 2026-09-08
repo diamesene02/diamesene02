@@ -13,6 +13,7 @@ import { getLeaderboard } from "@/lib/stats";
 import MoneyPanel from "./MoneyPanel";
 import SessionRsvpAdmin, { type SessionPlayerRow } from "./SessionRsvpAdmin";
 import DeleteSessionButton from "./DeleteSessionButton";
+import MotDeLaSoiree from "./MotDeLaSoiree";
 import "./soiree.css";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export default async function SessionDetailPage({
           events: {
             where: { type: { in: ["GOAL", "OWN_GOAL"] } },
             orderBy: { minute: "asc" },
-            select: { type: true, player: { select: { name: true } } },
+            select: { type: true, team: true, player: { select: { name: true } } },
           },
         },
       },
@@ -115,15 +116,62 @@ export default async function SessionDetailPage({
   const fmtShort = D.heure;
   const opponentOr = (m: (typeof md.matches)[number]) =>
     m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName;
-  const buteursDe = (m: (typeof md.matches)[number]) => {
-    const compte = new Map<string, number>();
-    for (const e of m.events) {
-      const nom = e.player?.name ?? "?";
-      const cle = e.type === "OWN_GOAL" ? `${nom} (csc)` : nom;
-      compte.set(cle, (compte.get(cle) ?? 0) + 1);
-    }
-    return [...compte].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(", ");
+  /// Les buteurs, CAMP PAR CAMP.
+  ///
+  /// Ils étaient comptés tous ensemble sur une seule ligne : « Karim ×3,
+  /// Momo ×2, Diame » sous un 5-1 laisse croire que les trois ont marqué
+  /// pour le même camp. On les sépare — le score dit déjà qui est à gauche.
+  const buteursParCamp = (m: (typeof md.matches)[number]) => {
+    const cote = (team: "A" | "B") => {
+      const compte = new Map<string, number>();
+      for (const e of m.events) {
+        if (e.team !== team) continue;
+        const nom = e.player?.name ?? "?";
+        const cle = e.type === "OWN_GOAL" ? `${nom} (csc)` : nom;
+        compte.set(cle, (compte.get(cle) ?? 0) + 1);
+      }
+      return [...compte].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(", ");
+    };
+    return { a: cote("A"), b: cote("B") };
   };
+  const buteursDe = (m: (typeof md.matches)[number]) => {
+    const { a, b } = buteursParCamp(m);
+    return [a, b].filter(Boolean).join("  —  ");
+  };
+
+  // Le mot de la soirée : ce qu'on tape à la main dans le groupe le mardi
+  // matin, et qu'on ne tape jamais. Composé ici, où sont les données.
+  const motDeLaSoiree = (() => {
+    if (internes.length === 0) return null;
+    const lignes: string[] = [];
+    lignes.push(`${D.jourLong(md.date)}${md.location ? ` — ${md.location}` : ""}`);
+    lignes.push("");
+    if (victoiresA !== victoiresB) {
+      const gagnant = victoiresA > victoiresB ? nomA : nomB;
+      lignes.push(
+        `${gagnant} gagne la soirée ${Math.max(victoiresA, victoiresB)}-${Math.min(victoiresA, victoiresB)}${nuls > 0 ? ` (${nuls} nul${nuls > 1 ? "s" : ""})` : ""}`,
+      );
+    } else {
+      lignes.push(`Soirée partagée ${victoiresA}-${victoiresB}${nuls > 0 ? ` (${nuls} nul${nuls > 1 ? "s" : ""})` : ""}`);
+    }
+    lignes.push("");
+    termines.forEach((m, i) => {
+      const nomAdverse =
+        m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName;
+      const { a, b } = buteursParCamp(m);
+      lignes.push(
+        `Match ${i + 1} : ${m.teamAName} ${m.scoreA} - ${m.scoreB} ${nomAdverse}`,
+      );
+      if (a) lignes.push(`  ${m.teamAName} : ${a}`);
+      if (b) lignes.push(`  ${nomAdverse} : ${b}`);
+    });
+    lignes.push("");
+    const fin: string[] = [`${butsDuSoir} but${butsDuSoir > 1 ? "s" : ""} dans la soirée`];
+    if (buteurDuSoir) fin.push(`meilleur buteur ${buteurDuSoir.name} (${buteurDuSoir.goals})`);
+    if (mvpDuSoir) fin.push(`homme du match ${mvpDuSoir.name}`);
+    lignes.push(fin.join(" · "));
+    return lignes.join("\n");
+  })();
 
   const showMoney = ctx.canManage || md.fieldCostCents != null;
   const commencee = md.matches.length > 0;
@@ -238,6 +286,13 @@ export default async function SessionDetailPage({
             {buteurDuSoir && <> · {buteurDuSoir.name} <b>{buteurDuSoir.goals}</b></>}
             {mvpDuSoir && <> · <span style={{ color: "var(--or)" }}>★ {mvpDuSoir.name}</span></>}
           </div>
+        </section>
+      )}
+
+      {motDeLaSoiree && (
+        <section className="carte soiree-carte">
+          <div className="carte-titre">Le mot de la soirée</div>
+          <MotDeLaSoiree texte={motDeLaSoiree} />
         </section>
       )}
 

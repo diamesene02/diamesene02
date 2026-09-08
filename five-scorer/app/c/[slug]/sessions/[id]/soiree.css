@@ -438,3 +438,36 @@
   color: var(--ink);
   font-weight: 600;
 }
+
+/* ── Le mot de la soirée ───────────────────────────────────────────────── */
+.mot-soiree {
+  padding: 0 18px 18px;
+}
+.mot-soiree .apercu {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--seg);
+  box-shadow: inset 0 0 0 1px var(--gb);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.mot-soiree .actions {
+  display: flex;
+  gap: 10px;
+}
+.mot-soiree .actions > * {
+  flex: 1;
+}
+.mot-soiree .etat {
+  padding-top: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--i2);
+}
