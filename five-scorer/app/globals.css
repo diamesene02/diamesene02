@@ -2163,10 +2163,10 @@
   box-shadow: inset 0 0 0 2px var(--anneau, var(--gb));
 }
 .avatar-anneau.A {
-  --anneau: var(--ta);
+  --anneau: var(--taR, var(--ta));
 }
 .avatar-anneau.B {
-  --anneau: var(--tb);
+  --anneau: var(--tbR, var(--tb));
 }
 
 /* ── La ligne de score : écusson, chiffre, état, chiffre, écusson ─────── */

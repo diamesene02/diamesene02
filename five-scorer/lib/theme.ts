@@ -127,9 +127,25 @@ export function themeTokens(
         or: "#ffd60a",
       };
 
+  // L'anneau de l'avatar est le SEUL repère d'équipe dans les listes — et il
+  // porte la couleur brute de la chasuble. Une chasuble blanche disparaissait
+  // donc sur les cartes du thème clair, une noire sur celles du thème sombre :
+  // le classement d'un club en noir et blanc n'avait plus qu'une équipe
+  // visible sur deux. On rapproche la couleur du contraste, sans la trahir.
+  const anneau = (c: string) =>
+    light
+      ? lum(c) > 0.7
+        ? mix(c, "#000000", 0.45)
+        : c
+      : lum(c) < 0.16
+        ? mix(c, "#ffffff", 0.45)
+        : c;
+
   Object.assign(v, {
     bg,
     bgSolid,
+    taR: anneau(A),
+    tbR: anneau(B),
     ta: A,
     tb: B,
     taG: crest(A),
