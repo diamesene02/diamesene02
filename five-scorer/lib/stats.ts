@@ -17,6 +17,9 @@ export type StatsScope = {
 type LoadedMatch = {
   id: string;
   playedAt: Date;
+  matchDayId: string | null;
+  teamAName: string;
+  teamBName: string;
   kind: "INTERNAL" | "EXTERNAL";
   opponentId: string | null;
   opponentName: string | null;
@@ -68,6 +71,9 @@ async function loadFinishedMatches(scope: StatsScope): Promise<LoadedMatch[]> {
   return matches.map((m) => ({
     id: m.id,
     playedAt: m.playedAt,
+    matchDayId: m.matchDayId,
+    teamAName: m.teamAName,
+    teamBName: m.teamBName,
     kind: m.kind,
     opponentId: m.opponentId,
     opponentName: m.opponent?.name ?? null,
@@ -572,5 +578,233 @@ export async function getClubSummary(scope: StatsScope): Promise<ClubSummary> {
         ? { playerId: mvp.playerId, name: mvp.name, count: mvp.mvpCount }
         : null,
     activePlayers: rows.filter((r) => r.matchesPlayed > 0).length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Les records du club
+// ---------------------------------------------------------------------------
+
+/// Ce dont on parle au bord du terrain, et que l'app ne savait pas dire.
+///
+/// Un classement répond à « qui est premier ». Il ne répond pas à « c'était
+/// quoi, la plus grosse fessée ? », « qui a mis quatre buts en un match ? »,
+/// « avec qui je gagne ? ». Ces questions-là font la mémoire d'un club, et
+/// elles se calculent entièrement à partir de ce qui est déjà enregistré.
+///
+/// Tout se déduit des matchs déjà chargés : aucune écriture, aucune colonne
+/// de plus. Un record apparaît le jour où il existe, et pas avant — on
+/// n'affiche jamais un trophée vide.
+export type RecordMatch = {
+  matchId: string;
+  date: Date;
+  nomA: string;
+  nomB: string;
+  scoreA: number;
+  scoreB: number;
+};
+
+export type RecordJoueur = {
+  playerId: string;
+  name: string;
+  photo: string | null;
+  valeur: number;
+  /// Le match ou la soirée où c'est arrivé, quand ça a un sens.
+  matchId?: string;
+  date?: Date;
+};
+
+export type RecordPaire = {
+  a: { playerId: string; name: string; photo: string | null };
+  b: { playerId: string; name: string; photo: string | null };
+  ensemble: number;
+  victoires: number;
+  pct: number;
+};
+
+export type ClubRecords = {
+  /// Le plus gros écart.
+  plusLargeVictoire: (RecordMatch & { ecart: number }) | null;
+  /// Le match où il en est tombé le plus, tous camps confondus.
+  matchLePlusFou: (RecordMatch & { total: number }) | null;
+  /// La soirée la plus prolifique.
+  soireeLaPlusFolle: { matchDayId: string; date: Date; buts: number; matchs: number } | null;
+  /// Le carton d'un joueur sur un seul match.
+  leCarton: RecordJoueur | null;
+  /// Le plus de buts d'un joueur sur une soirée entière.
+  laSoireeDUnHomme: (RecordJoueur & { matchDayId: string }) | null;
+  /// La plus longue série de victoires jamais enchaînée.
+  laPlusLongueSerie: RecordJoueur | null;
+  /// Le plus d'apparitions.
+  linoxydable: RecordJoueur | null;
+  /// Les deux qui gagnent le plus quand ils sont dans la même équipe.
+  laPaire: RecordPaire | null;
+  /// Nombre de matchs sur lesquels tout ça est calculé — pour dire au club
+  /// quand un record ne veut pas encore dire grand-chose.
+  matchsPrisEnCompte: number;
+};
+
+const PAIRE_MINIMUM = 4;
+/// « La paire » n'a de sens que si elle gagne vraiment. Sans ce seuil, le
+/// meilleur duo d'un club qui débute s'affichait à 38 % de victoires — un
+/// record qui dit le contraire de ce qu'il annonce.
+const PAIRE_SEUIL_PCT = 60;
+
+export async function getClubRecords(scope: StatsScope): Promise<ClubRecords> {
+  const [tous, players] = await Promise.all([
+    loadFinishedMatches(scope),
+    prisma.player.findMany({
+      where: { clubId: scope.clubId },
+      select: { id: true, name: true, photo: true },
+    }),
+  ]);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  // Les records sont ceux des matchs ENTRE NOUS : un match contre un
+  // adversaire extérieur n'a pas de joueurs côté B, ses écarts ne se
+  // comparent pas à ceux d'un five du lundi.
+  const matches = tous.filter((m) => m.kind === "INTERNAL");
+
+  const fiche = (playerId: string, valeur: number, extra?: { matchId?: string; date?: Date }) => {
+    const p = byId.get(playerId);
+    if (!p) return null;
+    return { playerId, name: p.name, photo: p.photo, valeur, ...extra };
+  };
+  const versRecordMatch = (m: LoadedMatch): RecordMatch => ({
+    matchId: m.id,
+    date: m.playedAt,
+    nomA: m.teamAName,
+    nomB: m.teamBName,
+    scoreA: m.scoreA,
+    scoreB: m.scoreB,
+  });
+
+  // ── Records de match ────────────────────────────────────────────────────
+  let large: LoadedMatch | null = null;
+  let fou: LoadedMatch | null = null;
+  for (const m of matches) {
+    const ecart = Math.abs(m.scoreA - m.scoreB);
+    const total = m.scoreA + m.scoreB;
+    if (ecart > 0 && (!large || ecart > Math.abs(large.scoreA - large.scoreB))) large = m;
+    if (total > 0 && (!fou || total > fou.scoreA + fou.scoreB)) fou = m;
+  }
+
+  // ── La soirée ───────────────────────────────────────────────────────────
+  const parSoiree = new Map<string, { date: Date; buts: number; matchs: number }>();
+  for (const m of matches) {
+    if (!m.matchDayId) continue;
+    const s = parSoiree.get(m.matchDayId) ?? { date: m.playedAt, buts: 0, matchs: 0 };
+    s.buts += m.scoreA + m.scoreB;
+    s.matchs += 1;
+    parSoiree.set(m.matchDayId, s);
+  }
+  let soiree: { matchDayId: string; date: Date; buts: number; matchs: number } | null = null;
+  for (const [matchDayId, s] of parSoiree) {
+    if (s.buts > 0 && (!soiree || s.buts > soiree.buts)) soiree = { matchDayId, ...s };
+  }
+
+  // ── Buts d'un joueur : sur un match, puis sur une soirée ────────────────
+  let carton: RecordJoueur | null = null;
+  const butsParSoiree = new Map<string, Map<string, number>>();
+  for (const m of matches) {
+    const parJoueur = new Map<string, number>();
+    for (const e of m.events) {
+      if (e.type !== "GOAL" || !e.playerId) continue;
+      parJoueur.set(e.playerId, (parJoueur.get(e.playerId) ?? 0) + 1);
+    }
+    for (const [playerId, buts] of parJoueur) {
+      if (!carton || buts > carton.valeur) {
+        const f = fiche(playerId, buts, { matchId: m.id, date: m.playedAt });
+        if (f) carton = f;
+      }
+      if (m.matchDayId) {
+        const s = butsParSoiree.get(m.matchDayId) ?? new Map<string, number>();
+        s.set(playerId, (s.get(playerId) ?? 0) + buts);
+        butsParSoiree.set(m.matchDayId, s);
+      }
+    }
+  }
+  let soireeDUnHomme: (RecordJoueur & { matchDayId: string }) | null = null;
+  for (const [matchDayId, parJoueur] of butsParSoiree) {
+    for (const [playerId, buts] of parJoueur) {
+      // Le record de la soirée n'a d'intérêt que s'il dépasse celui du match :
+      // sinon c'est deux fois la même ligne.
+      if (buts > (carton?.valeur ?? 0) && (!soireeDUnHomme || buts > soireeDUnHomme.valeur)) {
+        const f = fiche(playerId, buts, { date: parSoiree.get(matchDayId)?.date });
+        if (f) soireeDUnHomme = { ...f, matchDayId };
+      }
+    }
+  }
+
+  // ── Séries, apparitions, paires ────────────────────────────────────────
+  const serieEnCours = new Map<string, number>();
+  const meilleureSerie = new Map<string, number>();
+  const apparitions = new Map<string, number>();
+  const paires = new Map<string, { ensemble: number; victoires: number }>();
+
+  for (const m of matches) {
+    for (const camp of ["A", "B"] as const) {
+      const equipe = m.participants
+        .filter((p) => p.initialTeam === camp)
+        .map((p) => p.playerId);
+      const gagne = resultFor(camp, m) === "W";
+      for (const id of equipe) {
+        apparitions.set(id, (apparitions.get(id) ?? 0) + 1);
+        const s = gagne ? (serieEnCours.get(id) ?? 0) + 1 : 0;
+        serieEnCours.set(id, s);
+        if (s > (meilleureSerie.get(id) ?? 0)) meilleureSerie.set(id, s);
+      }
+      for (let i = 0; i < equipe.length; i++) {
+        for (let j = i + 1; j < equipe.length; j++) {
+          const cle = [equipe[i], equipe[j]].sort().join("|");
+          const p = paires.get(cle) ?? { ensemble: 0, victoires: 0 };
+          p.ensemble += 1;
+          if (gagne) p.victoires += 1;
+          paires.set(cle, p);
+        }
+      }
+    }
+  }
+
+  const meilleurDe = (m: Map<string, number>): RecordJoueur | null => {
+    let top: { id: string; v: number } | null = null;
+    for (const [id, v] of m) if (v > 0 && (!top || v > top.v)) top = { id, v };
+    return top ? fiche(top.id, top.v) : null;
+  };
+
+  let paire: RecordPaire | null = null;
+  for (const [cle, p] of paires) {
+    if (p.ensemble < PAIRE_MINIMUM) continue;
+    const pct = (p.victoires / p.ensemble) * 100;
+    if (paire && pct <= paire.pct) continue;
+    const [ida, idb] = cle.split("|");
+    const a = byId.get(ida);
+    const b = byId.get(idb);
+    if (!a || !b) continue;
+    paire = {
+      a: { playerId: a.id, name: a.name, photo: a.photo },
+      b: { playerId: b.id, name: b.name, photo: b.photo },
+      ensemble: p.ensemble,
+      victoires: p.victoires,
+      pct: Math.round(pct),
+    };
+  }
+
+  return {
+    plusLargeVictoire: large
+      ? { ...versRecordMatch(large), ecart: Math.abs(large.scoreA - large.scoreB) }
+      : null,
+    matchLePlusFou: fou
+      ? { ...versRecordMatch(fou), total: fou.scoreA + fou.scoreB }
+      : null,
+    soireeLaPlusFolle: soiree && soiree.matchs > 1 ? soiree : null,
+    leCarton: carton && carton.valeur > 1 ? carton : null,
+    laSoireeDUnHomme: soireeDUnHomme,
+    laPlusLongueSerie: (() => {
+      const r = meilleurDe(meilleureSerie);
+      return r && r.valeur > 1 ? r : null;
+    })(),
+    linoxydable: meilleurDe(apparitions),
+    laPaire: paire && paire.pct >= PAIRE_SEUIL_PCT ? paire : null,
+    matchsPrisEnCompte: matches.length,
   };
 }

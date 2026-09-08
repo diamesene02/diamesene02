@@ -318,3 +318,61 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ── Les records du club ───────────────────────────────────────────────── */
+.stats-records {
+  padding: 0 16px 6px;
+}
+.stats-records .record {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 8px 0;
+  color: var(--ink);
+  text-decoration: none;
+  border-top: 1px solid var(--sep);
+}
+.stats-records .record:first-of-type {
+  border-top: 0;
+}
+.stats-records .record .pastille {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--seg);
+  box-shadow: inset 0 0 0 1px var(--gb);
+}
+.stats-records .record .bloc {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stats-records .record .titre {
+  font-size: 15px;
+  font-weight: 600;
+}
+.stats-records .record .contexte {
+  font-size: 13px;
+  color: var(--i2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stats-records .record .valeur {
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex: none;
+}
+.stats-records .record-jeune {
+  padding: 10px 0 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--i3);
+  border-top: 1px solid var(--sep);
+}

@@ -5,9 +5,11 @@ import { requireClub } from "@/lib/guard";
 import Icon from "@/components/Icon";
 import Carte from "@/components/ios/Carte";
 import Onglets from "@/components/ios/Onglets";
+import Records from "./Records";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Classement, { trierParPoints } from "@/components/Classement";
 import {
+  getClubRecords,
   getExternalRecord,
   getLeaderboard,
   getSeasonHonours,
@@ -106,9 +108,10 @@ export default async function StatsPage({
     seasonId: selected === "all" ? null : selected,
   };
 
-  const [rows, external, participations] = await Promise.all([
+  const [rows, external, records, participations] = await Promise.all([
     getLeaderboard(scope),
     getExternalRecord(scope, { win: club.pointsWin, draw: club.pointsDraw }),
+    getClubRecords(scope),
     // La chasuble de chacun, pour l'anneau de son avatar : celle de son
     // dernier match terminé dans la période. Un joueur n'a pas d'équipe
     // fixe au five, on lui prête la dernière portée.
@@ -529,6 +532,10 @@ export default async function StatsPage({
               ))}
             </Carte>
           )}
+
+          {/* LES RECORDS : ce dont on parle en se rhabillant, et que le
+              classement ne dit pas. */}
+          <Records slug={slug} records={records} />
 
           {/* Bilan vs adversaires : la synthèse, la forme, puis le
               face-à-face, un adversaire par ligne. */}
