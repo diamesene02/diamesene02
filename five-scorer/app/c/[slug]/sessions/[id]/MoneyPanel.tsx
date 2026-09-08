@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { setFieldCost, setRsvpPaid } from "@/app/actions/payments";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
 
 export type PayerRow = {
   playerId: string;
@@ -19,18 +20,26 @@ function fmtEuro(cents: number) {
   });
 }
 
+// La note du terrain, en deux dessins.
+//
+// « resume » : « 48 € · 5,33 € chacun », posé à droite du compte des présents
+// dans la carte « Ma réponse » — c'est la seule chose que la plupart veulent
+// savoir. « caisse » : le prix à saisir, qui a payé (un tap par joueur) et
+// l'encaissé — l'outillage de l'admin, dans sa propre carte.
 export default function MoneyPanel({
   slug,
   matchDayId,
   canManage,
   costCents,
   payers,
+  mode = "caisse",
 }: {
   slug: string;
   matchDayId: string;
   canManage: boolean;
   costCents: number | null;
   payers: PayerRow[]; // joueurs IN de la soirée
+  mode?: "resume" | "caisse";
 }) {
   const router = useRouter();
   const [cost, setCost] = useState<number | null>(costCents);
@@ -88,132 +97,111 @@ export default function MoneyPanel({
     });
   }
 
+  if (mode === "resume") {
+    if (cost == null) return null;
+    return (
+      <>
+        {fmtEuro(cost)}
+        {shareCents != null && <> · {fmtEuro(shareCents)} chacun</>}
+      </>
+    );
+  }
+
   return (
-    <div>
+    <div className="soiree-caisse">
       {/* Prix du terrain */}
       {canManage ? (
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="block">
-            <span className="mb-1 block text-[11px] font-black  text-[color:var(--ink-2)]">
-              Prix du terrain (€)
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="ex. 80"
-              className="w-32 rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3 py-2.5 text-sm font-bold tabular-nums outline-none focus:border-[color:var(--ink-1)]"
-            />
-          </label>
+        <div className="soiree-prix">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Prix du terrain (€)"
+            aria-label="Prix du terrain en euros"
+          />
           <button
+            type="button"
             disabled={pending}
             onClick={saveCost}
-            className="big-touch rounded-none border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-4 py-2.5 text-sm font-bold transition-colors hover:border-[color:var(--ink-1)] disabled:opacity-50"
+            className="verre grand"
           >
             {pending ? "…" : "Enregistrer"}
           </button>
         </div>
       ) : (
         cost != null && (
-          <div className="text-sm">
-            <span className="text-[color:var(--ink-2)]">Prix du terrain :</span>{" "}
-            <span className="font-black tabular-nums">{fmtEuro(cost)}</span>
+          <div className="rangee-ios">
+            <span className="libelle">Prix du terrain</span>
+            <span className="valeur" style={{ color: "var(--ink)", fontWeight: 600 }}>
+              {fmtEuro(cost)}
+            </span>
           </div>
         )
       )}
       {error && (
-        <p className="mt-2 text-sm text-[color:var(--loss)]">{error}</p>
+        <p className="mt-2 text-[15px] text-[color:var(--bad)]">{error}</p>
       )}
 
       {cost != null && (
         <>
-          {/* Répartition */}
-          <p className="mt-4 text-sm text-[color:var(--ink-1)]">
-            {nbIn > 0 ? (
-              <>
-                <span className="font-black tabular-nums text-[color:var(--bib-a-ink)]">
-                  {nbIn}
-                </span>{" "}
-                présent{nbIn > 1 ? "s" : ""} →{" "}
-                <span className="num-sculpt text-xl text-[color:var(--ink-1)]">
-                  {fmtEuro(shareCents!)}
-                </span>{" "}
-                chacun
-              </>
-            ) : (
- "Personne n'a encore répondu présent — la part sera calculée dès les premiers RSVP."
-            )}
-          </p>
-
-          {/* Qui a payé */}
-          {nbIn > 0 && (
-            <ul className="mt-3 divide-y divide-[color:var(--rule)] overflow-hidden rounded-none border border-[color:var(--rule)] bg-[color:var(--pitch-2)]">
-              {rows.map((r) => (
-                <li key={r.playerId}>
-                  <label
-                    className={cn(
- "flex min-h-[44px] items-center gap-3 px-4 py-2.5",
-                      canManage && "cursor-pointer hover:bg-[color:var(--pitch-2)]"
-                    )}
+          {nbIn === 0 ? (
+            <p className="mt-3 text-[15px] text-[color:var(--i2)]">
+              Personne n&apos;a encore répondu présent — la part sera calculée
+              dès les premières réponses.
+            </p>
+          ) : (
+            <div className={canManage ? "mt-2" : ""}>
+              {rows.map((r) => {
+                const contenu = (
+                  <>
+                    <AvatarAnneau nom={r.name} taille={30} />
+                    <span className="libelle">{r.name}</span>
+                    <span className={cn("valeur", r.hasPaid && "paye")}>
+                      {r.hasPaid ? "Payé" : "—"}
+                    </span>
+                  </>
+                );
+                return canManage ? (
+                  <button
+                    key={r.playerId}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => togglePaid(r.playerId, !r.hasPaid)}
+                    aria-pressed={r.hasPaid}
+                    className="rangee-ios tape"
                   >
-                    <input
-                      type="checkbox"
-                      checked={r.hasPaid}
-                      disabled={!canManage || pending}
-                      onChange={(e) => togglePaid(r.playerId, e.target.checked)}
-                      className="h-4 w-4 accent-[color:var(--ink-1)]"
-                    />
-                    <span className="flex-1 truncate text-sm font-bold">
-                      {r.name}
-                    </span>
-                    <span
-                      className={cn(
- "text-[13px] font-semibold",
-                        r.hasPaid
-                          ? "text-[color:var(--ink-1)]"
-                          : "text-[color:var(--ink-2)]"
-                      )}
-                    >
-                      {r.hasPaid ? "payé" : "—"}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+                    {contenu}
+                  </button>
+                ) : (
+                  <div key={r.playerId} className="rangee-ios">
+                    {contenu}
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           {/* Encaissé */}
-          <div className="mt-4">
-            <div className="flex items-baseline justify-between text-sm">
-              <span className="text-[color:var(--ink-2)]">Encaissé</span>
-              <span className="font-black tabular-nums">
-                <span
-                  className={
-                    collectedCents >= cost
-                      ? "text-[color:var(--ink-1)]"
-                      : undefined
-                  }
-                >
-                  {fmtEuro(Math.min(collectedCents, cost))}
-                </span>{" "}
-                <span className="text-[color:var(--ink-2)]">
-                  / {fmtEuro(cost)}
-                </span>
+          <div className="soiree-encaisse">
+            <div className="ligne">
+              <span>
+                Encaissé
+                {shareCents != null && <> · {fmtEuro(shareCents)} chacun</>}
+              </span>
+              <span>
+                <b>{fmtEuro(Math.min(collectedCents, cost))}</b> / {fmtEuro(cost)}
               </span>
             </div>
-            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color:var(--pitch-2)]">
-              <div
-                className="h-full rounded-[2px] bg-[color:var(--ink-1)] transition-all"
-                style={{ width: `${pct}%` }}
-              />
+            <div className="soiree-jauge">
+              <i style={{ width: `${pct}%` }} />
             </div>
           </div>
         </>
       )}
 
       {cost == null && canManage && (
-        <p className="mt-3 text-[11px] text-[color:var(--ink-2)]">
+        <p className="mt-3 text-[13px] text-[color:var(--i3)]">
           Renseigne le prix du terrain pour répartir la note entre les présents
           et cocher qui a payé.
         </p>

@@ -4,15 +4,18 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { setRsvp } from "@/app/actions/matchday";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import type { RsvpStatus } from "@prisma/client";
 
 export type SessionPlayerRow = {
   playerId: string;
   name: string;
   status: RsvpStatus | null; // null = sans réponse
+  /// Le camp dans la compo de la soirée : donne la couleur de l'anneau.
+  camp?: "A" | "B" | null;
 };
 
-const SELF_LABELS: Record<RsvpStatus, string> = {
+const LIBELLES: Record<RsvpStatus, string> = {
   IN: "Présent",
   MAYBE: "Peut-être",
   OUT: "Absent",
@@ -25,29 +28,34 @@ function nextStatus(s: RsvpStatus | null): RsvpStatus {
   return "IN"; // OUT ou sans réponse
 }
 
-const DOT: Record<RsvpStatus, string> = {
-  IN: "bg-[color:var(--bib-a-ink)]",
-  MAYBE: "bg-[color:var(--gold)]",
-  OUT: "bg-[color:var(--loss)]",
-};
+const ORDRE: Record<string, number> = { IN: 0, MAYBE: 1, OUT: 2, none: 3 };
 
+// La carte « Ma réponse » : mon segment Présent / Absent en tête, le compte
+// des présents et la note du terrain sur une ligne, puis les joueurs un par
+// ligne — moi d'abord, puis ceux qui ont répondu. Le reste se replie derrière
+// « et N autres » : sur un club de vingt, on veut savoir qui vient, pas lire
+// vingt lignes.
 export default function SessionRsvpAdmin({
   slug,
   matchDayId,
   myPlayerId,
   canManage,
   players,
+  argent,
 }: {
   slug: string;
   matchDayId: string;
   myPlayerId: string | null;
   canManage: boolean;
   players: SessionPlayerRow[];
+  /// « 48 € · 5,33 € chacun » — rendu par MoneyPanel, posé à droite du compte.
+  argent?: React.ReactNode;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(players);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [deplie, setDeplie] = useState(false);
 
   const mine = myPlayerId
     ? rows.find((r) => r.playerId === myPlayerId)?.status ?? null
@@ -68,106 +76,130 @@ export default function SessionRsvpAdmin({
     });
   }
 
-  const groups: { key: string; label: string; list: SessionPlayerRow[] }[] = [
-    { key: "in", label: "Présents", list: rows.filter((r) => r.status === "IN") },
-    {
-      key: "maybe",
-      label: "Peut-être",
-      list: rows.filter((r) => r.status === "MAYBE"),
-    },
-    { key: "out", label: "Absents", list: rows.filter((r) => r.status === "OUT") },
-    {
-      key: "none",
-      label: "Sans réponse",
-      list: rows.filter((r) => r.status === null),
-    },
-  ];
+  const presents = rows.filter((r) => r.status === "IN").length;
+  const absents = rows.filter((r) => r.status === "OUT").length;
+  const peutEtre = rows.filter((r) => r.status === "MAYBE").length;
+
+  const tries = [...rows].sort((a, b) => {
+    if (a.playerId === myPlayerId) return -1;
+    if (b.playerId === myPlayerId) return 1;
+    return ORDRE[a.status ?? "none"] - ORDRE[b.status ?? "none"];
+  });
+  const VISIBLES = 4;
+  const visibles = deplie ? tries : tries.slice(0, VISIBLES);
+  const caches = tries.slice(VISIBLES);
+  const cachesIn = caches.filter((r) => r.status === "IN").length;
+  const cachesNone = caches.filter((r) => r.status === null).length;
+  const libelleAutres =
+    caches.length === cachesIn
+      ? `et ${caches.length} autre${caches.length > 1 ? "s" : ""} présent${caches.length > 1 ? "s" : ""}`
+      : caches.length === cachesNone
+        ? `et ${caches.length} sans réponse`
+        : `et ${caches.length} autre${caches.length > 1 ? "s" : ""}`;
+
+  const compte = [
+    `${presents} présent${presents > 1 ? "s" : ""}`,
+    peutEtre > 0 ? `${peutEtre} peut-être` : null,
+    `${absents} absent${absents > 1 ? "s" : ""}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div>
-      {/* Ma réponse */}
-      {myPlayerId && (
-        <div className="mb-5 flex gap-2">
-          {(["IN", "MAYBE", "OUT"] as const).map((s) => (
+    <>
+      <div className="soiree-reponse-tete">
+        <span className="titre">{myPlayerId ? "Ma réponse" : "Présences"}</span>
+        {myPlayerId && (
+          <div className="segment" role="radiogroup" aria-label="Ma réponse">
             <button
-              key={s}
+              type="button"
+              role="radio"
+              aria-checked={mine === "IN"}
               disabled={pending}
-              onClick={() => apply(myPlayerId, s)}
-              className={cn(
- "big-touch flex-1 rounded-none border px-3 py-2.5 text-sm font-bold transition-colors",
-                mine === s
-                  ? s === "IN"
-                    ? "border-[color:var(--bib-a)] bg-[color:var(--pitch-2)] text-[color:var(--bib-a-ink)]"
-                    : s === "OUT"
-                      ? "border-[color:var(--loss)]/60 bg-[color:var(--loss)]/10 text-[color:var(--loss)]"
-                      : "border-[color:var(--gold)]/60 bg-[color:var(--gold)]/10 text-[color:var(--gold)]"
-                  : "border-[color:var(--rule)] bg-[color:var(--pitch-2)] text-[color:var(--ink-1)] hover:border-[color:var(--rule-hi)]"
-              )}
+              className={cn(mine === "IN" && "actif")}
+              onClick={() => apply(myPlayerId, "IN")}
             >
-              {SELF_LABELS[s]}
+              Présent
             </button>
-          ))}
-        </div>
-      )}
-      {error && (
-        <p className="mb-3 text-sm text-[color:var(--loss)]">{error}</p>
-      )}
-
-      <div className="space-y-4">
-        {groups.map(
-          (g) =>
-            g.list.length > 0 && (
-              <div key={g.key}>
-                <div className="mb-1.5 text-[11px] font-black  text-[color:var(--ink-2)]">
-                  {g.label}{" "}
-                  <span className="tabular-nums">({g.list.length})</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {g.list.map((p) => {
-                    const inner = (
-                      <>
-                        <span
-                          className={cn(
- "inline-block h-1.5 w-1.5 rounded-full",
-                            p.status
-                              ? DOT[p.status]
-                              : "bg-[color:var(--ink-2)]/50"
-                          )}
-                        />
-                        {p.name}
-                      </>
-                    );
-                    return canManage ? (
-                      <button
-                        key={p.playerId}
-                        disabled={pending}
-                        onClick={() => apply(p.playerId, nextStatus(p.status))}
-                        title="Changer le statut"
-                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3.5 text-sm font-bold transition-colors hover:border-[color:var(--rule-hi)] disabled:opacity-60"
-                      >
-                        {inner}
-                      </button>
-                    ) : (
-                      <span
-                        key={p.playerId}
-                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-[2px] border border-[color:var(--rule)] bg-[color:var(--pitch-2)] px-3.5 text-sm font-bold"
-                      >
-                        {inner}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mine === "OUT"}
+              disabled={pending}
+              className={cn(mine === "OUT" && "actif")}
+              onClick={() => apply(myPlayerId, "OUT")}
+            >
+              Absent
+            </button>
+          </div>
         )}
       </div>
+      <div className="soiree-filet" />
+      <div className="soiree-compte">
+        <span>{compte}</span>
+        {argent && <span className="argent">{argent}</span>}
+      </div>
+      {error && <p className="soiree-erreur">{error}</p>}
 
-      {canManage && (
-        <p className="mt-3 text-[11px] text-[color:var(--ink-2)]">
+      {visibles.map((p) => {
+        const moi = p.playerId === myPlayerId;
+        const contenu = (
+          <>
+            <AvatarAnneau nom={p.name} camp={p.camp ?? null} />
+            <span className="nom">
+              {p.name}
+              {moi && " (moi)"}
+            </span>
+            <span
+              className={cn(
+                "statut",
+                p.status === "IN" && "in",
+                p.status === "OUT" && "out",
+                p.status === "MAYBE" && "maybe",
+                !p.status && "none",
+              )}
+            >
+              {p.status ? LIBELLES[p.status] : "—"}
+            </span>
+          </>
+        );
+        return canManage ? (
+          <button
+            key={p.playerId}
+            type="button"
+            disabled={pending}
+            onClick={() => apply(p.playerId, nextStatus(p.status))}
+            title="Changer le statut"
+            className="soiree-rangee tape"
+          >
+            {contenu}
+          </button>
+        ) : (
+          <div key={p.playerId} className="soiree-rangee">
+            {contenu}
+          </div>
+        );
+      })}
+
+      {caches.length > 0 ? (
+        <button
+          type="button"
+          className="soiree-autres"
+          onClick={() => setDeplie((d) => !d)}
+          aria-expanded={deplie}
+        >
+          {deplie ? "Replier" : libelleAutres}
+        </button>
+      ) : (
+        <div style={{ height: 12 }} />
+      )}
+
+      {canManage && deplie && (
+        <p className="soiree-aide">
           Touche un joueur pour changer son statut : présent → peut-être →
           absent.
         </p>
       )}
-    </div>
+    </>
   );
 }
