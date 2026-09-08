@@ -1,17 +1,15 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import { cn } from "@/lib/cn";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
 
-// Le classement, en rangées qui se déplient.
+// Le classement, en tableau à neuf colonnes : rang, avatar, nom, MJ, V, N,
+// D, B, PTS.
 //
-// C'était un tableau de treize colonnes larges de 640 px qu'on faisait
-// défiler EN TRAVERS d'un écran de 375 : on ne pouvait jamais lire un joueur
-// et son chiffre dans le même coup d'œil, et les en-têtes étaient en
-// capitales tracées de 10 px. Ici, quatre colonnes tiennent sans défilement —
-// joué, buts, pourcentage de victoires — et le reste se déplie SUR PLACE au
-// tap. On échange la vue simultanée contre une vue lisible.
+// C'était des rangées qui se dépliaient au tap pour montrer V/N/D, l'Élo et
+// la forme : on payait un geste pour lire ce que tout classement de foot
+// montre d'un coup. Les chiffres tabulaires tiennent sur 390 px avec les
+// largeurs de colonne de la maquette (24/30/1fr/30/26/26/26/30/40), et la
+// rangée entière mène à la fiche du joueur — l'Élo, les passes et les
+// cartons y sont, à leur place.
 
 export type LigneClassement = {
   playerId: string;
@@ -34,152 +32,101 @@ export type LigneClassement = {
   eloTrend: number;
 };
 
-/// Cinq carrés : plein pour une victoire, contour pour un nul, vide pour une
-/// défaite. La forme se lit sans couleur — un daltonien la lit aussi.
-function Forme({ form }: { form: ("W" | "D" | "L")[] }) {
-  if (!form.length) return <span className="text-[color:var(--ink-3)]">—</span>;
-  return (
-    <span className="forme">
-      {form.map((r, i) => (
-        <span
-          key={i}
-          className={cn("forme-case", r === "W" && "v", r === "D" && "n")}
-          title={r === "W" ? "Victoire" : r === "D" ? "Nul" : "Défaite"}
-        />
-      ))}
-    </span>
+/// Les points d'une ligne : le barème du club, celui qui sert déjà au
+/// championnat externe. Rendu public pour que les onglets Buteurs/Forme
+/// puissent classer dans le même ordre que le tableau.
+export function points(
+  r: Pick<LigneClassement, "wins" | "draws">,
+  pointsWin = 3,
+  pointsDraw = 1,
+): number {
+  return r.wins * pointsWin + r.draws * pointsDraw;
+}
+
+/// L'ordre du tableau : points, puis victoires, puis buts, puis le nom.
+export function trierParPoints<T extends Pick<LigneClassement, "wins" | "draws" | "goals" | "name">>(
+  lignes: T[],
+  pointsWin = 3,
+  pointsDraw = 1,
+): T[] {
+  return [...lignes].sort(
+    (x, y) =>
+      points(y, pointsWin, pointsDraw) - points(x, pointsWin, pointsDraw) ||
+      y.wins - x.wins ||
+      y.goals - x.goals ||
+      x.name.localeCompare(y.name),
   );
 }
 
 export default function Classement({
   slug,
   lignes,
-  trackAssists,
-  trackCards,
   /// La vitrine publique montre le même classement à des visiteurs qui n'ont
   /// pas de compte : la fiche joueur est derrière la garde du club, le lien
   /// s'efface donc au lieu de mener à une redirection.
   avecFiches = true,
+  pointsWin = 3,
+  pointsDraw = 1,
+  /// La chasuble de chacun (celle de son dernier match) : elle colore
+  /// l'anneau de l'avatar. Sans elle, l'anneau reste neutre.
+  camps,
 }: {
   slug: string;
   lignes: LigneClassement[];
-  trackAssists: boolean;
-  trackCards: boolean;
+  /// Gardés pour les appelants : les passes et les cartons ne tiennent pas
+  /// dans neuf colonnes, ils se lisent sur la fiche.
+  trackAssists?: boolean;
+  trackCards?: boolean;
   avecFiches?: boolean;
+  pointsWin?: number;
+  pointsDraw?: number;
+  camps?: Record<string, "A" | "B" | undefined>;
 }) {
-  const [ouvert, setOuvert] = useState<string | null>(null);
+  const ordre = trierParPoints(lignes, pointsWin, pointsDraw);
 
   return (
     <div>
-      <div className="rangee-tete" style={{ ["--cols" as string]: 3 }}>
+      <div className="tableau-tete" aria-hidden>
+        <span />
         <span />
         <span>Joueur</span>
-        <span>J</span>
-        <span>Buts</span>
-        <span>%V</span>
+        <span>MJ</span>
+        <span>V</span>
+        <span>N</span>
+        <span>D</span>
+        <span>B</span>
+        <span>PTS</span>
       </div>
-      {lignes.map((r, i) => {
-        const estOuvert = ouvert === r.playerId;
-        return (
-          <div key={r.playerId}>
-            <button
-              type="button"
-              onClick={() => setOuvert(estOuvert ? null : r.playerId)}
-              aria-expanded={estOuvert}
-              className="rangee"
-              style={{ ["--cols" as string]: 3 }}
-            >
-              <span className="rangee-bande" aria-hidden />
-              <span className="rangee-nom">
-                <span className="rangee-rang">{i + 1}</span>
-                {r.name}
-                {r.isGuest && (
-                  <span className="text-[color:var(--ink-3)]"> (inv.)</span>
-                )}
-              </span>
-              <span className="rangee-num">{r.matchesPlayed}</span>
-              <span className="rangee-num fort">{r.goals}</span>
-              <span className="rangee-num">{r.winPct}</span>
-            </button>
-            {estOuvert && (
-              <div className="rangee-detail">
-                <div className="synthese">
-                  <span>
-                    <b>{r.wins}</b> V
-                  </span>
-                  <span className="synthese-sep">·</span>
-                  <span>
-                    <b>{r.draws}</b> N
-                  </span>
-                  <span className="synthese-sep">·</span>
-                  <span>
-                    <b>{r.losses}</b> D
-                  </span>
-                  <span className="synthese-sep">·</span>
-                  <span>
-                    Élo <b>{r.elo}</b>
-                    {r.eloTrend !== 0 && (
-                      <span
-                        style={{
-                          color:
-                            r.eloTrend > 0 ? "var(--win)" : "var(--loss)",
-                        }}
-                      >
-                        {" "}
-                        {r.eloTrend > 0 ? "+" : "−"}
-                        {Math.abs(r.eloTrend)}
-                      </span>
-                    )}
-                  </span>
-                  {r.mvpCount > 0 && (
-                    <>
-                      <span className="synthese-sep">·</span>
-                      <span style={{ color: "var(--gold)" }}>
-                        <b>{r.mvpCount}</b> fois homme du match
-                      </span>
-                    </>
-                  )}
-                  {trackAssists && r.assists > 0 && (
-                    <>
-                      <span className="synthese-sep">·</span>
-                      <span>
-                        <b>{r.assists}</b> passes
-                      </span>
-                    </>
-                  )}
-                  {trackCards && (r.yellow > 0 || r.red > 0) && (
-                    <>
-                      <span className="synthese-sep">·</span>
-                      <span>
-                        <span style={{ color: "var(--gold)" }}>{r.yellow}</span>
-                        <span className="text-[color:var(--rule-hi)]">/</span>
-                        <span style={{ color: "var(--loss)" }}>{r.red}</span>
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className="mt-2 flex items-center gap-3">
-                  <Forme form={r.form} />
-                  {r.streak !== 0 && (
-                    <span className="text-[13px] text-[color:var(--ink-3)]">
-                      {r.streak > 0
-                        ? `${r.streak} victoire${r.streak > 1 ? "s" : ""} d'affilée`
-                        : `${Math.abs(r.streak)} défaite${
-                            Math.abs(r.streak) > 1 ? "s" : ""
-                          } d'affilée`}
-                    </span>
-                  )}
-                  {avecFiches && (
-                    <Link
-                      href={`/c/${slug}/players/${r.playerId}`}
-                      className="ml-auto text-[13px] font-semibold text-[color:var(--ink-2)]"
-                    >
-                      Sa fiche →
-                    </Link>
-                  )}
-                </div>
-              </div>
-            )}
+      {ordre.map((r, i) => {
+        const cellules = (
+          <>
+            <span>{i + 1}</span>
+            <AvatarAnneau nom={r.name} camp={camps?.[r.playerId] ?? null} taille={30} />
+            <span>
+              {r.name}
+              {r.isGuest && (
+                <span className="text-[color:var(--i3)]"> (inv.)</span>
+              )}
+            </span>
+            <span>{r.matchesPlayed}</span>
+            <span>{r.wins}</span>
+            <span>{r.draws}</span>
+            <span>{r.losses}</span>
+            <span>{r.goals}</span>
+            <span>{points(r, pointsWin, pointsDraw)}</span>
+          </>
+        );
+        return avecFiches ? (
+          <Link
+            key={r.playerId}
+            href={`/c/${slug}/players/${r.playerId}`}
+            className="tableau-rangee"
+          >
+            {cellules}
+          </Link>
+        ) : (
+          <div key={r.playerId} className="tableau-rangee">
+            {cellules}
           </div>
         );
       })}

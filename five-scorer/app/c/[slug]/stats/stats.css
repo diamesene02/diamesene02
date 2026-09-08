@@ -1,0 +1,320 @@
+/* ═══════════════ STATS ═══════════════
+   Les dessins propres à l'écran des stats : le sélecteur de saison en verre,
+   les rangées « Buteurs » et « Forme », le palmarès en lignes de 60 px. Tout
+   le reste (carte, onglets, tableau, avatars, forme) vient du système natif
+   de globals.css. Préfixe stats- : rien ici ne déborde sur un autre écran. */
+
+.stats-tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 4px 0;
+}
+.stats-tete .titre-ecran {
+  min-width: 0;
+}
+
+/* Le sélecteur de saison : une pilule en verre qui ouvre la liste des
+   saisons. <details> plutôt qu'un menu en JS : la page est rendue par le
+   serveur et chaque saison est un lien — ça marche sans hydratation, donc
+   aussi hors-ligne depuis le cache. */
+.stats-saison {
+  position: relative;
+  flex: none;
+}
+.stats-saison > summary {
+  list-style: none;
+  max-width: 200px;
+}
+.stats-saison > summary::-webkit-details-marker {
+  display: none;
+}
+.stats-saison > summary > .nom {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stats-saison > summary > .fleche {
+  color: var(--i2);
+  font-size: 13px;
+}
+.stats-saison-menu {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  z-index: 50;
+  width: 240px;
+  padding: 8px;
+  border-radius: 24px;
+  background: var(--mn);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  border: 1px solid var(--cb);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 30px 60px rgba(0, 0, 0, 0.5);
+  animation: fsMenu 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: top right;
+}
+.stats-saison-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 24px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stats-saison-item.actif {
+  background: var(--gl);
+}
+.stats-saison-item .coche {
+  color: var(--i2);
+  flex: none;
+}
+
+/* La carte à onglets : le tableau, les buteurs, la forme. */
+.stats-carte {
+  margin-top: 18px;
+  padding: 0 12px 10px;
+}
+.stats-carte .filet {
+  margin: 0 -2px 12px;
+}
+
+/* Une rangée cliquable, base commune des onglets Buteurs et Forme. */
+.stats-rangee {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  height: 56px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.stats-rangee + .stats-rangee {
+  border-top: 1px solid var(--sep);
+}
+.stats-rangee:active {
+  opacity: 0.7;
+}
+.stats-rangee > .avatar-anneau {
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+}
+.stats-rangee .nom {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+/* Buteurs : rang, avatar, nom + barre de proportion, buts en 22 px. */
+.stats-buteur {
+  grid-template-columns: 24px 30px 1fr 44px;
+}
+.stats-buteur > .bloc {
+  padding: 0 12px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.stats-buteur .barre {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sep);
+  overflow: hidden;
+}
+.stats-buteur .barre > i {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--anneau, var(--i3));
+}
+.stats-buteur .barre > i.A {
+  --anneau: var(--ta);
+}
+.stats-buteur .barre > i.B {
+  --anneau: var(--tb);
+}
+.stats-buteur > .buts {
+  text-align: right;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* Forme : avatar, nom, cinq cases, série signée. */
+.stats-forme {
+  grid-template-columns: 30px 1fr auto 44px;
+  gap: 10px;
+}
+.stats-forme > .serie {
+  text-align: right;
+  font-weight: 600;
+  color: var(--i3);
+}
+.stats-forme > .serie.plus {
+  color: var(--ok);
+}
+.stats-forme > .serie.moins {
+  color: var(--bad);
+}
+
+/* Le pied du tableau : l'export CSV, un lien discret sous les rangées. */
+.stats-carte .tableau-pied {
+  margin-top: 4px;
+}
+
+/* Le palmarès : une ligne de 60 px par titre — icône, libellé, lauréat. */
+.stats-palmares {
+  margin-top: 18px;
+  padding: 0 20px 8px;
+}
+.stats-palmares .carte-titre {
+  padding: 22px 0 10px;
+}
+.stats-titre {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 60px;
+  color: var(--ink);
+  font-size: 17px;
+  text-decoration: none;
+}
+.stats-titre + .stats-titre,
+.stats-titre + .stats-saison-cloturee,
+.stats-saison-cloturee + .stats-saison-cloturee {
+  border-top: 1px solid var(--sep);
+}
+.stats-titre > .icone {
+  width: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+}
+.stats-titre > .icone.or {
+  color: var(--or);
+}
+.stats-titre > .libelle {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stats-titre > .laureat {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+.stats-titre > .laureat .unite {
+  font-weight: 400;
+  color: var(--i2);
+}
+
+/* Le palmarès compact d'une saison clôturée (vue « toutes saisons »). */
+.stats-saison-cloturee {
+  padding: 14px 0;
+  font-size: 17px;
+}
+.stats-saison-cloturee > .nom-saison {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.stats-saison-cloturee > .laureats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--i2);
+  font-size: 15px;
+}
+.stats-saison-cloturee > .laureats b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Le bilan contre les adversaires externes : la synthèse, la forme, puis
+   une ligne par adversaire. */
+.stats-bilan {
+  margin-top: 18px;
+  padding: 0 20px 8px;
+}
+.stats-bilan .carte-titre {
+  padding: 22px 0 10px;
+}
+.stats-bilan > .synthese {
+  justify-content: center;
+  padding: 4px 0 14px;
+}
+.stats-bilan-forme {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 14px;
+}
+.stats-duel {
+  display: grid;
+  grid-template-columns: 1fr auto 44px;
+  gap: 12px;
+  align-items: center;
+  height: 56px;
+  border-top: 1px solid var(--sep);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.stats-duel > .nom {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.stats-duel > .bilan {
+  color: var(--i2);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.stats-duel > .bilan b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.stats-duel > .diff {
+  text-align: right;
+  font-weight: 600;
+}
+
+/* L'état vide : le squelette du tableau, des tirets à la place des chiffres.
+   Une feuille vierge se reconnaît vierge — elle ne se présente pas comme une
+   erreur. */
+.stats-vide {
+  padding: 12px 0 0;
+  font-size: 17px;
+  color: var(--i2);
+}
+.stats-vide a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

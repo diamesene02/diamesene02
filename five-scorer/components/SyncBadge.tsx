@@ -56,6 +56,9 @@ export default function SyncBadge({
   };
 
   if (compact) {
+    // La maquette n'a pas d'indicateur de synchro : la pastille n'apparaît que
+    // quand il y a quelque chose à dire — hors ligne, à envoyer, refusé.
+    if (state === "ok") return null;
     return (
       <button
         type="button"
@@ -66,7 +69,7 @@ export default function SyncBadge({
             : (s.lastError ?? label)
         }
         aria-label={label}
-        className={cn("sync-dot", state !== "ok" && state, className)}
+        className={cn("sync-dot", state, className)}
       />
     );
   }

@@ -3131,7 +3131,7 @@
 [data-club-theme] .version-badge {
   color: var(--i3);
 }
-[data-club-theme] .sync-dot {
+[data-club-theme] .sync-dot::before {
   border-radius: 50%;
 }
 [data-club-theme] .compo-ligne,

@@ -1,0 +1,196 @@
+/* L'accueil — les dessins que la maquette (home.html) a en propre :
+   la ligne « Soirée du 7 sept. › » en tête d'onglet, la prochaine soirée
+   (écusson · heure · écusson), la ligne de réponses, le ✕ de la bannière. */
+
+/* Le conteneur du club a 14px de marge : l'en-tête flou et la bannière
+   s'étirent bord à bord, comme dans la maquette. */
+.accueil-entete {
+  margin-left: -14px;
+  margin-right: -14px;
+}
+.accueil-banniere {
+  position: relative;
+  margin-top: 18px;
+}
+.accueil-fermer {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  border: 0;
+  background: none;
+  padding: 0 0 6px 8px;
+  font-size: 20px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.accueil-carte {
+  margin-top: 18px;
+}
+
+/* « 📅 Soirée du 7 sept. › » */
+.accueil-soiree {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 16px 4px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  min-width: 0;
+}
+.accueil-soiree > svg {
+  flex: none;
+}
+.accueil-soiree .chev {
+  color: var(--i3);
+  font-size: 16px;
+}
+.accueil-soiree .texte {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Un match encore à jouer : les écussons s'effacent un peu. */
+.accueil-a-venir .ecusson {
+  opacity: 0.7;
+}
+.accueil-a-venir .milieu .etat {
+  color: var(--i2);
+}
+.accueil-a-venir .milieu .heure {
+  font-size: 15px;
+  color: var(--i3);
+}
+.accueil-en-direct .milieu .heure {
+  font-size: 15px;
+}
+
+/* La prochaine soirée : écusson · 20:30 + lieu · écusson. */
+.accueil-prochaine {
+  display: grid;
+  grid-template-columns: 88px 1fr 88px;
+  align-items: start;
+  width: 100%;
+  padding: 12px 12px 8px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  text-decoration: none;
+  text-align: center;
+}
+.accueil-prochaine.match {
+  padding: 16px 12px 20px;
+  cursor: pointer;
+}
+.accueil-prochaine.match:active {
+  opacity: 0.7;
+}
+.accueil-prochaine .camp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.accueil-prochaine .camp .nom {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--i2);
+  max-width: 88px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.accueil-prochaine .milieu {
+  height: 60px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.accueil-prochaine .milieu > span {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.accueil-prochaine .milieu .heure {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+.accueil-prochaine .milieu .quand {
+  font-size: 17px;
+  font-weight: 600;
+}
+.accueil-prochaine .milieu .lieu {
+  font-size: 15px;
+  color: var(--i2);
+}
+
+/* « 6 réponses · équipes à préparer   [Je serai là] » */
+.accueil-reponses {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 20px 14px;
+  font-size: 15px;
+  color: var(--i2);
+}
+.accueil-reponses > span:first-child {
+  min-width: 0;
+}
+.accueil-reponses .plein {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 20px;
+  font-size: 15px;
+  box-shadow: none;
+}
+.accueil-statut {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ok);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.accueil-statut[data-statut="OUT"] {
+  color: var(--bad);
+}
+.accueil-statut[data-statut="MAYBE"] {
+  color: var(--or);
+}
+
+.accueil-vide {
+  padding: 18px 20px 22px;
+  font-size: 17px;
+  color: var(--i2);
+  text-align: center;
+}
+
+/* Le coup d'envoi sous la carte des matchs. */
+.accueil-lancer {
+  margin-top: 18px;
+}
+.accueil-lancer .plein {
+  display: flex;
+  width: 100%;
+}
+.accueil-lancer .verre {
+  display: flex;
+  width: 100%;
+  margin-top: 12px;
+}

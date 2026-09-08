@@ -28,7 +28,7 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: "cover",
   // La barre système prend la couleur du gazon : l'app va jusqu'aux bords.
-  themeColor: "#0E1211",
+  themeColor: "#0e0e12",
 };
 
 export default function RootLayout({

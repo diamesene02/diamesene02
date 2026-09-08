@@ -5,8 +5,8 @@
   "description": "Le suivi de matchs de ton équipe : scoring live offline, stats de saison, équipes équilibrées, vote MVP.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0E1211",
-  "theme_color": "#0E1211",
+  "background_color": "#0e0e12",
+  "theme_color": "#0e0e12",
   "icons": [
     {
       "src": "/icons/icon-192.png",
