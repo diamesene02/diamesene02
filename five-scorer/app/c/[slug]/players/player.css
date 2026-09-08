@@ -1,0 +1,129 @@
+/* La fiche joueur — maquette tour 4, « Joueur ». Préfixe .fiche- */
+
+.fiche-tete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 18px 0;
+  text-align: center;
+}
+.fiche-photo {
+  position: relative;
+}
+.fiche-photo .avatar-anneau {
+  width: 128px;
+  height: 128px;
+  font-size: 40px;
+  font-weight: 700;
+  box-shadow:
+    inset 0 0 0 4px var(--anneau, var(--gb)),
+    0 10px 30px rgba(0, 0, 0, 0.3);
+}
+.fiche-photo .badge {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+}
+.fiche-nom {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-top: 16px;
+  color: var(--ink);
+}
+.fiche-sous {
+  font-size: 17px;
+  color: var(--i2);
+  margin-top: 4px;
+}
+.fiche-chiffres {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 20px 8px 18px;
+  text-align: center;
+}
+.fiche-chiffres .n {
+  font-size: 34px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+.fiche-chiffres .n small {
+  font-size: 20px;
+}
+.fiche-chiffres .l {
+  font-size: 13px;
+  color: var(--i2);
+  margin-top: 2px;
+}
+.fiche-carte {
+  margin-top: 14px;
+  padding: 0 20px;
+}
+.fiche-ligne {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  font-size: 17px;
+}
+.fiche-ligne + .fiche-ligne {
+  border-top: 1px solid var(--sep);
+}
+.fiche-ligne .l {
+  font-weight: 600;
+  color: var(--ink);
+}
+.fiche-ligne .v {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.fiche-ligne .v .plus {
+  color: var(--ok);
+  font-weight: 600;
+}
+.fiche-ligne .v .moins {
+  color: var(--bad);
+  font-weight: 600;
+}
+.fiche-match {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--sep);
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  text-align: left;
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.fiche-match .d {
+  color: var(--i2);
+}
+.fiche-match .s {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fiche-match .s b {
+  font-weight: 600;
+}
+.fiche-match .b {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fiche-vide {
+  padding: 14px 0 16px;
+  font-size: 15px;
+  color: var(--i2);
+}

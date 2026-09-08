@@ -1,64 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
-import { getPlayerDetail, type Result } from "@/lib/stats";
+import { getLeaderboard, getPlayerDetail } from "@/lib/stats";
+import { nomsChasubles } from "@/lib/color";
 import { cn } from "@/lib/cn";
-import PlayerAvatar from "@/components/PlayerAvatar";
-import Icon from "@/components/Icon";
+import AvatarAnneau from "@/components/ios/AvatarAnneau";
+import Ecusson from "@/components/ios/Ecusson";
+import "../player.css";
 
 export const dynamic = "force-dynamic";
 
-/// La forme, au dessin unique de l'app : plein pour une victoire, contour
-/// pour un nul, vide pour une défaite. Elle se lit sans couleur.
-function Forme({ form, grand = false }: { form: Result[]; grand?: boolean }) {
-  return (
-    <span className="forme" style={grand ? { gap: "5px" } : undefined}>
-      {form.map((r, i) => (
-        <span
-          key={i}
-          className={cn("forme-case", r === "W" && "v", r === "D" && "n")}
-          style={grand ? { width: 14, height: 14 } : undefined}
-          title={r === "W" ? "Victoire" : r === "D" ? "Nul" : "Défaite"}
-        />
-      ))}
-    </span>
-  );
-}
-
-/// « 3 victoires d'affilée » — la série ne se dit qu'à partir de deux, sinon
-/// tout joueur en a toujours une et le mot ne veut plus rien dire.
-function phraseSerie(streak: number | undefined): string | null {
-  if (streak === undefined || Math.abs(streak) < 2) return null;
-  const n = Math.abs(streak);
-  return streak > 0 ? `${n} victoires d'affilée` : `${n} défaites d'affilée`;
-}
-
-// Niveau : cinq étoiles du jeu d'icônes, pas des glyphes ★ empruntés à
-// une police de repli.
-function SkillStars({ skill }: { skill: number }) {
-  return (
-    <span
-      className="inline-flex items-center gap-0.5"
-      role="img"
-      aria-label={`Niveau ${skill} sur 5`}
-    >
-      {[1, 2, 3, 4, 5].map((n) => (
-        <Icon
-          key={n}
-          name="star"
-          filled={n <= skill}
-          size={14}
-          className={
-            n <= skill
-              ? "text-[color:var(--ink-1)]"
-              : "text-[color:var(--rule-hi)]"
-          }
-        />
-      ))}
-    </span>
-  );
-}
-
+// La fiche joueur de la maquette : la photo (ici les initiales) avec le badge
+// de sa chasuble habituelle, le nom, « Orange · Niveau 4 · 1er du tableau »,
+// quatre chiffres, la forme / l'Élo / les buts par match, les derniers
+// matchs, et la saison par saison.
 export default async function PlayerDetailPage({
   params,
 }: {
@@ -68,204 +24,167 @@ export default async function PlayerDetailPage({
   const ctx = await requireClub(slug);
   const detail = await getPlayerDetail(ctx.club.id, id);
   if (!detail) notFound();
-
   const { player, allTime, bySeason, recentMatches } = detail;
 
-  const serie = phraseSerie(allTime?.streak);
+  // La chasuble habituelle : celle des matchs de la saison en cours, à la
+  // majorité. Et le rang au tableau de la saison.
+  const saison = await prisma.season.findFirst({
+    where: { clubId: ctx.club.id, isActive: true },
+    orderBy: { startsAt: "desc" },
+    select: { id: true },
+  });
+  const [apparitions, classement] = await Promise.all([
+    prisma.matchParticipant.findMany({
+      where: {
+        playerId: id,
+        match: { clubId: ctx.club.id, status: "FINISHED", ...(saison ? { seasonId: saison.id } : {}) },
+      },
+      select: { initialTeam: true },
+    }),
+    getLeaderboard({ clubId: ctx.club.id, seasonId: saison?.id ?? null }),
+  ]);
+  const nA = apparitions.filter((a) => a.initialTeam === "A").length;
+  const nB = apparitions.length - nA;
+  const camp: "A" | "B" | null = apparitions.length === 0 ? null : nA >= nB ? "A" : "B";
+  const noms = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
+  const rang = classement.filter((r) => r.matchesPlayed > 0).findIndex((r) => r.playerId === id) + 1;
 
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "short",
-    });
+  const sousTitre = [
+    camp ? (camp === "A" ? noms.a : noms.b) : null,
+    `Niveau ${player.skill}`,
+    player.isGk ? "gardien" : null,
+    player.isGuest ? "invité" : null,
+    rang > 0 ? `${rang}${rang === 1 ? "er" : "e"} du tableau` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 
   return (
-    <main>
-      {/* L'EN-TÊTE. Le nom EST la page — comme la date sur l'accueil et sur
-          la soirée. Il était en display-md dans une boîte à dégradé, sous une
-          étiquette « FICHE JOUEUR » en capitales tracées. */}
-      <section className="flex items-start gap-4">
-        <PlayerAvatar name={player.name} id={player.id} size="lg" />
-        <div className="min-w-0 flex-1">
-          <span className="kicker">Fiche joueur</span>
-          <h1 className="display-xl mt-1">{player.name}</h1>
-          {player.nickname && (
-            <div className="mt-1 text-lg italic text-[color:var(--ink-2)]">
-              « {player.nickname} »
-            </div>
-          )}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <SkillStars skill={player.skill} />
-            {player.isGk && (
-              <span className="text-[13px] font-semibold text-[color:var(--ink-2)]">
-                · gardien
-              </span>
-            )}
-            {player.isGuest && (
-              <span className="text-[13px] font-semibold text-[color:var(--ink-2)]">
-                · invité
-              </span>
-            )}
-            {player.userId && (
-              <span
-                className="inline-flex items-center gap-1.5 text-[13px] font-semibold"
-                style={{ color: "var(--bib-a-ink)" }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--bib-a)]" />
-                compte lié
-              </span>
-            )}
-          </div>
+    <main className="ecran">
+      {ctx.canManage && (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Link href={`/c/${slug}/players?edit=${player.id}`} className="verre lueur">
+            Modifier
+          </Link>
         </div>
-      </section>
+      )}
+      <div className="fiche-tete">
+        <div className="fiche-photo">
+          <AvatarAnneau nom={player.name} camp={camp} taille={128} />
+          {camp && <Ecusson camp={camp} lettre={player.isGk ? "G" : String(player.skill)} taille={40} className="badge" />}
+        </div>
+        <div className="fiche-nom">{player.name}</div>
+        {player.nickname && <div className="fiche-sous">« {player.nickname} »</div>}
+        <div className="fiche-sous">{sousTitre}</div>
+      </div>
 
-      {/* TOUT LE BILAN EN UNE LIGNE.
-          Sept tuiles « étiquette + gros chiffre » occupaient la moitié de
-          l'écran pour dire sept nombres, dont deux à zéro. C'est le gabarit de
-          tableau de bord, pas la densité d'une page de sport — l'accueil s'en
-          est débarrassé, la fiche joueur le gardait. */}
-      {allTime && allTime.matchesPlayed > 0 && (
-        <section className="bande mt-6">
-          <div className="synthese">
-            <span>
-              <b>{allTime.matchesPlayed}</b> match
-              {allTime.matchesPlayed > 1 ? "s" : ""}
-            </span>
-            <span className="synthese-sep">·</span>
-            <span>
-              <b>{allTime.goals}</b> but{allTime.goals > 1 ? "s" : ""}
-            </span>
-            {ctx.club.trackAssists && allTime.assists > 0 && (
-              <>
-                <span className="synthese-sep">·</span>
-                <span>
-                  <b>{allTime.assists}</b> passes
+      {allTime && allTime.matchesPlayed > 0 ? (
+        <>
+          <section className="carte fiche-chiffres">
+            <div>
+              <div className="n">{allTime.matchesPlayed}</div>
+              <div className="l">Matchs</div>
+            </div>
+            <div>
+              <div className="n">{allTime.goals}</div>
+              <div className="l">Buts</div>
+            </div>
+            <div>
+              <div className="n">{allTime.mvpCount}</div>
+              <div className="l">Homme du match</div>
+            </div>
+            <div>
+              <div className="n">
+                {allTime.winPct}
+                <small>%</small>
+              </div>
+              <div className="l">Victoires</div>
+            </div>
+          </section>
+
+          <section className="carte fiche-carte">
+            <div className="fiche-ligne">
+              <span className="l">Forme</span>
+              <span className="forme">
+                {allTime.form.map((r, i) => (
+                  <span key={i} className={cn("forme-case", r === "W" && "v", r === "D" && "n")} title={r === "W" ? "Victoire" : r === "D" ? "Nul" : "Défaite"} />
+                ))}
+              </span>
+              <span className={cn("v", allTime.streak > 0 && "plus", allTime.streak < 0 && "moins")}>
+                <span className={allTime.streak > 0 ? "plus" : allTime.streak < 0 ? "moins" : ""}>
+                  {allTime.streak > 0 ? `+${allTime.streak}` : allTime.streak < 0 ? allTime.streak : "—"}
                 </span>
-              </>
-            )}
-            <span className="synthese-sep">·</span>
-            <span>
-              <b>{allTime.winPct}</b> % de victoires
-            </span>
-            <span className="synthese-sep">·</span>
-            <span>
-              Élo <b>{allTime.elo}</b>
-            </span>
-            {allTime.mvpCount > 0 && (
-              <>
-                <span className="synthese-sep">·</span>
-                <span
-                  className="inline-flex items-center gap-1.5"
-                  style={{ color: "var(--gold)" }}
-                >
-                  <Icon name="star" size={12} filled />
-                  <b>{allTime.mvpCount}</b> fois homme du match
-                </span>
-              </>
-            )}
-          </div>
-          {allTime.form.length > 0 && (
-            <div className="mt-4 flex items-center gap-3">
-              <Forme form={allTime.form} grand />
-              <span className="text-[13px] text-[color:var(--ink-3)]">
-                {serie ?? "cinq derniers, du plus récent au plus ancien"}
               </span>
             </div>
-          )}
-        </section>
-      )}
-
-      {/* Par saison. Un tableau de six colonnes large de 420 px qu'il
-          fallait faire glisser en travers d'un écran de 375, pour deux ou
-          trois lignes : une saison tient dans une phrase. */}
-      {bySeason.length > 0 && (
-        <section className="mt-8">
-          <span className="kicker mb-3 block">Par saison</span>
-          {bySeason.map((sn) => (
-            <div key={sn.seasonId ?? "none"} className="bande mt-4 first:mt-0">
-              <div className="bande-titre">
-                <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
-                  {sn.seasonName}
-                </span>
-                <span className="text-[13px] tabular-nums text-[color:var(--ink-3)]">
-                  {sn.row.matchesPlayed} match
-                  {sn.row.matchesPlayed > 1 ? "s" : ""}
-                </span>
-              </div>
-              <div className="synthese">
-                <span>
-                  <b>{sn.row.goals}</b> but{sn.row.goals > 1 ? "s" : ""}
-                </span>
-                {ctx.club.trackAssists && sn.row.assists > 0 && (
-                  <>
-                    <span className="synthese-sep">·</span>
-                    <span>
-                      <b>{sn.row.assists}</b> passes
-                    </span>
-                  </>
-                )}
-                <span className="synthese-sep">·</span>
-                <span>
-                  <b>{sn.row.winPct}</b> % de victoires
-                </span>
-                {sn.row.mvpCount > 0 && (
-                  <>
-                    <span className="synthese-sep">·</span>
-                    <span style={{ color: "var(--gold)" }}>
-                      <b>{sn.row.mvpCount}</b> fois homme du match
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {/* Derniers matchs — le ticker commun : date, score, adversaire. */}
-      {recentMatches.length > 0 && (
-        <section className="bande mt-8">
-          <div className="bande-titre">
-            <span className="kicker">Derniers matchs</span>
-          </div>
-          <ul>
-            {recentMatches.map((m) => (
-              <li key={m.id}>
-                <Link href={`/c/${slug}/matches/${m.id}`} className="ticker">
-                  <span className="ticker-heure">{fmtDate(m.playedAt)}</span>
-                  <span className="ticker-score">
-                    {m.score.replace("-", " — ")}
+            <div className="fiche-ligne">
+              <span className="l">Élo</span>
+              <span className="v">
+                {allTime.elo.toLocaleString("fr-FR")}{" "}
+                {allTime.eloTrend !== 0 && (
+                  <span className={allTime.eloTrend > 0 ? "plus" : "moins"}>
+                    {allTime.eloTrend > 0 ? `+${allTime.eloTrend}` : allTime.eloTrend}
                   </span>
-                  <span className="ticker-buteurs flex items-center gap-2">
-                    <Forme form={[m.result]} />
-                    <span className="min-w-0 truncate">{m.label}</span>
-                    {m.goals > 0 && (
-                      <span className="inline-flex shrink-0 items-center gap-1 tabular-nums text-[color:var(--ink-2)]">
-                        <Icon name="ball" size={11} label="Buts marqués" />
-                        {m.goals}
-                      </span>
-                    )}
-                    {m.wasMvp && (
-                      <Icon
-                        name="star"
-                        filled
-                        size={11}
-                        label="Homme du match"
-                        className="shrink-0 text-[color:var(--gold)]"
-                      />
-                    )}
+                )}
+              </span>
+            </div>
+            <div className="fiche-ligne">
+              <span className="l">Buts par match</span>
+              <span className="v">{allTime.goalsPerMatch.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</span>
+            </div>
+            {ctx.club.trackAssists && allTime.assists > 0 && (
+              <div className="fiche-ligne">
+                <span className="l">Passes décisives</span>
+                <span className="v">{allTime.assists}</span>
+              </div>
+            )}
+          </section>
+
+          <section className="carte fiche-carte">
+            <div className="carte-titre" style={{ padding: "20px 0 8px" }}>
+              Derniers matchs
+            </div>
+            {recentMatches.map((m) => {
+              const [sa, sb] = m.score.split("-").map(Number);
+              const [gauche, droite] = m.label.includes(" vs ") ? m.label.split(" vs ") : [m.label, ""];
+              return (
+                <Link key={m.id} href={`/c/${slug}/matches/${m.id}`} className="fiche-match">
+                  <span className="d">{fmtDate(m.playedAt)}</span>
+                  <span className="s">
+                    {sa > sb ? <b>{gauche} {sa}</b> : <>{gauche} {sa}</>} – {sb > sa ? <b>{sb} {droite}</b> : <>{sb} {droite}</>}
+                  </span>
+                  <span className="b">
+                    {m.goals > 0 ? `${m.goals} but${m.goals > 1 ? "s" : ""}` : m.wasMvp ? "★" : ""}
+                    {m.goals > 0 && m.wasMvp ? " ★" : ""}
                   </span>
                 </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+              );
+            })}
+          </section>
 
-      {recentMatches.length === 0 && (
-        <p className="mt-8 text-sm text-[color:var(--ink-2)]">
-          Aucun match joué pour l&apos;instant. Ça se règle sur le terrain.
-        </p>
+          {bySeason.length > 1 && (
+            <section className="carte fiche-carte">
+              <div className="carte-titre" style={{ padding: "20px 0 8px" }}>
+                Par saison
+              </div>
+              {bySeason.map((sn) => (
+                <div key={sn.seasonId ?? "none"} className="fiche-match" style={{ gridTemplateColumns: "1fr auto" }}>
+                  <span className="s">
+                    <b>{sn.seasonName}</b> · {sn.row.matchesPlayed} match{sn.row.matchesPlayed > 1 ? "s" : ""}
+                  </span>
+                  <span className="b">
+                    {sn.row.goals} but{sn.row.goals > 1 ? "s" : ""} · {sn.row.winPct} %
+                  </span>
+                </div>
+              ))}
+            </section>
+          )}
+        </>
+      ) : (
+        <section className="carte fiche-carte">
+          <p className="fiche-vide">Aucun match joué pour l&apos;instant. Ça se règle sur le terrain.</p>
+        </section>
       )}
     </main>
   );
