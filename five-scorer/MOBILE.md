@@ -160,6 +160,10 @@ import * as SecureStore from "expo-secure-store";
 
 export const authClient = createAuthClient({
   baseURL: process.env.EXPO_PUBLIC_API_URL, // http://192.168.1.192:3000 en dev, https://five-scorer.vercel.app sinon
+  // ↑ Écrit avant l'écriture du code. Le vrai nom est EXPO_PUBLIC_API (sans
+  //   _URL), et l'adresse n'est pas lue directement : `lib/api.ts` la résout
+  //   (« localhost » désigne LE TÉLÉPHONE) et la choisit par l'origine, pas
+  //   par __DEV__. C'est `API` de lib/api.ts qui est passé ici.
   plugins: [
     organizationClient(),
     expoClient({ scheme: "fivescorer", storagePrefix: "fivescorer", storage: SecureStore }),
@@ -333,11 +337,11 @@ Règles de lecture pour l'agent :
 | **4** | **Serveur : ouvrir la porte à Expo.** Ajouter `@better-auth/expo` aux dépendances du dépôt Next, monter `expo()` avant `nextCookies()`, étendre `trustedOrigins()` avec `fivescorer://` + (`exp://`, `exps://`) en développement seulement, ajouter `allowedDevOrigins` dans `next.config.js`. | `pnpm build` sort en 0 ; puis, `pnpm dev` lancé : `curl -s -X POST -H "Origin: exp://192.168.1.192:8081" ... /api/auth/sign-in/email \| grep -c INVALID_ORIGIN` → `0`. | **fait** — commit `f083477` sur `main`. La requête d'origine `exp://` reçoit `INVALID_EMAIL_OR_PASSWORD`, donc l'origine est acceptée et c'est bien le mot de passe qui est refusé. |
 | **5** | **Porter le noyau pur** dans `five-scorer-mobile/lib/noyau/` : `clock.ts` (41 l.), `ids.ts` (43 l.), `theme.ts` (182 l.), `color.ts` (184 l.), `balance.ts` (148 l.), `retro.ts` (28 l.) — copie verbatim — et poser un lanceur de tests. | `cd five-scorer-mobile && npx vitest run` → tous verts, au moins un test par fichier porté ; `npx tsc --noEmit` sort en 0. | **fait** — 626 lignes copiées octet pour octet, 78 tests verts en 7 fichiers, `tsc` vert. Vitest 4.1.11 (pas 5 : voir le journal). Un 7ᵉ fichier de test, `copie-conforme.test.ts`, vérifie l'égalité octet pour octet avec `five-scorer/lib/` et l'absence d'API navigateur : la copie ne peut plus diverger en silence. |
 | **6** | **Le schéma SQLite** : traduire les 6 tables de `lib/db.ts` en DDL (`five-scorer-mobile/db/schema.sql`), avec `AUTOINCREMENT` sur `outbox.id`, la colonne `match_id`, l'index `outbox_actives`, et `PRAGMA journal_mode = WAL` à l'ouverture. | Depuis `five-scorer-mobile/` (il n'y a **pas** de binaire `sqlite3` dans le nuage — `node:sqlite` est le même moteur, SQLite 3.51.2) :<br>`node --no-warnings -e "const {DatabaseSync}=require('node:sqlite'),fs=require('node:fs');const d=new DatabaseSync(':memory:');d.exec(fs.readFileSync('db/schema.sql','utf8'));d.exec(\"INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'),('t','c','{}'),('t','c','{}'); DELETE FROM outbox WHERE id=3; INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}');\");console.log(d.prepare('SELECT MAX(id) AS m FROM outbox').get().m)"` → **`4`** (et non `3`) ; puis `npx vitest run db` vert. | **fait** — `MAX(id) = 4`, et 19 tests dans `db/schema.test.ts`. Le contre-exemple est testé aussi : une table témoin **sans** `AUTOINCREMENT` redonne bien `3`, donc le mot n'est pas décoratif. Ajouts assumés au plan : un second index `outbox_match (match_id, blocked_at)` pour le blocage en cascade, des `CHECK` qui rejouent en base les unions fermées de `lib/db.ts`, un `UNIQUE (match_id, player_id)` sur `participants`, et `db/schema.ts` — copie conforme du `.sql`, générée par `scripts/schema-vers-ts.mjs` et vérifiée octet pour octet, parce que Metro ne sait pas charger un `.sql` sans plugin Babel. |
-| **7** | **Porter le drain de l'outbox** (`lib/sync.ts`) sur une couche d'accès abstraite (une interface `Db` avec deux implémentations : `expo-sqlite` en prod, `node:sqlite`/`better-sqlite3` en test). Garder la machine à états, le backoff 5→60 s, le timeout 8 s, `pending`/`blocked`/`needsAuth`, le blocage en cascade par `match_id`. **8** opérations → **8** appels fetch. | `cd mobile && npx vitest run sync` → vert, dont un test « 50 opérations enfilées, serveur en panne, processus relancé : 0 perdue, 0 dupliquée, ordre conservé » et un test « 403 sur une op → toutes les ops du même match passent `blocked`, aucune supprimée ». | à faire |
-| **8** | **La fonction d'appel authentifié** de l'app (`mobile/lib/api.ts`) : `credentials: "omit"` + en-tête `cookie` issu de `authClient.getCookie()`, URL absolues depuis `EXPO_PUBLIC_API_URL`, 401 → `needsAuth`. | `cd mobile && npx vitest run api` → vert, avec `fetch` moqué : assertions sur `credentials === "omit"`, présence de l'en-tête `cookie`, et bascule `needsAuth` sur 401. | à faire |
+| **7** | **Porter le drain de l'outbox** (`lib/sync.ts`) sur une couche d'accès abstraite (une interface `Db` avec deux implémentations : `expo-sqlite` en prod, `node:sqlite`/`better-sqlite3` en test). Garder la machine à états, le backoff 5→60 s, le timeout 8 s, `pending`/`blocked`/`needsAuth`, le blocage en cascade par `match_id`. **8** opérations → **8** appels fetch. | `cd five-scorer-mobile && npx vitest run sync` → vert, dont un test « 50 opérations enfilées, serveur en panne, processus relancé : 0 perdue, 0 dupliquée, ordre conservé » et un test « 403 sur une op → toutes les ops du même match passent `blocked`, aucune supprimée ». | **fait** — 13 tests dans `lib/outbox/sync.test.ts`, dont les deux exigés. L'interface `Base` a quatre méthodes et deux implémentations (`baseExpo.ts` sur le téléphone, `baseNode.ts` dans les tests) ; le SQL vit dans `outbox.ts`, la machine à états dans `sync.ts`. Rien n'est global : `creerDrain(deps)` rend un drain, ce qui permet d'en instancier deux sur le même fichier de base — c'est ce qui rend le test de reprise après crash honnête. **Correction au plan** : la relance après un échec réessayable part à **10 s**, pas 5 — le compteur d'échecs est incrémenté avant la replanification, côté web aussi ; le plancher à 5 s ne sert qu'aux passages qui finissent sans échec en laissant de la file. |
+| **8** | **La fonction d'appel authentifié** de l'app : `credentials: "omit"` + en-tête `cookie` issu de `authClient.getCookie()`, URL absolues depuis `EXPO_PUBLIC_API`, 401 → `SessionExpiree`. | `cd five-scorer-mobile && npx vitest run appel` → vert, avec `fetch` moqué : assertions sur `credentials === "omit"`, présence de l'en-tête `cookie`, et `SessionExpiree` sur 401. | **fait** — 17 tests dans `five-scorer-mobile/lib/appel.test.ts`. Le cœur a été **sorti de `lib/api.ts` vers `lib/appel.ts`** : `api.ts` importe `expo-constants` et `expo-linking` dès sa deuxième ligne, donc rien de ce qui vit à côté n'est testable dans le nuage. `creerAppel(deps)` reçoit l'adresse, le cookie et le `fetch` — le procédé de `creerDrain(deps)`, pour la même raison. **Écarts assumés** : `needsAuth` du plan est la classe `SessionExpiree`, qui existait déjà et que `app/clubs.tsx` lit déjà ; une classe `ErreurServeur` porte le `status` sur l'objet (c'est ce que lit `encaisserEchec` du drain) et recopie le `{"error":…}` du serveur dans le message ; `lireCookie()` est extraite pour être **injectée au drain** à l'étape 11, l'app et la file devant rejouer le même cookie. Trois tests relisent `lib/api.ts` en texte pour vérifier qu'il délègue et ne réimplémente ni `fetch` ni `credentials`. |
 | **9** | **Serveur : les 3 premiers GET** — `GET /api/me`, `GET /api/clubs/[clubId]`, extension de `GET .../roster` (+`abonne`, `userId`, `isArchived`). Tous via `getClubApiContext`, tous validant les identifiants avec `lib/ids.ts`. | `pnpm build` sort en 0 ; `pnpm test:api` (Vitest, session simulée) → vert ; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me` sans cookie → `401`. | **fait** — `GET /api/me` (tous mes clubs, l'amorce de la connexion), `GET /api/clubs/[clubId]` (un seul, pour rafraîchir les réglages sans repasser par la connexion ; 404 et non 403 sur un club dont on n'est pas membre, pour ne pas confirmer son existence), et l'effectif étendu (`abonne`, `isArchived`, `?archives=1` qui range les archivés en fin de liste). La forme du club vit dans `lib/clubApi.ts`, partagée par les deux routes : deux copies auraient divergé au premier réglage ajouté. **Écart assumé au plan** : `userId` demandé n'est pas rendu — l'app n'en a besoin que pour « lequel est moi ? » et « ce profil est-il revendiqué ? », on rend `estMoi` et `compteLie` plutôt que l'identifiant de compte de chaque joueur à tous les membres. Les 23 vérifications de `five-scorer-mobile/scripts/parcours-connexion.mjs` passent. |
 | **10** | **Écran de connexion** (`mobile/app/(public)/connexion.tsx`) + inscription, avec `authClient.signIn.email` / `signUp.email` (API identique à `LoginForm.tsx`). Aiguillage `index.tsx` : session ? club : bienvenue. | `cd five-scorer-mobile && npx tsc --noEmit` vert ; et la chaîne complète vérifiée sans navigateur (voir le journal du 9 septembre). | **fait** — `connexion.tsx` (connexion + inscription sur le même écran, messages d'erreur en français dont `INVALID_ORIGIN` qui dit quoi corriger), `index.tsx` (aiguillage session → clubs, sinon vitrine), `clubs.tsx` (les clubs de l'utilisateur, leurs réglages, déconnexion). Chaîne complète rejouée sans téléphone par `five-scorer-mobile/scripts/parcours-connexion.mjs` : origine `exp://` acceptée, cookie délivré, `/api/me` servi, 401 sans cookie. **En Expo Go la connexion exige `pnpm dev` sur le Mac** — voir le journal du 9 septembre 10:4x. |
-| **11** | **Porter `lib/localMatch.ts`** (707 l., 41 appels Dexie, 9 transactions) sur la couche SQLite, en `withExclusiveTransactionAsync`. La logique métier (calcul de la minute, garde anti-équipe-vide, refus d'écrire dans un match terminé, invités) ne bouge pas. À couper en deux exécutions si nécessaire (lecture puis écriture). | `cd mobile && npx vitest run localMatch` → vert, dont « un but écrit `events` ET `outbox`, ou ni l'un ni l'autre » et « aucune écriture dans un match `FINISHED` ». | à faire |
+| **11** | **Porter `lib/localMatch.ts`** (707 l., 41 appels Dexie, 9 transactions) sur la couche SQLite, en `withExclusiveTransactionAsync`. La logique métier (calcul de la minute, garde anti-équipe-vide, refus d'écrire dans un match terminé, invités) ne bouge pas. À couper en deux exécutions si nécessaire (lecture puis écriture). | `cd five-scorer-mobile && npx vitest run localMatch` → vert, dont « un but écrit `events` ET `outbox`, ou ni l'un ni l'autre » et « aucune écriture dans un match `FINISHED` ». | **fait** — 54 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`, dont les deux exigés, **et leur contre-épreuve** : la transaction retirée d'`addEvent` fait tomber le premier, les trois gardes `FINISHED` retirés font tomber le second (sorties collées au journal). Faite en une exécution, pas deux : le SQL est sorti dans `lib/match/tables.ts` (530 l.), la logique dans `lib/match/local.ts` (778 l.). Rien n'est global — `creerMatchLocal(deps)` reçoit la base, l'horloge et le générateur d'identifiants, comme `creerDrain` et `creerAppel`. **Écarts assumés** : (a) `getLocalMatch` lit **hors** transaction, comme le `Promise.all` du web — l'envelopper prendrait un verrou d'écriture (`BEGIN IMMEDIATE`) à chaque re-rendu de l'écran de match, et le drain attendrait derrière l'affichage ; (b) l'entrée de `saveRoster` accepte un `photo` optionnel, que le web n'a pas — l'endpoint de l'effectif l'envoie déjà et la feuille doit montrer les visages sans réseau (§3.3) ; à entrée identique, comportement identique. |
 | **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `pnpm build` en 0 ; `pnpm test:api` vert avec un cas par endpoint ; `curl` authentifié sur `matches/[matchId]` renvoie du JSON contenant `participants` et `events`. | à faire |
 | **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (dont un test de l'équilibrage inchangé) ; `npx tsc --noEmit` vert. | à faire |
 | **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. `Pressable` + `onLongPress` à 500 ms (le garde `suppressTapUntil` de 700 ms **disparaît** : en natif `onPress` n'est pas émis après `onLongPress`), tick d'affichage 500 ms isolé dans un composant `<Horloge>`, `useKeepAwake()`, haptics selon la table du §3.6. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (test de `minuteOf`/`fmt` et de la machine tap/appui-long) ; grep de contrôle : `grep -rc "suppressTapUntil" mobile/` → `0`. | à faire |
@@ -362,9 +366,10 @@ Règles de lecture pour l'agent :
 
 - La logique pure portée verbatim : `clock.ts` (dérivation du chrono depuis `elapsedMs` + `runningSince`, y compris horloge qui recule), `balance.ts`, `color.ts`/`theme.ts` (le plancher APCA à Lc 60 est testable : une chasuble claire et une foncée doivent produire des encres différentes). **Fait à l'étape 5 : 78 tests dans `five-scorer-mobile/lib/noyau/`, `npm run tester`.**
 - **La non-divergence du noyau** : `copie-conforme.test.ts` compare octet pour octet les 6 fichiers de `lib/noyau/` à ceux de `five-scorer/lib/`, et vérifie qu'aucun n'a acquis de `document.`/`window.`/`navigator.`/`localStorage`. C'est le test qui empêche la réécriture de partir en deux versions de la même règle.
-- **Le drain de l'outbox contre un faux serveur** : c'est le test qui valide tout le reste, et il ne demande aucune interface. 50 opérations, serveur en panne, processus tué, relancé : rien de perdu, rien de dupliqué, ordre conservé. Plus le cas 403 → blocage en cascade sans suppression, et le cas 401 → `needsAuth`.
+- **Le drain de l'outbox contre un faux serveur** : c'est le test qui valide tout le reste, et il ne demande aucune interface. 50 opérations, serveur en panne, processus tué, relancé : rien de perdu, rien de dupliqué, ordre conservé. Plus le cas 403 → blocage en cascade sans suppression, et le cas 401 → `needsAuth`. **Fait à l'étape 7 : 13 tests dans `five-scorer-mobile/lib/outbox/sync.test.ts`.** « Processus tué » y est deux instances de drain sur le même fichier SQLite, la première abandonnée en pleine panne réseau.
 - **Le SQL lui-même**, avec `node:sqlite` — **il n'y a pas de binaire `sqlite3` dans le conteneur du nuage**, et c'est sans importance : `node:sqlite` embarque le même moteur (SQLite 3.51.2, relevé le 9 septembre), celui d'expo-sqlite sur le téléphone. **Fait à l'étape 6 : 19 tests dans `five-scorer-mobile/db/schema.test.ts`.** La réutilisation d'identifiant sans `AUTOINCREMENT` y est un test **et** son contre-exemple : une table témoin sans le mot redonne l'identifiant supprimé. Ce n'est pas une croyance.
-- **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents.
+- **Les actions de match contre un vrai SQLite**. **Fait à l'étape 11 : 54 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`.** Le test qui compte n'est pas « un but est bien écrit », c'est **l'annulation** : une `BaseCapricieuse` refuse tout `INSERT INTO outbox`, et on vérifie qu'il ne reste NI événement NI opération NI point au score. Les deux règles gardées par les tests exigés ont été retirées du code une par une pour voir les tests tomber (journal du 9 septembre 18:1x) — sans cette contre-épreuve, un test vert ne dit rien.
+- **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents. **Fait à l'étape 8 : 17 tests dans `five-scorer-mobile/lib/appel.test.ts`.** Le test qui compte n'est pas « le cookie est là », c'est « le cookie est une **chaîne**, pas une promesse » : le `await` oublié sur `getCookie()` produit un 401 parfaitement trompeur, et rien à l'écran ne le distingue d'une session réellement expirée.
 
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
 
@@ -447,6 +452,365 @@ Un agent ne peut trancher aucune de ces lignes.
 ## 7. Journal
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
+
+### 2026-09-09 18:1x — Étape 11 : les actions de match sur SQLite
+
+- **État** : à faire → **fait**
+- **Vérifié par** (depuis `five-scorer-mobile/`) :
+
+  ```
+  $ npx vitest run localMatch
+   RUN  v4.1.11 /home/user/diamesene02/five-scorer-mobile
+   Test Files  1 passed (1)
+        Tests  54 passed (54)
+     Duration  843ms
+
+  $ npx tsc --noEmit
+  (aucune sortie, code 0)
+
+  $ npm run tester
+   Test Files  12 passed (12)
+        Tests  184 passed (184)
+  ```
+
+  Et les vérifications d'entrée d'exécution, lancées AVANT d'écrire une ligne —
+  rien n'était cassé, il n'y avait donc rien à réparer :
+
+  ```
+  $ npx tsc --noEmit && npm run tester      # five-scorer-mobile/
+   Test Files  11 passed (11)
+        Tests  130 passed (130)
+
+  $ npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build   # five-scorer/
+  ƒ Proxy (Middleware)
+  ○  (Static)   prerendered as static content
+  ƒ  (Dynamic)  server-rendered on demand
+  [exited with code 0]
+  ```
+
+- **La contre-épreuve des deux tests exigés.** Un test qui passe du premier coup
+  ne prouve rien tant qu'on ne l'a pas vu échouer. Les deux règles qu'il garde
+  ont donc été retirées du code, une à la fois, et le test relancé :
+
+  ```
+  # 1) addEvent sorti de sa transaction (l'écriture métier ne peut plus être annulée)
+  $ npx vitest run localMatch
+       × ni l'un ni l'autre, quand l'écriture de la file échoue 14ms
+        Tests  1 failed | 53 passed (54)
+
+  # 2) les trois gardes « Match terminé » retirés (3 occurrences)
+  $ npx vitest run localMatch
+       × un but est refusé, et ne laisse rien derrière lui 12ms
+       × un changement de camp est refusé 4ms
+       × un retardataire est refusé 3ms
+        Tests  3 failed | 51 passed (54)
+
+  # puis restauration, vérifiée par diff : « local.ts restauré à l'identique »
+  ```
+
+  Le premier test injecte une `BaseCapricieuse` qui refuse tout
+  `INSERT INTO outbox` : le but est saisi, l'enfilage échoue, et on regarde ce
+  qui reste sur le disque. Zéro événement, score inchangé, file réduite à la
+  seule création du match faite avant. C'est l'annulation qu'on voulait voir,
+  pas le chemin heureux.
+
+- **Fichiers touchés** :
+  - `/home/user/diamesene02/five-scorer-mobile/lib/match/tables.ts` (530 l., neuf)
+  - `/home/user/diamesene02/five-scorer-mobile/lib/match/local.ts` (778 l., neuf)
+  - `/home/user/diamesene02/five-scorer-mobile/lib/match/localMatch.test.ts` (1025 l., neuf)
+  - `/home/user/diamesene02/five-scorer/MOBILE.md` (étape 11 + cette entrée)
+
+  Rien d'autre. **Aucun fichier de `five-scorer/` n'a été modifié** : le build
+  Next vérifié en début d'exécution vaut donc encore au commit.
+
+- **Comment c'est découpé.** Le plan autorisait deux exécutions (lecture puis
+  écriture) ; une a suffi, parce que la coupure utile n'était pas là. Le SQL est
+  parti dans `lib/match/tables.ts` — les cinq tables, la conversion
+  serpent_minuscule ↔ casseChameau à un seul endroit — et la logique portée dans
+  `lib/match/local.ts`. C'est exactement le partage `outbox.ts` / `sync.ts` de
+  l'étape 7, et pour la même raison : la machine à états doit se relire comme
+  une machine à états.
+
+- **Ce qui a surpris** :
+  1. **`getLocalMatch` ne doit PAS être mis en transaction**, et c'est
+     contre-intuitif. La première version enveloppait les trois lectures pour
+     qu'elles voient le même instant. Mais `base.transaction()` est
+     *exclusive* — `BEGIN IMMEDIATE` côté Node, `withExclusiveTransactionAsync`
+     côté expo-sqlite — donc un **verrou d'écriture pris à chaque re-rendu** de
+     l'écran de match, avec le drain de l'outbox qui attend derrière chaque
+     affichage. Le web lisait déjà en `Promise.all` hors transaction. Corrigé
+     avant le premier commit : un affichage peut être en retard d'un but, il ne
+     peut pas être faux.
+  2. **Le `put` de Dexie efface les champs absents**, et deux colonnes en
+     dépendaient. `createMatch` écrit la feuille sans les trois colonnes du
+     chrono ; il fallait donc que `ecrireMatch` soit un `INSERT OR REPLACE`
+     complet qui les remette à leur défaut (`0`, `NULL`, `1`), et pas un
+     `UPDATE` partiel. Les deux formes sont désormais séparées dans
+     `tables.ts` (`ecrire*` remplace, `maj*` ne touche que les colonnes
+     nommées) et l'entête du fichier dit pourquoi les confondre coûte un score.
+  3. **`saveRoster` côté web perd les photos** : son type d'entrée n'a pas de
+     champ `photo`, donc le cache Dexie n'a jamais de visage — alors que
+     `getLocalMatch` lit `photo` et que §3.3 veut les visages au bord du
+     terrain. Le champ a été ajouté en optionnel côté mobile (écart assumé,
+     additif : à entrée identique, comportement identique). Ce n'est pas une
+     correction du web ; c'est une ligne de plus pour le §6 si Ibrahima décide
+     que la PWA doit aussi les cacher.
+  4. **`undoLastGoalOf` demandait un départage explicite.** Dexie prenait
+     `.last()` sur l'index `[matchId+createdAt]` : à horodatage égal, l'ordre
+     retombait sur la clé primaire. En SQL, l'ordre serait celui du plan de
+     requête, c'est-à-dire aucun. D'où `ORDER BY created_at DESC, id DESC` —
+     et son miroir `created_at ASC, id ASC` pour la chronologie, parce que
+     `sortBy` de Dexie est un tri stable.
+  5. Le chiffre du plan est juste : 707 lignes à la source (recompté), 1 308
+     lignes portées en deux fichiers — l'écart est du commentaire et de
+     l'interface de tables, pas de la logique en plus.
+
+- **Reste ouvert** :
+  - **La mesure des photos n'est pas faite** (ligne 5 du §6, « les photos des
+    joueurs »). Elle exige un appareil : 14 data-URL de ~20 ko rematérialisées à
+    chaque but, ça se mesure à l'œil et au profileur, pas dans un conteneur.
+    Ce qui est fait ici la rend possible : `lireJoueurs` est le seul endroit qui
+    remonte `photo`, donc le jour où il faut sortir la colonne de la requête
+    live, il y a **un** endroit à changer.
+  - **Aucune de ces fonctions n'a tourné sur expo-sqlite**, seulement sur le
+    même moteur dans Node (SQLite 3.51.2). L'écart est l'asynchronisme réel de
+    `BaseExpo` ; il joue dans le bon sens (une base qui sérialise passe a
+    fortiori les séquences testées ici), mais il n'est pas *vérifié*. Il le sera
+    au premier écran de match, à l'étape 14.
+  - **Le chrono n'est pas porté.** `clock_elapsed_ms`, `clock_running_since` et
+    `period` existent en colonnes, avec leurs défauts, et `lib/noyau/clock.ts`
+    sait les dériver — mais aucune fonction ne les *écrit* : côté web, c'est
+    l'écran live qui le fait, pas `localMatch.ts`. Ça vient avec l'étape 14
+    (« l'horloge »), pas avant.
+  - Prochaine étape faisable depuis le nuage : **12** (les 3 GET serveur
+    restants de la V1). L'étape **13** (écran « nouveau match ») en dépend pour
+    les données, mais pas pour être écrite.
+
+### 2026-09-09 16:1x — Étape 8 : la fonction d'appel authentifié
+
+- **État** : à faire → **fait**
+- **Vérifié par** (depuis `five-scorer-mobile/`) :
+
+  ```
+  $ npx vitest run appel
+  Test Files  1 passed (1)
+       Tests  17 passed (17)
+
+  $ npx tsc --noEmit
+  tsc EXIT=0
+
+  $ npm run tester
+  Test Files  11 passed (11)
+       Tests  130 passed (130)
+
+  $ npx expo export --platform ios
+  ios bundles (1): _expo/static/js/ios/entry-ba91913189e9f0f9936240d7048318cd.hbc (2.7MB)
+  Exported: dist
+  EXPORT EXIT=0
+
+  $ cd ../five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  next build EXIT=0
+  ```
+
+- **Fichiers touchés** :
+
+  ```
+  five-scorer-mobile/lib/appel.ts        (nouveau — le cœur, sans une ligne d'Expo)
+  five-scorer-mobile/lib/appel.test.ts   (nouveau — 17 tests, fetch de papier)
+  five-scorer-mobile/lib/api.ts          (modifié — délègue, et expose lireCookie)
+  five-scorer/MOBILE.md
+  ```
+
+**Ce qui a surpris, et qui corrige ce document.**
+
+**L'étape 8 était déjà écrite — mais pas testable, ce qui n'est pas la même
+chose que faite.** `appelAuthentifie` existait dans `lib/api.ts` depuis
+l'étape 10 (poussée avant elle, le plan n'ayant pas été suivi dans l'ordre) et
+faisait déjà les bonnes choses. Seulement `lib/api.ts` importe `expo-constants`
+et `expo-linking` à sa deuxième ligne pour deviner l'adresse du serveur : le
+fichier ne se charge pas dans Node, donc pas dans Vitest, donc pas dans le
+nuage. Le critère de l'étape — « vert avec `fetch` moqué » — était
+**inatteignable sans déplacer le code**. La règle 2 du §5 (« une étape dont la
+commande n'a pas été lancée reste `en cours` ») a tranché : le cœur est parti
+dans `lib/appel.ts`, où rien n'est deviné et tout est passé en paramètre. C'est
+le procédé de `creerDrain(deps)`, adopté pour exactement la même raison à
+l'étape 7.
+
+**Le vrai test n'est pas celui que le plan nommait.** « Présence de l'en-tête
+`cookie` » passe aussi quand on a oublié le `await` sur `getCookie()` : l'en-tête
+est bien là, il contient `[object Promise]`, et le serveur répond 401. Ce 401
+est le plus trompeur du projet — il est indiscernable, à l'écran, d'une session
+réellement expirée, et il renvoie l'utilisateur vers un formulaire de connexion
+qui ne réparera rien. Le test posé ici vérifie donc le **type** de ce qui atterrit
+dans l'en-tête, avec un lecteur de cookie volontairement lent. Le journal du 9
+septembre 10:4x avait déjà nommé ce piège ; il est maintenant tenu par un test
+plutôt que par la mémoire.
+
+**Écarts assumés au plan.**
+
+- **`needsAuth` n'a pas été créé.** Le plan l'écrit en anglais et au conditionnel ;
+  la chose existe déjà sous le nom `SessionExpiree`, `app/clubs.tsx` la lit déjà,
+  et le drain a déjà son `reconnexionRequise`. Ajouter un troisième nom pour le
+  même fait aurait fabriqué la divergence que ce document passe son temps à
+  éviter.
+- **Une classe `ErreurServeur`**, non prévue. `throw new Error("Le serveur a
+  répondu 403.")` perd le code : l'appelant doit relire une phrase française
+  pour prendre une décision de machine, et `encaisserEchec` du drain lit
+  précisément `err.status` pour trancher réessayable / définitif. Le `status`
+  est donc porté par l'objet. Elle recopie aussi le `{"error": "..."}` de nos
+  routes dans le message — nos handlers en posent un partout (vérifié dans
+  `app/api/clubs/`), et « 400 — Aucun joueur » dit quoi corriger là où « 400 »
+  ne dit rien.
+- **`lireCookie()` est extraite de la fonction d'appel.** L'étape 7 avait laissé
+  ouvert « le câblage sur `authClient.getCookie()` se fera à l'étape 8 » :
+  `Dependances.cookie` du drain attend exactement cette signature
+  (`() => Promise<string | null>`), et c'est la même fonction qu'on lui passera
+  à l'étape 11. Deux lecteurs de cookie, c'étaient deux façons de se tromper.
+- **Trois tests lisent `lib/api.ts` en texte** plutôt qu'en module, puisqu'il
+  n'est pas importable ici. Ils vérifient qu'il appelle bien `creerAppel`, qu'il
+  ne repose plus lui-même `credentials`, et qu'il ne parle à `fetch` que par
+  `joindre`. Sans eux, les seize autres testeraient un code que l'app
+  n'exécuterait plus — le procédé est celui de `copie-conforme.test.ts`. Le
+  premier jet cherchait le mot « credentials » dans le fichier entier et
+  rougissait sur un **commentaire** qui explique le contrat : le test ignore
+  désormais les lignes de commentaire, faute d'interdire d'expliquer le code
+  qu'il protège.
+
+**Ce qui n'a PAS été fait, et pourquoi.**
+
+- **Pas de délai maximal sur l'appel authentifié.** Le drain coupe ses rejeux à
+  8 s (`DELAI_REJEU_MS`) ; les lectures de l'app, elles, peuvent pendre tant que
+  le système le veut — Mac éteint, Wi-Fi du gymnase. C'est un vrai défaut, mais
+  ce n'est pas cette étape, et un écran qui l'affiche n'existe pas encore.
+  À reprendre à l'étape 13.
+- **Rien n'a été lancé sur un appareil.** Le `fetch` de ces tests est en papier :
+  ils prouvent la forme de la requête, pas que le trousseau rende le bon cookie
+  sur un iPhone. Cette preuve-là est du 9 septembre 10:4x (cookie de 1 084 octets
+  délivré et rejoué en HTTP direct), et elle n'a jamais eu lieu dans Expo Go.
+
+- **Reste ouvert** :
+  - **Ce que le plan appelle « la V1 » est à trois étapes** : 11 (porter
+    `localMatch.ts`), 12 (les 3 GET restants), 13 (l'écran « nouveau match »).
+    L'étape 11 est la prochaine faisable depuis le nuage, et c'est la plus
+    grosse du plan (707 lignes, 41 appels Dexie, 9 transactions) : elle est
+    explicitement prévue pour être coupée en deux exécutions.
+  - Le drain n'est toujours instancié nulle part : `lireCookie` existe, personne
+    ne la lui passe encore. Ce câblage vient avec le premier écran qui écrit.
+  - Étape 17 toujours `bloqué` (EAS Build depuis une machine connectée au
+    compte — hors de portée du nuage), étape 18 idem (simulateur iOS).
+
+### 2026-09-09 14:2x — Étape 7 : le drain de l'outbox
+
+- **État** : à faire → **fait**
+- **Vérifié par** (depuis `five-scorer-mobile/`) :
+
+  ```
+  $ npx vitest run sync
+  Test Files  1 passed (1)
+       Tests  13 passed (13)
+
+  $ npx tsc --noEmit
+  tsc EXIT=0
+
+  $ npm run tester
+  Test Files  10 passed (10)
+       Tests  113 passed (113)
+
+  $ npx expo export --platform ios
+  ios bundles (1): _expo/static/js/ios/entry-….hbc (2.7MB)
+  Exported: dist
+  EXPORT EXIT=0
+
+  $ cd ../five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  next build EXIT=0
+  ```
+
+- **Fichiers touchés** :
+
+  ```
+  five-scorer-mobile/lib/outbox/types.ts        (nouveau — tranche copiée de five-scorer/lib/db.ts)
+  five-scorer-mobile/lib/outbox/types.test.ts   (nouveau — la copie ne peut plus diverger en silence)
+  five-scorer-mobile/lib/outbox/base.ts         (nouveau — l'interface Base, quatre méthodes)
+  five-scorer-mobile/lib/outbox/baseExpo.ts     (nouveau — expo-sqlite, le téléphone)
+  five-scorer-mobile/lib/outbox/baseNode.ts     (nouveau — node:sqlite, les tests)
+  five-scorer-mobile/lib/outbox/outbox.ts       (nouveau — la file : SQL, et rien d'autre)
+  five-scorer-mobile/lib/outbox/sync.ts         (nouveau — le drain porté de lib/sync.ts)
+  five-scorer-mobile/lib/outbox/sync.test.ts    (nouveau — 13 tests)
+  five-scorer-mobile/package.json               (+ expo-sqlite ~57.0.2)
+  five-scorer-mobile/package-lock.json
+  five-scorer/MOBILE.md
+  ```
+
+**Ce qui a surpris, et qui corrige ce document.**
+
+**La relance ne part pas à 5 secondes, mais à 10.** Le §3.3 et l'étape 7
+annoncent « backoff 5 → 60 s ». En lisant `lib/sync.ts` de près : le compteur
+`echecs` est incrémenté **avant** que le `finally` n'appelle
+`planifierRelance()`. Après le premier échec réessayable, `echecs` vaut donc
+déjà 1 et le délai vaut `5000 × 2¹` = 10 s. Le plancher à 5 s n'est atteint que
+lorsqu'un passage se termine **sans** échec en laissant de la file — après un
+blocage 403, par exemple. Ce n'est pas un bug : le premier essai a déjà eu lieu
+tout de suite. Le portage reproduit ce comportement à l'identique, et le test
+`la relance double à chaque échec` fige la table (5, 10, 20, 40, 60, 60 s). Mon
+premier test attendait 5 s et échouait ; c'est le test qui avait tort, pas le
+code — le vérifier avant de « corriger » le portage a évité d'introduire une
+divergence avec le web.
+
+**Le modèle ne se copie pas en entier, et ça se répare par un test.**
+`five-scorer/lib/db.ts` importe Dexie à sa 7ᵉ ligne : impossible de le traiter
+comme les six fichiers de `lib/noyau/`. Mais les lignes 9 à 196 — les six formes
+locales et l'union fermée `OutboxOp` — ne dépendent de rien. Elles sont copiées
+**octet pour octet** sous un marqueur, et `types.test.ts` relit la tranche à la
+source à chaque exécution : le jour où le web ajoute une opération d'outbox sans
+la recopier, le test rougit ici plutôt qu'un but se perd au bord du terrain. Il
+vérifie aussi les deux ancres (première et dernière ligne de la tranche), sans
+quoi un ajout en tête de `db.ts` ferait glisser la fenêtre en silence.
+
+**Écarts assumés au plan.**
+
+- **Rien n'est global.** Le web tient son état dans des variables de module et
+  sa base dans un singleton. Ici, `creerDrain(deps)` rend un drain complet.
+  Ce n'est pas de l'élégance : c'est la seule façon d'écrire honnêtement le test
+  exigé. « Processus relancé » y est **deux instances successives sur le même
+  fichier SQLite** (`mkdtemp` + `node:sqlite`), la première tuée en pleine panne
+  réseau — pas une simulation de reprise.
+- **`enfiler` est dans cette étape**, alors que le plan la range implicitement
+  avec `localMatch.ts` (étape 11). Une file qu'on ne peut pas remplir ne se
+  teste pas, et l'insertion est ce qui extrait `match_id` du JSON pour le monter
+  en colonne — donc ce dont dépend le blocage en cascade.
+- **`expo-sqlite ~57.0.2` ajouté aux dépendances.** Prévu au §3.3 (« Included in
+  Expo Go »), pas encore installé. `npx expo export --platform ios` sort en 0
+  avec, donc Metro le résout.
+- **Une méthode `script()` dans l'interface**, en plus des trois attendues :
+  `runAsync` d'expo-sqlite refuse les instructions multiples, c'est `execAsync`
+  qui prend le schéma et ses PRAGMA. Découper `schema.sql` sur les `;` aurait
+  été le vrai piège — un point-virgule dans un commentaire suffit à tout casser.
+- **`transaction()` passe la base au rappel.** Sur expo-sqlite, la transaction
+  exclusive est un **autre objet de connexion** : écrire par l'ancien sortirait
+  silencieusement de la transaction. Le rappel reçoit donc la bonne `Base`.
+  Rien ne s'en sert encore dans le drain — chaque instruction y est atomique à
+  elle seule — mais l'étape 11 en aura besoin neuf fois.
+
+**Ce qui n'a PAS été porté, et pourquoi.** `initSync()` du web branche
+`window.online/offline` et `visibilitychange`. Ils n'existent pas en React
+Native : la couture est `definirEnLigne(bool)`, que NetInfo et `AppState`
+appelleront quand il y aura un écran pour l'afficher (étape 14-15). Le drain,
+lui, est complet.
+
+- **Reste ouvert** :
+  - Rien de l'app n'appelle encore ce drain : `baseExpo.ts` n'est importé par
+    aucun écran, donc **il n'a jamais tourné sur un vrai expo-sqlite**. La
+    logique est éprouvée sur le même moteur SQLite, pas sur le module natif.
+    Le premier appel réel viendra avec l'étape 11.
+  - Le drain ne relit pas le cookie autrement que par la fonction qu'on lui
+    injecte ; le câblage sur `authClient.getCookie()` se fera à l'étape 8, avec
+    son test.
+  - Les commits `a1c6e1f` et `63ebdba` (EAS Build, `.nvmrc`, `engines`) ont été
+    poussés depuis le Mac **sans entrée de journal** : ils achèvent la sortie
+    de l'étape 17 décrite plus bas (le projet nuage `@iniestasene/five-scorer`,
+    trois profils dans `eas.json`, les explications dans `five-scorer-mobile/EAS.md`).
+    L'étape 17 reste `bloqué` — un build EAS demande de lancer `eas build`
+    depuis une machine connectée au compte, ce que le nuage ne peut pas faire.
 
 ### 2026-09-09 12:2x — Étape 6 : le schéma SQLite
 
