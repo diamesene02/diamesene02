@@ -60,14 +60,19 @@ Par défaut l'app parle à la production (`https://five-scorer.vercel.app`).
 Pour travailler contre le Next.js local, crée `five-scorer-mobile/.env.local` :
 
 ```
-EXPO_PUBLIC_API=http://192.168.1.192:3000
+EXPO_PUBLIC_API=http://localhost:3000
 EXPO_PUBLIC_CLUB=fc-testeurs
 ```
 
-Remplace l'adresse par celle du Mac (`ipconfig getifaddr en0`). Le serveur
-accepte déjà cette origine : `allowedDevOrigins` dans `next.config.js`, et
-`exp://` / `exps://` dans les origines de confiance de Better Auth — en
-développement seulement.
+`localhost` fonctionne : l'app le traduit toute seule en l'adresse du Mac,
+celle qui a servi le bundle. Sur un téléphone, `localhost` désigne le
+téléphone — c'est le piège classique, il coûte une demi-heure à chaque fois,
+et `lib/api.ts` s'en charge (`versLHote`).
+
+Le serveur accepte déjà cette origine : `allowedDevOrigins` dans
+`next.config.js`, et `exp://` / `exps://` dans les origines de confiance de
+Better Auth — en développement seulement. Et il faut évidemment que
+`pnpm dev` tourne sur le Mac.
 
 ## Regarder sans téléphone
 

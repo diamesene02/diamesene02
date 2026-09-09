@@ -1,17 +1,43 @@
+import Constants from "expo-constants";
+
 /// L'accès à l'application web, qui devient l'API du mobile.
 ///
 /// Par défaut on parle à la PRODUCTION. C'est délibéré : dans Expo Go, on
-/// scanne un QR code et on veut voir son club tout de suite. Pointer le
-/// serveur local suppose d'être sur le même Wi-Fi, de connaître l'IP du Mac
-/// et d'avoir réglé les origines autorisées — trois occasions d'échouer avant
-/// le premier écran.
+/// scanne un QR code et on veut voir son club tout de suite.
 ///
 /// Pour travailler contre le serveur local, poser EXPO_PUBLIC_API dans
 /// five-scorer-mobile/.env.local :
-///   EXPO_PUBLIC_API=http://192.168.1.192:3000
-export const API =
-  process.env.EXPO_PUBLIC_API?.replace(/\/$/, "") ??
-  "https://five-scorer.vercel.app";
+///   EXPO_PUBLIC_API=http://localhost:3000
+///
+/// « localhost » y est parfaitement acceptable — voir `versLHote` juste en
+/// dessous, qui le traduit tout seul.
+
+/// Sur un téléphone, « localhost » désigne LE TÉLÉPHONE.
+///
+/// C'est le piège classique du développement mobile, et il coûte une demi-
+/// heure à chaque fois : on écrit `http://localhost:3000` en pensant au Mac,
+/// l'app est servie sur l'iPhone, et le fetch part vers un serveur qui
+/// n'existe pas — avec pour seul indice « Could not connect to the server ».
+///
+/// Expo connaît pourtant l'adresse du Mac : c'est celle qui a servi le bundle,
+/// exposée dans `hostUri` (« 192.168.1.192:8081 »). On remplace donc l'hôte,
+/// en gardant le port demandé. Sur la cible web, où « localhost » désigne bien
+/// la machine, on ne touche à rien.
+function versLHote(url: string): string {
+  if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(url)) return url;
+
+  const hote = (Constants.expoConfig?.hostUri ??
+    (Constants as { expoGoConfig?: { debuggerHost?: string } }).expoGoConfig
+      ?.debuggerHost) as string | undefined;
+  const ip = hote?.split(":")[0];
+  if (!ip || ip === "localhost" || ip === "127.0.0.1") return url;
+
+  return url.replace(/^(https?:\/\/)(localhost|127\.0\.0\.1)/i, "$1" + ip);
+}
+
+export const API = versLHote(
+  process.env.EXPO_PUBLIC_API?.replace(/\/$/, "") ?? "https://five-scorer.vercel.app",
+);
 
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
@@ -60,8 +86,24 @@ export type Vitrine = {
   derniersMatchs: DernierMatch[];
 };
 
+/// Un fetch qui dit OÙ il a échoué.
+///
+/// « Could not connect to the server » ne désigne rien : ni l'adresse, ni la
+/// raison. Sur un téléphone, c'est presque toujours l'adresse — le Mac
+/// éteint, un autre Wi-Fi, ou un « localhost » qui désignait le téléphone.
+/// Donner l'adresse essayée transforme une demi-heure de recherche en un
+/// coup d'œil.
+async function joindre(url: string, options?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, options);
+  } catch (e) {
+    const cause = e instanceof Error ? e.message : String(e);
+    throw new Error("Impossible de joindre " + url + " — " + cause);
+  }
+}
+
 export async function chargerVitrine(slug = CLUB): Promise<Vitrine> {
-  const res = await fetch(API + "/api/public/" + slug, {
+  const res = await joindre(API + "/api/public/" + slug, {
     headers: { accept: "application/json" },
   });
   if (!res.ok) {
@@ -146,7 +188,7 @@ export async function appelAuthentifie<T>(
   if (cookie) entetes.cookie = cookie;
   Object.assign(entetes, (options.headers ?? {}) as Record<string, string>);
 
-  const res = await fetch(API + chemin, {
+  const res = await joindre(API + chemin, {
     ...options,
     credentials: "omit",
     headers: entetes,

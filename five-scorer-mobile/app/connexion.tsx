@@ -14,6 +14,7 @@ import Ecran from "../composants/Ecran";
 import { BoutonPlein, Carte, Champ } from "../composants/base";
 import { JETONS_NEUTRES } from "../lib/couleurs";
 import { signIn, signUp } from "../lib/auth-client";
+import { API } from "../lib/api";
 
 /// Connexion et inscription, sur le même écran.
 ///
@@ -59,9 +60,12 @@ export default function Connexion() {
     } catch (e) {
       // Une erreur JETÉE, ce n'est pas un refus du serveur : c'est le réseau.
       // Le dire évite de chercher un mot de passe qui est bon.
+      // L'adresse essayée est la première chose à regarder : c'est presque
+      // toujours elle qui est en cause sur un téléphone.
       setErreur(
-        "Impossible de joindre le serveur. Vérifie la connexion — " +
-          (e instanceof Error ? e.message : String(e)),
+        (e instanceof Error ? e.message : String(e)) +
+          "\n\nServeur : " +
+          API,
       );
     } finally {
       setOccupe(false);
