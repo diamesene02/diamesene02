@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { expo } from "@better-auth/expo";
 import { organization } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -38,10 +39,30 @@ function resolveBaseUrl(): string | undefined {
 }
 
 /// Les origines dont Better Auth accepte les requêtes. On y met les deux
-/// adresses de prévisualisation en plus de l'URL canonique.
+/// adresses de prévisualisation en plus de l'URL canonique, plus les schémas
+/// de l'application React Native.
 function trustedOrigins(): string[] {
   const origins = previewUrls();
   if (process.env.BETTER_AUTH_URL) origins.push(process.env.BETTER_AUTH_URL);
+
+  // Le schéma de l'app native, celui qu'un build signé utilisera.
+  origins.push("fivescorer://");
+
+  // Expo Go, EN DÉVELOPPEMENT SEULEMENT.
+  //
+  // Le hook `after` du plugin serveur recopie l'en-tête `set-cookie` — donc le
+  // jeton de session en clair — dans l'URL de redirection dès que la
+  // destination est une origine de confiance à schéma non-http. En production,
+  // seul `fivescorer://` doit l'être : `exp://` y donnerait à n'importe quelle
+  // app Expo un moyen de récupérer une session.
+  //
+  // Les DEUX schémas sont nécessaires : dès qu'on lance `expo start --tunnel`
+  // — le recours normal quand le téléphone n'est pas sur le Wi-Fi du Mac —
+  // expo-linking bascule le lien de callback sur `exps://`, et le motif
+  // `exp://` ne le couvre pas.
+  if (process.env.NODE_ENV === "development") {
+    origins.push("exp://", "exps://");
+  }
   return origins;
 }
 
@@ -90,7 +111,12 @@ export const auth = betterAuth({
         },
       },
     }),
+    // L'application React Native : rejeu du cookie de session depuis le
+    // trousseau du téléphone, et gestion du retour de connexion par lien
+    // profond. Rien ne change pour le web.
+    expo(),
     // Doit rester en dernier : synchronise les cookies dans les server actions.
+    // (Better Auth le vérifie lui-même — cf. warnIfCookiePluginNotLast.)
     nextCookies(),
   ],
 });
