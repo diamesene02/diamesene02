@@ -325,6 +325,17 @@ Règles de lecture pour l'agent :
 
 - **Une étape = une exécution de deux heures maximum.** Si elle déborde, la couper en deux et l'écrire au Journal.
 - **Une étape n'est « fait » que si sa commande de vérification a été lancée et a donné la sortie attendue.** Pas de « ça devrait marcher ».
+- **Un écran n'est « fait » que s'il a été VU dans le simulateur, à côté du
+  rendu du site.** Pas d'après le CSS, pas d'après un rapport d'enquête : on
+  ouvre les deux et on compare. La boucle ne demande rien à Ibrahima —
+  `npx expo start --port 8090 --ios` installe Expo Go sur le simulateur et
+  l'app s'y recharge à chaud ; le site s'ouvre dans le navigateur intégré, où
+  `getComputedStyle` donne les valeurs réelles plutôt que devinées.
+- **On ne lance jamais un build EAS avant ça.** Un build coûte dix minutes, un
+  quota, et une installation à Ibrahima. Le refaire pour un défaut visible en
+  dix secondes dans un simulateur, c'est lui faire perdre son temps à notre
+  place. Règle posée par lui le 9 septembre 2026, après un build livré dont
+  les écrans ne ressemblaient pas au site.
 - **Aucune étape ne touche la production** sans figurer explicitement dans le §6.
 - États possibles : `à faire` · `en cours` · `fait` · `bloqué`.
 - **`mobile/` dans les commandes ci-dessous se lit `five-scorer-mobile/`.** Le tableau a été écrit avant que le dossier frère soit tranché (§3.1) ; les chemins n'ont pas tous été réécrits. Les commandes de vérification se lancent depuis `five-scorer-mobile/`. Corriger chaque ligne au fil des étapes, quand on y touche.
