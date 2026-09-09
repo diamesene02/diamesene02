@@ -464,23 +464,39 @@ Un agent ne peut trancher aucune de ces lignes.
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
 
-### 2026-09-09 19:3x — Vérification d'une dépendance, et non d'une étape
+### 2026-09-09 19:3x-20:0x — Les dépendances de la soirée, vérifiées une par une
 
 - **État** : aucune étape touchée. Cette entrée existe parce que la règle 4 du
   §5 l'exige, pas parce qu'un travail a avancé.
-- **Ce qui s'est passé.** Le commit `b76df9b` (« refaire d'après le site, pas
-  d'après un rapport », poussé par une autre session ce soir) ajoute
-  `@react-native-community/datetimepicker@9.1.0` à `package.json`. **C'est un
-  module natif tiers, pas un module du SDK Expo** — donc exactement le cas que
-  la contrainte structurante du §1 dit de vérifier et d'écrire à chaque fois.
-  Aucune ligne de ce document ne le mentionnait.
-- **Vérifié** : la documentation Expo le liste comme **inclus dans Expo Go**
+- **Ce qui s'est passé.** Trois dépendances sont entrées dans `package.json` ce
+  soir, poussées par la session qui travaille sur le Mac, sans qu'aucune ligne
+  de ce document ne les mentionne. Le tableau ci-dessous est le contrôle exigé
+  par la contrainte structurante du §1 — Expo Go n'exécute que ses propres
+  modules, donc chaque bibliothèque doit être classée avant d'être crue.
+
+  | dépendance | commit | nature | Expo Go |
+  |---|---|---|---|
+  | `@react-native-community/datetimepicker@9.1.0` | `b76df9b` | module natif tiers | **inclus** (voir la citation ci-dessous) |
+  | `react-native-svg@15.15.4` | `7e9427f` | module natif tiers | **inclus** — Expo le documente en `sdk/svg/`, le code natif est déjà dans l'app Expo Go |
+  | `@react-navigation/bottom-tabs@^7.18.18` | `7e9427f` | **JavaScript pur** | sans objet — aucun code natif à embarquer ; ses besoins natifs (`react-native-screens`, `react-native-safe-area-context`) étaient déjà là, et expo-router est lui-même bâti sur React Navigation |
+
+  **Conclusion : le développement dans Expo Go n'est pas cassé.** Aucune des
+  trois n'impose un development build.
+
+  Une réserve à garder en tête, pas un problème aujourd'hui :
+  `@react-navigation/bottom-tabs` est la seule dépendance du projet épinglée
+  avec un **caret** (`^7.18.18`). expo-router embarque sa propre version de
+  React Navigation ; le jour où le caret laissera passer une majeure
+  divergente, le symptôme sera un doublon de paquet, pas une erreur de
+  compilation. À figer si ça arrive.
+
+- **Vérifié pour datetimepicker** : la documentation Expo le liste comme
+  **inclus dans Expo Go**
   (`https://docs.expo.dev/versions/latest/sdk/date-time-picker/` : « The module
   is part of Expo Go. However, Expo Go may not contain the latest version of
   the module and therefore, the newest features and bugfixes may not be
-  available. »). **Le développement dans Expo Go n'est donc pas cassé** — c'est
-  l'un des rares modules tiers qu'Expo embarque, comme `react-native-svg` ou
-  `react-native-webview`.
+  available. »).
+- **Vérifié sur chaque head**, à chaque arrivée, après `npm install` :
 
   ```
   $ cd five-scorer-mobile && npx tsc --noEmit
@@ -491,10 +507,30 @@ Un agent ne peut trancher aucune de ces lignes.
         Tests  184 passed (184)
   ```
 
+  Et sur le commit `1fa69bd`, qui touchait l'app web (route
+  `/api/clubs/[clubId]/accueil`, barème du classement sorti de
+  `components/Classement.tsx` vers `lib/classement.ts`), le contrôle qui prime
+  sur tous les autres :
+
+  ```
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  ƒ Proxy (Middleware)
+  ○  (Static)   prerendered as static content
+  ƒ  (Dynamic)  server-rendered on demand
+  [exited with code 0]
+  ```
+
+  La production ne bouge pas. Le réexport de `points` et `trierParPoints`
+  depuis `Classement.tsx` garde les appelants existants du site intacts —
+  c'était la bonne façon de faire : une route serveur n'a pas à importer un
+  composant client pour trier six lignes.
+
 - **Ce que je n'ai PAS pu vérifier**, et il ne faut pas le croire vérifié :
-  **que `9.1.0` soit bien la version qu'`expo install` choisit pour le SDK 57.**
-  La commande qui le dit interroge l'API de versions d'Expo, et le proxy de
-  sortie de ce conteneur la refuse :
+  **que `9.1.0` et `15.15.4` soient bien les versions qu'`expo install` choisit
+  pour le SDK 57.** Le classement Expo Go ci-dessus, lui, ne dépend pas de la
+  version ; c'est l'accord de version qui reste non mesuré. La commande qui le
+  dit interroge l'API de versions d'Expo, et le proxy de sortie de ce conteneur
+  la refuse :
 
   ```
   $ npx expo install --check
