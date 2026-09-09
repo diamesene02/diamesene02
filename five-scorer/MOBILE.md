@@ -420,14 +420,43 @@ succèdent dans une exécution d'agent, et le dernier gagne.
 
 C'est ainsi que le commit `399a0b9` (étape 9) a poussé un `next-env.d.ts`
 pointant sur `.next-verif/`, un dossier de vérification **gitignoré qui
-n'existe ni sur le Mac ni sur Vercel**. La production n'en a pas souffert
-(`next build` réécrit le fichier avant de typer), mais un `tsc` sur un clone
-neuf, lui, cherche un fichier absent. Remis au 9 septembre à `./.next/types/`,
-la valeur d'un `next build` ordinaire — celle de Vercel.
+n'existe ni sur le Mac ni sur Vercel**. Il a repointé là une deuxième fois au
+commit `1360559`, le 9 septembre au soir : ce n'est pas un accident isolé mais
+la conséquence mécanique de la commande de vérification que ce document
+prescrit. Elle reviendra à chaque exécution.
 
-**La règle, donc :** avant chaque commit, `git diff -- five-scorer/next-env.d.ts`
-doit être vide. S'il ne l'est pas, remettre `./.next/types/routes.d.ts` à la
-main. Ce n'est pas du travail de l'exécution.
+**Correction du 9 septembre 20:4x — la conséquence annoncée ici était fausse.**
+Il était écrit qu'« un `tsc` sur un clone neuf cherche un fichier absent ». Ça
+ne se reproduit pas. Mesuré, le fichier pointant sur `./.next/types/` et
+`.next/` **absent** du disque :
+
+```
+$ cd five-scorer && npx tsc --noEmit
+TSC EXIT=0
+(zéro ligne de sortie)
+```
+
+Deux raisons : TypeScript tolère l'import sans effet d'un chemin absent dans un
+fichier de déclaration, et surtout `tsconfig.json` inclut **explicitement les
+deux** dossiers (`.next/types/**/*.ts` **et** `.next-verif/types/**/*.ts`).
+Aucune des deux valeurs ne casse donc le typage.
+
+**Ce qui reste vrai**, et suffit à garder la règle : la valeur qui doit être au
+dépôt est `./.next/types/routes.d.ts`, celle que produisent un `next build`
+ordinaire et Vercel. Toute autre valeur est du **bruit de diff** qui revient à
+chaque commit et brouille la relecture — pas une panne. Ne pas dramatiser, ne
+pas négliger.
+
+**La règle, donc :** la commande de vérification du serveur se termine par la
+remise en état, dans le même souffle :
+
+```bash
+cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+git checkout -- five-scorer/next-env.d.ts   # fait partie de la commande, pas une option
+```
+
+Et avant chaque commit, `git diff -- five-scorer/next-env.d.ts` doit être vide.
+Ce n'est pas du travail de l'exécution.
 
 **Playwright sur l'app web, qui reste en production** — c'est le filet de sécurité de la migration : chaque endpoint ajouté au serveur pour le mobile doit prouver qu'il n'a rien cassé côté web. Trois parcours suffisent : connexion, création d'un match, saisie de trois buts et fin de match. À lancer avant chaque déploiement du serveur, systématiquement, tant que la PWA est l'outil du lundi.
 
@@ -480,6 +509,66 @@ Un agent ne peut trancher aucune de ces lignes.
 ## 7. Journal
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
+
+### 2026-09-09 20:4x — `next-env.d.ts` remis, et une conséquence corrigée
+
+- **État** : aucune étape touchée. Surveillance de la PR #3.
+- **Ce qui s'est passé.** Le commit `1360559` (« les soirées », autre session)
+  a poussé `next-env.d.ts` pointant de nouveau sur `.next-verif/`. C'est le
+  même défaut que le commit `399a0b9` de l'étape 9 — et ce n'est pas de la
+  négligence : c'est la commande de vérification que ce document prescrit qui
+  réécrit le fichier. Elle le refera à chaque exécution, sur le Mac comme dans
+  le nuage.
+- **Corrigé** : la valeur est remise à `./.next/types/routes.d.ts`, celle d'un
+  `next build` ordinaire et de Vercel. Et le §5 porte désormais la remise en
+  état **dans** la commande de vérification, pas en note de bas de page.
+- **Ce que j'ai corrigé DANS le document, parce qu'il était en tort.** Le §5
+  affirmait qu'un `next-env.d.ts` pointant sur `.next-verif/` fait échouer
+  « un `tsc` sur un clone neuf ». **C'est faux.** Mesuré, dans le sens
+  inverse — valeur `./.next/types/` et dossier `.next/` absent du disque :
+
+  ```
+  $ grep -n routes.d.ts next-env.d.ts
+  3:import "./.next/types/routes.d.ts";
+  $ ls -d .next
+  ls: cannot access '.next': No such file or directory
+  $ npx tsc --noEmit
+  TSC EXIT=0
+  (zéro ligne de sortie)
+  ```
+
+  Deux raisons, dont la seconde est décisive : TypeScript tolère l'import sans
+  effet d'un chemin absent dans un fichier de déclaration, et `tsconfig.json`
+  **inclut explicitement les deux** dossiers (`.next/types/**/*.ts` et
+  `.next-verif/types/**/*.ts`). Le vrai coût du va-et-vient est du bruit de
+  diff, pas une panne. La règle reste — la valeur du dépôt doit être celle de
+  Vercel — mais pour la bonne raison. Une justification fausse finit par faire
+  abandonner une règle juste.
+- **Vérifié sur ce head** (`1360559`, qui touche l'app web : trois routes
+  neuves sous `/api/clubs/[clubId]/soirees/`, et la page de production
+  `app/c/[slug]/sessions/[id]/page.tsx` dont le « mot de la soirée » part dans
+  `lib/soiree.ts` pour être partagé avec le mobile) :
+
+  ```
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  BUILD EXIT=0
+
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  tsc mobile=0
+
+  $ npm run tester
+        Tests  184 passed (184)
+  ```
+
+- **Fichiers touchés** : `/home/user/diamesene02/five-scorer/next-env.d.ts`
+  (remis à la valeur de Vercel) et
+  `/home/user/diamesene02/five-scorer/MOBILE.md` (§5 corrigé + cette entrée).
+- **Reste ouvert** : le « mot de la soirée » sort d'une page en production vers
+  `lib/soiree.ts`. Le build passe, mais **rien ne prouve que le texte produit
+  soit identique** à celui d'avant — c'est un copier-coller de logique, et il
+  n'a pas de test. Un test de `lib/soiree.ts` sur une soirée témoin serait le
+  bon filet ; il n'exige ni Mac ni téléphone, donc une exécution du nuage peut
+  le poser.
 
 ### 2026-09-09 20:2x — Étape 12 : les trois GET restants, et un Postgres dans le nuage
 
