@@ -1,9 +1,108 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
-import type { MatchKind } from "@prisma/client";
+import type { MatchKind, MatchStatus } from "@prisma/client";
 
 type Ctx = { params: Promise<{ clubId: string }> };
+
+const STATUTS: MatchStatus[] = ["SCHEDULED", "LIVE", "FINISHED", "CANCELED"];
+
+/// La liste des matchs du club.
+///
+/// Elle existe d'abord pour UNE question, celle que l'app pose au démarrage :
+/// « y a-t-il déjà un match ouvert ? ». Deux téléphones qui ouvrent chacun leur
+/// feuille sur la même soirée produisent deux scores, et rien ne les réconcilie
+/// après coup — l'outbox est idempotente par identifiant, pas par soirée.
+/// `?status=LIVE,SCHEDULED` répond en un aller-retour, avant le coup d'envoi.
+///
+/// Sans filtre, on rend les matchs les plus récents : c'est la liste de
+/// l'écran « Matchs ».
+///
+/// Les noms de champs sont ceux de `LocalMatch` côté app (five-scorer-mobile,
+/// `lib/outbox/types.ts`) : la réponse se recopie telle quelle dans la table
+/// SQLite locale, sans couche de traduction qui divergerait un jour.
+export async function GET(req: Request, { params }: Ctx) {
+  const { clubId } = await params;
+  const ctx = await getClubApiContext(clubId);
+  // 404 et non 403 — comme `GET /api/clubs/[clubId]` : répondre « interdit »
+  // confirmerait l'existence du club à qui devine un identifiant.
+  if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
+
+  const q = new URL(req.url).searchParams;
+
+  // Un statut inconnu est refusé ICI, et nommé. Sans ce garde, `?status=LVE`
+  // (faute de frappe) descend jusqu'à Prisma, qui refuse la valeur d'énumération
+  // et fait remonter un 500 — vérifié en retirant la condition. Un 500 ne dit
+  // rien à l'app : elle le compte comme une panne serveur, le réessaie en
+  // boucle avec sa relance exponentielle, et personne ne voit jamais la faute
+  // de frappe. Un 400 qui nomme le statut, si.
+  const demandes = (q.get("status") ?? "")
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean);
+  const inconnu = demandes.find((s) => !STATUTS.includes(s as MatchStatus));
+  if (inconnu) {
+    return NextResponse.json(
+      { error: `Statut inconnu : ${inconnu}` },
+      { status: 400 },
+    );
+  }
+
+  const limiteDemandee = Number(q.get("limite"));
+  const limite =
+    Number.isInteger(limiteDemandee) && limiteDemandee > 0
+      ? Math.min(limiteDemandee, 100)
+      : 20;
+
+  const matches = await prisma.match.findMany({
+    where: {
+      clubId,
+      ...(demandes.length
+        ? { status: { in: demandes as MatchStatus[] } }
+        : {}),
+    },
+    orderBy: { playedAt: "desc" },
+    take: limite,
+    select: {
+      id: true,
+      status: true,
+      kind: true,
+      playedAt: true,
+      matchDayId: true,
+      seasonId: true,
+      opponentId: true,
+      opponent: { select: { name: true } },
+      teamAName: true,
+      teamBName: true,
+      scoreA: true,
+      scoreB: true,
+      durationMin: true,
+      mvpId: true,
+    },
+  });
+
+  return NextResponse.json({
+    matches: matches.map((m) => ({
+      id: m.id,
+      clubId,
+      status: m.status,
+      kind: m.kind,
+      playedAt: m.playedAt.toISOString(),
+      matchDayId: m.matchDayId,
+      seasonId: m.seasonId,
+      opponentId: m.opponentId,
+      // Le nom voyage avec le match : un match contre une équipe externe
+      // s'affiche dans la liste sans second aller-retour vers les adversaires.
+      opponentName: m.opponent?.name ?? null,
+      teamAName: m.teamAName,
+      teamBName: m.teamBName,
+      scoreA: m.scoreA,
+      scoreB: m.scoreB,
+      durationMin: m.durationMin,
+      mvpId: m.mvpId,
+    })),
+  });
+}
 
 type TeamEntry = { playerId: string; isGk?: boolean };
 

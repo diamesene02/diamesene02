@@ -1,8 +1,114 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
+import { estId } from "@/lib/ids";
 
 type Ctx = { params: Promise<{ clubId: string; matchId: string }> };
+
+/// La feuille complète d'un match — c'est la REPRISE.
+///
+/// L'outbox ne suffit pas, et c'est le point qu'on oublie : elle contient ce
+/// que CE téléphone a saisi, pas ce que le match est. Trois soirées sur quatre
+/// s'en passent ; la quatrième, c'est le téléphone à plat à la mi-temps, ou la
+/// deuxième personne qui prend la saisie, ou l'app réinstallée. Il faut alors
+/// pouvoir redescendre la feuille entière et repartir de là.
+///
+/// Les noms de champs sont ceux de `LocalMatch`, `LocalParticipant` et
+/// `LocalEvent` côté app (five-scorer-mobile, `lib/outbox/types.ts`) : chaque
+/// bloc se recopie tel quel dans sa table SQLite.
+export async function GET(_req: Request, { params }: Ctx) {
+  const { clubId, matchId } = await params;
+  // `matchId` part directement dans un `where` Prisma : il passe par `estId`
+  // avant, comme tout identifiant venu du client (lib/ids.ts).
+  if (!estId(matchId)) {
+    return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  }
+  const ctx = await getClubApiContext(clubId);
+  if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
+
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, clubId },
+    include: {
+      opponent: { select: { name: true } },
+      participants: {
+        select: { playerId: true, team: true, initialTeam: true, isGk: true },
+      },
+      // L'ordre est celui de la saisie, pas celui de la minute : c'est lui qui
+      // fait la chronologie, et c'est lui que `lib/sync.ts` rejoue. Une minute
+      // peut être nulle (feuille rétro) ou corrigée à la main.
+      events: { orderBy: { createdAt: "asc" } },
+      motmVotes: { select: { playerId: true, voterId: true } },
+      rsvps: { select: { playerId: true, status: true, hasPaid: true } },
+    },
+  });
+  if (!match) {
+    return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  }
+
+  // Les votes se rendent COMPTÉS, jamais nominatifs. La page web les compte
+  // déjà pour l'affichage ; rendre la liste des votants ajouterait « qui a
+  // voté pour qui » à un club de quinze personnes qui se voient tous les
+  // lundis. On rend les deux seules réponses dont un écran a besoin : le
+  // total par joueur, et mon propre vote.
+  const parJoueur = new Map<string, number>();
+  for (const v of match.motmVotes) {
+    parJoueur.set(v.playerId, (parJoueur.get(v.playerId) ?? 0) + 1);
+  }
+
+  return NextResponse.json({
+    match: {
+      id: match.id,
+      clubId,
+      status: match.status,
+      kind: match.kind,
+      isHome: match.isHome,
+      playedAt: match.playedAt.toISOString(),
+      scheduledAt: match.scheduledAt?.toISOString() ?? null,
+      matchDayId: match.matchDayId,
+      seasonId: match.seasonId,
+      opponentId: match.opponentId,
+      opponentName: match.opponent?.name ?? null,
+      teamAName: match.teamAName,
+      teamBName: match.teamBName,
+      scoreA: match.scoreA,
+      scoreB: match.scoreB,
+      durationMin: match.durationMin,
+      mvpId: match.mvpId,
+      notes: match.notes,
+    },
+    participants: match.participants.map((p) => ({
+      // La clé composée de la table locale, calculée ici pour que l'app n'ait
+      // pas à connaître deux fois la règle (`pKey` de lib/match/tables.ts).
+      key: `${match.id}::${p.playerId}`,
+      matchId: match.id,
+      playerId: p.playerId,
+      team: p.team,
+      initialTeam: p.initialTeam,
+      isGk: p.isGk,
+    })),
+    events: match.events.map((e) => ({
+      id: e.id,
+      matchId: match.id,
+      type: e.type,
+      team: e.team,
+      playerId: e.playerId,
+      assistPlayerId: e.assistPlayerId,
+      minute: e.minute,
+      createdAt: e.createdAt.toISOString(),
+    })),
+    rsvps: match.rsvps.map((r) => ({
+      playerId: r.playerId,
+      status: r.status,
+      hasPaid: r.hasPaid,
+    })),
+    votes: {
+      total: match.motmVotes.length,
+      byPlayer: [...parJoueur].map(([playerId, count]) => ({ playerId, count })),
+      mine:
+        match.motmVotes.find((v) => v.voterId === ctx.user.id)?.playerId ?? null,
+    },
+  });
+}
 
 type PatchBody = {
   status?: "FINISHED";
