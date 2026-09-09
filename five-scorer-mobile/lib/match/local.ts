@@ -649,6 +649,36 @@ export function creerMatchLocal(deps: Dependances) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /// Le vivier du club, tel que l'écran de composition en a besoin.
+  ///
+  /// `joueursAbsentsDuMatch` ne sert qu'une fois le match créé et ne rend que
+  /// le nom ; pour composer il faut le niveau, le poste et le visage — c'est
+  /// ce que `balanceTeams` mange, et ce qu'une tuile affiche.
+  ///
+  /// Les archivés sont écartés : ce sont ceux qui ne jouent plus, les
+  /// proposer dans une compo serait le contraire du service rendu. L'ordre
+  /// est celui du web — les invités en dernier, puis par nom — pour que
+  /// quelqu'un qui connaît le site retrouve sa liste.
+  async function effectifDuClub(clubId: string): Promise<FicheEffectif[]> {
+    const vivier = await lireVivier(base, clubId);
+    return vivier
+      .filter((p) => !p.isArchived)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        nickname: p.nickname ?? null,
+        photo: p.photo ?? null,
+        skill: p.skill,
+        isGk: p.isGk,
+        isGuest: p.isGuest,
+        isArchived: false,
+      }))
+      .sort(
+        (a, b) =>
+          Number(a.isGuest) - Number(b.isGuest) || a.name.localeCompare(b.name),
+      );
+  }
+
   /// Annule le dernier but d'un joueur (geste rapide « − » sur sa tuile).
   async function undoLastGoalOf(
     matchId: string,
@@ -771,6 +801,7 @@ export function creerMatchLocal(deps: Dependances) {
     movePlayerTeam,
     ajouterJoueurAuMatch,
     joueursAbsentsDuMatch,
+    effectifDuClub,
     undoLastGoalOf,
     finishMatch,
     getLocalMatch,

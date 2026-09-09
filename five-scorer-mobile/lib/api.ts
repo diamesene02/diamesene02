@@ -216,7 +216,11 @@ export type ReglagesClub = {
   pointsNul: number;
   suitPasses: boolean;
   suitCartons: boolean;
-  modeHommeDuMatch: string;
+  /// Qui désigne l'homme du match. Les trois valeurs de l'énumération
+  /// serveur (prisma/schema.prisma, enum MotmMode) : les membres votent, le
+  /// marqueur désigne, ou personne. Typé strictement parce que le miroir
+  /// local l'exige, et qu'une chaîne libre y passerait sans bruit.
+  modeHommeDuMatch: "VOTE" | "ADMIN" | "OFF";
   minJoueurs: number;
   capaciteSoiree: number;
 };
@@ -266,6 +270,37 @@ export const appelAuthentifie = creerAppel({ api: API, cookie: lireCookie });
 
 export function chargerMoi(): Promise<Moi> {
   return appelAuthentifie<Moi>("/api/me");
+}
+
+/// Une fiche de l'effectif telle que le serveur la rend.
+///
+/// `estMoi` et `compteLie` remplacent le `userId` brut : l'app n'a besoin que
+/// de savoir laquelle est la sienne et lesquelles sont revendiquées, pas de
+/// l'identifiant de compte de chaque joueur du club.
+export type FicheServeur = {
+  id: string;
+  name: string;
+  nickname: string | null;
+  photo: string | null;
+  skill: number;
+  isGk: boolean;
+  isGuest: boolean;
+  abonne: boolean;
+  isArchived: boolean;
+  estMoi: boolean;
+  compteLie: boolean;
+};
+
+/// L'effectif du club, pour rafraîchir le miroir local.
+///
+/// À appeler chaque fois qu'on a du réseau, et à écrire aussitôt en base avec
+/// `saveRoster` : c'est ce qui permet de composer une équipe au gymnase quand
+/// le réseau n'y est pas.
+export async function chargerEffectif(clubId: string): Promise<FicheServeur[]> {
+  const r = await appelAuthentifie<{ players: FicheServeur[] }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/roster`,
+  );
+  return r.players;
 }
 
 /// Le compte d'essai de la base locale, créé par

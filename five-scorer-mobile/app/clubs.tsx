@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import Ecran from "../composants/Ecran";
-import { Avatar, BoutonVerre, Carte, Ecusson } from "../composants/base";
+import { Avatar, BoutonPlein, BoutonVerre, Carte, Ecusson } from "../composants/base";
+import { useNoyau } from "../composants/Noyau";
 import { JETONS_NEUTRES, type Jetons } from "../lib/couleurs";
 import { chargerMoi, SessionExpiree, type ClubDeMoi, type Moi } from "../lib/api";
 import { signOut } from "../lib/auth-client";
@@ -106,6 +107,19 @@ export default function Clubs() {
 
 function CarteClub({ club, t }: { club: ClubDeMoi; t: Jetons }) {
   const [ouvert, setOuvert] = useState(false);
+  const { local } = useNoyau();
+  // Un match laissé ouvert la semaine dernière, ou l'app fermée entre deux
+  // matchs de la soirée : on doit y retomber, pas repartir d'une compo vide.
+  const [enCours, setEnCours] = useState<string | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    void local.getLiveMatchOfClub(club.id).then((m) => {
+      if (vivant) setEnCours(m?.id ?? null);
+    });
+    return () => {
+      vivant = false;
+    };
+  }, [local, club.id]);
   const roles: Record<string, string> = {
     owner: "Capitaine",
     admin: "Adjoint",
@@ -140,6 +154,28 @@ function CarteClub({ club, t }: { club: ClubDeMoi; t: Jetons }) {
         <Text style={[s.contre, { color: t.i3 }]}>contre</Text>
         <Pastille couleur={club.couleurB} nom={club.nomChasubleB} t={t} />
       </View>
+
+      {club.peutScorer && (
+        <View style={s.actions}>
+          {enCours ? (
+            <BoutonPlein
+              t={t}
+              titre="Reprendre le match"
+              onPress={() =>
+                router.push({ pathname: "/match/[id]", params: { id: enCours } })
+              }
+            />
+          ) : (
+            <BoutonPlein
+              t={t}
+              titre="Nouveau match"
+              onPress={() =>
+                router.push({ pathname: "/compo", params: { clubId: club.id } })
+              }
+            />
+          )}
+        </View>
+      )}
 
       <Pressable onPress={() => setOuvert((o) => !o)}>
         <Text style={[s.deplier, { color: t.i2 }]}>
@@ -209,6 +245,7 @@ const s = StyleSheet.create({
   pastille: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
   rond: { width: 22, height: 22, borderRadius: 11, borderWidth: 1 },
   contre: { fontSize: 13 },
+  actions: { paddingTop: 4, paddingBottom: 12 },
   deplier: { fontSize: 15, paddingTop: 14 },
   reglage: {
     flexDirection: "row",

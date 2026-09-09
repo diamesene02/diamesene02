@@ -67,6 +67,12 @@ export default function VitrineEcran() {
             <Text style={[s.aide, { color: t.i2 }]}>{erreur}</Text>
             <View style={{ height: 12 }} />
             <BoutonVerre t={t} titre="Réessayer" onPress={charger} />
+            {/* Sans ça, l'écran est un cul-de-sac : la vitrine échoue — club
+                passé en privé, réseau coupé, mauvais slug — et il n'existe
+                plus aucun chemin vers son propre compte. Or celui qui a un
+                compte n'a pas besoin de la vitrine. */}
+            <View style={{ height: 10 }} />
+            <BoutonPlein t={t} titre="Se connecter" onPress={() => router.push("/connexion")} />
           </Carte>
         )}
 
