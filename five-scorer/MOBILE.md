@@ -369,9 +369,22 @@ Règles de lecture pour l'agent :
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
 
 ```bash
-cd mobile && npx tsc --noEmit          # types
-cd mobile && npx expo export --platform ios   # le bundle Metro se construit vraiment
+cd five-scorer-mobile && npx tsc --noEmit          # types
+cd five-scorer-mobile && npm run tester            # vitest run
+cd five-scorer-mobile && npx expo export --platform ios   # le bundle Metro se construit vraiment
 ```
+
+**Le serveur se vérifie À CÔTÉ, jamais dans `.next` :**
+
+```bash
+cd five-scorer && NEXT_DIST_DIR=.next-verif npx next build
+```
+
+`next.config.js` lit `NEXT_DIST_DIR` exprès. Sans lui, `pnpm build` écrase le
+`.next` du `pnpm dev` en cours **et réécrit `next-env.d.ts`** (la ligne
+`import "./.next-verif/types/routes.d.ts"` redevient `.next`) : l'arbre git se
+salit d'un fichier qui n'a rien à voir avec le travail de l'exécution. Vérifié
+le 9 septembre — avec la variable, l'arbre reste propre.
 
 **Playwright sur l'app web, qui reste en production** — c'est le filet de sécurité de la migration : chaque endpoint ajouté au serveur pour le mobile doit prouver qu'il n'a rien cassé côté web. Trois parcours suffisent : connexion, création d'un match, saisie de trois buts et fin de match. À lancer avant chaque déploiement du serveur, systématiquement, tant que la PWA est l'outil du lundi.
 
