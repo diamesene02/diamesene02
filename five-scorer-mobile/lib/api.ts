@@ -466,6 +466,137 @@ export function chargerFicheMatch(clubId: string, matchId: string): Promise<Fich
   );
 }
 
+export type EcranEffectif = {
+  peutGerer: boolean;
+  aDejaUnProfil: boolean;
+  monJoueurId: string | null;
+  actifs: number;
+  sousTitre: string;
+  joueurs: {
+    id: string;
+    nom: string;
+    surnom: string | null;
+    initiales: string;
+    photo: string | null;
+    niveau: number;
+    gardien: boolean;
+    invite: boolean;
+    archive: boolean;
+    abonne: boolean;
+    compteLie: boolean;
+    estMoi: boolean;
+    matchs: number;
+    buts: number;
+  }[];
+};
+
+export function chargerEcranEffectif(clubId: string): Promise<EcranEffectif> {
+  return appelAuthentifie<EcranEffectif>(
+    `/api/clubs/${encodeURIComponent(clubId)}/effectif`,
+  );
+}
+
+/// La fiche d'un joueur : la carte d'identité du vestiaire.
+///
+/// Tout arrive assemblé — le sous-titre, les libellés de paliers, la date
+/// courte de chaque match. L'app dessine, elle ne recalcule pas : c'est ce qui
+/// garantit que « 2e du tableau » veut dire la même chose sur le site et sur
+/// le téléphone.
+export type FicheJoueur = {
+  joueur: {
+    id: string;
+    nom: string;
+    surnom: string | null;
+    photo: string | null;
+    initiales: string;
+    niveau: number;
+    estGardien: boolean;
+    estInvite: boolean;
+    abonne: boolean;
+    estMoi: boolean;
+    camp: "A" | "B" | null;
+    badge: string;
+    sousTitre: string;
+    couleur: string;
+  };
+  chasubles: { a: string; b: string };
+  passesSuivies: boolean;
+  droits: { peutModifier: boolean; peutReglerAbonnement: boolean };
+  bilan: {
+    matchs: number;
+    buts: number;
+    passes: number;
+    hommeDuMatch: number;
+    pctVictoires: number;
+    victoires: number;
+    nuls: number;
+    defaites: number;
+    butsParMatch: number;
+    forme: ("W" | "D" | "L")[];
+    serie: number;
+    elo: number;
+    eloTendance: number;
+  } | null;
+  gardien: {
+    matchs: number;
+    butsEncaisses: number;
+    moyenne: number;
+    cleanSheets: number;
+    pctVictoires: number;
+  } | null;
+  paliers: {
+    cle: string;
+    titre: string;
+    actuel: number;
+    objectif: number;
+    reste: number;
+    libelle: string;
+    part: number;
+  }[];
+  trophees: { cle: string; nom: string; detail: string; quand: string | null }[];
+  parSaison: {
+    saisonId: string | null;
+    saison: string;
+    matchs: number;
+    buts: number;
+    victoires: number;
+    pctVictoires: number;
+  }[];
+  derniersMatchs: {
+    id: string;
+    date: string;
+    gauche: string;
+    droite: string;
+    scoreA: number;
+    scoreB: number;
+    resultat: "W" | "D" | "L";
+    buts: number;
+    homme: boolean;
+  }[];
+};
+
+export function chargerFicheJoueur(clubId: string, joueurId: string): Promise<FicheJoueur> {
+  return appelAuthentifie<FicheJoueur>(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}`,
+  );
+}
+
+/// « Je viens tous les lundis. »
+///
+/// Exige le réseau, comme la réponse à une soirée : c'est un réglage qu'on
+/// change depuis son canapé, et le rejouer plus tard depuis la file d'attente
+/// écraserait un choix que quelqu'un d'autre aurait fait entre-temps.
+export function reglerAbonnement(
+  clubId: string,
+  joueurId: string,
+  abonne: boolean,
+): Promise<{ ok: boolean; abonne: boolean }> {
+  return appelAuthentifie<{ ok: boolean; abonne: boolean }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}/abonnement`,
+    { method: "POST", body: JSON.stringify({ abonne }) },
+  );
+}
+
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
 export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy";
@@ -559,6 +690,9 @@ export type ClubDeMoi = {
   peutScorer: boolean;
   couleurA: string;
   couleurB: string;
+  /// Le chemin de la vitrine publique (« /p/mon-club »), ou `null` si le club
+  /// est fermé. C'est le serveur qui tranche, pas l'app.
+  urlPublique: string | null;
   nomChasubleA: string;
   nomChasubleB: string;
   theme: { sombre: Record<string, string>; clair: Record<string, string> };

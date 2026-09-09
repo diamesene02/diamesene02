@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { getGardiens, getLeaderboard, getPlayerDetail, getTropheesJoueur } from "@/lib/stats";
 import { nomsChasubles } from "@/lib/color";
+import { trierParPoints } from "@/lib/classement";
 import { cn } from "@/lib/cn";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Ecusson from "@/components/ios/Ecusson";
@@ -52,7 +53,15 @@ export default async function PlayerDetailPage({
   const nB = apparitions.length - nA;
   const camp: "A" | "B" | null = apparitions.length === 0 ? null : nA >= nB ? "A" : "B";
   const noms = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
-  const rang = classement.filter((r) => r.matchesPlayed > 0).findIndex((r) => r.playerId === id) + 1;
+  // Le rang est celui du TABLEAU — donc aux points, comme `Classement`. En
+  // lisant `getLeaderboard` dans son ordre (les buteurs), la fiche annonçait
+  // « 1er du tableau » à un joueur que la page du classement mettait deuxième.
+  const rang =
+    trierParPoints(
+      classement.filter((r) => r.matchesPlayed > 0),
+      ctx.club.pointsWin,
+      ctx.club.pointsDraw,
+    ).findIndex((r) => r.playerId === id) + 1;
 
   const sousTitre = [
     camp ? (camp === "A" ? noms.a : noms.b) : null,
@@ -169,7 +178,8 @@ export default async function PlayerDetailPage({
                 slug={slug}
                 playerId={player.id}
                 initial={player.abonne}
-                nom={player.userId === ctx.user.id ? "Tu" : player.name}
+                estMoi={player.userId === ctx.user.id}
+                nom={player.name}
               />
             )}
             <div className="fiche-ligne">

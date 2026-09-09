@@ -4,7 +4,9 @@
 // pas de Mac, pas de téléphone, pas de simulateur — un serveur `next dev` et un
 // jeu d'essai (`node scripts/jeu-dessai.mjs`). Ce que ce script vérifie, c'est
 // ce que l'étape 12 de MOBILE.md exige : la liste des matchs, la feuille
-// complète d'un match, la compo préparée d'une soirée.
+// complète d'un match, la compo préparée d'une soirée — puis, lot par lot, ce
+// que l'étape 19+ ajoute : ici le vestiaire, la fiche d'un joueur et son
+// « je viens tous les lundis ».
 //
 //   node scripts/jeu-dessai.mjs                  # une fois, pour peupler
 //   node scripts/parcours-lecture.mjs [base]
@@ -160,12 +162,92 @@ async function main() {
   const [rSoireeFantome] = await lire(`${C}/matchdays/zzz-inexistant/lineup`);
   ok(rSoireeFantome.status === 404, "une soirée inexistante : 404", `HTTP ${rSoireeFantome.status}`);
 
+  // --- 3 bis. Le vestiaire et la fiche d'un joueur ---------------------------
+
+  console.log("\n— l'effectif —");
+  const [rEff, eff] = await lire(`${C}/effectif`);
+  ok(rEff.ok, "GET effectif répond", `HTTP ${rEff.status}`);
+  ok(eff.joueurs.length === 12, "les douze du vestiaire", `${eff.joueurs.length}`);
+  ok(eff.sousTitre === "12 joueurs au vestiaire", "le sous-titre arrive fait", eff.sousTitre);
+  ok(
+    eff.joueurs.every((j) => j.initiales && j.initiales.length <= 2),
+    "chaque fiche porte ses initiales, calculées par le serveur",
+  );
+  ok(
+    !("userId" in (eff.joueurs[0] ?? {})),
+    "aucun identifiant de compte ne fuit — estMoi et compteLie suffisent",
+  );
+  ok(
+    eff.joueurs.filter((j) => j.estMoi).length === 1,
+    "une seule fiche est la mienne",
+    `${eff.joueurs.filter((j) => j.estMoi).length}`,
+  );
+
+  console.log("\n— la fiche d'un joueur —");
+  const [rJ, fj] = await lire(`${C}/joueurs/joueur-essai-1`);
+  ok(rJ.ok, "GET joueurs/[id] répond", `HTTP ${rJ.status}`);
+  ok(fj.joueur.id === "joueur-essai-1", "c'est bien lui", fj.joueur.id);
+  ok(
+    /Niveau 3/.test(fj.joueur.sousTitre),
+    "le sous-titre est assemblé côté serveur",
+    fj.joueur.sousTitre,
+  );
+  ok(
+    fj.joueur.camp === null || fj.joueur.couleur.startsWith("#"),
+    "la couleur de la chasuble habituelle voyage avec la fiche",
+    `${fj.joueur.camp} ${fj.joueur.couleur}`,
+  );
+  ok(
+    fj.derniersMatchs.every(
+      (m) => typeof m.date === "string" && !m.date.includes("T"),
+    ),
+    "les dates des derniers matchs sont déjà écrites en français",
+    fj.derniersMatchs[0]?.date ?? "aucun",
+  );
+  ok(
+    fj.derniersMatchs.every((m) => Number.isInteger(m.scoreA) && Number.isInteger(m.scoreB)),
+    "les deux scores sont séparés — l'app ne découpe pas « 2-1 »",
+  );
+  ok(
+    fj.paliers.every((pa) => pa.part >= 0 && pa.part <= 1 && pa.libelle.startsWith("encore ")),
+    "chaque palier porte sa phrase et sa part de barre",
+    fj.paliers[0]?.libelle ?? "aucun",
+  );
+  const [rJFantome] = await lire(`${C}/joueurs/joueur-qui-nexiste-pas`);
+  ok(rJFantome.status === 404, "un joueur inconnu : 404", `HTTP ${rJFantome.status}`);
+
+  console.log("\n— « je viens tous les lundis » —");
+  const abonneAvant = fj.joueur.abonne;
+  const poser = (valeur) =>
+    fetch(`${BASE}${C}/joueurs/joueur-essai-1/abonnement`, {
+      method: "POST",
+      headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify({ abonne: valeur }),
+    });
+  const rBascule = await poser(!abonneAvant);
+  ok(rBascule.ok, "la bascule est acceptée", `HTTP ${rBascule.status}`);
+  const [, fjApres] = await lire(`${C}/joueurs/joueur-essai-1`);
+  ok(
+    fjApres.joueur.abonne === !abonneAvant,
+    "…et la fiche relue le confirme",
+    `${abonneAvant} → ${fjApres.joueur.abonne}`,
+  );
+  await poser(abonneAvant); // on laisse le jeu d'essai comme on l'a trouvé
+  const rMauvais = await fetch(`${BASE}${C}/joueurs/joueur-essai-1/abonnement`, {
+    method: "POST",
+    headers: { ...h, "content-type": "application/json" },
+    body: JSON.stringify({ abonne: "oui" }),
+  });
+  ok(rMauvais.status === 400, "une valeur qui n'est pas un booléen : 400", `HTTP ${rMauvais.status}`);
+
   // --- 4. Qui n'a rien à y faire ---------------------------------------------
 
   const CHEMINS = [
     `${C}/matches`,
     `${C}/matches/match-essai-fini`,
     `${C}/matchdays/soiree-essai/lineup`,
+    `${C}/effectif`,
+    `${C}/joueurs/joueur-essai-1`,
   ];
   const nom = (c) => c.split("/").slice(4).join("/");
 

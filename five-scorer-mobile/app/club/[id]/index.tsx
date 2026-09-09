@@ -11,6 +11,7 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ecran from "../../../composants/Ecran";
 import { Avatar, BoutonPlein, EcussonChasuble } from "../../../composants/base";
+import MenuClub from "../../../composants/MenuClub";
 import { useNoyau } from "../../../composants/Noyau";
 import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import { fmt } from "../../../lib/noyau/clock";
@@ -37,6 +38,7 @@ export default function ClubAccueil() {
   const { local } = useNoyau();
 
   const [club, setClub] = useState<ClubDeMoi | null>(null);
+  const [nomUtilisateur, setNomUtilisateur] = useState("");
   const [donnees, setDonnees] = useState<Accueil | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(true);
@@ -52,6 +54,7 @@ export default function ClubAccueil() {
     try {
       const [moi, a] = await Promise.all([chargerMoi(), chargerAccueil(id)]);
       setClub(moi.clubs.find((c) => c.id === id) ?? null);
+      setNomUtilisateur(moi.utilisateur.nom);
       setDonnees(a);
     } catch (e) {
       if (e instanceof SessionExpiree) return router.replace("/connexion");
@@ -94,19 +97,9 @@ export default function ClubAccueil() {
 
   return (
     <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
-      <View style={[s.entete, { borderBottomColor: t.sep }]}>
+      <View style={s.entete}>
         <Text style={[s.marque, { color: t.ink }]}>Five Scorer</Text>
-        {club && (
-          <Pressable
-            onPress={() => router.push("/clubs")}
-            style={[s.pilule, { borderColor: t.cb, backgroundColor: t.cdSolid }]}
-          >
-            <EcussonChasuble couleur={couleurA} lettre={club.nom[0] ?? "F"} taille={24} />
-            <Text style={[s.piluleTexte, { color: t.ink }]} numberOfLines={1}>
-              {club.nom}
-            </Text>
-          </Pressable>
-        )}
+        {club && <MenuClub club={club} t={t} nomUtilisateur={nomUtilisateur} />}
       </View>
 
       <ScrollView
@@ -315,28 +308,20 @@ function heure(iso: string): string {
 }
 
 const s = StyleSheet.create({
+  // La barre du site n'a pas de filet sous elle : le fond dégradé fait déjà la
+  // séparation, et un trait la coupait en deux au niveau de la pilule.
   entete: {
-    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingTop: 14,
+    paddingBottom: 4,
     gap: 10,
   },
-  marque: { fontSize: 20, fontWeight: "700", letterSpacing: -0.3 },
-  pilule: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    height: 38,
-    paddingLeft: 6,
-    paddingRight: 14,
-    borderRadius: 19,
-    borderWidth: 1,
-    maxWidth: 190,
-  },
-  piluleTexte: { fontSize: 14, fontWeight: "600", flexShrink: 1 },
+  // 26 gras, comme la barre du site : la pilule fait 50 de haut à côté, et un
+  // titre de 20 lui passait sous le nez.
+  marque: { fontSize: 26, fontWeight: "700", letterSpacing: -0.5, flexShrink: 1 },
 
   contenu: { padding: 14, paddingBottom: 40, gap: 14 },
   centre: { paddingTop: 80, alignItems: "center", gap: 12 },

@@ -32,6 +32,10 @@ export function serialiserClub(
     peutScorer: canManage || club.membersCanScore,
     couleurA: club.colorA,
     couleurB: club.colorB,
+    // La vitrine publique, si le club en a une : c'est ce qu'on partage sur
+    // WhatsApp. `null` quand le club est fermé — proposer « Partager » pour
+    // envoyer un lien qui demande une connexion, c'est promettre à tort.
+    urlPublique: club.isPublic ? `/p/${org.slug}` : null,
     nomChasubleA: noms.a,
     nomChasubleB: noms.b,
     theme: {

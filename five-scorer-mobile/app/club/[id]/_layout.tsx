@@ -70,6 +70,10 @@ export default function DispositionClub() {
         <Tabs.Screen name="matchs" />
         <Tabs.Screen name="soirees" />
         <Tabs.Screen name="stats" />
+        {/* L'effectif n'a pas d'onglet : on y va par le menu de la pilule,
+            comme sur le site. Il est déclaré ici pour que la pile le connaisse
+            — sans quoi il s'ouvrirait hors du cadre du club, sans barre. */}
+        <Tabs.Screen name="effectif" />
       </Tabs>
 
       <Modal

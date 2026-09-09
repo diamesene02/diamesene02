@@ -13,11 +13,13 @@ export default function Abonnement({
   slug,
   playerId,
   initial,
+  estMoi,
   nom,
 }: {
   slug: string;
   playerId: string;
   initial: boolean;
+  estMoi: boolean;
   nom: string;
 }) {
   const router = useRouter();
@@ -45,8 +47,10 @@ export default function Abonnement({
         <span className="l">
           Vient tous les lundis
           <span className="aide">
-            Compté présent d&apos;office. {nom} peut toujours se déclarer
-            absent sur une soirée.
+            Compté présent d&apos;office.{" "}
+            {estMoi
+              ? "Tu peux toujours te déclarer absent sur une soirée."
+              : `${nom} peut toujours se déclarer absent sur une soirée.`}
           </span>
         </span>
         <Interrupteur

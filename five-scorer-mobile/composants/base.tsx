@@ -79,12 +79,20 @@ export function Avatar({
   t,
   anneau,
   taille = 30,
+  epaisseur,
+  corps,
 }: {
   nom: string;
   photo?: string | null;
   t: Jetons;
   anneau?: string;
   taille?: number;
+  /// L'anneau fait 2 px partout — sauf sur la fiche joueur, où le site en
+  /// met 4 autour d'un avatar de 128. Un anneau de 2 px sur 128 disparaît.
+  epaisseur?: number;
+  /// La taille des initiales. Par défaut un tiers du cercle ; la fiche la
+  /// fixe à 40 comme la maquette, sinon un avatar de 128 écrirait en 43.
+  corps?: number;
 }) {
   const initiales = nom
     .split(/\s+/)
@@ -102,13 +110,14 @@ export function Avatar({
           borderRadius: taille / 2,
           backgroundColor: t.seg,
           borderColor: anneau ?? t.i3,
+          ...(epaisseur != null ? { borderWidth: epaisseur } : null),
         },
       ]}
     >
       {photo ? (
         <Image source={{ uri: photo }} style={s.avatarImage} />
       ) : (
-        <Text style={{ fontSize: Math.round(taille / 3), fontWeight: "700", color: t.ink }}>
+        <Text style={{ fontSize: corps ?? Math.round(taille / 3), fontWeight: "700", color: t.ink }}>
           {initiales}
         </Text>
       )}
