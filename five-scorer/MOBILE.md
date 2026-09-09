@@ -343,7 +343,7 @@ Règles de lecture pour l'agent :
 | **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. `Pressable` + `onLongPress` à 500 ms (le garde `suppressTapUntil` de 700 ms **disparaît** : en natif `onPress` n'est pas émis après `onLongPress`), tick d'affichage 500 ms isolé dans un composant `<Horloge>`, `useKeepAwake()`, haptics selon la table du §3.6. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (test de `minuteOf`/`fmt` et de la machine tap/appui-long) ; grep de contrôle : `grep -rc "suppressTapUntil" mobile/` → `0`. | à faire |
 | **15** | **Écran « jouer », partie 2** : la pelouse, le score, la barre d'invite 15 s (passe décisive / auteur du csc), les 3 chemins d'annulation, la chronologie, les feuilles (cartons, confirmation, MVP, temps plein) en `presentation: "formSheet"`. Route **hors des onglets**, `gestureEnabled: false` — un swipe-back pendant qu'on marque est le pire bug possible. | `npx expo export --platform ios` en 0 ; `npx tsc --noEmit` vert ; `grep -n "gestureEnabled" mobile/app/jouer.tsx` → la ligne existe et vaut `false`. | à faire |
 | **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
-| **17** | **Development build local** (`npx expo run:ios --device`, identifiant Apple **gratuit**), pour pouvoir enfin recetter le hors-ligne réel et préparer le push. | `cd mobile && npx expo prebuild --platform ios --no-install` sort en 0 et `ls ios/*.xcworkspace` existe ; `xcodebuild -version` → `Xcode 26.3`. | à faire |
+| **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **bloqué** — pas par le projet mais par la machine : Expo SDK 57 recompile ExpoModulesJSI depuis ses sources et le Swift 6.2.4 de Xcode 26.3 refuse ses en-têtes d'interopérabilité C++. Xcode 26.4+ exige macOS 26.2, que ce Mac sous macOS 15.6 ne peut pas installer. Sortie retenue : EAS Build (`eas.json` écrit, profil `lundi`). |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
 | **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `pnpm build` en 0, `pnpm test:api` vert, `npx expo export --platform ios` en 0. | à faire |
 | **3 bis** | **Le premier écran, sans authentification** — pour voir quelque chose de vrai dans Expo Go avant d'avoir porté la connexion. A demandé un endpoint public côté serveur (`GET /api/public/[slug]`, déployé sur `main`) qui rend la vitrine du club ET ses jetons de thème calculés par `lib/theme.ts` : la règle des couleurs ne doit exister qu'à un seul endroit. | `cd five-scorer-mobile && npx tsc --noEmit` en 0 ; `curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy \| python3 -c "import sys,json;d=json.load(sys.stdin);print(d['club']['nom'], len(d['classement']))"` → le nom du club et le nombre de joueurs. | **fait** — commits `36ce034`, `9944e84` sur `main` et `2b4ba1b` sur `mobile`. Rendu vérifié avec la cible web d'Expo : le club, les photos et le 18-9 du 7 septembre s'affichent. |
@@ -491,6 +491,54 @@ hors-ligne en changeant de réseau.
 JS n'est pas embarqué : l'app exige Metro allumé sur le Mac, et l'adresse de
 Metro est même gravée dans le binaire (`expo/scripts/react-native-xcode.sh`
 écrit un `ip.txt`). Pour emporter l'app au terrain : `--configuration Release`.
+
+**LE BLOCAGE, et il n'est pas contournable sur cette machine.**
+
+Le build local échoue, deux fois, à l'identique — pour le simulateur comme
+pour l'appareil :
+
+```
+node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h:53
+error: 'RuntimeScheduler' cannot be annotated with either SWIFT_RETURNS_RETAINED
+or SWIFT_RETURNS_UNRETAINED because it is not returning a SWIFT_SHARED_REFERENCE type
+```
+
+Ce n'est pas une erreur de configuration du projet. La phase de build qui
+échoue s'appelle « Build ExpoModulesJSI xcframework » : Expo livre bien un
+`ExpoModulesJSI.xcframework` précompilé avec toutes les tranches utiles
+(`ios-arm64`, `ios-arm64_x86_64-simulator`…), mais `build-xcframework.sh`
+recalcule un hash de cache qui inclut `xcrun swiftc --version` **et** les
+chemins locaux `PODS_ROOT`/`RN_ROOT`. Le hash ne peut donc jamais correspondre
+sur une machine d'utilisateur : la première compilation reconstruit toujours ce
+framework depuis les sources. Et cette reconstruction échoue sur le Swift
+6.2.4 de Xcode 26.3.
+
+Piste écartée : déclarer `retainRuntimeScheduler` / `releaseRuntimeScheduler`
+avant la classe (elles ne le sont qu'après, lignes 95-102, alors que
+`SWIFT_SHARED_REFERENCE` est posé ligne 90). Essayé, recompilé : l'erreur
+persiste, simplement décalée du nombre de lignes insérées. L'en-tête tiers a
+été remis en état.
+
+**Et Xcode ne peut pas être mis à jour ici.** Xcode 26.3 (17C529) exige
+macOS 15.6 ; Xcode 26.4, 26.5 et 26.6 exigent tous **macOS 26.2**. Cette
+machine tourne sous macOS 15.6 (Darwin 24.6.0). Xcode 26.3 est donc le dernier
+qu'elle puisse installer, et c'est exactement celui qui ne sait pas compiler
+le SDK 57. Passer outre demanderait une mise à niveau de macOS vers Tahoe 26 —
+faisable (Tahoe est le dernier macOS à accepter les Mac Intel) mais c'est un
+autre chantier.
+
+Un cas voisin est documenté : expo/expo#47539, « Expo 57 fails to compile on
+Xcode 26.3 », même toolchain Swift 6.2.4, erreur différente (`sending 'emitter'
+risks causing data races`) mais même famille. Notre erreur exacte n'est
+indexée nulle part — c'est cohérent avec le fait que presque plus personne ne
+compile Expo SDK 57 sur un Mac Intel sous macOS 15.
+
+**La sortie : bâtir dans le nuage.** `eas.json` est écrit, avec trois profils
+(`lundi` en distribution interne pour le terrain, `atelier` qui vise le Mac,
+`magasin` pour l'App Store le jour venu). EAS compile avec un Xcode à jour et
+rend un `.ipa` installable par lien sur les iPhones enregistrés dans l'équipe.
+Reste à décider avec Ibrahima : envoyer le code chez Expo et y confier la
+gestion des certificats sont deux actions qui lui appartiennent.
 
 **Les obstacles de la machine, qui ont coûté le plus de temps :**
 
