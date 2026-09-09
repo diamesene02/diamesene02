@@ -2,7 +2,7 @@ import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
 import { organizationClient } from "better-auth/client/plugins";
 import * as SecureStore from "expo-secure-store";
-import { API } from "./api";
+import { API, SCHEMA } from "./api";
 
 /// Le client d'authentification de l'app.
 ///
@@ -14,10 +14,11 @@ import { API } from "./api";
 ///    refusaient les valeurs au-delà de ~2 ko, et notre session porte un
 ///    cache (`cookieCache` côté serveur) qui la fait grossir.
 ///
-/// 2. Le schéma `fivescorer` sert de destination au retour de connexion. En
-///    Expo Go, expo-linking l'ignore silencieusement et rend `exp` à la
-///    place — le même code marche donc en Expo Go et dans un build natif,
-///    sans branche conditionnelle.
+/// 2. Le schéma `fivescorer` sert de destination au retour de connexion, et
+///    d'origine annoncée au serveur. En Expo Go, expo-linking l'ignore
+///    silencieusement et rend `exp` à la place — le même code marche donc en
+///    Expo Go et dans un build natif, sans branche conditionnelle. C'est
+///    cette différence que `lib/api.ts` lit pour choisir le serveur.
 ///
 /// 3. Rien n'est envoyé automatiquement à NOS routes : React Native n'a pas
 ///    de bocal à cookies. C'est `appelAuthentifie()` de lib/api.ts qui rejoue
@@ -27,8 +28,8 @@ export const authClient = createAuthClient({
   plugins: [
     organizationClient(),
     expoClient({
-      scheme: "fivescorer",
-      storagePrefix: "fivescorer",
+      scheme: SCHEMA,
+      storagePrefix: SCHEMA,
       storage: SecureStore,
     }),
   ],

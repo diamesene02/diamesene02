@@ -1,4 +1,20 @@
 import Constants from "expo-constants";
+import * as Linking from "expo-linking";
+
+/// Le schéma de lien profond de l'app, déclaré dans app.json. Il vit ici
+/// plutôt qu'en dur dans deux fichiers : c'est lui que le client
+/// d'authentification annonce au serveur comme origine, et c'est lui que le
+/// serveur cherche dans ses origines de confiance. Une divergence entre les
+/// deux se solderait par un « Invalid origin » sans indice.
+export const SCHEMA = "fivescorer";
+
+/// L'origine que le serveur verra réellement.
+///
+/// Calculée exactement comme @better-auth/expo la calcule — son client fait
+/// `Linking.createURL("", { scheme })` et l'envoie dans l'en-tête
+/// `expo-origin`, que le plugin serveur recopie ensuite dans `origin`
+/// (node_modules/@better-auth/expo/dist/client.js et dist/index.js).
+export const ORIGINE = Linking.createURL("", { scheme: SCHEMA });
 
 /// L'accès à l'application web, qui devient l'API du mobile.
 ///
@@ -71,21 +87,35 @@ function hoteDuBundle(): string | undefined {
 
 export const PROD = "https://five-scorer.vercel.app";
 
-/// En développement, on parle au serveur du Mac. En production, à la prod.
+/// Vrai quand l'app tourne dans Expo Go plutôt que dans un build à elle.
 ///
-/// Ce n'est pas un confort, c'est une nécessité : le serveur n'accorde sa
-/// confiance aux origines `exp://` et `exps://` — celles d'Expo Go — QUE en
-/// développement. En production, seul le schéma `fivescorer://` d'un vrai
-/// build l'est, parce qu'une origine de confiance à schéma non-http reçoit le
-/// cookie de session dans l'URL de redirection : `exp://` de confiance en
-/// production donnerait à n'importe quelle app Expo un moyen d'en récupérer
-/// une.
+/// Ce n'est pas une devinette sur l'environnement, c'est LA question posée
+/// directement : dans Expo Go, expo-linking ignore silencieusement le schéma
+/// demandé et rend « exp:// » (Schemes.js, resolveScheme : sous
+/// `executionEnvironment === "storeClient"`, il retourne 'exp'). Dans un
+/// build — development build compris — le module natif d'expo-constants
+/// déclare « bare » en dur (ios/EXConstantsService.m), et le schéma de
+/// app.json est rendu tel quel.
+const DANS_EXPO_GO = !ORIGINE.startsWith(SCHEMA + ":");
+
+/// À quel serveur on parle par défaut.
 ///
-/// Conséquence à connaître : dans Expo Go, **la connexion exige que
-/// `pnpm dev` tourne sur le Mac**. La vitrine publique, elle, n'a pas de
-/// contrôle d'origine et marcherait contre la production — mais on ne mélange
-/// pas deux serveurs dans une même session, ce serait indébrouillable.
-const DEFAUT = __DEV__ ? "http://localhost:3000" : PROD;
+/// La règle ne regarde pas `__DEV__` mais l'origine ci-dessus, parce que
+/// c'est l'origine, et elle seule, que le serveur accepte ou refuse :
+///
+/// - Expo Go annonce « exp:// ». La production ne lui fait pas confiance, et
+///   c'est délibéré : le plugin serveur recopie l'en-tête `set-cookie` — donc
+///   le jeton de session en clair — dans l'URL de redirection dès que la
+///   destination est une origine de confiance à schéma non-http. Y autoriser
+///   « exp:// » donnerait à n'importe quelle app Expo un moyen de récupérer
+///   une session. Expo Go parle donc au serveur du Mac, qui, lui, l'accepte
+///   en développement.
+/// - Un build annonce « fivescorer:// », que la production accepte. Il parle
+///   donc à la production : c'est le seul endroit où vit le vrai club.
+///
+/// EXPO_PUBLIC_API force l'un ou l'autre quand on veut développer un écran
+/// contre le serveur local depuis un build.
+const DEFAUT = DANS_EXPO_GO ? "http://localhost:3000" : PROD;
 
 const resolu = resoudreAdresse(
   process.env.EXPO_PUBLIC_API?.replace(/\/$/, "") ?? DEFAUT,

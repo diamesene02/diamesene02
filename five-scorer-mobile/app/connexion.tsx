@@ -14,7 +14,7 @@ import Ecran from "../composants/Ecran";
 import { BoutonPlein, Carte, Champ } from "../composants/base";
 import { JETONS_NEUTRES } from "../lib/couleurs";
 import { signIn, signUp } from "../lib/auth-client";
-import { API, COMPTE_DEV, OBSTACLE } from "../lib/api";
+import { API, COMPTE_DEV, OBSTACLE, ORIGINE } from "../lib/api";
 
 /// Connexion et inscription, sur le même écran.
 ///
@@ -176,8 +176,14 @@ export default function Connexion() {
 
           {/* Le serveur, toujours visible. La moitié des ennuis de
               développement mobile viennent de ce qu'on ne sait pas à qui on
-              parle : la prod, le Mac, ou une adresse qui n'existe plus. */}
-          <Text style={[s.serveur, { color: t.i3 }]}>{API}</Text>
+              parle : la prod, le Mac, ou une adresse qui n'existe plus.
+              Et en développement, l'origine annoncée — c'est elle que le
+              serveur accepte ou refuse, donc c'est elle qu'on veut lire quand
+              il refuse. */}
+          <Text style={[s.serveur, { color: t.i3 }]}>
+            {API}
+            {__DEV__ ? `\n${ORIGINE}` : ""}
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </Ecran>
