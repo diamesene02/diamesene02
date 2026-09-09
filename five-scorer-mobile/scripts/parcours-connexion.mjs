@@ -53,6 +53,34 @@ async function main() {
     ok(typeof c.peutScorer === "boolean", "les droits sont calculés côté serveur", `scorer=${c.peutScorer}`);
     ok(Boolean(c.theme), "le thème des chasubles est fourni", `${c.couleurA}/${c.couleurB}`);
 
+    // Le club seul — c'est par là que l'app rafraîchira ses réglages sans
+    // repasser par la connexion. Sa forme doit être celle de /api/me, au
+    // caractère près : les deux réponses vont dans la même table locale.
+    const un = await fetch(`${BASE}/api/clubs/${c.id}`, { headers: { cookie, origin: ORIGINE } });
+    const du = un.ok ? (await un.json()).club : null;
+    ok(un.ok, "GET /api/clubs/[id] répond", `HTTP ${un.status}`);
+    ok(JSON.stringify(du) === JSON.stringify(c), "…dans exactement la forme de /api/me");
+
+    const fantome = await fetch(`${BASE}/api/clubs/zzz-inexistant`, { headers: { cookie, origin: ORIGINE } });
+    ok(fantome.status === 404, "un club dont je ne suis pas membre : 404, pas 403", `HTTP ${fantome.status}`);
+
+    const eff = await fetch(`${BASE}/api/clubs/${c.id}/roster`, { headers: { cookie, origin: ORIGINE } });
+    const joueurs = eff.ok ? (await eff.json()).players : [];
+    ok(eff.ok, "l'effectif répond", `HTTP ${eff.status}`);
+    ok(joueurs.length > 0, "l'effectif n'est pas vide", `${joueurs.length} joueurs`);
+    ok(joueurs.every((j) => "abonne" in j && "isArchived" in j),
+      "chaque joueur porte abonne et isArchived");
+    ok(joueurs.every((j) => !("userId" in j)),
+      "aucun identifiant de compte n'est exposé");
+    ok(joueurs.every((j) => typeof j.estMoi === "boolean" && typeof j.compteLie === "boolean"),
+      "…remplacés par estMoi et compteLie",
+      `moi=${joueurs.filter((j) => j.estMoi).length} liés=${joueurs.filter((j) => j.compteLie).length}`);
+    ok(joueurs.every((j) => !j.isArchived), "par défaut, aucun archivé");
+
+    const tous = await fetch(`${BASE}/api/clubs/${c.id}/roster?archives=1`, { headers: { cookie, origin: ORIGINE } });
+    const tj = tous.ok ? (await tous.json()).players : [];
+    ok(tous.ok && tj.length >= joueurs.length, "?archives=1 en rend au moins autant", `${tj.length} ≥ ${joueurs.length}`);
+
     // La vitrine, sur le club qu'on vient de lire — et sans cookie, puisque
     // c'est justement l'écran que voit quelqu'un qui n'a pas de compte.
     const v = await fetch(`${BASE}/api/public/${c.slug}`);

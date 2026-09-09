@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Un `next build` de vérification lancé pendant que `pnpm dev` tourne écrit
+  // dans le même `.next` et laisse le serveur de développement avec un
+  // manifeste de production : toutes les routes dynamiques passent en 404
+  // jusqu'au redémarrage. C'est arrivé, et le symptôme n'accuse rien.
+  // NEXT_DIST_DIR permet de bâtir à côté sans y toucher.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   env: {
     // Identifiant du build, lu par RegisterSW pour versionner le service
     // worker. Sur Vercel : le commit ; en local : l'instant du build.
