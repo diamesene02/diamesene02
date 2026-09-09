@@ -49,10 +49,15 @@ Quatre écrans, sur expo-router :
 L'aiguillage se fait tout seul : une session trouvée dans le trousseau du
 téléphone mène aux clubs, sinon à la vitrine.
 
-Les couleurs ne sont écrites nulle part ici : elles arrivent calculées par
-`lib/theme.ts` côté serveur, à partir des deux chasubles du club. Le mobile
-porte donc exactement les mêmes que le web, et les suivra tout seul le jour où
-le club en change.
+Les couleurs de ces écrans arrivent **calculées par le serveur** (`lib/theme.ts`
+côté Next.js) à partir des deux chasubles du club : le mobile porte donc
+exactement les mêmes que le web, et les suivra tout seul le jour où le club en
+change.
+
+La même fonction est maintenant aussi portée dans `lib/noyau/theme.ts`, en
+copie conforme. Elle servira aux écrans qui doivent se peindre **sans réseau**,
+au bord du terrain, quand aucune réponse serveur n'est disponible — pas à
+recalculer ce que le serveur a déjà envoyé.
 
 ## Contre le serveur local
 
@@ -94,7 +99,24 @@ l'appareil, ou en HTTP direct.
 
 ```bash
 npm run verifier   # tsc --noEmit
+npm run tester     # vitest run
 ```
+
+Les tests tournent en Node pur, sans téléphone, sans simulateur et sans réseau.
+Ils portent sur `lib/noyau/` : le chrono, les identifiants, les couleurs, les
+jetons de thème, l'équilibrage des équipes et la bascule « match rétro ».
+
+`lib/noyau/` contient des **copies octet pour octet** de `five-scorer/lib/` :
+on ne les modifie jamais ici, on modifie le web et on recopie. Un test le
+vérifie à chaque exécution — voir `lib/noyau/LISEZ-MOI.md`.
+
+**Pourquoi `overrides.vitest` dans `package.json` :** `better-auth@1.7.1`
+déclare un peer *optionnel* `vitest@^2 || ^3 || ^4`. Sans l'override, npm 10
+résout ce peer vers le `vitest` le plus récent (5.x) et **plante** en
+construisant l'arbre (`Cannot read properties of null (reading 'edgesOut')`),
+quelle que soit la version qu'on demande. L'override fixe les deux au même
+4.1.11 et l'installation repasse. Ne pas le retirer sans réessayer
+`npm install` derrière.
 
 ## Ce qui reste
 

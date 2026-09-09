@@ -323,6 +323,7 @@ Règles de lecture pour l'agent :
 - **Une étape n'est « fait » que si sa commande de vérification a été lancée et a donné la sortie attendue.** Pas de « ça devrait marcher ».
 - **Aucune étape ne touche la production** sans figurer explicitement dans le §6.
 - États possibles : `à faire` · `en cours` · `fait` · `bloqué`.
+- **`mobile/` dans les commandes ci-dessous se lit `five-scorer-mobile/`.** Le tableau a été écrit avant que le dossier frère soit tranché (§3.1) ; les chemins n'ont pas tous été réécrits. Les commandes de vérification se lancent depuis `five-scorer-mobile/`. Corriger chaque ligne au fil des étapes, quand on y touche.
 
 | # | Étape | Critère de terminé (sans téléphone) | État |
 |---|---|---|---|
@@ -330,7 +331,7 @@ Règles de lecture pour l'agent :
 | **2** | **Protéger la production.** Épingler `"better-auth": "1.7.1"` (version **exacte**, sans caret) dans `package.json`, relancer l'installation. Ne PAS migrer vers 1.7.3 (§3.2). | `node -p "require('./package.json').dependencies['better-auth']"` → `1.7.1` ; puis `pnpm install --frozen-lockfile` sort en 0 ; puis `pnpm build` sort en 0. | **fait** — commit `99dd37d` sur `main`. Le risque était plus grand qu'annoncé : `vercel.json` installe avec `--frozen-lockfile=false`, donc le lockfile ne protégeait rien au déploiement. |
 | **3** | **Créer le projet Expo** dans `five-scorer-mobile/`, SDK 57, TypeScript, expo-router. Poser `"scheme": "fivescorer"` dans `app.json`. | `cd five-scorer-mobile && node -p "require('./package.json').dependencies.expo"` commence par `57` ; `node -p "require('./app.json').expo.scheme"` → `fivescorer` ; `npx tsc --noEmit` sort en 0. | **fait** — SDK 57.0.21, RN 0.86.3, TypeScript, `scheme` = `fivescorer`, expo-router installé et point d'entrée basculé sur `expo-router/entry`. Quatre routes : `index` (aiguillage), `vitrine`, `connexion`, `clubs`. `tsc` vert. |
 | **4** | **Serveur : ouvrir la porte à Expo.** Ajouter `@better-auth/expo` aux dépendances du dépôt Next, monter `expo()` avant `nextCookies()`, étendre `trustedOrigins()` avec `fivescorer://` + (`exp://`, `exps://`) en développement seulement, ajouter `allowedDevOrigins` dans `next.config.js`. | `pnpm build` sort en 0 ; puis, `pnpm dev` lancé : `curl -s -X POST -H "Origin: exp://192.168.1.192:8081" ... /api/auth/sign-in/email \| grep -c INVALID_ORIGIN` → `0`. | **fait** — commit `f083477` sur `main`. La requête d'origine `exp://` reçoit `INVALID_EMAIL_OR_PASSWORD`, donc l'origine est acceptée et c'est bien le mot de passe qui est refusé. |
-| **5** | **Porter le noyau pur** dans `mobile/lib/` : `clock.ts` (41 l.), `ids.ts`, `theme.ts` (182 l.), `color.ts` (184 l.), `balance.ts`, `retro.ts` — copie verbatim — et poser un lanceur de tests. | `cd mobile && npx vitest run` → tous verts, au moins un test par fichier porté ; `npx tsc --noEmit` sort en 0. | à faire |
+| **5** | **Porter le noyau pur** dans `five-scorer-mobile/lib/noyau/` : `clock.ts` (41 l.), `ids.ts` (43 l.), `theme.ts` (182 l.), `color.ts` (184 l.), `balance.ts` (148 l.), `retro.ts` (28 l.) — copie verbatim — et poser un lanceur de tests. | `cd five-scorer-mobile && npx vitest run` → tous verts, au moins un test par fichier porté ; `npx tsc --noEmit` sort en 0. | **fait** — 626 lignes copiées octet pour octet, 78 tests verts en 7 fichiers, `tsc` vert. Vitest 4.1.11 (pas 5 : voir le journal). Un 7ᵉ fichier de test, `copie-conforme.test.ts`, vérifie l'égalité octet pour octet avec `five-scorer/lib/` et l'absence d'API navigateur : la copie ne peut plus diverger en silence. |
 | **6** | **Le schéma SQLite** : traduire les 6 tables de `lib/db.ts` en DDL (`mobile/db/schema.sql`), avec `AUTOINCREMENT` sur `outbox.id`, la colonne `match_id`, l'index `outbox_actives`, et `PRAGMA journal_mode = WAL` à l'ouverture. | `sqlite3 :memory: ".read mobile/db/schema.sql" "INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'),('t','c','{}'),('t','c','{}'); DELETE FROM outbox WHERE id=3; INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'); SELECT MAX(id) FROM outbox;"` → **`4`** (et non `3`). | à faire |
 | **7** | **Porter le drain de l'outbox** (`lib/sync.ts`) sur une couche d'accès abstraite (une interface `Db` avec deux implémentations : `expo-sqlite` en prod, `node:sqlite`/`better-sqlite3` en test). Garder la machine à états, le backoff 5→60 s, le timeout 8 s, `pending`/`blocked`/`needsAuth`, le blocage en cascade par `match_id`. **8** opérations → **8** appels fetch. | `cd mobile && npx vitest run sync` → vert, dont un test « 50 opérations enfilées, serveur en panne, processus relancé : 0 perdue, 0 dupliquée, ordre conservé » et un test « 403 sur une op → toutes les ops du même match passent `blocked`, aucune supprimée ». | à faire |
 | **8** | **La fonction d'appel authentifié** de l'app (`mobile/lib/api.ts`) : `credentials: "omit"` + en-tête `cookie` issu de `authClient.getCookie()`, URL absolues depuis `EXPO_PUBLIC_API_URL`, 401 → `needsAuth`. | `cd mobile && npx vitest run api` → vert, avec `fetch` moqué : assertions sur `credentials === "omit"`, présence de l'en-tête `cookie`, et bascule `needsAuth` sur 401. | à faire |
@@ -359,7 +360,8 @@ Règles de lecture pour l'agent :
 
 **Unitaire (Vitest, dans `mobile/`)** — c'est là que doit vivre la confiance, parce que c'est ce qu'un agent peut relancer toutes les deux heures :
 
-- La logique pure portée verbatim : `clock.ts` (dérivation du chrono depuis `elapsedMs` + `runningSince`, y compris horloge qui recule), `balance.ts`, `color.ts`/`theme.ts` (le plancher APCA à Lc 60 est testable : une chasuble claire et une foncée doivent produire des encres différentes).
+- La logique pure portée verbatim : `clock.ts` (dérivation du chrono depuis `elapsedMs` + `runningSince`, y compris horloge qui recule), `balance.ts`, `color.ts`/`theme.ts` (le plancher APCA à Lc 60 est testable : une chasuble claire et une foncée doivent produire des encres différentes). **Fait à l'étape 5 : 78 tests dans `five-scorer-mobile/lib/noyau/`, `npm run tester`.**
+- **La non-divergence du noyau** : `copie-conforme.test.ts` compare octet pour octet les 6 fichiers de `lib/noyau/` à ceux de `five-scorer/lib/`, et vérifie qu'aucun n'a acquis de `document.`/`window.`/`navigator.`/`localStorage`. C'est le test qui empêche la réécriture de partir en deux versions de la même règle.
 - **Le drain de l'outbox contre un faux serveur** : c'est le test qui valide tout le reste, et il ne demande aucune interface. 50 opérations, serveur en panne, processus tué, relancé : rien de perdu, rien de dupliqué, ordre conservé. Plus le cas 403 → blocage en cascade sans suppression, et le cas 401 → `needsAuth`.
 - **Le SQL lui-même**, avec `sqlite3` en ligne de commande ou `node:sqlite` : la réutilisation d'identifiant sans `AUTOINCREMENT` (étape 6) est un test, pas une croyance.
 - **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents.
@@ -367,9 +369,22 @@ Règles de lecture pour l'agent :
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
 
 ```bash
-cd mobile && npx tsc --noEmit          # types
-cd mobile && npx expo export --platform ios   # le bundle Metro se construit vraiment
+cd five-scorer-mobile && npx tsc --noEmit          # types
+cd five-scorer-mobile && npm run tester            # vitest run
+cd five-scorer-mobile && npx expo export --platform ios   # le bundle Metro se construit vraiment
 ```
+
+**Le serveur se vérifie À CÔTÉ, jamais dans `.next` :**
+
+```bash
+cd five-scorer && NEXT_DIST_DIR=.next-verif npx next build
+```
+
+`next.config.js` lit `NEXT_DIST_DIR` exprès. Sans lui, `pnpm build` écrase le
+`.next` du `pnpm dev` en cours **et réécrit `next-env.d.ts`** (la ligne
+`import "./.next-verif/types/routes.d.ts"` redevient `.next`) : l'arbre git se
+salit d'un fichier qui n'a rien à voir avec le travail de l'exécution. Vérifié
+le 9 septembre — avec la variable, l'arbre reste propre.
 
 **Playwright sur l'app web, qui reste en production** — c'est le filet de sécurité de la migration : chaque endpoint ajouté au serveur pour le mobile doit prouver qu'il n'a rien cassé côté web. Trois parcours suffisent : connexion, création d'un match, saisie de trois buts et fin de match. À lancer avant chaque déploiement du serveur, systématiquement, tant que la PWA est l'outil du lundi.
 
@@ -414,7 +429,8 @@ Un agent ne peut trancher aucune de ces lignes.
 7. **Quand coupe-t-on la PWA ?** Ma recommandation : jamais avant que le hors-ligne réel ait été recetté sur un development build (étape 17), et jamais avant deux lundis consécutifs sans incident.
 8. **Le push est-il au programme cette saison ?** « Untel a mis un but », ou « qui vient lundi ? » envoyé le jeudi. C'est le service que la PWA ne rend pas, et c'est ce qui rend le development build obligatoire. Si oui, l'étape 17 remonte dans l'ordre.
 9. ~~**`mobile/` dans le dépôt, ou dossier frère ?**~~ **Tranché le 9 septembre : dossier frère `five-scorer-mobile/`**, dans le même dépôt git (donc une seule histoire, pas deux). Voir §3.1. Rien à décider.
-10. **`iron-session`, `SESSION_SECRET`, `SCORING_PIN_HASH`** sont du **code mort** : zéro import dans tout le dépôt, il n'y a pas de second mécanisme d'authentification à porter. On les supprime du dépôt web au passage ? (Trois lignes, mais c'est ta décision.)
+10. **Les jetons de thème : calculés par le serveur, ou recalculés sur le téléphone ?** Les deux existent aujourd'hui dans l'app et ne se contredisent pas encore. Le serveur les envoie déjà tout faits (`/api/public/[slug]`, et l'endpoint 2 du §3.4 les enverra pour un club authentifié) ; `lib/noyau/theme.ts` sait aussi les calculer localement depuis les deux chasubles. **Ma recommandation : le serveur reste la source, on met les jetons en cache SQLite au premier bootstrap connecté, et `lib/noyau/theme.ts` ne sert que de repli hors ligne.** On garde une seule règle vivante, et l'app se peint quand même au bord du terrain sans réseau. Ton avis ? Ça se tranche avant l'étape 13.
+11. **`iron-session`, `SESSION_SECRET`, `SCORING_PIN_HASH`** sont du **code mort** : zéro import dans tout le dépôt, il n'y a pas de second mécanisme d'authentification à porter. On les supprime du dépôt web au passage ? (Trois lignes, mais c'est ta décision.)
 
 ---
 
@@ -557,6 +573,51 @@ development build (étape 17) : son schéma `fivescorer://` est, lui, une
 origine de confiance en production.
 
 Commit `a4bd614` sur `mobile`.
+
+### 2026-09-09 10:1x — Étape 5 : le noyau pur, et le premier filet de tests
+
+- **État** : étape 5 `à faire → fait`
+- **Vérifié par** :
+  ```
+  $ cd five-scorer-mobile && npx vitest run
+   RUN  v4.1.11 /home/user/diamesene02/five-scorer-mobile
+
+   Test Files  7 passed (7)
+        Tests  78 passed (78)
+     Duration  693ms
+
+  $ npx tsc --noEmit
+  (aucune sortie, code 0)
+
+  $ cd ../five-scorer && pnpm build
+  (…) ƒ Proxy (Middleware) — code 0
+
+  $ for f in clock.ts ids.ts theme.ts color.ts balance.ts retro.ts; do \
+      diff -q ../five-scorer/lib/$f lib/noyau/$f && echo "identique: $f"; done
+  identique: clock.ts
+  identique: ids.ts
+  identique: theme.ts
+  identique: color.ts
+  identique: balance.ts
+  identique: retro.ts
+  ```
+- **Fichiers touchés** :
+  - `five-scorer-mobile/lib/noyau/{clock,ids,theme,color,balance,retro}.ts` (copies conformes, 626 lignes)
+  - `five-scorer-mobile/lib/noyau/{clock,ids,color,theme,balance,retro,copie-conforme}.test.ts` (nouveaux)
+  - `five-scorer-mobile/lib/noyau/LISEZ-MOI.md` (nouveau — la règle « on ne modifie jamais ici »)
+  - `five-scorer-mobile/vitest.config.mts` (nouveau), `package.json`, `package-lock.json`, `tsconfig.json`, `README.md`
+  - `five-scorer/MOBILE.md`
+- **Ce qui a surpris** :
+  1. **Vitest 5 est inaccessible sur ce projet, et pas pour la raison qu'on croit.** `better-auth@1.7.1` déclare un peer *optionnel* `vitest@"^2 || ^3 || ^4"`. npm 10.9.7 charge quand même ce peer, résout `vitest@*` vers 5.0.0, va chercher `@vitest/browser-playwright@5.0.0` et **plante dans arborist** : `Cannot read properties of null (reading 'edgesOut')` — un message qui ne nomme ni vitest ni better-auth. Le plantage survient à toute installation dès que vitest entre dans l'arbre, y compris après suppression de `node_modules` et du lockfile. **Correctif retenu : `"overrides": { "vitest": "4.1.11" }` dans `five-scorer-mobile/package.json`**, sans `--force` ni `--legacy-peer-deps`. À relire le jour où on montera `better-auth` (étape X) : l'override pourra probablement sauter.
+  2. **La réinstallation propre du mobile a fait bouger 6 versions transitives** : `hermes-parser`/`hermes-estree` 0.35.0 → 0.36.1, `babel-plugin-syntax-hermes-parser` 0.36.0 → 0.36.1, `kysely` 0.28.17 → 0.29.5, `node-releases`, `picomatch`, `react-is`. Toutes dans les fourchettes déclarées, toutes dans `five-scorer-mobile/` — **rien n'a touché le dépôt web ni la production**. `kysely` est une dépendance de `better-auth` que le client Expo n'exécute pas. `tsc` et les 78 tests sont verts derrière.
+  3. **Le noyau porté est en `lib/noyau/`, pas à plat dans `lib/`.** Le plan disait `mobile/lib/`. À plat, rien ne distinguait un fichier qu'on ne doit **jamais** éditer (copie du web) d'un fichier propre au mobile (`api.ts`, `auth-client.ts`, `couleurs.ts`). Le sous-dossier + `copie-conforme.test.ts` rendent la règle exécutable : si le web bouge et qu'on ne recopie pas, `npm run tester` le dit à la prochaine exécution.
+  4. **Contradiction relevée, non tranchée par moi.** `lib/couleurs.ts` (écrit à l'exécution précédente) dit que les jetons de thème « sont calculés côté serveur, la règle ne doit exister qu'à un seul endroit ». Le §3.5 de ce document dit l'inverse : « ces 366 lignes se copient verbatim », avec un `ThemeProvider` maison. Les deux se justifient et ne servent pas le même cas : le serveur suffit tant qu'on est connecté, la copie locale est indispensable pour peindre un écran **sans réseau**. Elles cohabitent aujourd'hui sans conflit (aucun écran n'utilise encore `lib/noyau/theme.ts`). **À trancher par Ibrahima quand l'étape 13 ou 14 arrivera** : soit le serveur reste la source et on met les jetons en cache SQLite au bootstrap (endpoint 2 du §3.4), soit le mobile recalcule tout localement depuis les deux chasubles. Ligne ajoutée au §6.
+  5. **Aucune assertion n'a dû être assouplie.** Les 78 tests sont passés au premier lancement, y compris les planchers de contraste (Lc 60 pour l'encre, Lc 30 pour la bande) sur une chasuble marine `#001A4D`, et l'écart d'équilibrage `≤ 1` sur 20 seeds.
+- **Reste ouvert** :
+  - Rien n'a été lancé sur un appareil, ni dans Expo Go, ni sur simulateur. Ces 78 tests tournent en Node : ils prouvent la logique, pas le rendu.
+  - `npx expo export --platform ios` n'a **pas** été lancé (ce n'est pas le critère de l'étape 5) : le bundle Metro n'est donc pas prouvé depuis cette exécution.
+  - **Travail en parallèle, fusionné après coup.** Cette exécution est partie de `2efaba8` ; pendant qu'elle tournait, trois commits sont arrivés sur `mobile` (`a4bd614`, `e27fafd`, `399a0b9`) et ont terminé l'étape 9. Fusion faite ici, un seul conflit — deux entrées de journal du même jour dans `MOBILE.md` — résolu en gardant les deux, la plus récente en haut. Aucun des six fichiers du noyau n'a bougé côté web entre-temps : `copie-conforme.test.ts` est vert après la fusion. **Leçon pour la prochaine exécution : refaire `git pull --ff-only origin mobile` juste AVANT de commiter, pas seulement au démarrage.**
+  - La prochaine étape naturelle est la **6** (schéma SQLite), entièrement faisable depuis le cloud : `sqlite3` ou `node:sqlite` suffisent, aucun téléphone requis. Les étapes 7 et 8 suivent, elles aussi sans appareil.
 
 ### 2026-09-09 09:2x — Étapes 3, 4, 10 : expo-router et la connexion
 
