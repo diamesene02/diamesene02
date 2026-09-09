@@ -309,6 +309,30 @@ export async function majScore(
   ]);
 }
 
+/// Écrit l'état du chrono. Purement local : le serveur ne connaît pas le
+/// chrono, il ne reçoit que la durée au coup de sifflet final. Rien à enfiler
+/// dans la file, donc — et c'est pour ça que cette fonction ne passe pas par
+/// une opération d'outbox comme toutes les autres écritures.
+export async function majHorloge(
+  base: Base,
+  matchId: string,
+  elapsedMs: number,
+  runningSince: string | null,
+): Promise<void> {
+  await base.executer(
+    "UPDATE matches SET clock_elapsed_ms = ?, clock_running_since = ? WHERE id = ?",
+    [elapsedMs, runningSince, matchId],
+  );
+}
+
+export async function majPeriode(
+  base: Base,
+  matchId: string,
+  period: number,
+): Promise<void> {
+  await base.executer("UPDATE matches SET period = ? WHERE id = ?", [period, matchId]);
+}
+
 export async function majFinDeMatch(
   base: Base,
   matchId: string,

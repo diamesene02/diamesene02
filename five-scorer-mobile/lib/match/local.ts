@@ -56,6 +56,7 @@ import type {
 } from "../outbox/types";
 import { newId } from "../noyau/ids";
 import { RETRO_APRES_MS } from "../noyau/retro";
+import { pause as figerChrono, start as relancerChrono } from "../noyau/clock";
 import {
   compterCoequipiers,
   compterOpsDuMatch,
@@ -78,6 +79,8 @@ import {
   lireVivier,
   majButeur,
   majEquipe,
+  majHorloge,
+  majPeriode,
   majFinDeMatch,
   majPasseur,
   majScore,
@@ -649,6 +652,59 @@ export function creerMatchLocal(deps: Dependances) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /// Met le chrono en pause, ou le repart.
+  ///
+  /// L'état vit dans deux colonnes — le temps figé, et l'instant du dernier
+  /// départ — et le temps affiché s'en dérive (lib/noyau/clock.ts). Rien ne
+  /// tourne en base : c'est ce qui permet à l'app d'être tuée en plein match
+  /// et de retrouver la bonne minute en rouvrant.
+  ///
+  /// Purement local. Le serveur ne reçoit la durée qu'au coup de sifflet
+  /// final, dans `finishMatch`.
+  async function basculerHorloge(matchId: string): Promise<boolean> {
+    const m = await lireMatch(base, matchId);
+    if (!m || m.status !== "LIVE") return false;
+    const etat = {
+      elapsedMs: m.clockElapsedMs ?? 0,
+      runningSince: m.clockRunningSince ?? null,
+    };
+    const suivant = etat.runningSince
+      ? figerChrono(etat, maintenant().getTime())
+      : relancerChrono(etat, maintenant().getTime());
+    await majHorloge(base, matchId, suivant.elapsedMs, suivant.runningSince);
+    return true;
+  }
+
+  /// Lance le chrono d'un match qui n'en a pas encore.
+  ///
+  /// `depuisMs` est le temps déjà écoulé depuis le coup d'envoi : l'app peut
+  /// avoir été ouverte trois minutes après, et la feuille doit reprendre là où
+  /// le match en est, pas à zéro.
+  async function demarrerHorloge(matchId: string, depuisMs = 0): Promise<boolean> {
+    const m = await lireMatch(base, matchId);
+    if (!m || m.status !== "LIVE" || m.clockRunningSince) return false;
+    await majHorloge(
+      base,
+      matchId,
+      Math.max(0, Math.round(depuisMs)),
+      maintenant().toISOString(),
+    );
+    return true;
+  }
+
+  /// Siffle la mi-temps : fige le chrono et passe en seconde période.
+  async function siffletMiTemps(matchId: string): Promise<boolean> {
+    const m = await lireMatch(base, matchId);
+    if (!m || m.status !== "LIVE" || (m.period ?? 1) >= 2) return false;
+    const fige = figerChrono(
+      { elapsedMs: m.clockElapsedMs ?? 0, runningSince: m.clockRunningSince ?? null },
+      maintenant().getTime(),
+    );
+    await majHorloge(base, matchId, fige.elapsedMs, fige.runningSince);
+    await majPeriode(base, matchId, 2);
+    return true;
+  }
+
   /// Le vivier du club, tel que l'écran de composition en a besoin.
   ///
   /// `joueursAbsentsDuMatch` ne sert qu'une fois le match créé et ne rend que
@@ -802,6 +858,9 @@ export function creerMatchLocal(deps: Dependances) {
     ajouterJoueurAuMatch,
     joueursAbsentsDuMatch,
     effectifDuClub,
+    demarrerHorloge,
+    basculerHorloge,
+    siffletMiTemps,
     undoLastGoalOf,
     finishMatch,
     getLocalMatch,
