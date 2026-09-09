@@ -74,3 +74,10 @@ attendre.
   `device:create` en ajoute.
 - **Ce qui est envoyé.** EAS téléverse les fichiers suivis par git. `.env` est
   ignoré, seul `.env.example` part.
+
+## La version de Node
+
+Le projet exige **Node 22** (`.nvmrc`, `engines` dans package.json). Les tests
+du schéma local utilisent `node:sqlite`, module intégré depuis Node 22 : sur
+Node 20 le fichier n'échoue pas, il explose à l'import sur « No such built-in
+module », ce qui n'accuse rien. `nvm use` dans ce dossier suffit.

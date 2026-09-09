@@ -40,5 +40,8 @@
   "private": true,
   "overrides": {
     "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
