@@ -119,7 +119,11 @@ export async function GET(
             nuls: detail.allTime.draws,
             defaites: detail.allTime.losses,
             butsParMatch: detail.allTime.goalsPerMatch,
-            forme: detail.allTime.form,
+            // `getLeaderboard` rend la forme la plus RÉCENTE en premier ; on
+            // la retourne pour la lire de gauche à droite, la dernière à
+            // droite — c'est de là que part la série, et c'est ce que fait la
+            // page des stats. La fiche du site, elle, l'affichait à l'envers.
+            forme: [...detail.allTime.form].reverse(),
             serie: detail.allTime.streak,
             elo: detail.allTime.elo,
             eloTendance: detail.allTime.eloTrend,

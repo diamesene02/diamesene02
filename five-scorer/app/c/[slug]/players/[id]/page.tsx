@@ -184,8 +184,12 @@ export default async function PlayerDetailPage({
             )}
             <div className="fiche-ligne">
               <span className="l">Forme</span>
+              {/* La plus récente à DROITE, comme la page des stats :
+                  `getLeaderboard` la rend la plus récente en premier, et la
+                  fiche la peignait dans cet ordre — deux écrans du même site
+                  montraient la même forme dans deux sens. */}
               <span className="forme">
-                {allTime.form.map((r, i) => (
+                {[...allTime.form].reverse().map((r, i) => (
                   <span key={i} className={cn("forme-case", r === "W" && "v", r === "D" && "n")} title={r === "W" ? "Victoire" : r === "D" ? "Nul" : "Défaite"} />
                 ))}
               </span>

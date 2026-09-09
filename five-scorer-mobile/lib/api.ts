@@ -771,3 +771,115 @@ export async function chargerEffectif(clubId: string): Promise<FicheServeur[]> {
 export const COMPTE_DEV = /^https?:\/\/(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(API)
   ? { courriel: "dev@five.local", motDePasse: "demo-five-2026" }
   : null;
+
+/// L'écran « Stats », en un aller-retour.
+///
+/// La page du site fait une quinzaine de requêtes ; ici tout arrive assemblé —
+/// les points de chaque ligne, l'ordre du tableau, les phrases des records.
+/// L'app dessine, elle ne recalcule pas : c'est ce qui garantit que le rang
+/// affiché ici est celui de la fiche joueur.
+export type CarteJoueur = {
+  playerId: string;
+  nom: string;
+  initiales: string;
+  photo: string | null;
+  /// La chasuble de son dernier match sur la période. C'est un CAMP, pas une
+  /// couleur : l'anneau se peint avec `taR`/`tbR` du thème — les variantes
+  /// redressées, sans quoi une chasuble noire disparaît sur une carte sombre.
+  /// `null` quand il n'a pas joué : l'anneau reste neutre.
+  camp: "A" | "B" | null;
+};
+
+export type EcranStats = {
+  saisons: { choisie: string; choix: { id: string; libelle: string }[] };
+  chasubles: { a: string; b: string };
+  droits: { peutScorer: boolean };
+  tableau: (CarteJoueur & {
+    rang: number;
+    invite: boolean;
+    matchs: number;
+    victoires: number;
+    nuls: number;
+    defaites: number;
+    buts: number;
+    points: number;
+  })[];
+  buteurs: (CarteJoueur & { rang: number; buts: number; part: number })[];
+  forme: (CarteJoueur & { forme: ("W" | "D" | "L")[]; serie: number })[];
+  palmares: {
+    titre: string;
+    titres: {
+      cle: string;
+      libelle: string;
+      icone: "trophee" | "ballon" | "passe" | null;
+      or?: boolean;
+      playerId: string;
+      nom: string;
+      valeur: string;
+    }[];
+  };
+  saisonsPassees: { saison: string; lignes: string[]; vide: boolean }[];
+  derby: {
+    titre: string;
+    nomA: string;
+    nomB: string;
+    lettreA: string;
+    lettreB: string;
+    victoiresA: number;
+    victoiresB: number;
+    nuls: number;
+    total: number;
+    mene: "A" | "B" | null;
+    butsA: number;
+    butsB: number;
+    soireesA: number;
+    soireesB: number;
+    soireesPartagees: number;
+    serie: string | null;
+  } | null;
+  gardiens: (CarteJoueur & {
+    matchs: number;
+    encaisses: number;
+    moyenne: number;
+    cleanSheets: number;
+    pctVictoires: number;
+  })[];
+  records: {
+    lignes: {
+      cle: string;
+      titre: string;
+      valeur: string;
+      contexte: string;
+      cible: { quoi: "match" | "soiree" | "joueur"; id: string } | null;
+      avatar: { nom: string; initiales: string; photo: string | null } | null;
+    }[];
+    jeunesse: string | null;
+  };
+  adversaires: {
+    matchs: number;
+    victoires: number;
+    nuls: number;
+    defaites: number;
+    butsPour: number;
+    butsContre: number;
+    points: number;
+    forme: ("W" | "D" | "L")[];
+    duels: {
+      id: string;
+      nom: string;
+      victoires: number;
+      nuls: number;
+      defaites: number;
+      butsPour: number;
+      butsContre: number;
+      diff: number;
+    }[];
+  } | null;
+};
+
+export function chargerStats(clubId: string, saison?: string): Promise<EcranStats> {
+  const q = saison ? `?saison=${encodeURIComponent(saison)}` : "";
+  return appelAuthentifie<EcranStats>(
+    `/api/clubs/${encodeURIComponent(clubId)}/stats${q}`,
+  );
+}

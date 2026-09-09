@@ -149,11 +149,14 @@
   border-radius: 2px;
   background: var(--anneau, var(--i3));
 }
+/* La variante redressée, comme l'anneau des avatars : une chasuble noire
+   peinte en brut sur une carte sombre donnait une barre invisible — le
+   meilleur buteur du club en noir n'avait pas de barre du tout. */
 .stats-buteur .barre > i.A {
-  --anneau: var(--ta);
+  --anneau: var(--taR, var(--ta));
 }
 .stats-buteur .barre > i.B {
-  --anneau: var(--tb);
+  --anneau: var(--tbR, var(--tb));
 }
 .stats-buteur > .buts {
   text-align: right;
@@ -448,11 +451,15 @@
   flex-basis: 0;
   min-width: 0;
 }
+/* La jauge fait 6 px : le dégradé de l'écusson n'y sert à rien, et la couleur
+   brute d'une chasuble noire s'y confondait avec le fond de la carte — la
+   moitié du derby était invisible. Les variantes redressées, comme partout
+   ailleurs où une chasuble sert de couleur et non d'aplat. */
 .stats-derby .derby-jauge .a {
-  background: var(--taG);
+  background: var(--taR, var(--ta));
 }
 .stats-derby .derby-jauge .b {
-  background: var(--tbG);
+  background: var(--tbR, var(--tb));
 }
 .stats-derby .derby-jauge .nul {
   background: var(--i3);

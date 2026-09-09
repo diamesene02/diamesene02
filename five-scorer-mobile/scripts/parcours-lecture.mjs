@@ -240,6 +240,68 @@ async function main() {
   });
   ok(rMauvais.status === 400, "une valeur qui n'est pas un booléen : 400", `HTTP ${rMauvais.status}`);
 
+  // --- 3 ter. L'écran des stats ----------------------------------------------
+
+  console.log("\n— les stats —");
+  const [rSt, st] = await lire(`${C}/stats`);
+  ok(rSt.ok, "GET stats répond", `HTTP ${rSt.status}`);
+  ok(
+    st.saisons.choix.at(-1)?.id === "all",
+    "« Toutes saisons » ferme toujours la liste",
+    st.saisons.choix.map((c) => c.libelle).join(" / "),
+  );
+  ok(
+    st.tableau.every((l, i) => l.rang === i + 1),
+    "le tableau arrive DÉJÀ trié, rangs à l'appui",
+  );
+  ok(
+    st.tableau.every((l, i, a) => i === 0 || a[i - 1].points >= l.points),
+    "…et il est trié aux POINTS, pas aux buts",
+    st.tableau.slice(0, 3).map((l) => `${l.nom} ${l.points}`).join(" / "),
+  );
+  ok(
+    st.tableau.every((l) => l.camp === null || l.camp === "A" || l.camp === "B"),
+    "chaque ligne porte un CAMP, pas une couleur — l'anneau se peint avec le thème",
+  );
+  ok(
+    st.buteurs.every((b, i, a) => i === 0 || a[i - 1].buts >= b.buts),
+    "les buteurs vont du plus prolifique au moins",
+  );
+  ok(
+    st.buteurs.length === 0 || st.buteurs[0].part === 1,
+    "la barre du premier buteur est pleine",
+    `${st.buteurs[0]?.part}`,
+  );
+  ok(
+    st.forme.length === st.tableau.length &&
+      st.forme.every((f, i) => f.playerId === st.tableau[i].playerId),
+    "la forme suit l'ordre du tableau — chacun à la même place d'un onglet à l'autre",
+  );
+  ok(
+    st.forme.every((f) => f.forme.every((r) => "WDL".includes(r))),
+    "la forme ne contient que des V, N et D",
+  );
+  ok(
+    st.records.lignes.every((r) => r.titre && r.valeur && r.contexte),
+    "chaque record arrive avec sa phrase toute faite",
+    `${st.records.lignes.length} record(s)`,
+  );
+
+  const [, stTout] = await lire(`${C}/stats?saison=all`);
+  ok(stTout.saisons.choisie === "all", "on peut demander toutes les saisons");
+  ok(
+    stTout.tableau.length >= st.tableau.length,
+    "…et il y a au moins autant de monde qu'en une seule",
+    `${st.tableau.length} → ${stTout.tableau.length}`,
+  );
+  // Une saison qu'on ne connaît pas ne doit pas casser l'écran : elle retombe
+  // sur la saison en cours. Un lien périmé arrive par WhatsApp, pas par un
+  // attaquant.
+  const [rBidon, bidon] = await lire(`${C}/stats?saison=saison-qui-nexiste-pas`);
+  ok(rBidon.ok && bidon.saisons.choisie !== "saison-qui-nexiste-pas",
+    "une saison inconnue retombe sur celle en cours, sans erreur",
+    bidon.saisons.choisie);
+
   // --- 4. Qui n'a rien à y faire ---------------------------------------------
 
   const CHEMINS = [
@@ -248,6 +310,7 @@ async function main() {
     `${C}/matchdays/soiree-essai/lineup`,
     `${C}/effectif`,
     `${C}/joueurs/joueur-essai-1`,
+    `${C}/stats`,
   ];
   const nom = (c) => c.split("/").slice(4).join("/");
 
