@@ -464,6 +464,54 @@ Un agent ne peut trancher aucune de ces lignes.
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
 
+### 2026-09-09 19:3x — Vérification d'une dépendance, et non d'une étape
+
+- **État** : aucune étape touchée. Cette entrée existe parce que la règle 4 du
+  §5 l'exige, pas parce qu'un travail a avancé.
+- **Ce qui s'est passé.** Le commit `b76df9b` (« refaire d'après le site, pas
+  d'après un rapport », poussé par une autre session ce soir) ajoute
+  `@react-native-community/datetimepicker@9.1.0` à `package.json`. **C'est un
+  module natif tiers, pas un module du SDK Expo** — donc exactement le cas que
+  la contrainte structurante du §1 dit de vérifier et d'écrire à chaque fois.
+  Aucune ligne de ce document ne le mentionnait.
+- **Vérifié** : la documentation Expo le liste comme **inclus dans Expo Go**
+  (`https://docs.expo.dev/versions/latest/sdk/date-time-picker/` : « The module
+  is part of Expo Go. However, Expo Go may not contain the latest version of
+  the module and therefore, the newest features and bugfixes may not be
+  available. »). **Le développement dans Expo Go n'est donc pas cassé** — c'est
+  l'un des rares modules tiers qu'Expo embarque, comme `react-native-svg` ou
+  `react-native-webview`.
+
+  ```
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  (aucune sortie, code 0)
+
+  $ npm run tester
+   Test Files  12 passed (12)
+        Tests  184 passed (184)
+  ```
+
+- **Ce que je n'ai PAS pu vérifier**, et il ne faut pas le croire vérifié :
+  **que `9.1.0` soit bien la version qu'`expo install` choisit pour le SDK 57.**
+  La commande qui le dit interroge l'API de versions d'Expo, et le proxy de
+  sortie de ce conteneur la refuse :
+
+  ```
+  $ npx expo install --check
+  Error: HTTP Proxy Network Error: Forbidden
+  ```
+
+  Le risque est réel mais petit : Expo Go embarque **sa** version du module, et
+  une version épinglée trop récente se traduit par un écart de comportement
+  entre Expo Go et le build natif, pas par un plantage au démarrage. **À faire
+  sur le Mac, en une commande** : `npx expo install --check` dans
+  `five-scorer-mobile/`, et suivre ce qu'il propose.
+- **Fichiers touchés** : `/home/user/diamesene02/five-scorer/MOBILE.md`
+  (cette entrée). Aucun code.
+- **Reste ouvert** : le journal du commit `b76df9b` lui-même — l'autre session
+  n'a pas encore écrit son entrée pour les écrans refaits ; celle-ci ne la
+  remplace pas et ne raconte que la dépendance.
+
 ### 2026-09-09 18:1x — Étape 11 : les actions de match sur SQLite
 
 - **État** : à faire → **fait**
