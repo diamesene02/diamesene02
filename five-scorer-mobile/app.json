@@ -21,6 +21,14 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "fivescorer"
+    "scheme": "fivescorer",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

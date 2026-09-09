@@ -1,15 +1,25 @@
 {
   "name": "five-scorer-mobile",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "dependencies": {
+    "@better-auth/expo": "1.7.1",
     "@expo/metro-runtime": "~57.0.15",
+    "better-auth": "1.7.1",
     "expo": "~57.0.21",
+    "expo-constants": "~57.0.17",
     "expo-linear-gradient": "~57.0.1",
+    "expo-linking": "~57.0.9",
+    "expo-network": "~57.0.1",
+    "expo-router": "~57.0.20",
+    "expo-secure-store": "~57.0.3",
     "expo-status-bar": "~57.0.1",
+    "expo-web-browser": "~57.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
