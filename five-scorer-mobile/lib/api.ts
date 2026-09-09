@@ -402,6 +402,70 @@ export function repondrePresence(
   );
 }
 
+export type FicheMatch = {
+  id: string;
+  statut: "PROGRAMME" | "ANNULE" | "EN_DIRECT" | "TERMINE";
+  retro: boolean;
+  contexte: string | null;
+  dateCourte: string;
+  dateLongue: string;
+  heure: string;
+  joueLe: string;
+  soireeId: string | null;
+  saison: { id: string; nom: string } | null;
+  dureeMin: number | null;
+  scoreA: number;
+  scoreB: number;
+  camps: {
+    camp: "A" | "B";
+    nom: string;
+    lettre: string;
+    bilan: string | null;
+    buteurs: { nom: string; minutes: (number | null)[] }[];
+  }[];
+  chasubles: { a: string; b: string };
+  statistiques: { libelle: string; a: number; b: number; accent?: "or" }[];
+  chronologie: {
+    id: string;
+    minute: number | null;
+    camp: "A" | "B";
+    nom: string;
+    passeur: string | null;
+    scoreA: number;
+    scoreB: number;
+  }[];
+  effectifs: {
+    camp: "A" | "B";
+    joueurs: {
+      playerId: string;
+      nom: string;
+      initiales: string;
+      photo: string | null;
+      buts: number;
+      gardien: boolean;
+    }[];
+  }[];
+  homme: {
+    playerId: string;
+    nom: string;
+    photo: string | null;
+    camp: "A" | "B" | null;
+    buts: number;
+    votes: { pour: number; total: number } | null;
+  } | null;
+  vote: {
+    monVote: string | null;
+    candidats: { playerId: string; nom: string; photo: string | null; voix: number }[];
+  } | null;
+  droits: { peutSaisir: boolean; peutGerer: boolean };
+};
+
+export function chargerFicheMatch(clubId: string, matchId: string): Promise<FicheMatch> {
+  return appelAuthentifie<FicheMatch>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matchs/${encodeURIComponent(matchId)}`,
+  );
+}
+
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
 export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy";

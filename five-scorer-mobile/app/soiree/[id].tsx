@@ -246,7 +246,13 @@ export default function Soiree() {
                 {fiche.matchs.map((m, i) => (
                   <Pressable
                     key={m.id}
-                    onPress={() => router.push({ pathname: "/match/[id]", params: { id: m.id } })}
+                    onPress={() =>
+                      router.push(
+                        m.direct
+                          ? { pathname: "/match/[id]", params: { id: m.id } }
+                          : { pathname: "/recap/[id]", params: { id: m.id, clubId: club ?? "" } },
+                      )
+                    }
                     style={({ pressed }) => [
                       s.match,
                       i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.sep },

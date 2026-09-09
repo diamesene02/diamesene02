@@ -207,7 +207,13 @@ export default function ClubAccueil() {
               listeVisible.map((m, i) => (
                 <Pressable
                   key={m.id}
-                  onPress={() => router.push({ pathname: "/match/[id]", params: { id: m.id } })}
+                  onPress={() =>
+                    router.push(
+                      m.statut === "LIVE"
+                        ? { pathname: "/match/[id]", params: { id: m.id } }
+                        : { pathname: "/recap/[id]", params: { id: m.id, clubId: id } },
+                    )
+                  }
                   style={[s.ligneMatch, i > 0 && { borderTopWidth: 1, borderTopColor: t.sep }]}
                 >
                   <View style={s.cote}>

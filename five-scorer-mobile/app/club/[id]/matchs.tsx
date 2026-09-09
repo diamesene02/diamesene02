@@ -232,7 +232,11 @@ export default function Matchs() {
             {g.lignes.map((m) => (
               <Pressable
                 key={m.id}
-                onPress={() => router.push({ pathname: "/match/[id]", params: { id: m.id } })}
+                // Un match terminé n'est pas sur l'appareil : son récap se lit
+                // au serveur. La feuille en direct, elle, lit la base locale.
+                onPress={() =>
+                  router.push({ pathname: "/recap/[id]", params: { id: m.id, clubId: id } })
+                }
                 style={({ pressed }) => [s.ticker, pressed && { opacity: 0.7 }]}
               >
                 <Text style={[s.tickerJour, { color: t.i2 }]}>{m.heure}</Text>
