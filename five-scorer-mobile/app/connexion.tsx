@@ -14,7 +14,7 @@ import Ecran from "../composants/Ecran";
 import { BoutonPlein, Carte, Champ } from "../composants/base";
 import { JETONS_NEUTRES } from "../lib/couleurs";
 import { signIn, signUp } from "../lib/auth-client";
-import { API } from "../lib/api";
+import { API, COMPTE_DEV, OBSTACLE } from "../lib/api";
 
 /// Connexion et inscription, sur le même écran.
 ///
@@ -30,6 +30,7 @@ export default function Connexion() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
   const t = JETONS_NEUTRES;
+  const compteDev = COMPTE_DEV;
 
   const valider = async () => {
     setErreur(null);
@@ -65,7 +66,8 @@ export default function Connexion() {
       setErreur(
         (e instanceof Error ? e.message : String(e)) +
           "\n\nServeur : " +
-          API,
+          API +
+          (OBSTACLE ? "\n\n" + OBSTACLE : ""),
       );
     } finally {
       setOccupe(false);
@@ -153,6 +155,29 @@ export default function Connexion() {
           <Pressable onPress={() => router.replace("/vitrine")}>
             <Text style={[s.bascule, { color: t.i3 }]}>Voir le club sans compte</Text>
           </Pressable>
+
+          {/* Un tap au lieu d'un mot de passe tapé au clavier du téléphone à
+              chaque rechargement. Uniquement en développement : `__DEV__` est
+              remplacé par `false` au moment du build de production, et le
+              bloc entier disparaît du bundle. */}
+          {__DEV__ && compteDev && !inscription && (
+            <Pressable
+              onPress={() => {
+                setEmail(compteDev.courriel);
+                setMotDePasse(compteDev.motDePasse);
+                setErreur(null);
+              }}
+            >
+              <Text style={[s.bascule, { color: t.i3 }]}>
+                Remplir le compte de dev
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Le serveur, toujours visible. La moitié des ennuis de
+              développement mobile viennent de ce qu'on ne sait pas à qui on
+              parle : la prod, le Mac, ou une adresse qui n'existe plus. */}
+          <Text style={[s.serveur, { color: t.i3 }]}>{API}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </Ecran>
@@ -173,7 +198,14 @@ function messageLisible(code: string | undefined, defaut: string | undefined): s
     case "PASSWORD_TOO_SHORT":
       return "Le mot de passe fait au moins 8 caractères.";
     case "INVALID_ORIGIN":
-      return "Le serveur refuse l'origine de l'app. En développement, ajoute exp:// et exps:// aux origines de confiance.";
+      // Le cas le plus probable, et de loin : Expo Go pointé sur la
+      // production, qui refuse volontairement les origines exp://.
+      return (
+        "Ce serveur n'accepte pas la connexion depuis Expo Go, et c'est " +
+        "voulu : seul un vrai build de l'app y a droit.\n\n" +
+        "Pour te connecter maintenant, lance « pnpm dev » sur le Mac — " +
+        "l'app s'y branche toute seule en développement."
+      );
     default:
       return defaut ?? "Ça n'a pas marché.";
   }
@@ -185,4 +217,5 @@ const s = StyleSheet.create({
   erreur: { fontSize: 15, textAlign: "center" },
   attente: { height: 52, alignItems: "center", justifyContent: "center" },
   bascule: { fontSize: 15, textAlign: "center" },
+  serveur: { fontSize: 12, textAlign: "center", paddingTop: 6 },
 });
