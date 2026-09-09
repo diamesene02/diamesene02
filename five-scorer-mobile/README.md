@@ -7,7 +7,7 @@ club joue tous les lundis.
 ## Sur ton iPhone, en trois commandes
 
 ```bash
-cd five-scorer-mobile
+cd /Users/ibc/diamesene02/five-scorer-mobile
 npm install
 npx expo start
 ```

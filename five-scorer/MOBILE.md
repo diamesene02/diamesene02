@@ -1,329 +1,495 @@
-# MOBILE.md — mettre Five Scorer sur un téléphone
+# MOBILE.md — Five Scorer en React Native (Expo)
 
-> État au 9 septembre 2026. Ce document est le fruit de six enquêtes de lecture du dépôt et de deux contre-enquêtes qui ont tenté de les réfuter. Tous les chiffres cités viennent d'un comptage sur les fichiers, pas d'une estimation. Quand deux enquêtes se contredisent, la contradiction est signalée et tranchée.
-
----
-
-## 1. Lancer sur mon téléphone
-
-**Réponse courte : il n'existe aujourd'hui aucune commande unique qui mette le code local sur l'iPhone.** Voici l'état réel, du plus immédiat au plus cassé.
-
-### a. L'app de production sur l'iPhone — maintenant, zéro commande
-
-```
-Safari → https://five-scorer.vercel.app → Partager → « Ajouter à l'écran d'accueil »
-```
-
-C'est la PWA. Elle est déjà outillée : `public/manifest.webmanifest` (`display: standalone`, icônes 192/512 any + maskable) et `public/icons/apple-touch-icon.png`. Icône, plein écran, hors-ligne. C'est ce que décrit déjà `five-scorer-android/STORE.md` §4. **État : fonctionne.**
-
-### b. Le code local sur le téléphone (même Wi-Fi) — une commande, trois réserves
-
-```bash
-cd /Users/ibc/diamesene02/five-scorer && pnpm dev
-# puis, sur le téléphone : http://192.168.1.192:3000
-```
-
-`next dev` écoute sur `0.0.0.0` par défaut (`npx next dev --help` → `-H, --hostname <hostname> (default: 0.0.0.0)`), et l'IP LAN du Mac est `192.168.1.192` (`ipconfig getifaddr en0`). Une configuration existe déjà : `/Users/ibc/diamesene02/five-scorer/.claude/launch.json` (`pnpm dev`, port 3000).
-
-Trois choses bloquent, et **elles bloquent les trois chemins**, puisque tous pointent le même serveur de dev :
-
-1. **Pas de rechargement à chaud.** `next.config.js` ne déclare pas `allowedDevOrigins` ; Next 16 refuse les requêtes dev venant d'une autre origine que localhost (`node_modules/next/dist/esm/server/lib/router-utils/block-cross-site-dev.js`). Les pages s'affichent, mais `_next/webpack-hmr` est refusé : il faut recharger à la main à chaque édition. Correctif d'une ligne : `allowedDevOrigins: ['192.168.1.192']`.
-2. **Impossible de se connecter.** `.env` contient `BETTER_AUTH_URL="http://localhost:3000"` et `lib/auth.ts` en dérive ses `trustedOrigins`. Depuis l'IP LAN, Better Auth répond `INVALID_ORIGIN` — et le commentaire de `lib/auth.ts` raconte lui-même le piège : l'écran d'inscription traduisait cette erreur, à tort, par « cet email est déjà utilisé ».
-3. **Le hors-ligne ne se teste pas.** `components/RegisterSW.tsx` contient `if (process.env.NODE_ENV !== "production") return;` : le service worker n'est jamais enregistré sous `pnpm dev`. Le mode gymnase se teste contre `pnpm build && pnpm start`, ou contre la prod.
-
-**État : fonctionne pour regarder, pas pour tester.**
-
-### c. Android natif — cassé sur cette machine
-
-```bash
-export JAVA_HOME=/usr/local/Cellar/openjdk@21/21.0.12.1/libexec/openjdk.jdk/Contents/Home
-export ANDROID_HOME=$HOME/Library/Android/sdk
-cd /Users/ibc/diamesene02/five-scorer-android && npm run build:apk
-```
-
-`/usr/libexec/java_home -V` répond « Unable to locate a Java Runtime » : le lien `/Library/Java/JavaVirtualMachines/openjdk-17.jdk` pointe sur un chemin disparu. Le seul JDK réellement installé est OpenJDK 21.0.12.1, hors du PATH. `ANDROID_HOME` est vide, alors que le SDK est bien là (`~/Library/Android/sdk`, build-tools 34.0.0 et 35.0.0). **État : bloqué. Personne n'a relancé ce build depuis le 7 septembre, et les deux lignes d'export ci-dessus n'ont pas été vérifiées — aucune enquête n'a exécuté de build Android.**
-
-### d. iOS — n'existe pas
-
-Il n'y a aucun projet iOS dans le dépôt : pas de dossier `ios/`, pas de `.xcodeproj`, pas de `Podfile`, `@capacitor/ios` absent de `node_modules` et de `package-lock.json`. Le seul dossier nommé `ios` est `/Users/ibc/diamesene02/five-scorer/components/ios/`, qui contient 11 à 12 composants React de style iOS (`Ecusson.tsx`, `Carte.tsx`, `Onglets.tsx`, `BarreClub.tsx`…), pas un projet Xcode.
-
-L'amorce, à faire une fois :
-
-```bash
-cd /Users/ibc/diamesene02/five-scorer-android
-npm i -D @capacitor/ios@^7   # ^7 impératif : la dernière publiée est 8.5.1, le projet est en 7.6.1
-npx cap add ios
-npx cap open ios             # régler l'équipe de signature dans Xcode
-```
-
-Puis, en théorie, la commande quotidienne :
-
-```bash
-npx cap run ios --target 00008110-000E54E01A05801E -l --host 192.168.1.192 --port 3000
-```
-
-Le Mac est équipé : Xcode 26.3 (17C529), CocoaPods 1.16.2, Node v20.20.0, pnpm 10.28.2, watchman, eas-cli. L'iPhone est appairé : « iPhone de Diame », iPhone 13 Pro, iOS 26.2.1, UDID `00008110-000E54E01A05801E`. **Mais `npx cap run ios` sur un appareil physique en iOS 26 n'a pas été vérifié** : native-run 2.0.3 utilise sa propre pile d'installation et des tickets Capacitor signalent des échecs sur appareil réel (ionic-team/capacitor#6254, #7149), avec pour repli `npx cap open ios` + bouton Run dans Xcode — ce qui n'est alors plus « une commande ». **État : à amorcer, non vérifié.**
+> Ce document **remplace** celui qui recommandait Capacitor. La décision est prise par le propriétaire : on réécrit l'app en React Native, et on développe dans **Expo Go** (scan d'un QR code depuis l'iPhone, pas de build natif au début). Le débat Capacitor n'est pas rouvert ; ce qu'on abandonne en le fermant est écrit noir sur blanc au §2.
+>
+> Ce fichier est écrit pour être **exécuté par un agent sans contexte**. Chaque étape du §4 a un critère de terminé vérifiable **sans téléphone** : une commande, et la sortie attendue.
+>
+> Les chiffres marqués « (compté) » ont été obtenus par commande sur le dépôt. Ceux marqués « (enquête) » viennent des enquêtes préparatoires, faites au commit `117176b` ; le HEAD actuel est `9944e84` (« feat(api): la vitrine publique accepte toute origine »), donc un recomptage peut donner ±quelques lignes. **N'invente jamais un chiffre : recompte, ou écris « non mesuré ».**
 
 ---
 
-## 2. Les trois chemins
+## 1. Lancer sur mon iPhone dans Expo Go
 
-| | 1. Coquille Capacitor sur URL distante | 2. Export statique / SPA embarquée | 3. React Native / Expo |
-|---|---|---|---|
-| **Ce qui marche déjà** | AAB signé prêt à l'envoi (2 932 874 o, 7 sept. 2026) ; Capacitor 7.6.1 ; keystore valide jusqu'en 2056 | 3 pages sur 26 sont exportables : `/hors-ligne`, `/privacy`, `/terms` | Rien. Zéro ligne de React Native ou Expo dans les deux dépôts, sur 103 commits |
-| **Reste à écrire** | 0 ligne d'app. Montée en Capacitor 8, icônes, splash, versionCode, suppression de compte | ≈ 7 292 lignes serveur à réécrire + 2 chantiers non comptés | ≈ 21 137 lignes de présentation + 3 593 lignes de couche locale + 51 endpoints |
-| **Ce qui survit** | Tout | La logique métier, le schéma, `lib/stats.ts` | ≈ 1 000 lignes sur 28 237 de TS + CSS, soit ≈ 3,5 % |
-| **Play Store** | Passe. Mais `targetSdk 35` est refusé depuis le 31 août 2026 | Passe | Passe |
-| **App Store** | Risque 4.2 / 2.5.2 élevé — 0 plugin natif, 2 permissions | Meilleur profil 4.2 | Meilleur profil 4.2 |
-| **Ordre de grandeur** | Jours | Semaines à mois | Mois |
+### Où on en est, franchement
 
-### Chemin 1 — la coquille Capacitor qui charge l'URL de production
+**Ce qui marche déjà :**
 
-**Ce qui marche.** `/Users/ibc/diamesene02/five-scorer-android/capacitor.config.json` : `"webDir": "shell"`, `"server": { "url": "https://five-scorer.vercel.app", "androidScheme": "https", "errorPath": "index.html" }`. L'AAB `dist/five-scorer-release.aab` (2 932 874 octets, 7 septembre 2026 08:04) est signé par la vraie clé release — `jarsigner -verify` répond « jar verified », `CN=Five Scorer, OU=App, O=Diame, C=FR`, SHA-256 `afcc5084…c51e`. `applicationId dev.diame.fivescorer`, minSdk 23, targetSdk 35, 2 permissions (`INTERNET`, `ACCESS_NETWORK_STATE`).
+- L'app web est en production sur https://five-scorer.vercel.app et **y reste** pendant toute la réécriture.
+- Les **écritures** du match en direct sont déjà en HTTP et déjà durcies : 10 handlers HTTP sous `app/api/clubs/` (compté), idempotents par identifiant généré côté client (`lib/ids.ts` → cuid2), avec upsert du match, dédoublonnage des événements, PATCH/DELETE tolérants au rejeu. **L'app Expo pourra taper ces routes telles quelles, sans une ligne de serveur à écrire pour la saisie.**
+- Le Mac est prêt : Node v20.20.0 (compté) et 22.22.0 via nvm, pnpm 10.28.2, watchman, Xcode 26.3 (build 17C529), simulateurs iOS 18.6 et 26.2 (enquête). Le développement build n'est donc **pas** un mur : c'est une commande.
 
-**Ce que le binaire contient réellement.** `unzip -l` sur l'AAB donne, sous `base/assets/` : `capacitor.config.json` (299 o), `capacitor.plugins.json` (**3 octets — soit `[]`, zéro plugin**), `native-bridge.js` (53 102 o), `public/index.html` (3 624 o = la page « Le serveur est injoignable »), et deux fichiers Cordova de 0 octet. Si le réviseur n'atteint pas `five-scorer.vercel.app` au moment du test, c'est littéralement tout ce qu'il voit.
+**Ce qui ne marche pas encore — à savoir avant de taper la première commande :**
 
-**Ce qu'il reste à écrire.** Zéro ligne d'application. En revanche : la montée en Capacitor 8 (`targetSdk 36`, `minSdk 24`, Node 22+ — le Mac est en Node 20.20.0) ; le splash, qui est aujourd'hui **le logo Capacitor** (les 11 `splash.png` sous `android/app/src/main/res/drawable-*` datent du 25 mars 17:34, template jamais touché) ; les couleurs natives, jamais appliquées parce que le §5 de `scripts/customize-android.mjs` teste `existsSync(colors.xml)` sur un fichier qui n'existe pas — no-op silencieux, l'app tourne donc avec l'indigo/rose Material par défaut (`colorPrimary #3F51B5` défini dans `node_modules/@capacitor/android/capacitor/src/main/res/values/colors.xml`) ; les icônes adaptatives, générées en 48/72/96/144/192 px alors que le format 108dp demande 108/162/216/324/**432** — soit un upscale subi de 2,25× et un « FS » plein-bord que le masque du launcher rognera ; le `versionCode`, calculé en `AAAAMMJJ` (`versionCode 20260907`), donc identique pour deux builds le même jour, ce que le Play Store refuse.
+- **Le projet Expo n'existe pas.** Il n'y a rien à lancer aujourd'hui : la première étape le crée.
+- **Il n'y a aucune API de lecture.** Sur les 10 fichiers `route.ts` (compté), les seuls GET sont `roster`, `export` (CSV), `public/[slug]`, `cal/[token]`, `diagnostic`. Tout le reste des lectures passe par 26 `page.tsx` (compté) en composants serveur et 32 server actions dans 11 fichiers `"use server"` (compté) — deux mécanismes **inatteignables depuis React Native**. Une app native branchée aujourd'hui démarrerait sur une base vide.
+- **Better Auth refusera la première connexion** : `trustedOrigins()` dans `lib/auth.ts` ne connaît que l'URL du site et les alias Vercel, et le plugin serveur `expo()` n'est pas monté. Symptôme attendu : `INVALID_ORIGIN` — le piège déjà vécu sur ce projet, où il avait été affiché comme « cet email est déjà utilisé » (commentaire de `lib/auth.ts`).
+- **Toute la couche hors-ligne est à réécrire** : Dexie/IndexedDB et le service worker n'existent pas en React Native.
 
-**Risque store.** Côté **Google**, la règle webview ne mord pas : « We don't allow apps whose primary purpose is to drive affiliate traffic to a website or provide a webview of a website **without permission from the website owner or administrator** » (https://support.google.com/googleplay/android-developer/answer/9899034) — ici le propriétaire du site est le développeur. La vraie contrainte est « Limited Functionality and Content » (https://support.google.com/googleplay/android-developer/answer/9898783), et une app de club avec comptes, scoring live et stats n'en relève pas. Le vrai blocage Play est ailleurs : **API 36 obligatoire depuis le 31 août 2026** pour les nouvelles apps ET les mises à jour (https://support.google.com/googleplay/android-developer/answer/11926878), donc l'AAB du 7 septembre sera très probablement refusé à l'upload — contrôle automatique, pas revue humaine.
+### Les commandes, dans l'ordre
 
-Côté **Apple**, la guideline 4.2 dit : « Your app should include features, content, and UI that elevate it beyond a repackaged website. If your app is not particularly useful, unique, or "app-like," it doesn't belong on the App Store. » Et 2.5.2 : « Apps should be self-contained in their bundles… nor may they download, install, or execute code which introduces or changes features or functionality of the app » (https://developer.apple.com/app-store/review/guidelines/, sections relues le 9 septembre 2026). Deux rejets 4.2 documentés et datés : forum Apple **812889** (janvier 2026) — app Capacitor de VTC rejetée alors qu'elle embarquait Core Location natif, la feuille de partage iOS, des deep links Apple Maps et des plugins Swift maison ; forum Apple **806726** (novembre 2025) — dix rejets pour une app qui n'avait plus que 2 ou 3 écrans en WebView. À l'inverse, Median.co revendique publiquement « a 98% approval rate across both the App Store and Google Play » (https://median.co/blog/will-apple-approve-my-webview-app) — chiffre d'éditeur, auto-déclaré, invérifiable, et leur propre doc dit : « If your app is a website wrapped in a webview with nothing native added, expect a Guideline 4.2 or 2.1 rejection. »
+```bash
+# 0) Quelle version d'Expo Go l'App Store sert-il aujourd'hui ? C'est ELLE qui fixe le SDK.
+curl -s "https://itunes.apple.com/lookup?id=982107779" \
+  | python3 -c "import sys,json; a=json.load(sys.stdin)['results'][0]; print(a['version'], a['currentVersionReleaseDate'], a['price'], a['minimumOsVersion'])"
+# Attendu (relevé le 2026-09-02) : 57.0.9  2026-09-02T17:00:03Z  0.0  16.4
+# Si la version majeure n'est PAS 57, va lire l'encadré « Contradiction tranchée » ci-dessous.
 
-**Conclusion honnête : aucun rejet n'est jamais documenté pour le seul motif `server.url`. Le lien `server.url` → rejet est une inférence tirée de 2.5.2, jamais une observation. Mais Five Scorer, avec 0 plugin et 2 permissions, est le profil le plus exposé possible.**
+# 1) Node. 20.20.0 suffit pour le SDK 57 ; autant prendre 22 tout de suite,
+#    le SDK 58 (react-native 0.87) abandonnera Node 20.
+nvm use 22.22.0
+node -v            # v22.22.0
 
-### Chemin 2 — export statique, assets embarqués dans la coquille
+# 2) Le projet mobile vit DANS le dépôt, dans mobile/ (voir §3.1).
+cd /Users/ibc/diamesene02/five-scorer
+mkdir -p mobile && cd mobile
+npx create-expo-app@latest . --template default
 
-**C'est prouvé impossible en l'état, deux fois, par deux enquêteurs indépendants.** La seconde fois sans aucun stub sur les trois premières barrières. Les cinq erreurs, dans l'ordre où le compilateur les crache (Next 16.2.3, Turbopack) :
+# 3) VÉRIFICATION OBLIGATOIRE : Expo Go n'embarque qu'UN SDK.
+node -p "require('./package.json').dependencies.expo"
+# Doit commencer par 57. Sinon : npx expo install expo@^57.0.0 && npx expo install --fix
 
-1. `export const dynamic = "force-static"/export const revalidate not configured on route "/api/clubs/[clubId]/roster" with "output: export"`
-2. `Page "/c/[slug]/matches/[id]/live" is missing "generateStaticParams()" so it cannot be used with "output: export" config.`
-3. `Server Actions are not supported with static export.` — **contrôle global sur le manifeste** (`node_modules/next/dist/export/index.js:372-377`), lancé avant le rendu de la moindre page : aucune échappatoire page par page.
-4. `` Page with `dynamic = "force-dynamic"` couldn't be exported. ``
-5. `` Route /c/[slug]/matches avec `dynamic = "error"` couldn't be rendered statically because it used `headers()` `` (et `cookies()`), code `NEXT_STATIC_GEN_BAILOUT`.
+# 4) Compte Expo. Depuis le SDK 57 il faut être connecté des DEUX côtés, avec le MÊME compte. C'est gratuit.
+npx expo login
 
-Ce qui bloque, compté fichier par fichier : **22** `export const dynamic = "force-dynamic"` (20 pages + `app/api/diagnostic/route.ts:5` et `app/api/cal/[token]/route.ts:4`) ; **32 Server Actions** dans **11 fichiers** de `app/actions/` (1 472 lignes), avec **46** appels `revalidatePath`/`revalidateTag` ; **10 route handlers** (9 sous `app/api/` + `app/session-expiree/route.ts`), dont 8 à segment dynamique ; **19 pages** à segment dynamique et **0** `generateStaticParams` dans tout le dépôt ; **20** pages/layouts qui appellent `cookies()`/`headers()` via `lib/guard.ts` ; **19** fichiers page/layout qui importent Prisma directement.
+# 5) Démarrage. Le QR s'affiche dans le terminal.
+npx expo start
+```
 
-Et deux pièges que la première enquête n'avait pas vus, tous deux contre l'export :
+Sur l'iPhone, dans cet ordre :
 
-- **L'échappatoire « generateStaticParams qui renvoie `[]` » est fermée.** Testé : ajouté aux 19 pages dynamiques *et* à `app/c/[slug]/layout.tsx`, le build refuse toujours. La raison est dans le code installé, `node_modules/next/dist/build/index.js:1356-1359` : `hasGenerateStaticParams = workerResult.prerenderedRoutes && workerResult.prerenderedRoutes.length > 0`. Il faut **graver au moins une URL factice par route dynamique** dans l'APK, et faire vivre tout le routage sous ce chemin fantôme (`/c/x/...`) ou en query string.
-- **Le service worker se désactive en silence sur l'API.** `public/sw.js:280` : `if (url.origin !== self.location.origin) return;`. L'API partie sur un autre hôte, chaque appel devient cross-origin et sort du service worker : la branche `p.startsWith("/api/")` (`sw.js:283`), le délai `DELAI_API` de 6 s (`sw.js:45`), le repli sur cache et le 503 `{"error":"offline"}` (`sw.js:262-275`) deviennent du code mort. Les URLs concernées sont relatives et en dur : `lib/sync.ts:104` (`` const base = `/api/clubs/${op.clubId}` ``) et `app/c/[slug]/matches/new/NewMatchForm.tsx:90`. Et `lib/auth-client.ts` ne fixe aucun `baseURL`. **Le build ne dirait rien, la pastille de sync ne dirait rien, et la file d'attente échouerait au premier match sans réseau.** Même classe de piège que le middleware, mais sur la fonction qui justifie l'app.
+1. **App Store → « Expo Go »** (éditeur : 650 Industries, Inc.) → installer. Vérifier que la version affichée est **57.x**. iOS 16.4 minimum.
+2. Ouvrir Expo Go → onglet **Home** → avatar en haut → **se connecter avec le même compte** qu'à l'étape 4. Sans ça, le SDK 57 refuse de charger le projet.
+3. Mac et iPhone sur **le même Wi-Fi** (pas de partage de connexion, pas de réseau « invité » qui isole les clients).
+4. Appareil photo iOS → viser le QR → toucher la bannière.
 
-Le middleware, justement : il ne provoque **aucune erreur**, il est désactivé avec un simple avertissement (`node_modules/next/dist/export/index.js` ~ligne 511). La redirection vers `/login`, la sortie `?session=expiree` et le 401 de l'outbox disparaîtraient sans un mot.
+**Si le QR ne donne rien**, dans l'ordre du moins cher au plus cher :
 
-**Volume, borne basse corrigée : 7 292 lignes** = 4 363 (20 pages/layouts serveur) + 1 472 (32 actions) + 1 174 (10 route handlers) + 283 (auth + guard + auth-client + middleware), sur 21 712 lignes de TypeScript et 147 fichiers. Soit un tiers du code — et le tiers qui porte l'authentification, les droits et toutes les écritures.
+```bash
+npx expo start --tunnel     # contourne un Wi-Fi qui isole les appareils (plus lent)
+npx expo start   puis  i    # simulateur iOS, aucun iPhone requis
+npx expo run:ios --device   # development build local, Xcode 26.3, identifiant Apple GRATUIT suffit
+```
 
-**Quatre pièges classiques n'existent pas ici**, et c'est le seul point où la première enquête était trop pessimiste : 0 `next/image`, 0 `next/font`, 0 `sitemap.ts`/`robots.ts`/`opengraph-image`, 0 route d'interception, et `next.config.js` sans `rewrites`/`redirects`/`headers`. Le layout racine est propre, ce qui confirme `/privacy`, `/terms` et `/hors-ligne` comme exportables.
+> ### Contradiction tranchée : SDK 54 ou SDK 57 ?
+>
+> Deux enquêtes disent « Expo Go est gelé au SDK 54 depuis la panne d'approbation Apple de mai 2026 », deux autres disent « Expo Go 57.0.9 est revenu sur l'App Store le 2026-09-02 ». Elles ne se contredisent pas dans le temps : les premières s'appuient sur la **documentation et les changelogs d'Expo**, qui datent de la panne et n'ont pas été mis à jour ; la dernière s'appuie sur **l'API d'Apple**, interrogée le 2026-09-09.
+>
+> **On tranche : SDK 57**, parce qu'une réponse de l'App Store vaut mieux qu'une page de doc périmée, et parce que `expo@57.0.21` est bien la version `latest` du registre npm au 2026-09-08 (enquête). Mais la commande 0 ci-dessus **doit être relancée** : si elle renvoie 54.x, on repasse le projet en SDK 54 (`npx expo install expo@^54.0.0 && npx expo install --fix`), ce qui ne change **aucun** choix de bibliothèque de ce document — tous les modules retenus existent des deux côtés. Le seul cas qui coûte de l'argent est décrit au §6.
 
-**Nuance importante que la contre-enquête a levée : ce chemin a déjà été parcouru, et une partie du travail est encore sur le disque.** Le commit `653e7df` a fait passer `capacitor.config.json` de `"webDir": "www"` à `"webDir": "shell"` + `server.url`. `/Users/ibc/diamesene02/five-scorer-android/www/` contient toujours 18 fichiers : `index.html`, `app.css` (35 895 o), `app.bundle.js` (361 053 o, non versionné), deux polices, 5 icônes, et 8 modules dans `www/src/` (`ui.js` 42 911 o, `db.js`, `sync.js`, `shareCard.js`, `audio.js`, `mvp.js`, `entry.js`, `config.js`) — 2 269 lignes. C'est une app autonome complète. Mais **elle vise Supabase, pas le backend actuel**, et `www/src/config.js`, **suivi par git**, contient en clair une URL Supabase, une clé « publishable », le PIN `1234`, et un commentaire indiquant que les tables n'ont aucune RLS. Le README android tranche déjà : « le multi-clubs avec comptes ne peut pas vivre dans un bundle statique. »
+---
 
-**Risque store : c'est le seul chemin qui améliore le dossier Apple sans réécrire l'UI** — un bundle embarqué neutralise 2.5.2 et l'accident 2.1(a) (« crash or exhibit obvious technical problems », et un réviseur hors réseau ne verrait plus la page d'erreur). C'est le bénéfice que la première enquête n'avait pas pesé. Il ne rachète pas les 7 292 lignes.
+## 2. Ce qu'on fait, et ce que ça coûte
 
-### Chemin 3 — React Native / Expo
+1. **On réécrit Five Scorer en React Native / Expo**, développement en Expo Go d'abord ; le backend reste le Next.js existant, en production, inchangé pour les écritures.
+2. **Le cœur du lundi soir pèse 3 954 lignes** (LiveMatch 1035 + NewMatchForm 512 + PlayShell 333 + PlayerTile 140 + MvpPicker 72 + SyncBadge 109 + localMatch 707 + db 259 + sync 386 + clock 41 + audio 141 + balance 148 + ids 43 + retro 28, enquête), soit **18 % des 21 806 lignes TS/TSX du dépôt** — pour 100 % du parcours « j'arrive, je compose, je siffle, je marque, je termine, on rejoue ».
+3. **Ce qui disparaît sans remplacement** : `public/sw.js` (305 lignes, compté), `RegisterSW.tsx`, `app/hors-ligne/`, la gymnastique de `PlayShell` qui devine l'identifiant du match dans l'URL, `navigator.storage.persist()`. En natif, le code est sur le téléphone.
+4. **Ce qui coûte plus cher que prévu**, et qu'il faut inscrire au budget dès maintenant : les **32 server actions** sans jumeau HTTP (compté), les **~6 525 lignes de CSS** (enquête) dont rien ne se transpose, `lib/shareCard.ts` (291 lignes de Canvas 2D, compté) et `lib/audio.ts` (141 lignes de Web Audio, compté) qui n'ont aucun équivalent direct.
+5. **Pendant tout ce temps, la PWA reste en production et reste l'outil du lundi.** On ne coupe rien. Les deux apps écrivent dans la même base par les mêmes endpoints idempotents ; elles cohabitent tant qu'une seule *saisit* un match donné.
 
-**Ce qui marche : rien.** Aucune occurrence de `react-native` ni de `expo` dans les deux `package.json`, ni dans les 103 commits du dépôt android. Les deux seules mentions dans tout le dépôt sont deux lignes de portfolio dans `/Users/ibc/diamesene02/README.md`.
+### Ce qu'on abandonne, et ce que ça coûte (pour relire la décision dans six mois)
 
-**Ce qu'il reste à écrire.**
+On abandonne Capacitor, c'est-à-dire : **réutiliser le code web tel quel dans une coquille native**. Le prix payé, en clair :
 
-- **L'interface entière : 100 fichiers `.tsx`, 14 612 lignes.** React Native n'a ni `div`, ni `span`, ni `p`, ni `button`, ni `form`. Recensement : 615 `<span`, 499 `<div`, 149 `<button`, 103 `<p`, 58 `<section`, 44 `<input`, 31 `<main`, 31 `<label`, 18 `<svg`, 10 `<form`, 10 `<ul`/12 `<li`, 4 `<details`/3 `<summary`.
-- **Le style entier : 6 525 lignes de CSS sur 10 feuilles**, dont `app/globals.css` à 3 256 lignes (84 Ko, 448 sélecteurs, 89 variables CSS, 11 `@keyframes`, 1 `@font-face` de police variable pilotée par l'axe de chasse 62→125 %), plus 1 464 attributs `className`. Trois choses ne se transposent simplement pas : la police variable, les 11 animations (à refaire en Reanimated), et les jetons `--ink-0/--bg-1/--rule` que `lib/theme.ts` (182 lignes) calcule aujourd'hui en chaîne CSS (`theme.ts:165-172`).
-- **La couche hors-ligne : 3 593 lignes.** Noyau 1 370 (`lib/localMatch.ts` 707, `lib/sync.ts` 386, `lib/db.ts` 259, `useSyncState.ts` 18) + consommateurs 2 223 (`LiveMatch.tsx` 1 035, `NewMatchForm.tsx` 512, `PlayShell.tsx` 333, `RematchButton.tsx` 141, `SyncBadge.tsx` 109, `OfflinePrimer.tsx` 60, `ReprendreLocal.tsx` 33). Dexie/IndexedDB n'existe pas en RN : 6 tables, 3 versions de schéma avec migration, 4 index composés, **9 transactions `rw`** et **10 `useLiveQuery`** — ce dernier point étant le plus sournois, car aucun moteur SQLite natif ne redessine l'écran gratuitement à chaque but marqué.
-- **51 endpoints à créer** : 32 mutations (une par server action) + 19 lectures (18 pages + 1 layout qui interrogent Prisma au rendu, 58 requêtes). Contre 13 méthodes HTTP existantes, écrites pour l'outbox du live et rien d'autre.
-- **L'authentification : 233 lignes touchées** + `middleware.ts` supprimé. `better-auth` 1.7.1 **n'exporte pas `./expo`** (exports : react, vue, svelte, solid, lynx, next-js, tanstack-start…) : il faut le paquet séparé `@better-auth/expo`, non installé.
-- **Une dizaine de paquets Expo** pour les ponts navigateur : 12 `navigator.vibrate`, 7 `serviceWorker`, 5 `clipboard`, 4 `share`, 4 `onLine`, 6 `AudioContext` (`lib/audio.ts`, 141 lignes de sons synthétisés), 12 `canvas` (`lib/shareCard.ts`, 291 lignes de carte 1080×1350 au Canvas 2D, à reprendre trait par trait en Skia), 6 `localStorage`.
-- **Le routage : 46 `revalidatePath`, 90 `<Link>`, 56 `useRouter`, 17 `redirect`, 7 `notFound`, 40 `useTransition` sur 24 composants.** `revalidatePath` n'a aucun équivalent : c'est 46 invalidations de cache client à écrire à la main.
+- **Le CSS est perdu.** ~6 525 lignes, dont 3 256 pour `globals.css` et 599 pour `live.css`, avec 53 `display:grid`, 29 pseudo-éléments et 7 animations `@keyframes` (enquête). Aucune ne survit ; tout se refait en `StyleSheet` + flexbox + Reanimated. C'est le poste que tout le monde sous-estime.
+- **Le JSX est perdu.** 26 pages et 34 fichiers `"use client"` deviennent des composants `View`/`Text`.
+- **Le rendu serveur est perdu.** C'est lui qui rendait 32 server actions et 26 pages « gratuites » : elles doivent devenir des endpoints HTTP.
+- **On perd la mise à jour instantanée** d'une PWA (un `git push` et tout le monde a la nouvelle version) au profit d'un cycle de publication — atténué plus tard par EAS Update, pas supprimé.
 
-**Ce qui survit : ≈ 881 lignes de métier pur** (`lib/color.ts` 184, `lib/calendrier.ts` 151, `lib/balance.ts` 148, `lib/presences.ts` 143, `lib/elo.ts` 60, `lib/mvp.ts` 53, `lib/ids.ts` 43, `lib/clock.ts` 41, `lib/retro.ts` 28, `lib/slugify.ts` 16, `lib/ini.ts` 14), plus `lib/theme.ts` et `lib/dates.ts` moyennant un changement de sortie. Soit **≈ 1 000 lignes réutilisables sur 28 237 de TS + CSS : 3,5 %.**
+Ce qu'on achète en échange, et qui a emporté la décision : le hors-ligne **réel** (l'app s'ouvre sans réseau au bord du terrain, ce que la PWA ne garantit pas), le vrai retour haptique (les 6 appels `navigator.vibrate` ne font probablement rien sur Safari iOS aujourd'hui — non vérifié, voir §6), l'écran qui reste allumé pendant le match (aucun Wake Lock dans le dépôt aujourd'hui, enquête), les notifications push le jeudi pour le lundi, et la disparition de ~355 lignes de contournements navigateur.
 
-**Le seul poste où l'on supprime de la complexité : la PWA.** 369 lignes deviennent sans objet (`public/sw.js` 305, `manifest.webmanifest` 24, `RegisterSW.tsx` 40).
+---
 
-**Ce qui reste web, en parallèle, pour toujours : 589 lignes** — flux iCal (`app/api/cal/[token]/route.ts`, 144), vitrine publique (`app/p/[slug]/page.tsx`, 183), récap partageable (`app/r/[id]/page.tsx`, 133), export (`app/api/clubs/[clubId]/export/route.ts`, 129). Le projet ne devient pas « une app RN », il devient « une app RN **plus** un backend web maintenu en parallèle », avec deux chaînes de déploiement.
+## 3. L'architecture
 
-**Risque store : le meilleur des trois.** Aucun problème 4.2. En échange, un délai de revue à chaque correctif, là où le bug d'un lundi soir se corrige aujourd'hui dans la soirée.
+### 3.1 Où vit l'app Expo
 
-**Sur « compatible React Native ».** Aucune enquête n'a su ce que le propriétaire entend exactement par là. Si cela veut dire « une app qui ne se fait pas refuser comme un site emballé », Capacitor + du natif perceptible y répond. Si cela veut dire « du code React Native », c'est la réécriture ci-dessus. La voie théorique du partage de composants entre web et natif, `react-strict-dom`, est en version **0.0.55**, dernière publication il y a huit mois : ce n'est pas un socle sur lequel engager un club de five.
+**Choix retenu : `/Users/ibc/diamesene02/five-scorer-mobile/`, dossier FRÈRE de `five-scorer/`, dans le même dépôt git, avec son propre `node_modules` géré par `npm`.**
 
-### Contradictions entre enquêtes, et comment elles sont tranchées
+*(Écart assumé avec la recommandation d'origine, qui proposait `five-scorer/mobile/`. Le dossier frère a été retenu et l'app y tourne déjà — voir le journal du 9 septembre. Deux raisons : Next.js indexe tout ce qui vit sous sa racine et n'a rien à faire des fichiers Expo ; et la disposition du dépôt est déjà celle-là, `five-scorer` et `five-scorer-android` étant frères. C'est exactement le « repli » que le plan d'origine prévoyait en cas de collision Metro — on l'a pris d'emblée plutôt qu'après la panne.)*
 
-| Point | Versions | Tranché |
+Raison : l'agent qui porte `lib/localMatch.ts` a besoin de lire `../lib/localMatch.ts` juste à côté ; le document, le serveur et l'app partagent une seule histoire git ; et une réécriture qui casse le serveur se voit dans le même diff.
+
+**Ne pas faire de workspace pnpm.** La racine reste en pnpm, `mobile/` reste en npm, et `mobile/node_modules/` va au `.gitignore`. pnpm installe en mode isolé et Metro s'y casse encore les dents sur certaines bibliothèques ; Expo documente le repli `nodeLinker: hoisted` (enquête), mais on n'en a pas besoin si on ne mélange pas.
+
+**Risque connu, et son repli :** Metro remonte l'arborescence pour résoudre les modules et peut tomber sur le `node_modules` pnpm de la racine. Si le bundle échoue avec une résolution étrange, le repli immédiat est un dossier **frère** (`~/diamesene02/five-scorer-native`), tel que recommandé par l'enquête « expo-go ». Ce n'est pas une refonte : c'est un `mv`. À trancher par Ibrahima au §6 si le cas se présente.
+
+### 3.2 Authentification
+
+**Choix retenu : `@better-auth/expo` en version 1.7.1, PAS 1.7.3.**
+
+C'est la seule divergence de fond entre l'enquête et la contre-enquête, et **la contre-enquête a raison — avec une preuve, pas une intuition.**
+
+L'enquête faisait de la montée `better-auth` 1.7.1 → 1.7.3 la « toute première étape » (parce que `@better-auth/expo@1.7.3` exige `better-auth ^1.7.3`), tout en écrivant qu'elle n'avait pas lu le changelog. Or ce projet a appliqué le schéma « issuer » de Better Auth 1.7.0-1.7.2, et **1.7.3 l'a retiré** : `prisma/schema.prisma:57` déclare `issuer String` (requis, compté), la migration `20260824193000_account_issuer` l'a créée en `TEXT NOT NULL`, et `better-auth@1.7.3` ne l'écrit plus. Résultat : **chaque INSERT dans `account` échoue**, donc chaque inscription et chaque rattachement Google, **sur l'app web en production**. Better Auth a même écrit le message d'erreur pour ce cas précis (« Column "issuer" on table "account" is required but Better Auth never writes it, so every insert into "account" fails »).
+
+Et cette montée est **entièrement évitable** : `@better-auth/expo@1.7.1` existe, exige `better-auth ^1.7.1` — la version installée (compté : `^1.7.1` en dépendance, 1.7.1 résolue) — et contient **déjà** les deux choses pour lesquelles l'enquête voulait 1.7.3 : le découpage à 1800 caractères pour le trousseau iOS (`STORAGE_VALUE_LIMIT`) et la réhydratation de session hors ligne (`restoreSessionCache`). Vérifié par extraction du tarball ; le plugin serveur est identique à l'octet près entre les deux versions.
+
+**Conséquence contre-intuitive à ne pas rater :** aujourd'hui `"better-auth": "^1.7.1"` **accepte déjà 1.7.3**. Seul le lockfile protège la production. Un `pnpm update` de routine déclencherait la panne sans que personne l'ait décidé. **La bonne action est d'épingler la version exacte `"1.7.1"`**, pas de la relâcher (étape 2 du plan).
+
+Les trois modifications serveur, dans `lib/auth.ts` :
+
+```ts
+import { expo } from "@better-auth/expo";
+
+// plugins : expo() AVANT nextCookies(), qui doit rester en dernier.
+// (contrainte explicite dans le code de Better Auth : warnIfCookiePluginNotLast)
+plugins: [ organization({ /* inchangé */ }), expo(), nextCookies() ]
+
+function trustedOrigins(): string[] {
+  const origins = previewUrls();
+  if (process.env.BETTER_AUTH_URL) origins.push(process.env.BETTER_AUTH_URL);
+  origins.push("fivescorer://");                 // build natif, plus tard
+  if (process.env.NODE_ENV === "development") {
+    origins.push("exp://", "exps://");           // Expo Go pointé sur le Mac
+  }
+  return origins;
+}
+```
+
+- **`exps://` n'est pas un ornement.** Dès qu'on lance `npx expo start --tunnel` — le recours normal quand le téléphone n'est pas sur le Wi-Fi du Mac — `expo-linking` bascule le deep link du callback sur `exps://`, et le motif `exp://` **ne le couvre pas** (testé en exécutant `matchesOriginPattern` du better-auth installé). Sans lui, la connexion Google part en `INVALID_CALLBACK_URL`, avec un message qui ne dit pas pourquoi. À l'inverse, `exp://**` que recommandait l'enquête n'apporte **rien** : mêmes résultats que `exp://` sur les quatre URL d'essai.
+- **Jamais `exp://` en production.** Le hook `after` du plugin serveur recopie l'en-tête `set-cookie` — donc le jeton de session en clair — dans le paramètre de query de l'URL de redirection dès que la destination est une origine de confiance à schéma non-http. En production, seul `fivescorer://` doit être de confiance.
+- **`allowedDevOrigins` dans `next.config.js`** : Next.js 16 bloque par défaut les requêtes de développement d'origine autre que localhost, et on développera depuis l'IP LAN du Mac (192.168.1.192, enquête).
+
+Côté app :
+
+```ts
+// mobile/lib/auth-client.ts
+import { createAuthClient } from "better-auth/react";
+import { expoClient } from "@better-auth/expo/client";
+import { organizationClient } from "better-auth/client/plugins";
+import * as SecureStore from "expo-secure-store";
+
+export const authClient = createAuthClient({
+  baseURL: process.env.EXPO_PUBLIC_API_URL, // http://192.168.1.192:3000 en dev, https://five-scorer.vercel.app sinon
+  plugins: [
+    organizationClient(),
+    expoClient({ scheme: "fivescorer", storagePrefix: "fivescorer", storage: SecureStore }),
+  ],
+});
+```
+
+Et **le point le plus important pour le produit** — appeler nos routes. Le cookie n'est pas envoyé automatiquement en React Native :
+
+```ts
+const cookie = await authClient.getCookie();
+await fetch(`${API}/api/clubs/${clubId}/matches`, {
+  method: "POST",
+  credentials: "omit",                                   // impératif
+  headers: { "content-type": "application/json", cookie },
+  body: JSON.stringify(payload),
+});
+```
+
+**Ce qui ne change pas, et c'est vérifié dans le code, pas supposé :** `middleware.ts` (son matcher exclut déjà `api/auth`, et `getSessionCookie` lit l'en-tête `cookie` brut en essayant `__Secure-better-auth.session_token` puis `better-auth.session_token`) ; `lib/guard.ts`, dont `getClubApiContext` est déjà la variante « API » qui renvoie `null` au lieu de rediriger — c'est la garde dont le mobile a besoin ; `app/api/auth/[...all]/route.ts` (4 lignes) ; et `lib/auth-client.ts` du web, qui reste tel quel.
+
+**Ce qu'il ne faut surtout pas faire :** ajouter le plugin `bearer` (redondant avec le rejeu de cookies, et la doc Better Auth l'assortit d'un avertissement explicite) ; introduire `organization.setActive()` (le club courant est porté par la navigation et revérifié en base à chaque appel — `setActive` imposerait une **écriture serveur pour changer de club**, inutilisable au gymnase) ; appeler `@react-native-google-signin/google-signin` (code natif, development build obligatoire).
+
+**Expo Go :** OUI, sans réserve, pour email/mot de passe. Les cinq dépendances natives de `@better-auth/expo` — `expo-secure-store`, `expo-web-browser`, `expo-linking`, `expo-network`, `expo-constants` — portent toutes `expo-go` dans le front-matter `platforms` de leur page de doc SDK 57, et les versions embarquées (`~57.0.3`, `~57.0.2`, `~57.0.9`, `~57.0.1`, `~57.0.17`) satisfont largement les minima déclarés. Le mécanisme qui rend tout ça possible : en Expo Go, `resolveScheme` d'`expo-linking` **ignore silencieusement** `fivescorer` et renvoie `exp` (« Silently ignore to make bare workflow development easier ») — le même code marche donc en Expo Go et dans un futur build natif, sans branche conditionnelle. **Google : à vérifier sur l'appareil** (voir §6) ; l'email/mot de passe, lui, n'envoie même pas de `callbackURL` et ne passe donc pas par le contrôle qui pose problème.
+
+**Un risque que personne n'avait vu, à mesurer tôt :** `lib/auth.ts` active `cookieCache: { enabled: true, maxAge: 60 * 5 }`, ce qui produit un second cookie `session_data` contenant session + utilisateur encodés. La doc `expo-secure-store` avertit que « Historically, some iOS releases refused values above roughly 2048 bytes ». Le découpage à 1800 caractères existe dans les deux versions du client, mais **personne n'a mesuré la taille réelle de ce cookie**. C'est cinq minutes de travail au premier écran de connexion.
+
+### 3.3 Hors-ligne
+
+**Choix retenu : `expo-sqlite` (~57.0.2), seul, sans ORM lourd, avec `drizzle-orm` (JavaScript pur) uniquement pour la réactivité.**
+
+Verdicts, un par un, avec la source :
+
+| Bibliothèque | Expo Go ? | Pourquoi |
 |---|---|---|
-| Fichiers important `@/app/actions` | 26 vs 25 | **25** — la contre-enquête a relancé `grep -rln` et a même identifié l'oubli de `app/join/[code]/JoinButton.tsx` dans la liste adverse |
-| Lignes de route handlers | 1 122 vs 1 174 | **Les deux** : 9 fichiers sous `app/api/` = 1 122 lignes ; en ajoutant `app/session-expiree/route.ts`, 10 fichiers = 1 174 lignes. Le périmètre pertinent pour l'export est le second |
-| Taux de prérendu | 5/38 (13 %) vs 3/36 (8 %) | **3 pages visibles sur 36, soit 8 %** — les 5/38 comptent `/_global-error` et `/_not-found` des deux côtés |
-| Origine de la WebView et cookies | « `https://localhost`, cookie Lax non envoyé » vs « same-origin Vercel aujourd'hui » | **La contre-enquête** : `capacitor.config.json` fixe `server.url` sur Vercel, donc les cookies sont same-origin — et c'est précisément pourquoi l'APK actuel fonctionne sans `credentials: "include"` nulle part. La conclusion de la première enquête reste juste **dans le scénario d'export**, sa preuve non |
-| Coût du passage en jetons | « sixième réécriture » vs « un plugin + une config » | **Le plugin bearer est déjà livré** (`node_modules/better-auth/dist/plugins/bearer`). Le vrai coût est chez les appelants, pas dans la couche d'auth |
-| Capacitor 8 nécessaire pour iOS ? | « SPM par défaut, prépare iOS » vs « Cap 7 est déjà compatible Xcode 26 » | **Non** : « Capacitor itself is fully compatible with Xcode 26 and the iOS 26 SDK… This is entirely a toolchain requirement, not a Capacitor compatibility issue » (https://capawesome.io/blog/xcode-26-requirement-for-capacitor-apps/, 29 avril 2026). Capacitor 8 n'a **qu'une** justification : Play et l'API 36 |
-| Suppression de compte : blocage Apple seul ? | « rejet certain iOS » vs « Google l'exige aussi, et double » | **Les deux stores.** Google : « provide users with an in-app path to delete their app accounts and associated data; **and** provide a web link resource where users can request app account deletion » (https://support.google.com/googleplay/android-developer/answer/13327111). Le `STORE.md` déclare aujourd'hui « suppression in-app par les admins » : ce n'est pas un chemin utilisateur, et c'est une déclaration Sécurité des données inexacte |
-| Clause Apple 4.7.1 « standard WebKit view » | Citée comme cadre actuel | **Ce texte n'existe plus.** Le 4.7 servi aujourd'hui s'intitule « Mini apps, mini games, streaming games, chatbots, plug-ins, and game emulators » et encadre les logiciels **tiers** proposés dans une app, pas le front qu'on héberge soi-même. L'article opposable à `server.url` est **2.5.2, et lui seul** |
-| Modèles Prisma | 18 modèles / 7 enums vs 17 modèles / 8 enums | **Non tranché.** Les 483 lignes de `prisma/schema.prisma` sont confirmées par les deux ; le décompte diffère et personne ne l'a recompté. Sans incidence sur les décisions ci-dessous |
-| « On ne peut pas juste éditer `variables.gradle` » | Impossible vs non supporté | **Non supporté**, pas impossible : la doc dit « there's a very strong likelihood that your application will experience issues » (https://capacitorjs.com/docs/android/setting-target-sdk). On monte quand même en Capacitor 8 |
+| **expo-sqlite** | **OUI** — « Included in Expo Go » | API async complète, `withExclusiveTransactionAsync`, `addDatabaseChangeListener`. SQLCipher et libSQL non supportés en Expo Go — on n'en a pas besoin. |
+| **drizzle-orm** | **OUI** (JS pur) | `useLiveQuery` de `drizzle-orm/expo-sqlite` s'abonne à `addDatabaseChangeListener`. Demande `babel-plugin-inline-import` + `sourceExts.push('sql')`. |
+| **@paralleldrive/cuid2** | **OUI** (JS pur) | L'idempotence repose dessus, elle ne bouge pas. |
+| **@react-native-community/netinfo** | **OUI** | Remplace `navigator.onLine`. |
+| **AsyncStorage** | OUI, mais **inadapté au cœur** | Clé/valeur : pas d'index, pas de transaction, pas d'ordre. Une écriture interrompue perd toute la file. |
+| **WatermelonDB** | **NON** | JSI natif + plugin de config tiers → development build. |
+| **op-sqlite** | **NON** | « You cannot use this library on a expo-go app, you need to pre-build your app ». |
+| **react-native-mmkv** | **NON** | « react-native-mmkv is not supported in Expo Go! Use EAS ». |
+| **RxDB** | **NON en pratique** | Version SQLite gratuite « not made for production », 500 documents, sans index. Production = RxDB Premium, payant. |
 
----
+Le modèle se transpose presque tel quel : 6 tables Dexie, 3 versions de schéma, 8 types d'opérations d'outbox, 51 appels `db.<table>.<méthode>`, 9 transactions, 5 sites `useLiveQuery` (enquête ; une contre-enquête annonce 10, c'est le nombre d'**occurrences du mot**, imports compris — on retient **5 sites d'appel** : NewMatchForm 1, LiveMatch 1, ReprendreLocal 1, PlayShell 2).
 
-## 3. Le chemin retenu
+**Le point à ne surtout pas rater**, et il a été **prouvé expérimentalement** (SQLite 3.43.2, pas déduit d'une doc) : sans `AUTOINCREMENT`, supprimer la ligne 3 puis insérer **redonne l'id 3** — un `finishMatch` se glisserait à la place d'un but déjà parti. Avec `AUTOINCREMENT`, on obtient 4.
 
-**Chemin 1 — la coquille Capacitor sur URL distante — remise à niveau pour le Play Store, l'iPhone passant par la PWA installée. L'App Store est reporté et conditionné.**
+```sql
+CREATE TABLE outbox (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,  -- OBLIGATOIRE, pas décoratif
+  created_at  TEXT NOT NULL,
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  last_error  TEXT,
+  blocked_at  TEXT,
+  match_id    TEXT,                                -- extrait du JSON, monté en colonne
+  club_id     TEXT NOT NULL,
+  op          TEXT NOT NULL                        -- l'OutboxOp sérialisé, inchangé
+);
+CREATE INDEX outbox_actives ON outbox(blocked_at, id);
+-- PRAGMA journal_mode = WAL; à l'ouverture
+```
 
-Trois raisons. **Un :** c'est le seul chemin où le livrable existe déjà — un AAB signé de 2,9 Mo, une clé valide jusqu'en 2056, et zéro ligne d'application à écrire ; les chemins 2 et 3 demandent respectivement 7 292 et ~25 000 lignes, c'est-à-dire des semaines à des mois avant le premier écran affiché. **Deux :** le blocage réel du moment n'est ni Apple ni le framework, c'est `targetSdk 35` face à l'API 36 exigée depuis le 31 août 2026 — un contrôle automatique qui refuserait aussi bien une app RN qu'une coquille, et qui se lève par une montée en Capacitor 8. **Trois :** la seule chose qui serve *les trois* chemins est le travail qui n'a jamais été fait — extraire une API HTTP réelle (51 endpoints en face de 13 méthodes existantes) et poser un filet de tests (0 test, 0 CI web aujourd'hui) ; ce travail est utile même si l'on bascule un jour en React Native, alors que réécrire l'UI maintenant ne sert qu'un seul chemin.
+Les quatre requêtes du drain, qui remplacent les requêtes Dexie de `lib/sync.ts` :
 
-**Ce qu'on accepte de perdre en le choisissant :**
+```sql
+SELECT * FROM outbox WHERE blocked_at IS NULL ORDER BY id ASC LIMIT 1;     -- prochaine op
+DELETE FROM outbox WHERE id = ?;                                            -- succès
+UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?;     -- échec réessayable
+UPDATE outbox SET blocked_at = ?, last_error = ?
+  WHERE match_id = ? AND blocked_at IS NULL;                                -- refus 403/404/409, en cascade
+SELECT COUNT(*) FILTER (WHERE blocked_at IS NULL),
+       COUNT(*) FILTER (WHERE blocked_at IS NOT NULL) FROM outbox;          -- compteurs de la pastille
+```
 
-- **L'App Store à court terme.** L'iPhone passe par la PWA installée depuis Safari. Rien n'est publié sur l'App Store tant qu'on n'a pas ajouté du natif perceptible ou embarqué le front — et les deux rejets documentés (forum Apple 812889 de janvier 2026, 806726 de novembre 2025) disent qu'ajouter « un peu de natif » ne suffit pas.
-- **Toutes les fonctions natives.** 0 plugin Capacitor installé, 2 permissions. Pas de notification push, pas de biométrie, pas de partage natif, pas d'accès fichiers. Le hors-ligne reste celui du service worker, donc identique dans Safari.
-- **Le confort de dev natif.** Le rechargement à chaud reste celui de Next, conditionné par `allowedDevOrigins` ; il n'y a pas de Fast Refresh RN, pas de menu dev en secouant l'appareil.
-- **Le « compatible React Native » littéral.** On ne l'obtient pas. Ce qu'on préserve, c'est la *portabilité* : les ~881 lignes de `lib/` restent pures (aucun import React/Next/Dexie, aucune API navigateur), et chaque endpoint extrait est un endpoint que RN pourrait consommer tel quel. C'est un chemin ouvert, pas un chemin parcouru.
-- **Le contrôle du délai de publication.** Une fois sur le Play Store, tout correctif visuel passe par un déploiement Vercel (immédiat), mais tout changement de coquille passe par une revue.
+L'ordre de rejeu se prend **sur la clé primaire, jamais sur l'horodatage** : l'horloge du téléphone peut reculer. Le commentaire de `lib/sync.ts` documente ce bug ; `AUTOINCREMENT` est ce qui empêche de le revivre.
+
+Les 9 `db.transaction("rw", …)` deviennent 9 `withExclusiveTransactionAsync` — pas `withTransactionAsync`, dont la doc Expo précise que « any query that runs while the transaction is active will be included in the transaction ».
+
+**Ce qui se recopie sans une ligne à toucher :** `lib/clock.ts` (41 lignes, compté, « helpers purs, sans I/O » — le chrono se dérive de `elapsedMs` + `runningSince`, donc la suspension des timers par iOS ne casse rien), `lib/useSyncState.ts` (18 lignes, compté), et les ~196 premières lignes de `lib/db.ts` (types et union `OutboxOp`).
+
+**Ce qui se re-câble :** `navigator.onLine` → NetInfo ; `document.visibilitychange` → `AppState` ; la relance exponentielle maison (5 s → 60 s, `2^min(echecs,4)`) survit sans changement — et devient *moins* nécessaire, puisqu'elle avait été écrite parce que l'événement `online` de la WebView Android ne se déclenchait parfois jamais.
+
+**Correction de chiffre :** le rejeu fait **8** appels `fetch`, pas 7 (compté : 9 occurrences de `fetchAvecDelai` dans `lib/sync.ts` = 1 définition + 8 sites d'appel, un par `kind`).
+
+**Le risque de latence qu'il faut mesurer avant d'écrire un écran :** `prisma/schema.prisma` dit que `Player.photo` est une **data-URL JPEG de ~20 ko** (« un club de quinze joueurs, c'est trois cents kilo-octets »), et `getLocalMatch` — la requête branchée sur `useLiveQuery` dans `LiveMatch` et `PlayShell` — les remonte joueur par joueur. Chaque but écrit **deux tables** (`events` et `outbox`) dans la même transaction, et `useLiveQuery` de Drizzle ré-exécute la requête entière sur changement de table : 10 à 14 participants × 20 ko rematérialisés à chaque incrément de score. **Non mesuré.** Si le chiffre est mauvais, la correction est simple : sortir `photo` de la requête live (roster chargé une fois à part), ou stocker les photos via `expo-file-system` en gardant le chemin en base.
+
+**Le piège d'Expo Go pour ce produit précis, et il faut le dire au propriétaire aujourd'hui :** Expo Go charge le bundle depuis Metro, par le réseau. On peut y valider « je charge l'écran, je passe en avion, je saisis, je reviens, la file se vide ». On ne peut **pas** valider le scénario qui compte — « j'ouvre l'app déjà sans réseau, au bord du terrain ». **Expo Go sert à développer, jamais à recetter le hors-ligne.** Ce test-là exige un development build (étape 17).
+
+### 3.4 L'API
+
+**Choix retenu : réutiliser l'écriture telle quelle, n'écrire que des GET.**
+
+L'écriture est déjà là et déjà durcie ; elle a coûté des mois de corrections (idempotence, scoping club revérifié, garde « match terminé → admin », validation anti-injection Prisma via `lib/ids.ts`). Les 8 opérations d'outbox tapent 4 fichiers de route qui ne bougent pas.
+
+**Correction d'un chiffre discuté entre enquêtes :** il y a **10 fichiers `route.ts` au total**, dont **6 sous `/api/clubs/`**, portant **10 handlers HTTP** (compté : `roster` GET, `matches` POST, `matches/[matchId]` PATCH+DELETE, `events` POST+PATCH+DELETE, `lineup` PATCH+POST, `export` GET). L'enquête « auth » annonçait « 8 routes », l'enquête « api » « 9 fichiers et 12 handlers » (elle comptait `auth`, `cal`, `public`, `diagnostic`). On retient les chiffres ci-dessus, recomptés.
+
+**L'affirmation « aucune ligne de serveur à écrire » est fausse** : elle est vraie de l'écriture, fausse de la lecture. Voici la V1 minimale, celle sans laquelle l'app native ne peut rien afficher :
+
+| # | Endpoint | Alimenté par | Pourquoi il est indispensable |
+|---|---|---|---|
+| 1 | `GET /api/me` | `lib/guard.ts` `getUserClubs` | Liste des clubs avec slug, rôle, `canManage`, `canScore`, couleurs, `myPlayerId`. `/organization/list` de Better Auth ne rend pas le profil Club. |
+| 2 | `GET /api/clubs/[clubId]` | `getClubApiContext` + `app/c/[slug]/layout.tsx` | Le bootstrap hors-ligne : couleurs, format, durée, `trackAssists`, `trackCards`, `motmMode`, `membersCanScore`. À écrire en SQLite dès la première ouverture connectée. |
+| 3 | `GET .../roster` **(existe, à étendre)** | aligner sur `sessions/[id]/page.tsx` | Ajouter `abonne`, `userId`, `isArchived`. |
+| 4 | `GET .../matches?status=LIVE,SCHEDULED` | `app/c/[slug]/page.tsx` | Répond à « y a-t-il déjà un match ouvert ? » — ce qui évite deux feuilles concurrentes sur deux téléphones. |
+| 5 | `GET .../matches/[matchId]` | `matches/[id]/page.tsx` | La reprise : téléphone à plat, deuxième personne qui prend la saisie, réinstallation. L'outbox seule ne suffit pas. |
+| 6 | `GET .../matchdays/[id]/lineup` | modèle `MatchDayLineup` | La compo préparée. Sans lui, la feuille repart d'une page blanche au coup d'envoi — exactement le problème que cette table a été créée pour supprimer. |
+
+Puis, par ordre d'utilité : `matchdays` (liste et détail), `POST matchdays`, `PUT rsvps`, la compo, les adversaires, le vote MOTM ; ensuite fiches joueurs et statistiques (`lib/stats.ts`) ; l'administration en dernier — elle se fait très bien depuis le navigateur, aucun de ces écrans ne se pratique au bord du terrain.
+
+**Deux règles pour écrire ces endpoints**, tirées de bugs réels du dépôt :
+
+1. Utiliser **`getClubApiContext`** (`lib/guard.ts`), jamais `requireClub` : la variante API renvoie `null` au lieu de rediriger.
+2. Valider **tout** identifiant venu du client avec `idsValides` / `estId` (`lib/ids.ts`) avant de le mettre dans un `where` Prisma. Le commentaire de `events/route.ts` raconte le bug : un objet passé pour un filtre, l'API répondant 200 « deduped », et le but tapé jamais écrit.
+
+**Le meilleur chemin, à long terme :** extraire la logique de chaque server action dans une fonction pure de `lib/`, puis l'appeler des deux côtés — la server action pour le web, un route handler pour le natif. Sinon la règle métier existe en deux exemplaires qui divergeront.
+
+**CORS : inutile pour le téléphone, utile pour la cible web.** React Native n'est pas un navigateur : il n'applique pas la politique de même origine et ne fait pas de requête préalable. Sur l'appareil, aucun en-tête `Access-Control-*` n'est nécessaire — et si une connexion échoue, ce n'est PAS CORS, c'est la vérification d'origine propre à Better Auth (§3.2). Ne pas perdre une soirée là-dessus.
+
+Une exception, déjà en place : `/api/public/[slug]` porte `access-control-allow-origin: *`. Non pour le téléphone, mais pour `npx expo start --web`, qui rend le même code dans un navigateur et permet de vérifier une mise en page sans sortir l'iPhone. Les données y sont déjà publiques, la garde `isPublic` s'applique inchangée. Ne pas généraliser ce réglage aux endpoints authentifiés.
+
+### 3.5 Le dessin
+
+**Choix retenu : `StyleSheet` pur, plus un `ThemeProvider` maison qui appelle `themeTokens()` — la fonction existante, non modifiée.** Pas de NativeWind, pas de Tamagui ; Unistyles est de toute façon hors jeu (« Unistyles includes custom native code, which means it does not support Expo Go »).
+
+La raison est structurelle, pas idéologique : ce dessin n'est pas un système d'utilitaires, c'est un système de **jetons calculés**. `lib/theme.ts` (182 lignes) et `lib/color.ts` (184 lignes) — 366 lignes de TypeScript pur, sans un seul `document`/`window`/`navigator` (compté) — dérivent 30 jetons des deux couleurs de chasubles, avec un plancher de contraste APCA à Lc 60. NativeWind et Tamagui veulent une palette déclarée à la compilation ; ici la palette n'existe qu'au runtime, elle change quand un club change sa chasuble. On finirait en style inline de toute façon, en ayant payé la chaîne Babel/Metro — qui a un historique documenté de casse à chaque montée d'Expo SDK.
+
+**Ces 366 lignes se copient verbatim.** C'est la meilleure nouvelle du dossier design.
+
+Trois découvertes qui changent le travail :
+
+1. **La police n'est pas un problème.** Le bloc « SYSTÈME NATIF » de `globals.css` (à partir de la ligne 1997, hors des couches Tailwind) force `font-family: var(--ios-font)` = SF Pro sur `[data-club-theme]`, qui enveloppe **tous** les écrans du club. Archivo n'est pas affichée là. En React Native, sur iOS, **omettre `fontFamily` donne SF Pro** : exactement le rendu de production. On économise `expo-font`, le préchargement, et le mur des polices variables — React Native n'expose ni `fontStretch` ni `fontVariationSettings`, et le `.woff2` est de toute façon inutilisable sur Android.
+2. **Le geste signature survit.** Les chiffres de score condensés n'utilisent pas l'axe de chasse : `.score-lourd` fait `transform: scaleX(0.86)` + `font-variant-numeric: tabular-nums`. En RN : `transform: [{ scaleX: 0.86 }]` et `fontVariant: ['tabular-nums']`. Le score du live garde sa forme.
+3. **Le verre est un faux problème.** Il n'y a que 6 déclarations `backdrop-filter` réelles, et le dessin s'interdit déjà explicitement le flou là où il compte : « Collé en haut, opaque. Jamais de backdrop-filter : le score se noierait dans ce qui passe dessous ». Les « cartes de verre » sont des `View` avec fond `rgba`, bordure et ombre — du `StyleSheet` ordinaire. `expo-blur` (dans Expo Go) couvre les 6 cas restants ; sur Android il n'est efficace qu'à partir d'Android 12.
+
+**Le vrai coût est la mise en page** : 53 `display:grid`, 43 `grid-template-columns`, 29 pseudo-éléments, 4 `position:sticky` (enquête). Les grilles se refont en flexbox (la plupart sont des rangées à colonnes fixes), les pseudo-éléments deviennent des `View` absolues, les sticky des en-têtes animés sur le `scrollY`. C'est mécanique et fastidieux, pas risqué. Les 1 352 `className` du dépôt ne sont pas 1 352 chaînes à traduire : ce sont **178 classes sémantiques** de `globals.css` réutilisées partout → 178 entrées de `StyleSheet.create`, un fichier, une fois.
+
+Briques de dessin, toutes vérifiées dans Expo Go : `expo-linear-gradient` (linéaire seulement), `react-native-svg` (le repli pour les dégradés radiaux et le grain), `react-native-safe-area-context` (`useSafeAreaInsets()` rend les mêmes nombres que `env(safe-area-inset-*)`), `react-native-reanimated` 4.5.1, `expo-blur`, `expo-glass-effect` (iOS 26+, à garder en tête pour `.menu-club`). `experimental_backgroundImage` du cœur de RN lit `radial-gradient()` depuis RN 0.80 — **mais la syntaxe exacte produite par `crest()` n'a pas été testée sur appareil** ; repli connu et sûr : `<RadialGradient>` de react-native-svg.
+
+**Le thème gagne quelque chose :** le cookie `fs-theme` disparaît (plus de rendu serveur), le choix vit dans le stockage local, et `Appearance`/`useColorScheme` permet enfin de suivre le réglage système de l'iPhone — ce que le cookie ne faisait pas.
+
+### 3.6 Son, partage, retour haptique — les deux sous-systèmes qui ne se portent pas
+
+Aucune enquête ne les avait mis dans son bilan ; ils pèsent **432 lignes** (compté : 141 + 291).
+
+- **`lib/audio.ts` (141 lignes) est synthétisé, pas joué.** `playGoalSound("A")` fait glisser un triangle de 440 → 880 Hz, `("B")` fait l'inverse, avec un commentaire qui dit pourquoi : « le marqueur regarde le jeu, pas l'écran — l'oreille est le seul canal qui reste ». Il n'y a **aucun fichier audio dans le dépôt**. La seule implémentation Web Audio en React Native, `react-native-audio-api` (Software Mansion), est explicitement **hors Expo Go** (« contains native custom code and isn't part of the Expo Go application »). **Décision : pré-rendre 4 fichiers courts (but A, but B, annulation, coup de sifflet) depuis les fréquences exactes du fichier, et les jouer avec `expo-audio` (~57.0.4, dans Expo Go).** `lib/audio.ts` devient la **spécification**, pas du code porté. `playsInSilentMode` vaut `true` par défaut : le son sort téléphone en silencieux, ce qu'on veut. Et `unlockAudio()` disparaît — c'était une cicatrice de navigateur.
+- **`lib/shareCard.ts` (291 lignes) est du Canvas 2D** (`getContext("2d")`, `fillText`, `measureText`, `toBlob`, `navigator.share`). **Décision : redessiner la carte en composants React Native et la capturer avec `react-native-view-shot`** (« Included in Expo Go »), puis `expo-sharing`. Plus simple à maintenir que 291 lignes de dessin impératif. (`@shopify/react-native-skia` serait le portage le plus fidèle mais coûte le development build.)
+- **Retour haptique : 6 sites d'appel** de `navigator.vibrate` (LiveMatch 448/465/535, PlayerTile 69/74/90 — une contre-enquête annonce 12, ce sont les **occurrences du mot**, garde `typeof` comprise). `expo-haptics` n'accepte **aucune durée en ms** : 12 → `impactAsync(Light)`, 18 → `selectionAsync()`, 30 → `impactAsync(Medium)`, `[12,40,12]` → `notificationAsync(Warning)`. On perd la nuance de durée, on gagne le Taptic Engine.
+- **Autres API navigateur à recâbler**, absentes des inventaires : `navigator.clipboard` (5 usages) → `expo-clipboard` ; `navigator.share` (4) → `expo-sharing` ; `localStorage` (6) → `expo-sqlite/kv-store` ou AsyncStorage.
+- **Un gain gratuit** : `useKeepAwake()` (`expo-keep-awake`, dans Expo Go). Il n'y a **aucun Wake Lock dans le dépôt** aujourd'hui : l'écran s'éteint à la 20ᵉ minute pendant qu'on regarde le jeu. Une ligne, visible dès la première démo au club.
+- **Notifications push : le seul vrai mur, et il tombe tôt.** `expo-notifications` (~57.0.17) est dans Expo Go, mais le push distant y est indisponible sur Android depuis le SDK 53, et sur iOS le jeton serait rattaché au bundle d'Expo Go — inexploitable en production. Les notifications **locales** marchent (« match dans 1 h »). « Qui vient lundi ? » envoyé le jeudi = **development build obligatoire** (étape 17).
 
 ---
 
 ## 4. Le plan
 
-Chaque étape tient dans une exécution de deux heures. Chaque critère de « terminé » se vérifie **sans téléphone**, depuis un terminal ou une CI.
+Règles de lecture pour l'agent :
 
-| # | Étape | Terminé quand | État |
+- **Une étape = une exécution de deux heures maximum.** Si elle déborde, la couper en deux et l'écrire au Journal.
+- **Une étape n'est « fait » que si sa commande de vérification a été lancée et a donné la sortie attendue.** Pas de « ça devrait marcher ».
+- **Aucune étape ne touche la production** sans figurer explicitement dans le §6.
+- États possibles : `à faire` · `en cours` · `fait` · `bloqué`.
+
+| # | Étape | Critère de terminé (sans téléphone) | État |
 |---|---|---|---|
-| 1 | Réparer la chaîne Java/Android locale | `java -version` répond, `echo $ANDROID_HOME` est non vide, et `cd five-scorer-android && ./android/gradlew --version` affiche Gradle 8.11.1 | à faire |
-| 2 | Ajouter `allowedDevOrigins: ['192.168.1.192']` à `next.config.js` | `pnpm build` passe, et le fichier contient la clé | à faire |
-| 3 | CI web minimale | Un workflow `.github/workflows/web.yml` exécute `pnpm exec tsc --noEmit`, `pnpm lint`, `pnpm build` et passe au vert sur une PR | à faire |
-| 4 | Nettoyer les deux workflows morts | Il reste **un** workflow Android, il se déclenche réellement, et il n'appelle plus `npm run bundle` (script inexistant) | à faire |
-| 5 | Décider du sort de `main` sur `five-scorer-android` et pousser `feat/coquille-capacitor` | `git status -sb` ne dit plus « ahead 3 », et `git show main:capacitor.config.json` contient `server.url` | à faire |
-| 6 | Purger les résidus v1 | `www/` ne contient plus que `icons/`, `www/src/config.js` n'est plus suivi par git (`git ls-files www` le confirme) | à faire |
-| 7 | Keystore reconstructible en CI | Le workflow décode un secret base64 et produit un AAB dont `apksigner verify --print-certs` affiche le SHA-256 `afcc5084…c51e` | à faire |
-| 8 | Montée en Capacitor 8 | `aapt2 dump badging` sur le nouvel AAB affiche `targetSdkVersion='36'` et `minSdkVersion='24'` | à faire |
-| 9 | Créer `res/values/colors.xml` au lieu de le patcher | Le fichier existe, `grep 'colorPrimary' android/app/src/main/res/values/colors.xml` renvoie `#0E1211`, et le script ne saute plus son §5 | à faire |
-| 10 | Icônes adaptatives aux bonnes tailles | `sips -g pixelWidth mipmap-xxxhdpi/ic_launcher_foreground.png` renvoie 432 (aujourd'hui 192) | à faire |
-| 11 | Remplacer le splash Capacitor | Les 11 `splash.png` ont une date postérieure au 25 mars 17:34 et un hash différent du template | à faire |
-| 12 | `versionCode` monotone | Deux `npm run build:aab` d'affilée produisent deux codes strictement croissants | à faire |
-| 13 | Une seule source pour l'URL de prod | `grep -rc 'five-scorer.vercel.app' capacitor.config.json shell/index.html` ne renvoie qu'une occurrence, ou les deux dérivent d'une variable | à faire |
-| 14 | Base de test + `prisma/seed.e2e.ts` | `prisma migrate deploy` puis `prisma migrate diff --exit-code` passent sur une base `five_scorer_e2e` neuve | à faire |
-| 15 | Socle Playwright | `pnpm exec playwright test` exécute au moins un spec vert en CI, sur un service `postgres:16` | à faire |
-| 16 | `globalSetup` : 3 comptes, 3 `storageState` (owner, admin, member) | Les trois fichiers d'état existent et un spec de fumée passe avec chacun | à faire |
-| 17 | Parcours 1 : inscription → création du club → `/c/[slug]` | Spec vert, et une requête Prisma confirme la ligne `Club` et le `Player` du créateur | à faire |
-| 18 | Parcours 2 : match hors-ligne + resynchronisation | Spec vert, `Match` et `MatchEvent` présents en base après retour en ligne, **et** rejeu de la même outbox sans doublon | à faire |
-| 19 | Écran de suppression de compte + page web de demande | Un spec crée un compte, le supprime par l'UI, et la ligne `User` a disparu de la base | à faire |
-| 20 | Parcours 3 à 12 (voir §5) | Un spec vert par parcours | à faire |
-| 21 | Premier endpoint de lecture extrait (le plus chargé : `app/c/[slug]/page.tsx`, 11 requêtes Prisma) | L'endpoint répond du JSON, un test vérifie qu'aucun objet Prisma brut ne fuit | à faire |
-| 22 | Smoke prod automatisé | 6 requêtes (`/`, `/p/[slug]`, `/privacy`, `/terms`, `/manifest.webmanifest`, `/sw.js`) + `/api/diagnostic` qui doit répondre 401 sans session | à faire |
-| 23 | 2 captures d'écran téléphone pour la fiche Play (0 aujourd'hui) | Les fichiers existent dans `store/`, dimensions vérifiées au `sips` | à faire |
-| 24 | Flow Maestro Android en CI | Le flow `.maestro/` passe sur un émulateur `reactivecircus/android-emulator-runner`, sans Mac ni téléphone | à faire |
-| 25 | Amorce iOS (uniquement si l'adhésion Apple est confirmée active) | `npx cap add ios` a créé `ios/App/App.xcworkspace` et `xcodebuild -scheme App -showBuildSettings` répond sans erreur | bloqué (décision Ibrahima) |
+| **1** | **Relever la version d'Expo Go sur l'App Store** et l'inscrire au Journal. Si ≠ 57, appliquer la note « Contradiction tranchée » du §1 et ajuster toutes les versions de ce document. | `curl -s "https://itunes.apple.com/lookup?id=982107779" \| python3 -c "import sys,json;print(json.load(sys.stdin)['results'][0]['version'])"` → affiche une version, notée au Journal. | **fait** — 57.0.9, publiée le 2026-09-02, iOS 16.4 minimum. Le SDK 57 est donc bien celui d'Expo Go. |
+| **2** | **Protéger la production.** Épingler `"better-auth": "1.7.1"` (version **exacte**, sans caret) dans `package.json`, relancer l'installation. Ne PAS migrer vers 1.7.3 (§3.2). | `node -p "require('./package.json').dependencies['better-auth']"` → `1.7.1` ; puis `pnpm install --frozen-lockfile` sort en 0 ; puis `pnpm build` sort en 0. | **fait** — commit `99dd37d` sur `main`. Le risque était plus grand qu'annoncé : `vercel.json` installe avec `--frozen-lockfile=false`, donc le lockfile ne protégeait rien au déploiement. |
+| **3** | **Créer le projet Expo** dans `five-scorer-mobile/`, SDK 57, TypeScript, expo-router. Poser `"scheme": "fivescorer"` dans `app.json`. | `cd five-scorer-mobile && node -p "require('./package.json').dependencies.expo"` commence par `57` ; `node -p "require('./app.json').expo.scheme"` → `fivescorer` ; `npx tsc --noEmit` sort en 0. | **en cours** — projet créé (SDK 57.0.21, RN 0.86.3, TypeScript), `scheme` posé, `tsc` vert, `.gitignore` du modèle en place. **Reste : expo-router**, le projet est parti du modèle `blank-typescript` et n'a qu'un seul écran. |
+| **4** | **Serveur : ouvrir la porte à Expo.** Ajouter `@better-auth/expo` aux dépendances du dépôt Next, monter `expo()` avant `nextCookies()`, étendre `trustedOrigins()` avec `fivescorer://` + (`exp://`, `exps://`) en développement seulement, ajouter `allowedDevOrigins` dans `next.config.js`. | `pnpm build` sort en 0 ; puis, `pnpm dev` lancé : `curl -s -X POST -H "Origin: exp://192.168.1.192:8081" -H "content-type: application/json" -d '{"email":"x@y.z","password":"nimportequoi"}' http://localhost:3000/api/auth/sign-in/email \| grep -c INVALID_ORIGIN` → `0`. | à faire |
+| **5** | **Porter le noyau pur** dans `mobile/lib/` : `clock.ts` (41 l.), `ids.ts`, `theme.ts` (182 l.), `color.ts` (184 l.), `balance.ts`, `retro.ts` — copie verbatim — et poser un lanceur de tests. | `cd mobile && npx vitest run` → tous verts, au moins un test par fichier porté ; `npx tsc --noEmit` sort en 0. | à faire |
+| **6** | **Le schéma SQLite** : traduire les 6 tables de `lib/db.ts` en DDL (`mobile/db/schema.sql`), avec `AUTOINCREMENT` sur `outbox.id`, la colonne `match_id`, l'index `outbox_actives`, et `PRAGMA journal_mode = WAL` à l'ouverture. | `sqlite3 :memory: ".read mobile/db/schema.sql" "INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'),('t','c','{}'),('t','c','{}'); DELETE FROM outbox WHERE id=3; INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'); SELECT MAX(id) FROM outbox;"` → **`4`** (et non `3`). | à faire |
+| **7** | **Porter le drain de l'outbox** (`lib/sync.ts`) sur une couche d'accès abstraite (une interface `Db` avec deux implémentations : `expo-sqlite` en prod, `node:sqlite`/`better-sqlite3` en test). Garder la machine à états, le backoff 5→60 s, le timeout 8 s, `pending`/`blocked`/`needsAuth`, le blocage en cascade par `match_id`. **8** opérations → **8** appels fetch. | `cd mobile && npx vitest run sync` → vert, dont un test « 50 opérations enfilées, serveur en panne, processus relancé : 0 perdue, 0 dupliquée, ordre conservé » et un test « 403 sur une op → toutes les ops du même match passent `blocked`, aucune supprimée ». | à faire |
+| **8** | **La fonction d'appel authentifié** de l'app (`mobile/lib/api.ts`) : `credentials: "omit"` + en-tête `cookie` issu de `authClient.getCookie()`, URL absolues depuis `EXPO_PUBLIC_API_URL`, 401 → `needsAuth`. | `cd mobile && npx vitest run api` → vert, avec `fetch` moqué : assertions sur `credentials === "omit"`, présence de l'en-tête `cookie`, et bascule `needsAuth` sur 401. | à faire |
+| **9** | **Serveur : les 3 premiers GET** — `GET /api/me`, `GET /api/clubs/[clubId]`, extension de `GET .../roster` (+`abonne`, `userId`, `isArchived`). Tous via `getClubApiContext`, tous validant les identifiants avec `lib/ids.ts`. | `pnpm build` sort en 0 ; `pnpm test:api` (Vitest, session simulée) → vert ; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me` sans cookie → `401`. | à faire |
+| **10** | **Écran de connexion** (`mobile/app/(public)/connexion.tsx`) + inscription, avec `authClient.signIn.email` / `signUp.email` (API identique à `LoginForm.tsx`). Aiguillage `index.tsx` : session ? club : bienvenue. | `cd mobile && npx expo export --platform ios` sort en 0 (le bundle se construit) ; `npx vitest run` vert ; `npx tsc --noEmit` vert. | à faire |
+| **11** | **Porter `lib/localMatch.ts`** (707 l., 41 appels Dexie, 9 transactions) sur la couche SQLite, en `withExclusiveTransactionAsync`. La logique métier (calcul de la minute, garde anti-équipe-vide, refus d'écrire dans un match terminé, invités) ne bouge pas. À couper en deux exécutions si nécessaire (lecture puis écriture). | `cd mobile && npx vitest run localMatch` → vert, dont « un but écrit `events` ET `outbox`, ou ni l'un ni l'autre » et « aucune écriture dans un match `FINISHED` ». | à faire |
+| **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `pnpm build` en 0 ; `pnpm test:api` vert avec un cas par endpoint ; `curl` authentifié sur `matches/[matchId]` renvoie du JSON contenant `participants` et `events`. | à faire |
+| **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (dont un test de l'équilibrage inchangé) ; `npx tsc --noEmit` vert. | à faire |
+| **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. `Pressable` + `onLongPress` à 500 ms (le garde `suppressTapUntil` de 700 ms **disparaît** : en natif `onPress` n'est pas émis après `onLongPress`), tick d'affichage 500 ms isolé dans un composant `<Horloge>`, `useKeepAwake()`, haptics selon la table du §3.6. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (test de `minuteOf`/`fmt` et de la machine tap/appui-long) ; grep de contrôle : `grep -rc "suppressTapUntil" mobile/` → `0`. | à faire |
+| **15** | **Écran « jouer », partie 2** : la pelouse, le score, la barre d'invite 15 s (passe décisive / auteur du csc), les 3 chemins d'annulation, la chronologie, les feuilles (cartons, confirmation, MVP, temps plein) en `presentation: "formSheet"`. Route **hors des onglets**, `gestureEnabled: false` — un swipe-back pendant qu'on marque est le pire bug possible. | `npx expo export --platform ios` en 0 ; `npx tsc --noEmit` vert ; `grep -n "gestureEnabled" mobile/app/jouer.tsx` → la ligne existe et vaut `false`. | à faire |
+| **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
+| **17** | **Development build local** (`npx expo run:ios --device`, identifiant Apple **gratuit**), pour pouvoir enfin recetter le hors-ligne réel et préparer le push. | `cd mobile && npx expo prebuild --platform ios --no-install` sort en 0 et `ls ios/*.xcworkspace` existe ; `xcodebuild -version` → `Xcode 26.3`. | à faire |
+| **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
+| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `pnpm build` en 0, `pnpm test:api` vert, `npx expo export --platform ios` en 0. | à faire |
+| **3 bis** | **Le premier écran, sans authentification** — pour voir quelque chose de vrai dans Expo Go avant d'avoir porté la connexion. A demandé un endpoint public côté serveur (`GET /api/public/[slug]`, déployé sur `main`) qui rend la vitrine du club ET ses jetons de thème calculés par `lib/theme.ts` : la règle des couleurs ne doit exister qu'à un seul endroit. | `cd five-scorer-mobile && npx tsc --noEmit` en 0 ; `curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy \| python3 -c "import sys,json;d=json.load(sys.stdin);print(d['club']['nom'], len(d['classement']))"` → le nom du club et le nombre de joueurs. | **fait** — commits `36ce034`, `9944e84` sur `main` et `2b4ba1b` sur `mobile`. Rendu vérifié avec la cible web d'Expo : le club, les photos et le 18-9 du 7 septembre s'affichent. |
+| **X** | **Chantier séparé, sans urgence, jamais sur la prod en premier** : `ALTER TABLE "account" ALTER COLUMN "issuer" DROP NOT NULL;`, retrait du champ dans `schema.prisma`, essai d'inscription réelle sur une preview, **puis seulement** `better-auth@1.7.3` + `@better-auth/expo@1.7.3`. Aucun index unique à retirer au préalable (vérifié dans le SQL de la migration). | Sur une base de preview : `prisma migrate deploy` en 0, puis une inscription réelle qui renvoie 200, puis `node -p "require('./node_modules/better-auth/package.json').version"` → `1.7.3`. | à faire |
+| **Y** | **Chantier séparé** : porter `lib/shareCard.ts` (291 l.) en vues RN + `react-native-view-shot` + `expo-sharing`. | `npx expo export --platform ios` en 0 ; `grep -rc "getContext(\"2d\")" mobile/` → `0`. | à faire |
 
-Note sur l'étape 8 : Capacitor 8 exige **Node 22+**, alors que le Mac est en **Node 20.20.0**. Prévoir la montée de Node dans la même exécution.
-
-Note sur l'étape 25 : `~/Library/MobileDevice/Provisioning Profiles/` est vide (0 profil), alors que le trousseau contient 5 identités valides dont « Developer ID Application: Diame SENE (M283R456KQ) » et « Apple Distribution: Diame SENE (M283R456KQ) » — deux certificats qui ne sont délivrés qu'aux membres **payants**. Mais un certificat reste dans le trousseau après expiration de l'adhésion : cela ne prouve rien.
+**Ordre de dépendance en une phrase :** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16, et **à l'issue de l'étape 16 l'app sert un lundi soir**. 17 et 18 la rendent recettable ; 19+ la rendent complète.
 
 ---
 
 ## 5. Les tests
 
-### Le dispositif
+### Ce qui se teste sans aucun appareil
 
-**Playwright pour le web, Maestro pour l'Android, rien pour iOS tant qu'il n'y a pas de projet.**
+**Unitaire (Vitest, dans `mobile/`)** — c'est là que doit vivre la confiance, parce que c'est ce qu'un agent peut relancer toutes les deux heures :
 
-Aujourd'hui : **0 fichier de test, 0 script `test`, 0 `data-testid`, 0 CI web.** Playwright et vitest n'apparaissent dans `pnpm-lock.yaml` qu'en `peerDependencies` optionnelles de `next@16.2.3` (ligne 1893) et de `better-auth` (ligne 1078) — ils ne sont pas installés. Le seul dossier nommé « test » est `android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java`, gabarit de `cap add android`, dans un dossier gitignoré.
+- La logique pure portée verbatim : `clock.ts` (dérivation du chrono depuis `elapsedMs` + `runningSince`, y compris horloge qui recule), `balance.ts`, `color.ts`/`theme.ts` (le plancher APCA à Lc 60 est testable : une chasuble claire et une foncée doivent produire des encres différentes).
+- **Le drain de l'outbox contre un faux serveur** : c'est le test qui valide tout le reste, et il ne demande aucune interface. 50 opérations, serveur en panne, processus tué, relancé : rien de perdu, rien de dupliqué, ordre conservé. Plus le cas 403 → blocage en cascade sans suppression, et le cas 401 → `needsAuth`.
+- **Le SQL lui-même**, avec `sqlite3` en ligne de commande ou `node:sqlite` : la réutilisation d'identifiant sans `AUTOINCREMENT` (étape 6) est un test, pas une croyance.
+- **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents.
 
-**Pourquoi Playwright et pas autre chose.** 95 % du produit est du web servi dans une WebView : le tester au niveau du navigateur coûte une fraction du prix et attrape les mêmes bugs. Le scénario critique — score hors-ligne puis resynchronisation — traverse `public/sw.js`, IndexedDB et l'outbox de `lib/sync.ts` : `context.setOffline(true)` le pilote directement.
+**Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
 
-**Pourquoi Maestro et pas Detox.** Detox est un harnais greybox conçu pour React Native : il s'injecte dans le runloop de l'app. Sur une coquille 100 % WebView (`capacitor.plugins.json` = `[]`), il n'a rien à instrumenter. Maestro pilote une WebView par l'arbre d'accessibilité, ses flows sont du YAML de quelques lignes, et il tourne sur `ubuntu-latest` avec `reactivecircus/android-emulator-runner` — **sans Mac et sans téléphone**.
+```bash
+cd mobile && npx tsc --noEmit          # types
+cd mobile && npx expo export --platform ios   # le bundle Metro se construit vraiment
+```
 
-**Périmètre du natif : cinq étapes maximum.** Lancer l'APK, attendre que la WebView affiche le nom du club, se connecter, marquer un but, tuer l'app et vérifier que le match est toujours là. Plus l'`errorPath` quand le serveur est injoignable, et le bouton retour Android. Le reste est du web.
+**Playwright sur l'app web, qui reste en production** — c'est le filet de sécurité de la migration : chaque endpoint ajouté au serveur pour le mobile doit prouver qu'il n'a rien cassé côté web. Trois parcours suffisent : connexion, création d'un match, saisie de trois buts et fin de match. À lancer avant chaque déploiement du serveur, systématiquement, tant que la PWA est l'outil du lundi.
 
-**Contrainte à lever d'abord :** l'URL est figée dans le binaire (`server.url`). Un test natif ne peut pas viser un serveur local sans rebuild. Il faut un `capacitor.config.e2e.json`, ou une variable d'environnement lue par `scripts/customize-android.mjs`.
+**Maestro sur simulateur iOS** (18.6 ou 26.2, déjà installés) : les mêmes parcours, côté natif. Le simulateur suffit pour tout sauf le hors-ligne réel et les notifications.
 
-### Les prises pour les sélecteurs
+### Ce qui ne se teste que sur un appareil physique
 
-Pas un seul `data-testid` dans le dépôt, mais **65 `aria-label`, 35 `role=`, 58 `name="…"`** dans `app/` + `components/`. Le bouton le plus important est déjà nommé : `components/PlayerTile.tsx:125`, `` aria-label={`${name} — but (maintenir pour annuler)`} ``. Marquer un but s'écrit donc `page.getByRole('button', { name: /— but/ }).first().click()`, **sans toucher au code de l'app**. Deux endroits manqueront de prise : les onglets de `components/ios/Onglets.tsx` (ils ont `role="tab"` mais pas d'identifiant stable) et le bouton « Terminer » de `LiveMatch.tsx:894`, dont le libellé bascule en « Enregistrer » en mode rétro.
+À écrire tel quel dans le Journal quand ça arrivera, pour qu'on ne se raconte pas d'histoires :
 
-### L'authentification dans les tests
+- **Ouvrir l'app déjà sans réseau, au bord du terrain.** Impossible en Expo Go (Metro sert le bundle par le réseau). Ce test n'existe qu'à partir de l'étape 17.
+- La connexion Google en Expo Go (voir §6).
+- La taille réelle du cookie `session_data` dans SecureStore.
+- Le rendu du dégradé radial de `crest()` par `experimental_backgroundImage`.
+- La latence du cycle « but → `useLiveQuery` → re-rendu » avec 14 photos data-URI.
 
-`lib/auth.ts` : `emailAndPassword: { enabled: true, minPasswordLength: 8 }`, sans `requireEmailVerification`. Google est conditionnel (`googleConfigured`) donc désactivable en ne renseignant pas `GOOGLE_CLIENT_ID`/`SECRET`.
+### Ce que « autocorrection » veut dire pour un agent qui tourne toutes les deux heures
 
-**Ne jamais forger un cookie de session.** `middleware.ts` ne juge que la *présence* du cookie (« ni signature, ni lecture de base », dit son propre commentaire) ; la vraie garde est `lib/guard.ts`. Un cookie bricolé casserait plus loin, sans message clair. Le `storageState` doit venir d'une **vraie inscription** contre le serveur de test, via `POST /api/auth/sign-up/email`. Et il faut poser `BETTER_AUTH_URL="http://localhost:3000"`, faute de quoi `trustedOrigins` renvoie `INVALID_ORIGIN`.
-
-Bonus : un cas de test à écrire pour ça — supprimer l'utilisateur en base pendant que le cookie vit, et vérifier qu'on atterrit sur `/session-expiree` plutôt que dans une boucle de redirection.
-
-### La base de test
-
-Les 11 migrations sont du PostgreSQL standard : `migration_lock.toml` déclare `provider = "postgresql"`, et aucune n'appelle `CREATE EXTENSION`, `pg_trgm`, `uuid-ossp` ni `citext`. La plus lourde (`20260824190000_v2_platform/migration.sql`, 493 lignes sur 650) conditionne toutes ses insertions de reprise v1 par `WHERE EXISTS (SELECT 1 FROM "Player")` (lignes 451, 455) : **sur une base neuve, elle ne crée aucun club legacy.** Un `services: postgres:16` en CI suffit. En local, `scripts/bootstrap.sh` monte déjà un conteneur `five-scorer-pg` — attention, **Docker est indisponible sur ce Mac** (`docker info` échoue), le script retombe alors sur Homebrew `postgresql@16`.
-
-`prisma/seed.ts` fait 11 lignes et ne contient qu'un `console.log`. Il faut donc deux stratégies : le parcours d'amorçage passe **une fois** par l'UI (c'est le test le plus précieux, il traverse Better Auth, le hook `afterCreateOrganization` et Prisma) ; tous les autres specs partent d'un `prisma/seed.e2e.ts` qui pose directement club + effectif + saison.
-
-### Les douze parcours, nommés d'après les vrais écrans
-
-1. **Amorçage** — `/signup` → création du club → arrivée sur `/c/[slug]`.
-2. **Match hors-ligne** — `/c/[slug]/play` (`components/PlayShell.tsx`, « Elle ne demande RIEN au serveur ») : attendre `navigator.serviceWorker.controller`, `setOffline(true)`, compo + 4 buts + mi-temps + terminer, retour en ligne, vérification en base. **Puis rejeu de la même outbox : aucun doublon** — c'est la promesse d'idempotence que `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts` revendique et que rien ne vérifie.
-3. **Invitation** — `/join/[code]` → le nouveau membre voit le club (`app/join/[code]/JoinButton.tsx`).
-4. **Effectif** — `/c/[slug]/players` (`RosterClient.tsx`, 377 lignes) : ajouter, noter le niveau, marquer gardien, archiver.
-5. **Présences** — programmer une soirée puis répondre présent depuis l'accueil (`_accueil/BoutonPresence.tsx`, action `setRsvp` de `app/actions/matchday.ts`).
-6. **Composition** — `components/CompoSoiree.tsx` + `app/actions/compo.ts`, y compris « reprendre la compo précédente ».
-7. **Match en direct connecté** — `/c/[slug]/matches/[id]/live` (`LiveMatch.tsx`, 1 035 lignes, 44 hooks) : buts, csc, cartons, mi-temps, annuler le dernier, terminer → récap.
-8. **Vote MVP** — selon `motmMode` VOTE / ADMIN / OFF (`MotmVotePanel.tsx`, `MvpPicker.tsx`).
-9. **Statistiques** — `/c/[slug]/stats` après deux matchs : les trois onglets Tableau / Buteurs / Forme.
-10. **Droits** — un `member` avec `membersCanScore=false` est redirigé hors de `/c/[slug]/play` (la garde est explicite dans la page) et ne voit pas l'onglet Réglages.
-11. **Pages publiques** — `/p/[slug]` et `/r/[id]` sans session.
-12. **Saison et calendrier** — `/c/[slug]/saison` et le flux iCal `/api/cal/[token]`.
-
-Le tout en **viewport iPhone 390×844** : l'app est dessinée mobile-first (`components/ios/`, `BottomNav.tsx`).
-
-### Ce que « autocorrection » veut dire concrètement
-
-**Cadence.** Suite complète (`tsc --noEmit` + `lint` + `build` + `migrate deploy` + Playwright) **à chaque push**. Smoke prod de 6 requêtes **toutes les deux heures** — une dizaine de secondes. Relancer la suite complète toutes les deux heures sans commit ne servirait à rien.
-
-**Périmètre de l'agent.** Il **ouvre une PR, jamais un push sur `main`**, et il se limite aux corrections dont la cause est **mécanique** : une chaîne d'UI qui a changé et casse un sélecteur, un import manquant, une erreur de type, une migration oubliée après un `prisma db push`. Tout le reste remonte à Ibrahima avec le log d'échec.
-
-**Ce qu'aucune CI ne verra, et qu'on assume :**
-
-- **Le réseau dégradé** — le vrai cas du gymnase, que `public/sw.js` décrit lui-même comme « pire que l'absence de réseau ». `setOffline(true)` simule une coupure franche, pas une 4G à 200 ms. Compensation : le CDP Playwright (`Network.emulateNetworkConditions`) avec 400 ms de latence, pour au moins exercer `DELAI_NAV` (4 s), `DELAI_RSC` (4 s) et `DELAI_API` (6 s). C'est une approximation, pas une preuve.
-- **`navigator.share`** (`components/PartageFeuille.tsx`) — n'existe pas en Chromium headless.
-- **L'installation PWA** — ne se scripte pas.
-- **Google OAuth** — exige un compte de test réel.
-- **Le rendu réel** — dépend de `public/fonts/archivo-var.woff2` et des safe-areas iPhone. Compensation : des captures Playwright en 390×844 comparées d'un run à l'autre attrapent les régressions de mise en page, pas le ressenti.
-- **Le bord-à-bord Android 15/16** — avec `targetSdk` ≥ 35 le système force le mode edge-to-edge ; le layout est le `CoordinatorLayout` + `WebView` par défaut (`activity_main.xml`, sans `fitsSystemWindows`), aucun `@capacitor/status-bar` n'est installé, et la page déclare `viewport-fit=cover`. **Non vérifié** : personne n'a lancé l'app.
-
-Ces six points forment une **checklist manuelle avant chaque publication au store**, à écrire dans `STORE.md` à côté du reste.
+1. **Une exécution = une étape du §4, et une seule.** Pas de « j'en profite pour ».
+2. **Toujours finir par la commande de vérification de l'étape, et coller sa sortie réelle au Journal.** Une étape dont la commande n'a pas été lancée reste `en cours`, jamais `fait`.
+3. **Si la commande échoue : corriger, relancer, au plus deux fois.** Au troisième échec, passer l'étape en `bloqué`, écrire au Journal ce qui a été essayé et la sortie exacte, et **ouvrir une ligne au §6** si la décision dépasse l'agent. Ne pas contourner, ne pas commenter un test, ne pas ajouter `--force`.
+4. **Interdits permanents**, sans exception et sans demander :
+   - `pnpm update`, `pnpm up`, ou toute régénération du lockfile à la racine (cf. le piège `issuer` du §3.2) ;
+   - toucher à la base de production, ou déployer une migration Prisma ;
+   - passer `better-auth` au-dessus de 1.7.1 hors de l'étape X ;
+   - ajouter une dépendance qui n'est pas dans ce document sans écrire au Journal **pourquoi**, et sans avoir vérifié son statut Expo Go (bandeau « Included in Expo Go », ou dépôt tiers = development build) ;
+   - modifier le comportement d'un endpoint existant sous `/api/clubs/` — on **ajoute**, on ne réécrit pas.
+5. **Toujours recompter avant de citer un chiffre.** Le HEAD bouge ; les chiffres de ce document datent de `117176b` ou du 2026-09-09.
+6. **Une régression sur `pnpm build` ou sur Playwright arrête tout** : la PWA est l'outil du lundi. Elle passe avant l'app native, toujours.
 
 ---
 
 ## 6. À décider par Ibrahima
 
-Rien de ce qui suit ne peut être fait par un agent.
+Un agent ne peut trancher aucune de ces lignes.
 
-**Comptes et argent**
-
-1. **L'adhésion Apple Developer (team `M283R456KQ`) est-elle encore active ?** C'est la décision la plus structurante du dossier, et elle se vérifie en une minute sur https://developer.apple.com/account. Le trousseau contient un « Developer ID Application » et un « Apple Distribution » à ton nom, qui ne sont **pas** délivrés à une équipe personnelle gratuite — mais un certificat survit à l'expiration de l'adhésion. Si l'adhésion est active : TestFlight et l'App Store sont ouverts, et l'app installée sur l'iPhone ne meurt plus au bout de 7 jours. Si elle ne l'est pas : la voie gratuite impose **7 jours de validité, 3 appareils, 10 App IDs, 3 apps par appareil**, ou 99 $/an pour en sortir.
-2. **Le compte Google Play existe-t-il, et est-il personnel ou organisation ?** 25 $ une fois, non remboursés si la vérification d'identité échoue (2 à 5 jours ouvrés ; D-U-N-S exigé pour une organisation). **C'est ce qui décide de la règle des 12 testeurs × 14 jours consécutifs** : elle s'applique aux comptes **personnels** créés après le 13 novembre 2023, pas aux comptes organisation (https://support.google.com/googleplay/android-developer/answer/14151465 ; seuil abaissé de 20 à 12 en décembre 2024, et depuis 2026 Google vérifie aussi que les testeurs ont réellement utilisé l'app). **Le chemin critique Play n'est pas technique, il est calendaire : ~3 semaines minimum entre la création du compte et la production.** À lancer maintenant, pas à la fin. Et attention : `STORE.md` §3.f décrit un « test interne » — ce n'est pas ce que Google exige, c'est un test **fermé**.
-3. **Demander l'extension API 36 jusqu'au 1er novembre 2026 ?** La page officielle telle que servie le 9 septembre 2026 dit encore « You'll be able to access your app's extension forms in Play Console later this year » — formulation au futur, peut-être non mise à jour. Sans accès à la console, impossible de trancher. À vérifier **avant** tout upload.
-
-**Sécurité, à traiter indépendamment des stores**
-
-4. **Une clé Supabase et un PIN sont dans l'historique d'un dépôt PUBLIC.** *(Corrigé après vérification : l'enquête disait « fichier versionné », c'est faux — `git ls-files five-scorer-android/` renvoie 0 fichier, tout ce dossier est hors de git. Mais c'est pire que ce que ça suggère.)*
-
-   `five-scorer-android/www/src/config.js` contient en clair une URL Supabase, une clé `sb_publishable_…`, le PIN `1234` et un commentaire disant que les tables n'ont pas de RLS. Le fichier n'est pas suivi aujourd'hui — mais il l'a été, sous `mobile/www/src/config.js`, et il a été retiré au commit `b9c847e` (« chore: remove mobile/ from profile repo »). **Retirer un fichier ne le retire pas de l'historique** : `git log --all -S 'sb_publishable_'` le retrouve, et `github.com/diamesene02/diamesene02` est **public** (`gh repo view` → `"visibility": "PUBLIC"`).
-
-   Donc la clé est lisible par n'importe qui, aujourd'hui, et le restera même si le fichier disparaît du disque. Trois gestes, dans cet ordre : **révoquer la clé côté Supabase** (c'est le seul qui protège vraiment), activer la RLS sur les tables concernées, et seulement ensuite décider s'il vaut la peine de réécrire l'historique git. Le PIN `1234` n'a jamais rien protégé.
-5. **Le keystore n'existe que sur ce Mac.** `five-scorer-release.keystore` (2 674 o, PKCS12, alias `five-scorer`, valide du 24/08/2026 au 16/08/2056) et `keystore.properties` sont tous deux gitignorés, et **aucun secret CI ne les reconstruit** — le commentaire du §4 de `scripts/customize-android.mjs` affirme le contraire, c'est faux (`grep -rniE "keystore|signing|base64"` sur les deux workflows : zéro occurrence). Perdre le Mac = perdre la capacité de mettre à jour l'app sur le Play Store. **Deux gestes : activer Play App Signing dès le premier AAB, et sauvegarder le keystore hors du dépôt.**
-
-**Produit et conformité**
-
-6. **Qui a le droit de supprimer un compte, et où ?** Apple 5.1.1(v) et Google exigent tous deux un chemin **dans l'app** pour l'utilisateur lui-même ; Google exige **en plus** une URL web de demande. Aujourd'hui : `grep` sur `app/`, `components/`, `lib/`, `prisma/` → **0 occurrence**. Et le tableau Sécurité des données du `STORE.md` déclare « suppression in-app par les admins », ce qui n'est pas conforme et constitue une déclaration inexacte — motif de suspension à part entière côté Google. Question produit : que devient un joueur supprimé dans les stats historiques du club ?
-7. **Le nom sur les stores.** `applicationId` = `dev.diame.fivescorer`, `versionName` 2.1.0. Nom affiché, nom du développeur, catégorie, description : à écrire.
-8. **L'icône et le splash.** L'icône actuelle est un « FS » plein-bord sur fond vert, sans zone de sécurité — le masque adaptatif ne garde que le cercle intérieur (66dp sur 108dp) et le rognera. Le splash est **le logo Capacitor sur fond blanc**, avant une app en thème sombre. Un agent peut régénérer aux bonnes dimensions ; il ne peut pas décider du dessin.
-9. **Faut-il ouvrir l'App Store, et à quel prix ?** Trois options : (a) ne rien faire, l'iPhone reste en PWA installée — coût 0 € ; (b) soumettre la coquille telle quelle et voir — 99 $/an, risque 4.2 réel et documenté ; (c) financer l'embarquement du front (chemin 2, 7 292 lignes) ou la réécriture RN (chemin 3), ce qui lève 4.2 mais coûte des semaines à des mois.
-10. **Que veut dire exactement « compatible React Native » ?** Aucune enquête n'a pu le déterminer, et la réponse change tout : « une app qui ne se fait pas refuser comme un site emballé » se règle avec Capacitor + du natif perceptible ; « du code React Native » est la réécriture du chemin 3.
+1. **La version d'Expo Go sur ton iPhone.** Ouvre l'App Store, cherche Expo Go, regarde le numéro. Si c'est **57.x**, tout ce document tient tel quel. Si c'est **54.x**, on fixe le projet en SDK 54 (aucun choix de bibliothèque ne change) — ou on passe par `eas go`, qui exige l'**Apple Developer Program à 99 $/an**. Question directe : **as-tu cette adhésion ?** C'est elle, et elle seule, qui décide si les SDK 55/56/57 sont atteignables sur ton téléphone quand la fenêtre App Store se referme.
+2. **Google en Expo Go, ou email/mot de passe d'abord ?** Le chemin Google est plausible et entièrement décrit (§3.2), mais **non testé sur appareil**, et des tickets Better Auth signalent des `state_mismatch` en Expo sans qu'on sache s'ils concernent Expo Go. Ma recommandation : **email/mot de passe pour tout le développement**, Google validé le jour du development build. Ton avis ?
+3. **Quand fait-on la migration `issuer` + Better Auth 1.7.3 ?** (étape X). Elle n'est pas urgente, elle touche la production, et elle doit se faire sur une preview avec une vraie session ouverte avant/après. Un soir calme, pas un dimanche.
+4. **Est-ce qu'on garde le grain et le dégradé à 4 couches de `.fond-match` ?** Le grain est un motif de points de 5 px à **0,05 d'opacité**. En natif il coûte une image tuilée plein écran sous un ScrollView. Il est possible que la bonne réponse soit simplement de le supprimer — mais c'est ton dessin, ça se juge à l'œil sur l'appareil.
+5. **Les photos des joueurs.** Ce sont des data-URL JPEG de ~20 ko en base. Trois options : les garder en base SQLite (simple, mais 200-280 ko rematérialisés à chaque but si on ne sort pas `photo` de la requête live), les déplacer vers `expo-file-system` avec le chemin en base (plus sain), ou ajouter un champ `photoUrl` côté serveur (le plus propre, mais ça touche le web). Ça se décide après la mesure de l'étape 11.
+6. **Deux apps qui écrivent en même temps.** Pendant les lots, la PWA et l'app Expo tapent les mêmes endpoints. C'est sûr **tant qu'une seule saisit un match donné**. Est-ce qu'on se donne une règle simple — « le lundi, un seul téléphone tient la feuille » — et laquelle ?
+7. **Quand coupe-t-on la PWA ?** Ma recommandation : jamais avant que le hors-ligne réel ait été recetté sur un development build (étape 17), et jamais avant deux lundis consécutifs sans incident.
+8. **Le push est-il au programme cette saison ?** « Untel a mis un but », ou « qui vient lundi ? » envoyé le jeudi. C'est le service que la PWA ne rend pas, et c'est ce qui rend le development build obligatoire. Si oui, l'étape 17 remonte dans l'ordre.
+9. ~~**`mobile/` dans le dépôt, ou dossier frère ?**~~ **Tranché le 9 septembre : dossier frère `five-scorer-mobile/`**, dans le même dépôt git (donc une seule histoire, pas deux). Voir §3.1. Rien à décider.
+10. **`iron-session`, `SESSION_SECRET`, `SCORING_PIN_HASH`** sont du **code mort** : zéro import dans tout le dépôt, il n'y a pas de second mécanisme d'authentification à porter. On les supprime du dépôt web au passage ? (Trois lignes, mais c'est ta décision.)
 
 ---
 
 ## 7. Journal
 
-*(vide)*
+*Une entrée par exécution d'agent, la plus récente en haut.*
 
-Format d'une entrée :
+### 2026-09-09 08:5x — Étapes 1, 2, 3 (partielle) et 3 bis
 
+- **État** : étape 1 `à faire → fait` · étape 2 `à faire → fait` · étape 3 `à faire → en cours` · étape 3 bis `créée → fait`
+- **Vérifié par** :
+  ```
+  $ curl -s "https://itunes.apple.com/lookup?id=982107779" | python3 -c "...['version']"
+  57.0.9   (publiée 2026-09-02, iOS 16.4 minimum)
+
+  $ node -p "require('./package.json').dependencies['better-auth']"
+  1.7.1
+
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  (aucune sortie, code 0)
+
+  $ curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy | python3 -c "..."
+  club : Renault Five Urban Guy · #FFFFFF #111111
+  classement : 10 joueurs · 1er Antoine 6 buts
+  derniers : 7 sept. Blanc 18 - 9 Noir
+  ```
+- **Fichiers touchés** :
+  - `five-scorer/package.json`, `five-scorer/pnpm-lock.yaml` (épinglage)
+  - `five-scorer/app/api/public/[slug]/route.ts` (nouveau)
+  - `five-scorer/middleware.ts` (laisser passer `api/public` et `api/cal`)
+  - `five-scorer-mobile/` (projet Expo : `App.tsx`, `lib/api.ts`, `app.json`, `README.md`)
+- **Ce qui a surpris** :
+  1. **Le risque `better-auth` était plus grand que ce document ne le disait.** Il annonçait « seul le lockfile protège la production » ; en réalité `vercel.json` installe avec `--frozen-lockfile=false`, donc le lockfile ne protégeait **rien** au déploiement. N'importe quel build de routine pouvait résoudre 1.7.3 et casser toute inscription. Épinglé en version exacte.
+  2. **`create-expo-app` a effacé ses propres fichiers** en mourant sur une question interactive (« Skip initializing a new git repository? »), à l'intérieur d'un dépôt git existant. Le projet a été recréé **hors du dépôt** puis déplacé — c'est le contournement à retenir.
+  3. **Le port 8081 était déjà pris** par un autre projet de la machine (`~/GR59/car-rental-senegal/apps/mobile`). Le bundler a été lancé sur 8090.
+- **Reste ouvert** :
+  - Étape 3 : le projet est parti du modèle `blank-typescript`, **expo-router n'est pas installé** et il n'y a qu'un écran.
+  - L'écran actuel ne demande pas de compte : c'est la vitrine publique. La connexion, c'est l'étape 4 puis 10.
+  - Rien n'a été lancé sur un appareil. Le rendu a été vérifié avec `npx expo start --web`, qui exerce l'arbre de composants et l'accès à l'API, mais **n'est pas une preuve** de fonctionnement sur iPhone.
+
+### Format d'une entrée
+
+```markdown
+### AAAA-MM-JJ HH:MM — Étape N : <titre de l'étape>
+
+- **État** : <avant> → <après>            (à faire / en cours / fait / bloqué)
+- **Vérifié par** :
+  ```
+  $ <la commande exacte>
+  <la sortie réelle, collée, pas résumée>
+  ```
+- **Fichiers touchés** : <chemins absolus, un par ligne>
+- **Ce qui a surpris** : <ce qui ne s'est pas passé comme ce document le prévoyait —
+  un chiffre faux, une version différente, un comportement inattendu.
+  Si ce document est en tort, le corriger DANS le même commit et le dire ici.>
+- **Reste ouvert** : <ce qui n'a pas été fait, ce qui attend une décision du §6,
+  ce qui doit être vérifié sur l'appareil>
 ```
-### AAAA-MM-JJ — Titre court de ce qui a été fait
-**Étape du plan :** n° et intitulé
-**État avant → après :** à faire → fait
-**Vérifié par :** la commande exacte et sa sortie (le critère de « terminé » de l'étape)
-**Fichiers touchés :** chemins absolus
-**Ce qui a surpris :** ce qui ne s'est pas passé comme prévu, ou « rien »
-**Reste ouvert :** ce que ça débloque, ce que ça bloque encore
+
+### Exemple (fictif, à supprimer à la première vraie entrée)
+
+```markdown
+### 2026-09-10 09:15 — Étape 6 : Le schéma SQLite
+
+- **État** : à faire → fait
+- **Vérifié par** :
+  ```
+  $ sqlite3 :memory: ".read mobile/db/schema.sql" "INSERT INTO outbox(...) ...; SELECT MAX(id) FROM outbox;"
+  4
+  ```
+- **Fichiers touchés** :
+  /Users/ibc/diamesene02/five-scorer/mobile/db/schema.sql
+  /Users/ibc/diamesene02/five-scorer/mobile/db/open.ts
+- **Ce qui a surpris** : rien sur l'AUTOINCREMENT. En revanche `lib/db.ts` déclare
+  l'index composé [matchId+createdAt] que je n'avais pas repris ; ajouté.
+- **Reste ouvert** : la persistance du fichier SQLite dans le bac à sable d'Expo Go
+  (survit-elle à une mise à jour d'Expo Go ?) — non vérifiable sans téléphone.
 ```
