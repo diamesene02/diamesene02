@@ -532,6 +532,118 @@ describe("removeEvent", () => {
   });
 });
 
+describe("siffletMiTemps", () => {
+  it("fige le chrono, passe en 2de, ET inscrit l'événement dans la file", async () => {
+    const d = await decor();
+    const matchId = await matchDuSoir(d);
+    await d.local.demarrerHorloge(matchId);
+    d.temps.avancer(25);
+
+    expect(await d.local.siffletMiTemps(matchId)).toBe(true);
+
+    const m = await d.local.getLocalMatch(matchId);
+    expect(m?.match.period).toBe(2);
+    // Chrono figé : 25 minutes courues, plus rien qui tourne.
+    expect(m?.match.clockElapsedMs).toBe(25 * 60_000);
+    expect(m?.match.clockRunningSince).toBeNull();
+
+    // L'événement est ce qui sépare les deux périodes dans le récap ; sans
+    // lui, le sifflet ne quittait jamais le téléphone.
+    expect(m?.events.map((e) => e.type)).toEqual(["HALF_TIME"]);
+    expect(m?.events[0].minute).toBe(25);
+
+    const f = await file(d.base);
+    expect(f.map((e) => e.op.kind)).toEqual(["createMatch", "addEvent"]);
+    const op = f[1].op;
+    if (op.kind !== "addEvent") throw new Error("op inattendue");
+    expect(op.payload.type).toBe("HALF_TIME");
+    expect(op.payload.playerId).toBeNull();
+    // Un coup de sifflet ne marque pas : le score n'a pas bougé.
+    expect(m?.match.scoreA).toBe(0);
+    expect(m?.match.scoreB).toBe(0);
+  });
+
+  it("refuse une seconde mi-temps, et n'enfile alors rien", async () => {
+    const d = await decor();
+    const matchId = await matchDuSoir(d);
+    await d.local.demarrerHorloge(matchId);
+    d.temps.avancer(25);
+    await d.local.siffletMiTemps(matchId);
+
+    expect(await d.local.siffletMiTemps(matchId)).toBe(false);
+    expect(await nb(d.base, "events")).toBe(1);
+    expect(await nb(d.base, "outbox")).toBe(2);
+  });
+
+  it("l'événement et la période tombent ensemble, ou pas du tout", async () => {
+    const base = await baseNeuve();
+    const temps = horloge();
+    const ids = compteurIds();
+    const sain = creerMatchLocal({ base, maintenant: temps.maintenant, nouvelId: ids });
+    await sain.saveRoster(CLUB, EFFECTIF);
+    const matchId = await matchDuSoir({ base, local: sain, temps });
+    await sain.demarrerHorloge(matchId);
+    temps.avancer(25);
+
+    const capricieuse = new BaseCapricieuse(base, (sql) =>
+      sql.startsWith("INSERT INTO outbox"),
+    );
+    const fragile = creerMatchLocal({
+      base: capricieuse,
+      maintenant: temps.maintenant,
+      nouvelId: ids,
+    });
+    await expect(fragile.siffletMiTemps(matchId)).rejects.toThrow("disque plein");
+
+    // Rien : ni événement, ni période 2, ni chrono figé. Une feuille en 2de
+    // période dont le sifflet n'est jamais parti au serveur serait le pire
+    // des deux mondes.
+    const m = await sain.getLocalMatch(matchId);
+    expect(await nb(base, "events")).toBe(0);
+    expect(m?.match.period).toBe(1);
+    expect(m?.match.clockRunningSince).not.toBeNull();
+  });
+
+  it("annuler la mi-temps ramène en première période", async () => {
+    const d = await decor();
+    const matchId = await matchDuSoir(d);
+    await d.local.demarrerHorloge(matchId);
+    d.temps.avancer(25);
+    await d.local.siffletMiTemps(matchId);
+
+    const avant = await d.local.getLocalMatch(matchId);
+    const siffle = avant!.events[0];
+    expect(await d.local.removeEvent(matchId, siffle.id)).toBe(true);
+
+    // Sinon le sifflet donné par erreur reste donné : le bouton refuserait
+    // une vraie mi-temps pour le reste du match.
+    const apres = await d.local.getLocalMatch(matchId);
+    expect(apres?.match.period).toBe(1);
+    expect(apres?.events).toEqual([]);
+    expect(await d.local.siffletMiTemps(matchId)).toBe(true);
+  });
+
+  it("annuler un but ne touche pas à la période", async () => {
+    const d = await decor();
+    const matchId = await matchDuSoir(d);
+    await d.local.demarrerHorloge(matchId);
+    d.temps.avancer(25);
+    await d.local.siffletMiTemps(matchId);
+    d.temps.avancer(3);
+    const but = await d.local.addEvent(matchId, {
+      type: "GOAL",
+      team: "A",
+      playerId: "j1",
+    });
+
+    await d.local.removeEvent(matchId, but);
+
+    const m = await d.local.getLocalMatch(matchId);
+    expect(m?.match.period).toBe(2);
+    expect(m?.match.scoreA).toBe(0);
+  });
+});
+
 describe("undoLastGoalOf", () => {
   it("annule le DERNIER but du joueur, et lui seul", async () => {
     const d = await decor();

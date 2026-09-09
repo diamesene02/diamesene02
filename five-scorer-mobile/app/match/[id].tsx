@@ -63,6 +63,16 @@ type Invite = {
   genre: "passe" | "csc";
 };
 
+/// Les deux feuilles qui montent du bas : la chronologie, et le choix du
+/// joueur qui prend un carton. Une seule à la fois — au bord du terrain, deux
+/// panneaux superposés, c'est un but non compté.
+type Feuille =
+  | { genre: "chrono" }
+  | { genre: "carton"; camp: "A" | "B"; carton: "YELLOW_CARD" | "RED_CARD" };
+
+const JAUNE = "#ffd60a";
+const ROUGE = "#ff453a";
+
 export default function Match() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { local, drain } = useNoyau();
@@ -73,9 +83,16 @@ export default function Match() {
   const [club, setClub] = useState<LocalClub | null>(null);
   const [etatSynchro, setEtatSynchro] = useState<EtatSynchro | null>(null);
   const [invite, setInvite] = useState<Invite | null>(null);
+  const [feuille, setFeuille] = useState<Feuille | null>(null);
   const [confirmeFin, setConfirmeFin] = useState(false);
+  const [mvpOuvert, setMvpOuvert] = useState(false);
+  const [mvpChoisi, setMvpChoisi] = useState<string | null>(null);
   const [, setTic] = useState(0);
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ce qu'affiche la feuille pendant qu'elle redescend. Sans cette mémoire,
+  // fermer le choix d'un carton ferait clignoter « Événements » le temps de
+  // l'animation : le contenu disparaît avant le panneau.
+  const derniereFeuille = useRef<Feuille | null>(null);
 
   const relire = useCallback(async () => {
     if (!id) return;
@@ -201,12 +218,35 @@ export default function Match() {
     void drain.relancer();
   }
 
+  /// Annule un événement précis — le bouton « Annuler » de la barre du bas
+  /// (le dernier, quel qu'il soit) et chaque ligne de la chronologie passent
+  /// par ici. La remise en première période d'une mi-temps annulée est tenue
+  /// par `removeEvent` : les deux chemins en héritent, sans la réécrire.
+  async function annulerEvenement(eventId: string) {
+    if (!(await local.removeEvent(match!.id, eventId))) return;
+    Vibration.vibrate(30);
+    if (invite?.eventId === eventId) fermerInvite();
+    await relire();
+    void drain.relancer();
+  }
+
   async function annulerDernier() {
     const dernier = vue!.events[vue!.events.length - 1];
     if (!dernier) return;
-    await local.removeEvent(match!.id, dernier.id);
-    Vibration.vibrate(30);
-    fermerInvite();
+    await annulerEvenement(dernier.id);
+  }
+
+  /// Un carton, pour un joueur du camp de la carte où on l'a demandé.
+  ///
+  /// Le score n'en bouge pas — c'est le compteur de la tuile et la
+  /// chronologie qui le montrent. Vibration courte : on veut savoir que c'est
+  /// pris sans quitter le jeu des yeux.
+  async function donnerCarton(joueurId: string) {
+    if (feuille?.genre !== "carton") return;
+    const { camp, carton } = feuille;
+    setFeuille(null);
+    Vibration.vibrate(18);
+    await local.addEvent(match!.id, { type: carton, team: camp, playerId: joueurId });
     await relire();
     void drain.relancer();
   }
@@ -237,9 +277,23 @@ export default function Match() {
     }
   }
 
-  async function terminer() {
+  /// Le bouton « Terminer » ne termine pas tout de suite : il demande d'abord
+  /// la confirmation, puis — si le club élit son homme du match à la main —
+  /// le MVP. En mode `VOTE` ce sont les joueurs qui votent après coup, en
+  /// mode `OFF` personne : dans les deux cas on ne demande rien ici.
+  function demanderFin() {
     setConfirmeFin(false);
-    await local.finishMatch(match!.id, null, Math.round(ecoule / 60_000) || null);
+    if (club?.motmMode === "ADMIN") {
+      setMvpChoisi(null);
+      setMvpOuvert(true);
+    } else {
+      void terminer(null);
+    }
+  }
+
+  async function terminer(mvpId: string | null) {
+    setMvpOuvert(false);
+    await local.finishMatch(match!.id, mvpId, Math.round(ecoule / 60_000) || null);
     void drain.relancer();
     router.replace("/clubs");
   }
@@ -248,6 +302,9 @@ export default function Match() {
     { camp: "A" as const, nom: match.teamAName, couleur: couleurA, joueurs: vue.teamA },
     { camp: "B" as const, nom: match.teamBName, couleur: couleurB, joueurs: vue.teamB },
   ];
+
+  if (feuille) derniereFeuille.current = feuille;
+  const contenu = feuille ?? derniereFeuille.current;
 
   const candidats = !invite
     ? []
@@ -271,7 +328,15 @@ export default function Match() {
         <Text style={s.legende} numberOfLines={1}>
           {legende(match.playedAt)} · {retro ? "Feuille" : "Match"}
         </Text>
-        <Pastille etat={etatSynchro} />
+        <View style={s.droite}>
+          <Pastille etat={etatSynchro} />
+          <BoutonRond
+            t={t}
+            symbole="≡"
+            etiquette="Événements du match"
+            onPress={() => setFeuille({ genre: "chrono" })}
+          />
+        </View>
       </View>
 
       {/* Le tableau de marque. Le camp qui perd s'efface à 40 % : à deux
@@ -351,6 +416,10 @@ export default function Match() {
                   <Text style={[s.nomJoueur, { color: t.ink }]} numberOfLines={1}>
                     {j.name}
                   </Text>
+                  {/* Qui est déjà averti, qui est sorti : ça se lit sur la
+                      tuile, pas en ouvrant la chronologie. */}
+                  {j.yellow > 0 && <Marque couleur={JAUNE} nombre={j.yellow} />}
+                  {j.red > 0 && <Marque couleur={ROUGE} nombre={j.red} />}
                   <Text style={[s.buts, { color: t.ink }]}>{j.goals || ""}</Text>
                 </Pressable>
               ))}
@@ -368,6 +437,28 @@ export default function Match() {
               >
                 <Text style={s.cscTexte}>Contre son camp</Text>
               </Pressable>
+              {/* Les cartons, seulement si le club les suit : un club qui n'en
+                  donne jamais n'a pas besoin de deux cibles de plus sous le
+                  pouce pendant qu'il compte les buts. */}
+              {club?.trackCards && (
+                <View style={[s.cartons, s.separe]}>
+                  {(
+                    [
+                      ["YELLOW_CARD", JAUNE, "jaune"],
+                      ["RED_CARD", ROUGE, "rouge"],
+                    ] as const
+                  ).map(([carton, couleur, mot]) => (
+                    <Pressable
+                      key={carton}
+                      onPress={() => setFeuille({ genre: "carton", camp: e.camp, carton })}
+                      disabled={!enJeu}
+                      accessibilityLabel={`Carton ${mot} pour ${e.nom}`}
+                      hitSlop={6}
+                      style={({ pressed }) => [s.carton, { backgroundColor: couleur }, pressed && { opacity: 0.6 }]}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           ))}
         </View>
@@ -444,14 +535,223 @@ export default function Match() {
             <BoutonPlein
               t={t}
               titre={retro ? "Enregistrer" : "Terminer"}
-              onPress={() => void terminer()}
+              onPress={demanderFin}
             />
             <View style={{ height: 10 }} />
             <BoutonVerre t={t} titre="Pas encore" onPress={() => setConfirmeFin(false)} />
           </View>
         </View>
       </Modal>
+
+      {/* L'élection de l'homme du match, quand c'est le marqueur qui tranche.
+          Facultative : on peut terminer sans élire personne — un match sans
+          MVP vaut mieux qu'un MVP donné au hasard pour sortir de l'écran. */}
+      <Modal
+        visible={mvpOuvert}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMvpOuvert(false)}
+      >
+        <View style={s.voileBas}>
+          <View style={[s.feuille, { backgroundColor: t.cdSolid, borderColor: t.cb }]}>
+            <Poignee />
+            <Text style={[s.feuilleTitre, { color: t.ink }]}>Élire le MVP</Text>
+            <Text style={[s.aide, { color: t.i2 }]}>
+              Facultatif — tu peux terminer sans MVP.
+            </Text>
+            <ScrollView style={s.liste} contentContainerStyle={{ paddingVertical: 8 }}>
+              {[...vue.teamA, ...vue.teamB].map((p) => {
+                const choisi = mvpChoisi === p.id;
+                return (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => setMvpChoisi(choisi ? null : p.id)}
+                    style={[
+                      s.ligneChoix,
+                      choisi && { backgroundColor: "rgba(255,255,255,0.12)", borderColor: t.bt },
+                    ]}
+                  >
+                    <Avatar nom={p.name} photo={p.photo} t={t} taille={30} />
+                    <Text style={[s.nomJoueur, { color: t.ink }]} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    {choisi && <Text style={[s.etoile, { color: t.bt }]}>★</Text>}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <View style={s.pied}>
+              <View style={{ flex: 1 }}>
+                <BoutonVerre t={t} titre="Retour" onPress={() => setMvpOuvert(false)} />
+              </View>
+              <View style={{ flex: 1.3 }}>
+                <BoutonPlein t={t} titre="Terminer" onPress={() => void terminer(mvpChoisi)} />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* La chronologie et le choix du joueur qui prend un carton : deux
+          contenus, une seule feuille qui monte du bas. */}
+      <Modal
+        visible={feuille !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFeuille(null)}
+      >
+        <Pressable style={s.voileBas} onPress={() => setFeuille(null)}>
+          {/* Le contenu ne referme pas la feuille quand on le touche : on
+              tape des noms dedans. */}
+          <Pressable
+            style={[s.feuille, { backgroundColor: t.cdSolid, borderColor: t.cb }]}
+            onPress={() => {}}
+          >
+            <Poignee />
+            {contenu?.genre === "carton" ? (
+              <>
+                <View style={s.feuilleTete}>
+                  <View
+                    style={[
+                      s.carton,
+                      { backgroundColor: contenu.carton === "YELLOW_CARD" ? JAUNE : ROUGE },
+                    ]}
+                  />
+                  <Text style={[s.feuilleTitre, { color: t.ink }]}>
+                    {contenu.carton === "YELLOW_CARD" ? "Carton jaune pour…" : "Carton rouge pour…"}
+                  </Text>
+                </View>
+                <ScrollView style={s.liste} contentContainerStyle={{ paddingVertical: 8 }}>
+                  {(contenu.camp === "A" ? vue.teamA : vue.teamB).map((p) => (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => void donnerCarton(p.id)}
+                      style={({ pressed }) => [
+                        s.ligneChoix,
+                        pressed && { backgroundColor: "rgba(255,255,255,0.12)" },
+                      ]}
+                    >
+                      <Avatar nom={p.name} photo={p.photo} t={t} taille={30} />
+                      <Text style={[s.nomJoueur, { color: t.ink }]} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </>
+            ) : (
+              <>
+                <View style={s.feuilleTete}>
+                  <Text style={[s.feuilleTitre, { color: t.ink }]}>Événements</Text>
+                  <BoutonRond
+                    t={t}
+                    symbole="×"
+                    etiquette="Fermer"
+                    onPress={() => setFeuille(null)}
+                  />
+                </View>
+                {vue.events.length === 0 ? (
+                  <Text style={[s.aide, { color: t.i2, paddingVertical: 24, textAlign: "center" }]}>
+                    Rien pour l&apos;instant. Ça va venir.
+                  </Text>
+                ) : (
+                  <ScrollView style={s.liste} contentContainerStyle={{ paddingBottom: 8 }}>
+                    {/* Le plus récent en haut : c'est celui qu'on vient de
+                        taper, donc celui qu'on vient de se tromper. */}
+                    {[...vue.events].reverse().map((e, i) => (
+                      <View
+                        key={e.id}
+                        style={[
+                          s.evenement,
+                          i > 0 && { borderTopWidth: 1, borderTopColor: t.sep },
+                        ]}
+                      >
+                        <Text style={[s.minute, { color: t.i3 }]}>
+                          {e.minute != null ? `${e.minute}′` : "—"}
+                        </Text>
+                        {e.type === "HALF_TIME" ? (
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={[s.nomEvenement, { color: t.i2 }]}>— Mi-temps —</Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Marqueur type={e.type} camp={e.team} couleurA={couleurA} couleurB={couleurB} />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={[s.nomEvenement, { color: t.ink }]} numberOfLines={1}>
+                                {nomDeLigne(e, match.teamAName, match.teamBName)}
+                              </Text>
+                              {e.assistName && (
+                                <Text style={[s.passeur, { color: t.i3 }]} numberOfLines={1}>
+                                  passe de {e.assistName}
+                                </Text>
+                              )}
+                            </View>
+                          </>
+                        )}
+                        <Pressable
+                          onPress={() => void annulerEvenement(e.id)}
+                          disabled={!enJeu}
+                          hitSlop={8}
+                          accessibilityLabel="Annuler cet événement"
+                        >
+                          <Text style={[s.annuler, { color: enJeu ? ROUGE : t.i3 }]}>Annuler</Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Ecran>
+  );
+}
+
+/// Ce que dit une ligne de chronologie.
+///
+/// Un csc est crédité à l'équipe qui en profite : sans auteur, on nomme le
+/// camp qui l'a concédé — « csc de Rouges » — plutôt que de laisser une ligne
+/// sans sujet.
+function nomDeLigne(
+  e: { type: string; team: "A" | "B"; playerName: string | null },
+  nomA: string,
+  nomB: string,
+): string {
+  if (e.playerName) return e.type === "OWN_GOAL" ? `${e.playerName} (csc)` : e.playerName;
+  if (e.type === "OWN_GOAL") return `csc de ${e.team === "B" ? nomA : nomB}`;
+  return e.team === "B" ? nomB : nomA;
+}
+
+/// La pastille de gauche d'une ligne : la chasuble du camp pour un but, le
+/// carton lui-même pour un carton. La forme suffit à distinguer les deux d'un
+/// coup d'œil, sans légende.
+function Marqueur({
+  type,
+  camp,
+  couleurA,
+  couleurB,
+}: {
+  type: string;
+  camp: "A" | "B";
+  couleurA: string;
+  couleurB: string;
+}) {
+  if (type === "YELLOW_CARD" || type === "RED_CARD") {
+    return <View style={[s.carton, { backgroundColor: type === "YELLOW_CARD" ? JAUNE : ROUGE }]} />;
+  }
+  return <View style={[s.pastilleCamp, { backgroundColor: camp === "A" ? couleurA : couleurB }]} />;
+}
+
+/// Le compteur de cartons d'une tuile : le carton, et son nombre s'il y en a
+/// plusieurs.
+function Marque({ couleur, nombre }: { couleur: string; nombre: number }) {
+  return (
+    <View style={s.marqueCarton}>
+      <View style={[s.cartonPetit, { backgroundColor: couleur }]} />
+      {nombre > 1 && <Text style={[s.marqueNombre, { color: couleur }]}>{nombre}</Text>}
+    </View>
   );
 }
 
@@ -520,6 +820,7 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   pastilleTexte: { width: 92, fontSize: 13, textAlign: "right" },
+  droite: { flexDirection: "row", alignItems: "center", gap: 8 },
 
   marque: {
     flexDirection: "row",
@@ -572,6 +873,14 @@ const s = StyleSheet.create({
   csc: { height: 46, alignItems: "center", justifyContent: "center" },
   cscTexte: { fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.55)" },
 
+  // Un carton se dessine : un rectangle de couleur aux proportions d'un
+  // carton d'arbitre. Aucune icône à charger, aucune police à attendre.
+  cartons: { flexDirection: "row", height: 44, alignItems: "center", justifyContent: "center", gap: 18 },
+  carton: { width: 15, height: 21, borderRadius: 3 },
+  cartonPetit: { width: 9, height: 13, borderRadius: 2 },
+  marqueCarton: { flexDirection: "row", alignItems: "center", gap: 2 },
+  marqueNombre: { fontSize: 12, fontWeight: "700" },
+
   invite: {
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -609,4 +918,45 @@ const s = StyleSheet.create({
   },
   boite: { width: "100%", maxWidth: 340, borderRadius: 26, borderWidth: 1, padding: 20 },
   boiteTitre: { fontSize: 20, fontWeight: "600", textAlign: "center", paddingBottom: 8 },
+
+  // Les feuilles qui montent du bas. Elles s'arrêtent à 78 % de l'écran : on
+  // doit toujours voir le score derrière, c'est lui qui dit où on en est.
+  voileBas: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  feuille: {
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    maxHeight: "78%",
+  },
+  feuilleTete: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingTop: 4,
+  },
+  feuilleTitre: { fontSize: 20, fontWeight: "600", paddingVertical: 8 },
+  liste: { flexGrow: 0 },
+  ligneChoix: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    height: 54,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  etoile: { fontSize: 20 },
+
+  evenement: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52 },
+  minute: { width: 34, fontSize: 13 },
+  pastilleCamp: { width: 10, height: 10, borderRadius: 5 },
+  nomEvenement: { fontSize: 16, fontWeight: "500" },
+  passeur: { fontSize: 12 },
+  annuler: { fontSize: 15, fontWeight: "600" },
 });

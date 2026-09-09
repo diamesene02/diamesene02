@@ -56,7 +56,11 @@ import type {
 } from "../outbox/types";
 import { newId } from "../noyau/ids";
 import { RETRO_APRES_MS } from "../noyau/retro";
-import { pause as figerChrono, start as relancerChrono } from "../noyau/clock";
+import {
+  minuteOf,
+  pause as figerChrono,
+  start as relancerChrono,
+} from "../noyau/clock";
 import {
   compterCoequipiers,
   compterOpsDuMatch,
@@ -484,6 +488,16 @@ export function creerMatchLocal(deps: Dependances) {
         );
       }
 
+      // Annuler la mi-temps, c'est revenir en première période — sinon le
+      // coup de sifflet sifflé par erreur reste sifflé : le bouton s'éteint
+      // (il refuse une seconde mi-temps) et la feuille garde une 2de période
+      // que rien ne justifie plus. Le web fait la même remise à 1, depuis
+      // l'écran ; ici c'est la couche locale qui la tient, pour que les deux
+      // chemins d'annulation (chronologie et bouton « Annuler ») en héritent.
+      if (ev.type === "HALF_TIME" && match) {
+        await majPeriode(b, matchId, 1);
+      }
+
       await enqueue(b, {
         kind: "removeEvent",
         clubId: match?.clubId ?? "",
@@ -692,17 +706,63 @@ export function creerMatchLocal(deps: Dependances) {
     return true;
   }
 
-  /// Siffle la mi-temps : fige le chrono et passe en seconde période.
+  /// Siffle la mi-temps : fige le chrono, passe en seconde période, et
+  /// **inscrit l'événement**.
+  ///
+  /// L'événement n'est pas décoratif : c'est lui que la chronologie affiche
+  /// (« — Mi-temps — »), lui qui part au serveur, et donc lui qui sépare les
+  /// deux périodes dans le récap. Sans lui, le sifflet ne laissait aucune
+  /// trace hors du téléphone — écart avec le web (`onHalftime` y appelle
+  /// `addEvent`), corrigé le 9 septembre au soir.
+  ///
+  /// Tout tombe dans **une seule** transaction : un chrono figé sans
+  /// événement, ou un événement sans chrono figé, seraient deux feuilles
+  /// fausses de manières différentes.
   async function siffletMiTemps(matchId: string): Promise<boolean> {
-    const m = await lireMatch(base, matchId);
-    if (!m || m.status !== "LIVE" || (m.period ?? 1) >= 2) return false;
-    const fige = figerChrono(
-      { elapsedMs: m.clockElapsedMs ?? 0, runningSince: m.clockRunningSince ?? null },
-      maintenant().getTime(),
-    );
-    await majHorloge(base, matchId, fige.elapsedMs, fige.runningSince);
-    await majPeriode(base, matchId, 2);
-    return true;
+    const eventId = nouvelId();
+    const createdAt = maintenant().toISOString();
+    return base.transaction(async (b) => {
+      const m = await lireMatch(b, matchId);
+      if (!m || m.status !== "LIVE" || (m.period ?? 1) >= 2) return false;
+      const fige = figerChrono(
+        { elapsedMs: m.clockElapsedMs ?? 0, runningSince: m.clockRunningSince ?? null },
+        maintenant().getTime(),
+      );
+      await majHorloge(b, matchId, fige.elapsedMs, fige.runningSince);
+      await majPeriode(b, matchId, 2);
+
+      // La minute vient du chrono, pas de l'heure : une feuille rétro n'a pas
+      // d'horloge, et le web tamponne déjà la mi-temps avec `minuteOf`.
+      const minute = fige.elapsedMs > 0 ? minuteOf(fige.elapsedMs) : null;
+      const event: LocalEvent = {
+        id: eventId,
+        matchId,
+        type: "HALF_TIME",
+        // Un coup de sifflet n'appartient à personne ; le web l'inscrit en
+        // « A » faute d'un camp neutre, et le score n'en bouge pas.
+        team: "A",
+        playerId: null,
+        assistPlayerId: null,
+        minute,
+        createdAt,
+      };
+      await ecrireEvenement(b, event);
+      await enqueue(b, {
+        kind: "addEvent",
+        clubId: m.clubId,
+        matchId,
+        payload: {
+          id: eventId,
+          type: "HALF_TIME",
+          team: "A",
+          playerId: null,
+          assistPlayerId: null,
+          minute,
+          createdAt,
+        },
+      });
+      return true;
+    });
   }
 
   /// Le vivier du club, tel que l'écran de composition en a besoin.
