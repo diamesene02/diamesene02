@@ -185,7 +185,7 @@ await fetch(`${API}/api/clubs/${clubId}/matches`, {
 
 **Expo Go :** OUI, sans réserve, pour email/mot de passe. Les cinq dépendances natives de `@better-auth/expo` — `expo-secure-store`, `expo-web-browser`, `expo-linking`, `expo-network`, `expo-constants` — portent toutes `expo-go` dans le front-matter `platforms` de leur page de doc SDK 57, et les versions embarquées (`~57.0.3`, `~57.0.2`, `~57.0.9`, `~57.0.1`, `~57.0.17`) satisfont largement les minima déclarés. Le mécanisme qui rend tout ça possible : en Expo Go, `resolveScheme` d'`expo-linking` **ignore silencieusement** `fivescorer` et renvoie `exp` (« Silently ignore to make bare workflow development easier ») — le même code marche donc en Expo Go et dans un futur build natif, sans branche conditionnelle. **Google : à vérifier sur l'appareil** (voir §6) ; l'email/mot de passe, lui, n'envoie même pas de `callbackURL` et ne passe donc pas par le contrôle qui pose problème.
 
-**Un risque que personne n'avait vu, à mesurer tôt :** `lib/auth.ts` active `cookieCache: { enabled: true, maxAge: 60 * 5 }`, ce qui produit un second cookie `session_data` contenant session + utilisateur encodés. La doc `expo-secure-store` avertit que « Historically, some iOS releases refused values above roughly 2048 bytes ». Le découpage à 1800 caractères existe dans les deux versions du client, mais **personne n'a mesuré la taille réelle de ce cookie**. C'est cinq minutes de travail au premier écran de connexion.
+**Un risque que personne n'avait vu — MESURÉ le 9 septembre : 1 084 octets, soit la moitié de la limite historique d'iOS et bien en deçà du découpage à 1 800 caractères. Le risque est écarté, et le point reste utile à relire si `cookieCache` grossit un jour.** Texte d'origine : `lib/auth.ts` active `cookieCache: { enabled: true, maxAge: 60 * 5 }`, ce qui produit un second cookie `session_data` contenant session + utilisateur encodés. La doc `expo-secure-store` avertit que « Historically, some iOS releases refused values above roughly 2048 bytes ». Le découpage à 1800 caractères existe dans les deux versions du client, mais **personne n'a mesuré la taille réelle de ce cookie**. C'est cinq minutes de travail au premier écran de connexion.
 
 ### 3.3 Hors-ligne
 
@@ -328,14 +328,14 @@ Règles de lecture pour l'agent :
 |---|---|---|---|
 | **1** | **Relever la version d'Expo Go sur l'App Store** et l'inscrire au Journal. Si ≠ 57, appliquer la note « Contradiction tranchée » du §1 et ajuster toutes les versions de ce document. | `curl -s "https://itunes.apple.com/lookup?id=982107779" \| python3 -c "import sys,json;print(json.load(sys.stdin)['results'][0]['version'])"` → affiche une version, notée au Journal. | **fait** — 57.0.9, publiée le 2026-09-02, iOS 16.4 minimum. Le SDK 57 est donc bien celui d'Expo Go. |
 | **2** | **Protéger la production.** Épingler `"better-auth": "1.7.1"` (version **exacte**, sans caret) dans `package.json`, relancer l'installation. Ne PAS migrer vers 1.7.3 (§3.2). | `node -p "require('./package.json').dependencies['better-auth']"` → `1.7.1` ; puis `pnpm install --frozen-lockfile` sort en 0 ; puis `pnpm build` sort en 0. | **fait** — commit `99dd37d` sur `main`. Le risque était plus grand qu'annoncé : `vercel.json` installe avec `--frozen-lockfile=false`, donc le lockfile ne protégeait rien au déploiement. |
-| **3** | **Créer le projet Expo** dans `five-scorer-mobile/`, SDK 57, TypeScript, expo-router. Poser `"scheme": "fivescorer"` dans `app.json`. | `cd five-scorer-mobile && node -p "require('./package.json').dependencies.expo"` commence par `57` ; `node -p "require('./app.json').expo.scheme"` → `fivescorer` ; `npx tsc --noEmit` sort en 0. | **en cours** — projet créé (SDK 57.0.21, RN 0.86.3, TypeScript), `scheme` posé, `tsc` vert, `.gitignore` du modèle en place. **Reste : expo-router**, le projet est parti du modèle `blank-typescript` et n'a qu'un seul écran. |
-| **4** | **Serveur : ouvrir la porte à Expo.** Ajouter `@better-auth/expo` aux dépendances du dépôt Next, monter `expo()` avant `nextCookies()`, étendre `trustedOrigins()` avec `fivescorer://` + (`exp://`, `exps://`) en développement seulement, ajouter `allowedDevOrigins` dans `next.config.js`. | `pnpm build` sort en 0 ; puis, `pnpm dev` lancé : `curl -s -X POST -H "Origin: exp://192.168.1.192:8081" -H "content-type: application/json" -d '{"email":"x@y.z","password":"nimportequoi"}' http://localhost:3000/api/auth/sign-in/email \| grep -c INVALID_ORIGIN` → `0`. | à faire |
+| **3** | **Créer le projet Expo** dans `five-scorer-mobile/`, SDK 57, TypeScript, expo-router. Poser `"scheme": "fivescorer"` dans `app.json`. | `cd five-scorer-mobile && node -p "require('./package.json').dependencies.expo"` commence par `57` ; `node -p "require('./app.json').expo.scheme"` → `fivescorer` ; `npx tsc --noEmit` sort en 0. | **fait** — SDK 57.0.21, RN 0.86.3, TypeScript, `scheme` = `fivescorer`, expo-router installé et point d'entrée basculé sur `expo-router/entry`. Quatre routes : `index` (aiguillage), `vitrine`, `connexion`, `clubs`. `tsc` vert. |
+| **4** | **Serveur : ouvrir la porte à Expo.** Ajouter `@better-auth/expo` aux dépendances du dépôt Next, monter `expo()` avant `nextCookies()`, étendre `trustedOrigins()` avec `fivescorer://` + (`exp://`, `exps://`) en développement seulement, ajouter `allowedDevOrigins` dans `next.config.js`. | `pnpm build` sort en 0 ; puis, `pnpm dev` lancé : `curl -s -X POST -H "Origin: exp://192.168.1.192:8081" ... /api/auth/sign-in/email \| grep -c INVALID_ORIGIN` → `0`. | **fait** — commit `f083477` sur `main`. La requête d'origine `exp://` reçoit `INVALID_EMAIL_OR_PASSWORD`, donc l'origine est acceptée et c'est bien le mot de passe qui est refusé. |
 | **5** | **Porter le noyau pur** dans `mobile/lib/` : `clock.ts` (41 l.), `ids.ts`, `theme.ts` (182 l.), `color.ts` (184 l.), `balance.ts`, `retro.ts` — copie verbatim — et poser un lanceur de tests. | `cd mobile && npx vitest run` → tous verts, au moins un test par fichier porté ; `npx tsc --noEmit` sort en 0. | à faire |
 | **6** | **Le schéma SQLite** : traduire les 6 tables de `lib/db.ts` en DDL (`mobile/db/schema.sql`), avec `AUTOINCREMENT` sur `outbox.id`, la colonne `match_id`, l'index `outbox_actives`, et `PRAGMA journal_mode = WAL` à l'ouverture. | `sqlite3 :memory: ".read mobile/db/schema.sql" "INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'),('t','c','{}'),('t','c','{}'); DELETE FROM outbox WHERE id=3; INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'); SELECT MAX(id) FROM outbox;"` → **`4`** (et non `3`). | à faire |
 | **7** | **Porter le drain de l'outbox** (`lib/sync.ts`) sur une couche d'accès abstraite (une interface `Db` avec deux implémentations : `expo-sqlite` en prod, `node:sqlite`/`better-sqlite3` en test). Garder la machine à états, le backoff 5→60 s, le timeout 8 s, `pending`/`blocked`/`needsAuth`, le blocage en cascade par `match_id`. **8** opérations → **8** appels fetch. | `cd mobile && npx vitest run sync` → vert, dont un test « 50 opérations enfilées, serveur en panne, processus relancé : 0 perdue, 0 dupliquée, ordre conservé » et un test « 403 sur une op → toutes les ops du même match passent `blocked`, aucune supprimée ». | à faire |
 | **8** | **La fonction d'appel authentifié** de l'app (`mobile/lib/api.ts`) : `credentials: "omit"` + en-tête `cookie` issu de `authClient.getCookie()`, URL absolues depuis `EXPO_PUBLIC_API_URL`, 401 → `needsAuth`. | `cd mobile && npx vitest run api` → vert, avec `fetch` moqué : assertions sur `credentials === "omit"`, présence de l'en-tête `cookie`, et bascule `needsAuth` sur 401. | à faire |
-| **9** | **Serveur : les 3 premiers GET** — `GET /api/me`, `GET /api/clubs/[clubId]`, extension de `GET .../roster` (+`abonne`, `userId`, `isArchived`). Tous via `getClubApiContext`, tous validant les identifiants avec `lib/ids.ts`. | `pnpm build` sort en 0 ; `pnpm test:api` (Vitest, session simulée) → vert ; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me` sans cookie → `401`. | à faire |
-| **10** | **Écran de connexion** (`mobile/app/(public)/connexion.tsx`) + inscription, avec `authClient.signIn.email` / `signUp.email` (API identique à `LoginForm.tsx`). Aiguillage `index.tsx` : session ? club : bienvenue. | `cd mobile && npx expo export --platform ios` sort en 0 (le bundle se construit) ; `npx vitest run` vert ; `npx tsc --noEmit` vert. | à faire |
+| **9** | **Serveur : les 3 premiers GET** — `GET /api/me`, `GET /api/clubs/[clubId]`, extension de `GET .../roster` (+`abonne`, `userId`, `isArchived`). Tous via `getClubApiContext`, tous validant les identifiants avec `lib/ids.ts`. | `pnpm build` sort en 0 ; `pnpm test:api` (Vitest, session simulée) → vert ; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me` sans cookie → `401`. | **en cours** — `GET /api/me` écrit et déployé : 401 sans cookie, le club complet avec (droits déjà calculés par `lib/guard.ts`, réglages hors-ligne, mon joueur, jetons de thème). **Restent** `GET /api/clubs/[clubId]` et l'extension du roster. Aucun test automatisé encore : c'est l'étape 15. |
+| **10** | **Écran de connexion** (`mobile/app/(public)/connexion.tsx`) + inscription, avec `authClient.signIn.email` / `signUp.email` (API identique à `LoginForm.tsx`). Aiguillage `index.tsx` : session ? club : bienvenue. | `cd five-scorer-mobile && npx tsc --noEmit` vert ; et la chaîne complète vérifiée sans navigateur (voir le journal du 9 septembre). | **fait** — `connexion.tsx` (connexion + inscription sur le même écran, messages d'erreur en français dont `INVALID_ORIGIN` qui dit quoi corriger), `index.tsx` (aiguillage session → clubs, sinon vitrine), `clubs.tsx` (les clubs de l'utilisateur, leurs réglages, déconnexion). |
 | **11** | **Porter `lib/localMatch.ts`** (707 l., 41 appels Dexie, 9 transactions) sur la couche SQLite, en `withExclusiveTransactionAsync`. La logique métier (calcul de la minute, garde anti-équipe-vide, refus d'écrire dans un match terminé, invités) ne bouge pas. À couper en deux exécutions si nécessaire (lecture puis écriture). | `cd mobile && npx vitest run localMatch` → vert, dont « un but écrit `events` ET `outbox`, ou ni l'un ni l'autre » et « aucune écriture dans un match `FINISHED` ». | à faire |
 | **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `pnpm build` en 0 ; `pnpm test:api` vert avec un cas par endpoint ; `curl` authentifié sur `matches/[matchId]` renvoie du JSON contenant `participants` et `events`. | à faire |
 | **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (dont un test de l'équilibrage inchangé) ; `npx tsc --noEmit` vert. | à faire |
@@ -421,6 +421,41 @@ Un agent ne peut trancher aucune de ces lignes.
 ## 7. Journal
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
+
+### 2026-09-09 09:2x — Étapes 3, 4, 10 : expo-router et la connexion
+
+- **État** : étape 3 `en cours → fait` · étape 4 `à faire → fait` · étape 9 `à faire → en cours` · étape 10 `à faire → fait`
+- **Vérifié par** — la chaîne complète, exercée **sans navigateur**, comme le fera le téléphone :
+  ```
+  $ curl -s -i -X POST http://localhost:3000/api/auth/sign-in/email \
+      -H "Origin: exp://192.168.1.192:8081" -H "content-type: application/json" \
+      -d '{"email":"qa-saisie@five.local","password":"..."}'
+  HTTP/1.1 200 OK
+  cookies reçus : 2
+  taille du cookie de session : 1084 octets
+
+  $ curl -s -H "Cookie: $COOKIE" http://localhost:3000/api/me
+  utilisateur : QA Saisie · qa-saisie@five.local
+  club : Renault Five Urbain Guyancourt | rôle owner | mon joueur Diame
+
+  $ curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me
+  401
+
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  (aucune sortie, code 0)
+  ```
+- **Fichiers touchés** :
+  - serveur : `lib/auth.ts` (plugin `expo()`, origines `fivescorer://` + `exp://`/`exps://` en dev), `next.config.js` (`allowedDevOrigins`), `app/api/me/route.ts` (nouveau), `package.json` (`@better-auth/expo@1.7.1`)
+  - app : `app/_layout.tsx`, `app/index.tsx`, `app/vitrine.tsx`, `app/connexion.tsx`, `app/clubs.tsx`, `lib/auth-client.ts`, `lib/couleurs.ts`, `composants/Ecran.tsx`, `composants/base.tsx`
+- **Ce qui a surpris** :
+  1. **`authClient.getCookie()` est ASYNCHRONE.** Le §3.2 le montrait avec `await`, mais l'erreur est facile à faire : sans lui, on pose une promesse dans l'en-tête `cookie` et le serveur voit une requête anonyme — un 401 qui n'a l'air d'expliquer rien. Attrapé par `tsc`, pas à l'exécution.
+  2. **La cible web ne peut pas tester la connexion.** Le navigateur applique CORS sur `/api/auth/*`, qui n'en a pas et ne doit pas en avoir. La vitrine publique s'y vérifie, la connexion non — elle se vérifie en HTTP direct, ou sur l'appareil. **Ne pas ajouter d'en-têtes CORS à `/api/auth` pour contourner ça.**
+  3. **`main` avait ramassé `five-scorer-mobile/` par accident** (un `git add -A` depuis un sous-dossier ajoute tout l'arbre). La fusion a produit des conflits sur un squelette obsolète. Résolus en faveur de `mobile`, et le squelette mort supprimé.
+  4. **La taille du cookie de session est de 1 084 octets** — le point du §3.2 qui n'avait jamais été mesuré. Sous la limite historique d'iOS, sous le seuil de découpage. Réglé.
+- **Reste ouvert** :
+  - Rien n'a été lancé sur un appareil. La connexion doit être essayée dans Expo Go — c'est la seule chose qui reste à prouver sur ce lot.
+  - Étape 9 : `GET /api/clubs/[clubId]` et l'extension du roster.
+  - `.env.local` de l'app pointe le serveur LOCAL. Le retirer pour repointer la production.
 
 ### 2026-09-09 08:5x — Étapes 1, 2, 3 (partielle) et 3 bis
 
