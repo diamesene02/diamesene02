@@ -335,7 +335,7 @@ Règles de lecture pour l'agent :
 | **7** | **Porter le drain de l'outbox** (`lib/sync.ts`) sur une couche d'accès abstraite (une interface `Db` avec deux implémentations : `expo-sqlite` en prod, `node:sqlite`/`better-sqlite3` en test). Garder la machine à états, le backoff 5→60 s, le timeout 8 s, `pending`/`blocked`/`needsAuth`, le blocage en cascade par `match_id`. **8** opérations → **8** appels fetch. | `cd mobile && npx vitest run sync` → vert, dont un test « 50 opérations enfilées, serveur en panne, processus relancé : 0 perdue, 0 dupliquée, ordre conservé » et un test « 403 sur une op → toutes les ops du même match passent `blocked`, aucune supprimée ». | à faire |
 | **8** | **La fonction d'appel authentifié** de l'app (`mobile/lib/api.ts`) : `credentials: "omit"` + en-tête `cookie` issu de `authClient.getCookie()`, URL absolues depuis `EXPO_PUBLIC_API_URL`, 401 → `needsAuth`. | `cd mobile && npx vitest run api` → vert, avec `fetch` moqué : assertions sur `credentials === "omit"`, présence de l'en-tête `cookie`, et bascule `needsAuth` sur 401. | à faire |
 | **9** | **Serveur : les 3 premiers GET** — `GET /api/me`, `GET /api/clubs/[clubId]`, extension de `GET .../roster` (+`abonne`, `userId`, `isArchived`). Tous via `getClubApiContext`, tous validant les identifiants avec `lib/ids.ts`. | `pnpm build` sort en 0 ; `pnpm test:api` (Vitest, session simulée) → vert ; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me` sans cookie → `401`. | **en cours** — `GET /api/me` écrit et déployé : 401 sans cookie, le club complet avec (droits déjà calculés par `lib/guard.ts`, réglages hors-ligne, mon joueur, jetons de thème). **Restent** `GET /api/clubs/[clubId]` et l'extension du roster. Aucun test automatisé encore : c'est l'étape 15. |
-| **10** | **Écran de connexion** (`mobile/app/(public)/connexion.tsx`) + inscription, avec `authClient.signIn.email` / `signUp.email` (API identique à `LoginForm.tsx`). Aiguillage `index.tsx` : session ? club : bienvenue. | `cd five-scorer-mobile && npx tsc --noEmit` vert ; et la chaîne complète vérifiée sans navigateur (voir le journal du 9 septembre). | **fait** — `connexion.tsx` (connexion + inscription sur le même écran, messages d'erreur en français dont `INVALID_ORIGIN` qui dit quoi corriger), `index.tsx` (aiguillage session → clubs, sinon vitrine), `clubs.tsx` (les clubs de l'utilisateur, leurs réglages, déconnexion). |
+| **10** | **Écran de connexion** (`mobile/app/(public)/connexion.tsx`) + inscription, avec `authClient.signIn.email` / `signUp.email` (API identique à `LoginForm.tsx`). Aiguillage `index.tsx` : session ? club : bienvenue. | `cd five-scorer-mobile && npx tsc --noEmit` vert ; et la chaîne complète vérifiée sans navigateur (voir le journal du 9 septembre). | **fait** — `connexion.tsx` (connexion + inscription sur le même écran, messages d'erreur en français dont `INVALID_ORIGIN` qui dit quoi corriger), `index.tsx` (aiguillage session → clubs, sinon vitrine), `clubs.tsx` (les clubs de l'utilisateur, leurs réglages, déconnexion). Chaîne complète rejouée sans téléphone par `five-scorer-mobile/scripts/parcours-connexion.mjs` : origine `exp://` acceptée, cookie délivré, `/api/me` servi, 401 sans cookie. **En Expo Go la connexion exige `pnpm dev` sur le Mac** — voir le journal du 9 septembre 10:4x. |
 | **11** | **Porter `lib/localMatch.ts`** (707 l., 41 appels Dexie, 9 transactions) sur la couche SQLite, en `withExclusiveTransactionAsync`. La logique métier (calcul de la minute, garde anti-équipe-vide, refus d'écrire dans un match terminé, invités) ne bouge pas. À couper en deux exécutions si nécessaire (lecture puis écriture). | `cd mobile && npx vitest run localMatch` → vert, dont « un but écrit `events` ET `outbox`, ou ni l'un ni l'autre » et « aucune écriture dans un match `FINISHED` ». | à faire |
 | **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `pnpm build` en 0 ; `pnpm test:api` vert avec un cas par endpoint ; `curl` authentifié sur `matches/[matchId]` renvoie du JSON contenant `participants` et `events`. | à faire |
 | **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (dont un test de l'équilibrage inchangé) ; `npx tsc --noEmit` vert. | à faire |
@@ -421,6 +421,70 @@ Un agent ne peut trancher aucune de ces lignes.
 ## 7. Journal
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
+
+### 2026-09-09 10:4x — Étape 10 : la connexion, vérifiée de bout en bout
+
+**Le symptôme.** Sur l'iPhone, dans Expo Go : « Le serveur refuse l'origine
+de l'app ». Mon propre message d'erreur, en rouge, sur l'écran de connexion.
+
+**La cause, et elle n'est pas un bug.** `.env.local` ayant disparu, l'app
+visait la production. Or `trustedOrigins()` n'ajoute `exp://` et `exps://`
+que si `NODE_ENV === "development"` — délibérément : le hook `after` du
+plugin serveur recopie l'en-tête `set-cookie`, donc le jeton de session en
+clair, dans l'URL de redirection dès que la destination est une origine de
+confiance à schéma non-http. Faire confiance à `exp://` en production
+donnerait à n'importe quelle app Expo un moyen de récupérer une session.
+Le refus est le comportement correct. **Cette ligne ne doit pas bouger.**
+
+Mesuré des deux côtés, avec un compte qui n'existe pas (403 = origine
+refusée, 401 = origine acceptée et c'est le mot de passe qui ne va pas) :
+
+| serveur | `exp://` | `exps://` | `fivescorer://` |
+|---|---|---|---|
+| dev (le Mac) | 401 | 401 | 401 |
+| production | **403** | — | 401 |
+
+**Ce qui a changé.** Le défaut de `lib/api.ts` devient le serveur du Mac en
+développement (`__DEV__`), la production sinon. Ce n'est pas un confort : en
+Expo Go, c'est la seule adresse qui puisse accepter une connexion.
+
+**Le mur suivant, franchi avant qu'il ne se présente.** Le compte réel vit en
+production ; la base locale ne le connaît pas. Pointer l'app sur le Mac
+aurait donc simplement remplacé « origine refusée » par « mot de passe
+incorrect ». `five-scorer/scripts/compte-dev.mjs` crée donc un compte d'essai
+sur le club local qui ressemble le plus au vrai (`fc-testeurs` — chasubles
+blanc et noir, 10 joueurs, 45 soirées, 16 matchs), le rend `owner`, lui
+attache un profil joueur, refuse de tourner si `DATABASE_URL` n'est pas
+locale, et se rattrape si un essai précédent a laissé un autre mot de passe
+(vérifié en cassant volontairement le hachage : `compte : recréé`).
+L'écran de connexion le remplit en un tap, sous `__DEV__`.
+
+**Un cas non couvert, trouvé en relisant.** Avec `expo start --tunnel` —
+le recours normal quand le téléphone n'est pas sur le Wi-Fi du Mac —
+`hostUri` est un domaine `exp.direct`, pas une IP. L'ancienne réécriture y
+recopiait le port 3000 et fabriquait une adresse qui n'existe pas. Et de
+toute façon, sous tunnel le serveur local est hors d'atteinte. La fonction,
+devenue pure sous le nom `resoudreAdresse`, rend maintenant l'URL intacte
+**et** la raison, que l'écran de connexion affiche.
+
+**Ce qui est prouvé, sans téléphone :**
+
+- `scripts/verif-adresse.mjs` — 12 cas de traduction d'adresse, tous verts.
+- `scripts/parcours-connexion.mjs` — depuis une origine `exp://` : connexion,
+  cookie de session délivré, `/api/me` accepté, l'utilisateur reconnu, le
+  club complet avec ses droits calculés côté serveur et ses jetons de thème,
+  la vitrine publique du même club, et le **401 attendu sans cookie**.
+- Le bundle Metro compile pour les deux plateformes : iOS 6360 Ko,
+  Android 7050 Ko, HTTP 200.
+- Le Mac est joignable depuis le Wi-Fi : `192.168.1.192:3000` (Next) et
+  `:8090` (Metro), 200 tous les deux.
+
+**Ce qui reste vrai et qu'il faut redire :** la base locale est une réplique,
+pas le vrai club. Pour voir les vraies données sur le téléphone, il faut un
+development build (étape 17) : son schéma `fivescorer://` est, lui, une
+origine de confiance en production.
+
+Commit `a4bd614` sur `mobile`.
 
 ### 2026-09-09 09:2x — Étapes 3, 4, 10 : expo-router et la connexion
 
