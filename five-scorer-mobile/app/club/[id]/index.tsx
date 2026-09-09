@@ -9,18 +9,18 @@ import {
   View,
 } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import Ecran from "../../composants/Ecran";
-import { Avatar, BoutonPlein, EcussonChasuble } from "../../composants/base";
-import { useNoyau } from "../../composants/Noyau";
-import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
-import { fmt } from "../../lib/noyau/clock";
+import Ecran from "../../../composants/Ecran";
+import { Avatar, BoutonPlein, EcussonChasuble } from "../../../composants/base";
+import { useNoyau } from "../../../composants/Noyau";
+import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import { fmt } from "../../../lib/noyau/clock";
 import {
   chargerAccueil,
   chargerMoi,
   SessionExpiree,
   type Accueil,
   type ClubDeMoi,
-} from "../../lib/api";
+} from "../../../lib/api";
 
 /// L'accueil du club — repris de la page du site.
 ///
