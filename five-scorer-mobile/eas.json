@@ -1,52 +1,33 @@
 {
-  "cli": { "version": ">= 16.0.0", "appVersionSource": "local" },
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
   "build": {
-    "//": [
-      "Trois profils. Le nom du profil décide de ce qu'on obtient, et la",
-      "différence qui compte n'est pas « dev vs prod » mais : le bundle JS",
-      "est-il embarqué, et l'app peut-elle s'installer sans passer par l'App",
-      "Store.",
-      "",
-      "Pourquoi le nuage plutôt que le Mac : Expo SDK 57 reconstruit",
-      "ExpoModulesJSI depuis ses sources à chaque première compilation (le",
-      "hash de cache inclut la version du compilateur Swift), et cette",
-      "reconstruction échoue sur le Swift 6.2.4 de Xcode 26.3. Or Xcode 26.4+",
-      "exige macOS 26.2, que cette machine sous macOS 15.6 ne peut pas",
-      "installer. Le nuage a le bon Xcode."
-    ],
     "lundi": {
-      "//": [
-        "Celui qui sert au terrain. Distribution interne : l'app s'installe",
-        "par un lien sur les iPhones enregistrés dans l'équipe, sans App",
-        "Store. Release, donc le bundle JS est embarqué et l'app démarre sans",
-        "Metro — indispensable au gymnase, où le Mac n'est pas là.",
-        "En Release, lib/api.ts vise la production : le vrai club."
-      ],
       "distribution": "internal",
-      "channel": "lundi",
-      "ios": { "resourceClass": "m-medium" }
+      "ios": {
+        "resourceClass": "m-medium"
+      }
     },
     "atelier": {
-      "//": [
-        "Pour développer un écran depuis un vrai build : mêmes conditions que",
-        "« lundi » mais l'app parle au serveur du Mac. Le schéma reste",
-        "fivescorer://, que le serveur de dev accepte aussi.",
-        "Change l'adresse ici plutôt que dans un .env.local : celui-ci vaut",
-        "pour tous les modes et détournerait aussi Expo Go, qui doit continuer",
-        "de viser le Mac par son propre chemin."
-      ],
       "distribution": "internal",
-      "channel": "atelier",
-      "env": { "EXPO_PUBLIC_API": "http://192.168.1.192:3000" },
-      "ios": { "resourceClass": "m-medium" }
+      "env": {
+        "EXPO_PUBLIC_API": "http://192.168.1.192:3000"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      }
     },
     "magasin": {
-      "//": "Pour l'App Store, le jour venu. Rien à en faire aujourd'hui.",
       "distribution": "store",
-      "channel": "magasin",
       "autoIncrement": true,
-      "ios": { "resourceClass": "m-medium" }
+      "ios": {
+        "resourceClass": "m-medium"
+      }
     }
   },
-  "submit": { "magasin": {} }
+  "submit": {
+    "magasin": {}
+  }
 }
