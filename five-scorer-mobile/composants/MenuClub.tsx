@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Modal, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EcussonChasuble, Poignee } from "./base";
 import { CHEMINS, IconeTrait } from "./Icones";
+import { useNoyau } from "./Noyau";
 import type { Jetons } from "../lib/couleurs";
 import { PROD, type ClubDeMoi } from "../lib/api";
 import { signOut } from "../lib/auth-client";
@@ -29,6 +30,7 @@ export default function MenuClub({
 }) {
   const [ouvert, setOuvert] = useState(false);
   const bas = useSafeAreaInsets().bottom;
+  const { enAttente, purger } = useNoyau();
 
   // « FC Lundi Soir » devient « Lundi Soir » dans la pilule, comme sur le site.
   const court = club.nom.replace(/^(FC|AS|US|SC|Five)\s+/i, "");
@@ -50,6 +52,40 @@ export default function MenuClub({
       /* partage annulé */
     }
   };
+
+  /// Se déconnecter, proprement.
+  ///
+  /// Deux choses que le bouton d'origine ne faisait pas :
+  ///
+  /// 1. il PRÉVIENT quand la file d'attente n'est pas vide. Une soirée saisie
+  ///    au gymnase sans réseau vit dans la base du téléphone ; se déconnecter
+  ///    la jetterait, et deux heures de saisie disparaîtraient sans un mot ;
+  ///
+  /// 2. il VIDE la base locale. Sur un téléphone prêté, la personne suivante
+  ///    ouvrait l'app sur le vestiaire du club précédent. C'est exactement ce
+  ///    que fait le site avec son cache hors-ligne avant de signer la sortie.
+  async function deconnecter() {
+    const { enAttente: restants, bloquees } = await enAttente().catch(() => ({
+      enAttente: 0,
+      bloquees: 0,
+    }));
+    const total = restants + bloquees;
+    const partir = async () => {
+      await purger();
+      await signOut();
+      router.replace("/connexion");
+    };
+    if (total === 0) return partir();
+    Alert.alert(
+      "Des choses ne sont pas encore parties",
+      `${total} opération${total > 1 ? "s" : ""} attend${total > 1 ? "ent" : ""} le réseau. ` +
+        "Se déconnecter maintenant les perdrait.",
+      [
+        { text: "Rester connecté", style: "cancel" },
+        { text: "Se déconnecter quand même", style: "destructive", onPress: () => void partir() },
+      ],
+    );
+  }
 
   return (
     <>
@@ -106,6 +142,25 @@ export default function MenuClub({
                 router.push({ pathname: "/club/[id]/effectif", params: { id: club.id } }),
               )}
             />
+            <Item
+              t={t}
+              chemin={CHEMINS.saison}
+              carre
+              libelle="Saison"
+              onPress={aller(() =>
+                router.push({ pathname: "/club/[id]/saison", params: { id: club.id } }),
+              )}
+            />
+            {club.peutGerer && (
+              <Item
+                t={t}
+                chemin={CHEMINS.reglages}
+                libelle="Réglages"
+                onPress={aller(() =>
+                  router.push({ pathname: "/club/[id]/reglages", params: { id: club.id } }),
+                )}
+              />
+            )}
             {club.urlPublique && (
               <Item t={t} chemin={CHEMINS.partager} libelle="Partager le club" onPress={partager} />
             )}
@@ -120,10 +175,10 @@ export default function MenuClub({
               chemin={CHEMINS.sortir}
               libelle="Se déconnecter"
               danger
-              onPress={aller(async () => {
-                await signOut();
-                router.replace("/connexion");
-              })}
+              onPress={() => {
+                setOuvert(false);
+                void deconnecter();
+              }}
             />
 
             <Pressable onPress={fermer} style={s.fermer}>
@@ -142,12 +197,16 @@ function Item({
   libelle,
   onPress,
   danger,
+  carre,
 }: {
   t: Jetons;
   chemin: string;
   libelle: string;
   onPress: () => void;
   danger?: boolean;
+  /// Le trophée de « Saison » est dessiné à bouts francs sur le site ; arrondi,
+  /// il perd ses angles et devient un ballon.
+  carre?: boolean;
 }) {
   const couleur = danger ? t.bad : t.ink;
   return (
@@ -156,7 +215,7 @@ function Item({
       accessibilityRole="button"
       style={({ pressed }) => [s.item, pressed && { opacity: 0.6 }]}
     >
-      <IconeTrait d={chemin} couleur={couleur} />
+      <IconeTrait d={chemin} couleur={couleur} carre={carre} />
       <Text style={[s.itemTexte, { color: couleur }]}>{libelle}</Text>
     </Pressable>
   );

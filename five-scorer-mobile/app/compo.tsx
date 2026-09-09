@@ -56,14 +56,34 @@ type Fiche = BalanceInput & {
 };
 
 export default function Compo() {
-  const { clubId } = useLocalSearchParams<{ clubId?: string }>();
+  // `quand` et `soireeId` viennent de l'appelant : la feuille « Créer » de la
+  // barre du bas ouvre déjà l'écran en mode « déjà joué », et le calendrier de
+  // la saison y envoie AVEC la soirée à rattraper. Sans les lire, le bouton
+  // « Saisir un match déjà joué » retombait sur « Maintenant » — un tap qui
+  // ment — et un match saisi ne se rattachait à aucun lundi.
+  const { clubId, quand: quandDemande, soireeId, date: dateDemandee } =
+    useLocalSearchParams<{
+      clubId?: string;
+      quand?: string;
+      soireeId?: string;
+      date?: string;
+    }>();
   const { local, drain } = useNoyau();
 
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [effectif, setEffectif] = useState<Fiche[]>([]);
   const [choix, setChoix] = useState<Record<string, Choix>>({});
-  const [quand, setQuand] = useState<"maintenant" | "deja">("maintenant");
-  const [date, setDate] = useState(veille);
+  const [quand, setQuand] = useState<"maintenant" | "deja">(
+    quandDemande === "deja" || soireeId ? "deja" : "maintenant",
+  );
+  const [date, setDate] = useState(() => {
+    // La date de la soirée à rattraper, si on nous l'a donnée. Jamais dans le
+    // futur : le sélecteur l'interdit, et une feuille datée de demain fausse
+    // le classement.
+    const t = dateDemandee ? Date.parse(dateDemandee) : NaN;
+    if (Number.isNaN(t)) return veille();
+    return new Date(Math.min(t, Date.now()));
+  });
   const [ouvrePicker, setOuvrePicker] = useState(false);
   const [nomA, setNomA] = useState("");
   const [nomB, setNomB] = useState("");
@@ -219,6 +239,10 @@ export default function Compo() {
         teamA: equipeA.map((p) => ({ playerId: p.id, isGk: p.isGk })),
         teamB: equipeB.map((p) => ({ playerId: p.id, isGk: p.isGk })),
         playedAt: quand === "deja" ? date.toISOString() : null,
+        // Rattacher le match à sa soirée : sans ça, il n'apparaît sur aucun
+        // lundi, ne compte pas dans « soirées jouées » et laisse le ticker de
+        // la soirée vide alors que le match a bien été joué.
+        matchDayId: soireeId ?? null,
       });
       // Le match existe déjà sur l'appareil : on part à la feuille sans
       // attendre le serveur. La file s'en charge.

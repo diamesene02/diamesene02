@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import * as Network from "expo-network";
 import { ouvrirBase } from "../lib/outbox/baseExpo";
+import { compteurs } from "../lib/outbox/outbox";
 import { creerMatchLocal, type MatchLocal } from "../lib/match/local";
 import { creerDrain, type Drain } from "../lib/outbox/sync";
 import { API, lireCookie } from "../lib/api";
@@ -23,7 +24,20 @@ import { JETONS_NEUTRES } from "../lib/couleurs";
 export type Noyau = {
   local: MatchLocal;
   drain: Drain;
+  /// Ce que la file n'a pas encore réussi à pousser. Se demande AVANT de
+  /// déconnecter : partir avec une soirée non synchronisée dans la poche, ce
+  /// sont deux heures de saisie qui disparaissent.
+  enAttente: () => Promise<{ enAttente: number; bloquees: number }>;
+  /// Vide la base locale. Appelée à la déconnexion : sur un téléphone prêté,
+  /// la personne suivante ne doit pas ouvrir l'app sur le vestiaire du club
+  /// précédent. Le site fait exactement ça avec son cache hors-ligne
+  /// (`postMessage({type:"PURGE"})` avant `signOut()`).
+  purger: () => Promise<void>;
 };
+
+/// Les tables du miroir local, dans l'ordre des dépendances : on vide les
+/// filles avant les mères, sinon les clés étrangères refusent.
+const TABLES = ["events", "participants", "matches", "outbox", "roster", "clubs"];
 
 const Contexte = createContext<Noyau | null>(null);
 
@@ -53,7 +67,17 @@ export function FournisseurNoyau({ children }: { children: React.ReactNode }) {
         const drain = creerDrain({ base, api: API, cookie: lireCookie });
         if (!vivant) return;
         drainRef.current = drain;
-        setNoyau({ local, drain });
+        setNoyau({
+          local,
+          drain,
+          enAttente: () => compteurs(base),
+          purger: async () => {
+            drain.arreter();
+            await base.transaction(async (b) => {
+              for (const t of TABLES) await b.executer(`DELETE FROM ${t}`);
+            });
+          },
+        });
         // Ce qui restait de la dernière fois part tout de suite : l'app a pu
         // être fermée au milieu d'une soirée, hors réseau.
         void drain.relancer();

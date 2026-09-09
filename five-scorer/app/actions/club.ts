@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { idsValides } from "@/lib/ids";
+import {
+  ecrireReglages,
+  type ClubSettingsInput,
+} from "@/lib/reglages-serveur";
 import { auth } from "@/lib/auth";
 import { requireUser, requireClub } from "@/lib/guard";
 import { claimLegacyClub } from "@/lib/legacy";
 import { createId } from "@paralleldrive/cuid2";
-import { isValidHex } from "@/lib/color";
-import type { MotmMode, SportFormat } from "@prisma/client";
 
 function normalizeName(s: string): string {
   return s
@@ -98,27 +100,11 @@ export async function claimLegacy(
 
 // --- Réglages du club -------------------------------------------------------
 
-export type ClubSettingsInput = {
-  name?: string;
-  /// Couleurs des chasubles — l'identité visuelle du club.
-  colorA?: string;
-  colorB?: string;
-  format?: SportFormat;
-  matchDurationMin?: number;
-  minJoueurs?: number;
-  capaciteSoiree?: number;
-  pointsWin?: number;
-  pointsDraw?: number;
-  trackAssists?: boolean;
-  trackCards?: boolean;
-  motmMode?: MotmMode;
-  membersCanScore?: boolean;
-  isPublic?: boolean;
-};
+export type { ClubSettingsInput } from "@/lib/reglages-serveur";
 
-const FORMATS: SportFormat[] = ["FIVE", "FUTSAL", "SEVEN", "ELEVEN", "OTHER"];
-const MOTM_MODES: MotmMode[] = ["VOTE", "ADMIN", "OFF"];
-
+/// Les réglages du club. Le corps vit dans `lib/reglages-serveur.ts` : la
+/// route mobile `PATCH /api/clubs/[clubId]/reglages` écrit les mêmes champs,
+/// avec les mêmes bornes.
 export async function updateClubSettings(
   slug: string,
   input: ClubSettingsInput,
@@ -126,70 +112,13 @@ export async function updateClubSettings(
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 
-  const clamp = (n: number, lo: number, hi: number) =>
-    Math.min(hi, Math.max(lo, Math.round(n)));
-
-  const name = input.name?.trim();
-  if (name !== undefined && name.length < 2) {
-    return { ok: false, error: "Nom trop court." };
-  }
-
-  await prisma.$transaction(async (tx) => {
-    if (name) {
-      await tx.organization.update({
-        where: { id: ctx.club.id },
-        data: { name },
-      });
-    }
-    await tx.club.update({
-      where: { id: ctx.club.id },
-      data: {
-        ...(input.format && FORMATS.includes(input.format)
-          ? { format: input.format }
-          : {}),
-        ...(input.minJoueurs !== undefined
-          ? { minJoueurs: clamp(input.minJoueurs, 2, 30) }
-          : {}),
-        // 0 = pas de liste d'attente : un club qui prend tout le monde et
-        // s'arrange sur place doit pouvoir le dire.
-        ...(input.capaciteSoiree !== undefined
-          ? { capaciteSoiree: clamp(input.capaciteSoiree, 0, 40) }
-          : {}),
-        ...(input.matchDurationMin !== undefined
-          ? { matchDurationMin: clamp(input.matchDurationMin, 1, 120) }
-          : {}),
-        ...(input.pointsWin !== undefined
-          ? { pointsWin: clamp(input.pointsWin, 1, 10) }
-          : {}),
-        ...(input.pointsDraw !== undefined
-          ? { pointsDraw: clamp(input.pointsDraw, 0, 5) }
-          : {}),
-        ...(input.trackAssists !== undefined
-          ? { trackAssists: input.trackAssists }
-          : {}),
-        ...(input.trackCards !== undefined
-          ? { trackCards: input.trackCards }
-          : {}),
-        ...(input.motmMode && MOTM_MODES.includes(input.motmMode)
-          ? { motmMode: input.motmMode }
-          : {}),
-        ...(input.membersCanScore !== undefined
-          ? { membersCanScore: input.membersCanScore }
-          : {}),
-        ...(input.colorA && isValidHex(input.colorA)
-          ? { colorA: input.colorA.trim().toUpperCase() }
-          : {}),
-        ...(input.colorB && isValidHex(input.colorB)
-          ? { colorB: input.colorB.trim().toUpperCase() }
-          : {}),
-        ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
-      },
-    });
-  });
-  revalidatePath(`/c/${slug}`, "layout");
-  return { ok: true };
+  const res = await ecrireReglages(ctx.club.id, input);
+  if (res.ok) revalidatePath(`/c/${slug}`, "layout");
+  return res;
 }
 
+/// Régénère le code d'invitation. IRRÉVERSIBLE : tous les liens déjà
+/// partagés cessent de fonctionner à la seconde.
 export async function regenerateInviteCode(
   slug: string,
 ): Promise<{ ok: boolean; code?: string; error?: string }> {
@@ -215,6 +144,15 @@ export async function setMemberRole(
   // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
   if (!idsValides(memberId)) {
     return { ok: false, error: "Identifiant invalide." };
+  }
+
+  // Le rôle est validé À L'EXÉCUTION, pas seulement par le type. Une server
+  // action s'appelle depuis n'importe quel client : `role` n'était contraint
+  // que par TypeScript, et rien n'empêchait d'envoyer « owner ». Un admin se
+  // serait promu owner — un rôle que `removeMember` et cette action même
+  // refusent ensuite de toucher, donc indéboulonnable.
+  if (role !== "admin" && role !== "member") {
+    return { ok: false, error: "Rôle inconnu." };
   }
 
   const ctx = await requireClub(slug);

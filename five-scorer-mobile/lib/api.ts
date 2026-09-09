@@ -883,3 +883,230 @@ export function chargerStats(clubId: string, saison?: string): Promise<EcranStat
     `/api/clubs/${encodeURIComponent(clubId)}/stats${q}`,
   );
 }
+
+/// L'écran « Saison » : le calendrier, les adversaires, le bilan.
+///
+/// Tout arrive assemblé — les étiquettes (« Répondre », « Saisir »), les
+/// phrases d'état des soirées, les euros du terrain, les dates. Ce sont des
+/// règles du club ; les recalculer ici, c'est se préparer à ce que le site et
+/// le téléphone ne disent pas la même chose un lundi soir.
+export type EntreeCalendrier = {
+  cle: string;
+  jour: string;
+  numero: number;
+  titre: string;
+  sous: string;
+  etiquette: string;
+  ton: "direct" | "appel" | "muet" | "neutre";
+  annulee: boolean;
+  /// Où mène la rangée. `saisir` ouvre la compo en mode « déjà joué », datée
+  /// du lundi concerné et rattachée à la soirée.
+  cible: { quoi: "soiree" | "match" | "saisir"; id: string; date?: string };
+};
+
+export type EcranSaison = {
+  saisons: { choisie: string | null; choix: { id: string; libelle: string; active: boolean }[] };
+  chasubles: { a: string; b: string };
+  droits: { peutScorer: boolean; peutGerer: boolean };
+  sousTitre: string;
+  calendrier: {
+    groupes: { cle: string; titre: string; entrees: EntreeCalendrier[] }[];
+    vide: string | null;
+  };
+  adversaires: {
+    lignes: {
+      rang: number;
+      nom: string;
+      initiales: string;
+      club: boolean;
+      mj: number;
+      v: number;
+      n: number;
+      d: number;
+      db: string;
+      pts: number;
+    }[];
+    note: string;
+    vide: string | null;
+  };
+  bilan: {
+    chiffres: { n: number; l: string }[];
+    lignes: { libelle: string; valeur: string }[];
+  };
+  lieuParDefaut: string | null;
+};
+
+export function chargerSaison(clubId: string, saison?: string): Promise<EcranSaison> {
+  const q = saison ? `?saison=${encodeURIComponent(saison)}` : "";
+  return appelAuthentifie<EcranSaison>(
+    `/api/clubs/${encodeURIComponent(clubId)}/saison${q}`,
+  );
+}
+
+/// Ajouter une soirée au calendrier. Exige le réseau : c'est un geste
+/// d'organisation, fait au chaud, pas au bord du terrain.
+export function creerSoiree(
+  clubId: string,
+  input: { date: string; lieu?: string; titre?: string },
+): Promise<{ ok: boolean; soireeId: string }> {
+  return appelAuthentifie<{ ok: boolean; soireeId: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/soirees/nouvelle`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/// Poser toute la saison. Les dates sont calculées sur le TÉLÉPHONE, par
+/// `lib/calendrier.ts` — copie conforme de celle du site : la personne qui
+/// prépare le calendrier est celle qui joue, c'est son fuseau qui fait foi.
+///
+/// Idempotent par journée côté serveur : relancer après avoir ajouté trois
+/// lundis ne duplique rien et ne touche pas aux compos déjà préparées.
+export function poserCalendrier(
+  clubId: string,
+  input: { nomSaison: string; dates: string[]; titre?: string; lieu?: string },
+): Promise<{ ok: boolean; error?: string; crees?: number; ignores?: number }> {
+  return appelAuthentifie<{ ok: boolean; error?: string; crees?: number; ignores?: number }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/saison/calendrier`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/// L'écran « Réglages » — réservé à qui gère le club.
+export type EcranReglages = {
+  role: string;
+  sousTitre: string;
+  club: {
+    nom: string;
+    slug: string;
+    couleurA: string;
+    couleurB: string;
+    nomChasubleA: string;
+    nomChasubleB: string;
+    format: string;
+    formatLibelle: string;
+    dureeMatchMin: number;
+    minJoueurs: number;
+    capaciteSoiree: number;
+    pointsVictoire: number;
+    pointsNul: number;
+    suitPasses: boolean;
+    suitCartons: boolean;
+    membresPeuventScorer: boolean;
+    modeHommeDuMatch: string;
+    modeHommeDuMatchLibelle: string;
+    publique: boolean;
+  };
+  choix: {
+    formats: { valeur: string; libelle: string }[];
+    hommeDuMatch: { valeur: string; libelle: string }[];
+    pastilles: string[];
+  };
+  invitation: { code: string; affiche: string; lien: string };
+  agenda: { chemin: string };
+  membres: {
+    sousTitre: string;
+    liste: {
+      id: string;
+      nom: string;
+      initiales: string;
+      courriel: string;
+      joueur: string | null;
+      role: string;
+      roleLibelle: string;
+      estOwner: boolean;
+      estMoi: boolean;
+    }[];
+  };
+  saisons: {
+    active: string | null;
+    liste: { id: string; nom: string; active: boolean; periode: string }[];
+  };
+};
+
+/// Les champs qu'on peut écrire. Le vocabulaire est celui du SITE
+/// (`ClubSettingsInput`), pas celui de `serialiserClub` : c'est la même
+/// fonction serveur qui écrit, et traduire deux fois est le meilleur moyen de
+/// se tromper une fois.
+export type ReglageAEcrire = Partial<{
+  name: string;
+  colorA: string;
+  colorB: string;
+  format: string;
+  matchDurationMin: number;
+  minJoueurs: number;
+  capaciteSoiree: number;
+  pointsWin: number;
+  pointsDraw: number;
+  trackAssists: boolean;
+  trackCards: boolean;
+  motmMode: string;
+  membersCanScore: boolean;
+  isPublic: boolean;
+}>;
+
+export function chargerReglages(clubId: string): Promise<EcranReglages> {
+  return appelAuthentifie<EcranReglages>(
+    `/api/clubs/${encodeURIComponent(clubId)}/reglages`,
+  );
+}
+
+/// Enregistrer UN réglage. Il n'y a pas de bouton « Enregistrer » : chaque
+/// ligne part toute seule, comme sur le site — c'est le geste iOS, et c'est ce
+/// qui évite de perdre un réglage changé puis oublié.
+export function ecrireReglage(
+  clubId: string,
+  diff: ReglageAEcrire,
+): Promise<{ ok: boolean; error?: string }> {
+  return appelAuthentifie<{ ok: boolean; error?: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/reglages`,
+    { method: "PATCH", body: JSON.stringify(diff) },
+  );
+}
+
+/// Régénérer le code d'invitation. IRRÉVERSIBLE : tous les liens déjà envoyés
+/// meurent. À ne jamais appeler sans une confirmation explicite.
+export function regenererInvitation(
+  clubId: string,
+): Promise<{ ok: boolean; code: string; affiche: string; lien: string }> {
+  return appelAuthentifie<{ ok: boolean; code: string; affiche: string; lien: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/reglages/invitation`,
+    { method: "POST" },
+  );
+}
+
+export function changerRole(
+  clubId: string,
+  memberId: string,
+  role: "admin" | "member",
+): Promise<{ ok: boolean; role: string }> {
+  return appelAuthentifie<{ ok: boolean; role: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/membres/${encodeURIComponent(memberId)}`,
+    { method: "PATCH", body: JSON.stringify({ role }) },
+  );
+}
+
+export function retirerMembre(clubId: string, memberId: string): Promise<{ ok: boolean }> {
+  return appelAuthentifie<{ ok: boolean }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/membres/${encodeURIComponent(memberId)}`,
+    { method: "DELETE" },
+  );
+}
+
+/// Ouvrir une saison — ce qui CLÔTURE celle en cours. L'app doit le dire.
+export function creerSaison(clubId: string, nom: string): Promise<{ ok: boolean; saisonId: string }> {
+  return appelAuthentifie<{ ok: boolean; saisonId: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/saisons`,
+    { method: "POST", body: JSON.stringify({ nom }) },
+  );
+}
+
+export function basculerSaison(
+  clubId: string,
+  saisonId: string,
+  active: boolean,
+): Promise<{ ok: boolean; active: boolean }> {
+  return appelAuthentifie<{ ok: boolean; active: boolean }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/saisons/${encodeURIComponent(saisonId)}`,
+    { method: "PATCH", body: JSON.stringify({ active }) },
+  );
+}

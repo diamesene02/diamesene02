@@ -302,6 +302,103 @@ async function main() {
     "une saison inconnue retombe sur celle en cours, sans erreur",
     bidon.saisons.choisie);
 
+  // --- 3 quater. La saison et les réglages -----------------------------------
+
+  console.log("\n— la saison —");
+  const [rSa, sa] = await lire(`${C}/saison`);
+  ok(rSa.ok, "GET saison répond", `HTTP ${rSa.status}`);
+  ok(
+    typeof sa.sousTitre === "string" && /soirée/.test(sa.sousTitre),
+    "le sous-titre arrive écrit",
+    sa.sousTitre,
+  );
+  ok(
+    sa.calendrier.groupes.every((g) => g.titre && Array.isArray(g.entrees)),
+    "le calendrier est groupé par mois",
+    `${sa.calendrier.groupes.length} mois`,
+  );
+  const toutesEntrees = sa.calendrier.groupes.flatMap((g) => g.entrees);
+  ok(
+    toutesEntrees.every((e) => ["direct", "appel", "muet", "neutre"].includes(e.ton)),
+    "chaque rangée porte un TON, pas une couleur",
+  );
+  ok(
+    toutesEntrees.every((e) => ["soiree", "match", "saisir"].includes(e.cible.quoi)),
+    "chaque rangée sait où elle mène",
+  );
+  // Une soirée passée sans feuille, encore rattrapable, doit appeler la saisie
+  // AVEC sa date : sinon le match saisi se date d'aujourd'hui et fausse le
+  // classement de la semaine.
+  const aSaisir = toutesEntrees.filter((e) => e.cible.quoi === "saisir");
+  ok(
+    aSaisir.every((e) => typeof e.cible.date === "string" && e.etiquette === "Saisir"),
+    "« Saisir » emporte la date du lundi concerné",
+    `${aSaisir.length} à rattraper`,
+  );
+  ok(
+    sa.adversaires.lignes.length === 0 || sa.adversaires.lignes[0].rang === 1,
+    "le tableau des adversaires est déjà rangé",
+  );
+  ok(
+    /Barème du club/.test(sa.adversaires.note),
+    "le barème du club est écrit, pas déduit",
+    sa.adversaires.note,
+  );
+  ok(sa.bilan.chiffres.length === 3, "le bilan a ses trois chiffres");
+
+  console.log("\n— les réglages —");
+  const [rRe, re] = await lire(`${C}/reglages`);
+  ok(rRe.ok, "GET reglages répond", `HTTP ${rRe.status}`);
+  ok(re.choix.pastilles.length === 8, "les huit couleurs viennent du SERVEUR");
+  ok(re.choix.formats.length === 5, "les cinq formats aussi");
+  ok(
+    re.invitation.affiche.length === 8 &&
+      re.invitation.affiche === re.invitation.affiche.toUpperCase(),
+    "le code d'invitation est montré en huit majuscules",
+    re.invitation.affiche,
+  );
+  // Deux secrets DISTINCTS : un lien iCal finit dans quinze téléphones et
+  // circule. S'il portait le code d'invitation, s'y abonner reviendrait à
+  // distribuer le droit d'entrer dans le club.
+  ok(
+    !re.agenda.chemin.includes(re.invitation.code),
+    "le jeton d'agenda n'est PAS le code d'invitation",
+  );
+  ok(
+    re.membres.liste.every((m) => typeof m.estOwner === "boolean" && m.roleLibelle),
+    "chaque membre porte son rôle en toutes lettres",
+    re.membres.sousTitre,
+  );
+
+  console.log("\n— écrire un réglage —");
+  const dureeAvant = re.club.dureeMatchMin;
+  const ecrire = (corps) =>
+    fetch(`${BASE}${C}/reglages`, {
+      method: "PATCH",
+      headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+  ok((await ecrire({ matchDurationMin: 12 })).ok, "un champ part tout seul");
+  const [, re2] = await lire(`${C}/reglages`);
+  ok(re2.club.dureeMatchMin === 12, "…et la relecture le confirme", `${re2.club.dureeMatchMin}`);
+  // Les bornes sont SERVEUR : l'app peut mettre ce qu'elle veut dans son champ,
+  // c'est ici que ça se décide.
+  await ecrire({ matchDurationMin: 999 });
+  const [, re3] = await lire(`${C}/reglages`);
+  ok(re3.club.dureeMatchMin === 120, "999 minutes est ramené à la borne", `${re3.club.dureeMatchMin}`);
+  await ecrire({ matchDurationMin: dureeAvant });
+  const rCourt = await ecrire({ name: "R" });
+  ok(rCourt.status === 400, "un nom d'une lettre est refusé", `HTTP ${rCourt.status}`);
+
+  // Le rôle est validé À L'EXÉCUTION : sans ça, un admin s'envoyait « owner »
+  // et devenait indéboulonnable.
+  const rRole = await fetch(`${BASE}${C}/membres/faux-identifiant/`.slice(0, -1), {
+    method: "PATCH",
+    headers: { ...h, "content-type": "application/json" },
+    body: JSON.stringify({ role: "owner" }),
+  });
+  ok(rRole.status === 400, "« owner » n'est pas un rôle qu'on s'attribue", `HTTP ${rRole.status}`);
+
   // --- 4. Qui n'a rien à y faire ---------------------------------------------
 
   const CHEMINS = [
@@ -311,6 +408,8 @@ async function main() {
     `${C}/effectif`,
     `${C}/joueurs/joueur-essai-1`,
     `${C}/stats`,
+    `${C}/saison`,
+    `${C}/reglages`,
   ];
   const nom = (c) => c.split("/").slice(4).join("/");
 

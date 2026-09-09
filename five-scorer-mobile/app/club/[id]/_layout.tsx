@@ -74,6 +74,8 @@ export default function DispositionClub() {
             comme sur le site. Il est déclaré ici pour que la pile le connaisse
             — sans quoi il s'ouvrirait hors du cadre du club, sans barre. */}
         <Tabs.Screen name="effectif" />
+        <Tabs.Screen name="saison" />
+        <Tabs.Screen name="reglages" />
       </Tabs>
 
       <Modal
