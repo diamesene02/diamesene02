@@ -422,6 +422,78 @@ Un agent ne peut trancher aucune de ces lignes.
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
 
+### 2026-09-09 11:xx — Étape 17 : le development build iOS
+
+**Ce qui a été établi avant de compiler**, par cinq enquêtes parallèles sur le
+code réellement installé, puis des contre-enquêtes chargées de les réfuter.
+Plusieurs conclusions de premier tour étaient fausses ; ce sont les corrections
+qui comptent.
+
+**L'origine, le point critique.** Il fallait être certain qu'un development
+build annonce `fivescorer://` et non `exp://`, faute de quoi la production le
+refuserait exactement comme Expo Go. La documentation d'expo-constants
+inquiétait : l'énumération `ExecutionEnvironment` décrit `storeClient` comme
+couvrant « Expo Go **ou** un development build avec expo-dev-client », et
+`expo-linking/build/Schemes.js` renvoie `'exp'` dans cette branche. C'est faux :
+le module natif iOS déclare `"bare"` en dur, hors de toute condition
+(`expo-constants/ios/EXConstantsService.m:42`). Un build annonce donc bien son
+schéma. `lib/api.ts` s'appuie là-dessus et ne regarde plus `__DEV__`.
+
+**Le serveur n'a besoin d'aucun changement.** `trustedOrigins()` contient déjà
+`"fivescorer://"`, et le motif couvre les sous-chemins — mesuré en production :
+`fivescorer://`, `fivescorer:///` et `fivescorer://expo-development-client`
+reçoivent tous 401, pas 403. Surtout, **ne pas écrire `fivescorer://*`** : le
+joker est strictement pire, il rejette `fivescorer://auth/callback`.
+
+**La signature.** Il n'existe pas d'équipe `QLQAFH3Q76` — c'est un identifiant
+de certificat. Les deux équipes réelles sont `M283R456KQ` (payante) et
+`5B46ZNYDXV` (personnelle, gratuite), vérifiées par le champ OU des
+certificats. Expo prend la première identité de sa liste, la gratuite : sans
+`ios.appleTeamId`, le build serait signé avec un certificat qui **expire le 14
+septembre 2026**. La clé est posée.
+
+**Trente jours, pas un an.** Le certificat de l'équipe payante expire le
+**9 octobre 2026**. Le premier rapport annonçait un an ; c'est faux, nous
+sommes le 9 septembre. Il faudra relancer un build vers cette date.
+
+**Le bundle identifier devait précéder le prebuild.** Sans lui, le CLI ne pose
+aucune question : il déduit `com.<compte Expo>.<slug>` et l'écrit dans
+app.json. Ici `com.iniestasene.five-scorer`. Posé à `com.ibc.fivescorer` avant
+le premier prebuild — et surtout pas `com.ibc.samacours`, qui aurait remplacé
+l'autre app sur le téléphone.
+
+**expo-dev-client n'est pas installé, et c'est délibéré.** Il n'est pas requis :
+en Debug, l'AppDelegate du gabarit charge déjà le bundle depuis Metro. Ce qu'il
+apporte — menu développeur, changement d'adresse de Metro sans recompiler —
+coûte cinq paquets natifs de plus à compiler, sur une machine lente et un
+disque saturé. Le build destiné aux lundis est de toute façon un **Release**,
+où le dev-client est inerte. À reconsidérer quand on voudra recetter le
+hors-ligne en changeant de réseau.
+
+**Debug ou Release, la vraie raison.** Ce n'est pas le choix du serveur —
+`lib/api.ts` vise la production dans les deux cas. C'est qu'en Debug le bundle
+JS n'est pas embarqué : l'app exige Metro allumé sur le Mac, et l'adresse de
+Metro est même gravée dans le binaire (`expo/scripts/react-native-xcode.sh`
+écrit un `ip.txt`). Pour emporter l'app au terrain : `--configuration Release`.
+
+**Les obstacles de la machine, qui ont coûté le plus de temps :**
+
+- **CocoaPods exige une locale UTF-8.** Sans `LANG`, `pod install` meurt sur
+  `Unicode Normalization not appropriate for ASCII-8BIT`. Toujours lancer avec
+  `LANG=en_US.UTF-8`.
+- **Le disque était plein** : 872 Mo libres sur 233 Go. Récupérés : les caches
+  npm et pnpm (2 Go), les caches de mise à jour des applications (1,8 Go),
+  puis — avec l'accord d'Ibrahima — le contenu des simulateurs et le runtime
+  iOS 18.6. 19 Go libres au moment de compiler.
+- **Le Mac est un Intel i5-8257U à 1,4 GHz**, 8 fils. Un premier build complet
+  s'y compte en dizaines de minutes, pas en minutes.
+- **Le port 8081 est occupé par un autre projet.** Un build Debug irait
+  chercher son bundle chez le mauvais Metro : `--port 8090`.
+- **`expo run:ios` ne relance pas le prebuild** quand `ios/` existe. Toute
+  modification d'app.json exige donc un `expo prebuild` explicite — sinon elle
+  n'atteint jamais le projet Xcode. C'est ce qui a failli laisser
+  `DEVELOPMENT_TEAM` absent après l'ajout d'`appleTeamId`.
+
 ### 2026-09-09 10:4x — Étape 10 : la connexion, vérifiée de bout en bout
 
 **Le symptôme.** Sur l'iPhone, dans Expo Go : « Le serveur refuse l'origine
