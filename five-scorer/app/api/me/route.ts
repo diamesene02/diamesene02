@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserSession, getUserClubs } from "@/lib/guard";
-import { themeTokens } from "@/lib/theme";
-import { nomsChasubles } from "@/lib/color";
+import { serialiserClub } from "@/lib/clubApi";
 
 export const dynamic = "force-dynamic";
 
@@ -41,44 +40,8 @@ export async function GET() {
       nom: session.user.name,
       email: session.user.email,
     },
-    clubs: clubs.map(({ role, org, club }) => {
-      const canManage = role === "owner" || role === "admin";
-      const noms = nomsChasubles(club.colorA, club.colorB);
-      const joueur = moiParClub.get(club.id) ?? null;
-      return {
-        id: club.id,
-        slug: org.slug,
-        nom: org.name,
-        role,
-        // Les mêmes droits que ceux calculés par lib/guard.ts pour le web :
-        // l'app mobile ne doit pas les recalculer, elle divergerait.
-        peutGerer: canManage,
-        peutScorer: canManage || club.membersCanScore,
-        couleurA: club.colorA,
-        couleurB: club.colorB,
-        nomChasubleA: noms.a,
-        nomChasubleB: noms.b,
-        theme: {
-          sombre: themeTokens(club.colorA, club.colorB, "dark"),
-          clair: themeTokens(club.colorA, club.colorB, "light"),
-        },
-        // Les réglages dont la feuille de match a besoin au bord du terrain,
-        // donc à garder en local : elle doit fonctionner sans réseau.
-        reglages: {
-          format: club.format,
-          dureeMatchMin: club.matchDurationMin,
-          pointsVictoire: club.pointsWin,
-          pointsNul: club.pointsDraw,
-          suitPasses: club.trackAssists,
-          suitCartons: club.trackCards,
-          modeHommeDuMatch: club.motmMode,
-          minJoueurs: club.minJoueurs,
-          capaciteSoiree: club.capaciteSoiree,
-        },
-        monJoueur: joueur
-          ? { id: joueur.id, nom: joueur.name, photo: joueur.photo }
-          : null,
-      };
-    }),
+    clubs: clubs.map(({ role, org, club }) =>
+      serialiserClub(org, club, role, moiParClub.get(club.id) ?? null),
+    ),
   });
 }

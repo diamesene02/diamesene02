@@ -11,3 +11,6 @@ dist/
 coverage/
 prisma/*.db
 prisma/*.db-journal
+
+# Sortie des builds de vérification lancés pendant que le serveur de dev tourne
+.next-verif/

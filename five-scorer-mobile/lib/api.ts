@@ -2,15 +2,13 @@ import Constants from "expo-constants";
 
 /// L'accès à l'application web, qui devient l'API du mobile.
 ///
-/// Par défaut on parle à la PRODUCTION. C'est délibéré : dans Expo Go, on
-/// scanne un QR code et on veut voir son club tout de suite.
+/// En développement on vise le serveur du Mac, en production la production —
+/// voir `DEFAUT` plus bas, qui explique pourquoi ce n'est pas négociable.
+/// EXPO_PUBLIC_API dans five-scorer-mobile/.env.local force l'un ou l'autre :
+///   EXPO_PUBLIC_API=https://five-scorer.vercel.app
 ///
-/// Pour travailler contre le serveur local, poser EXPO_PUBLIC_API dans
-/// five-scorer-mobile/.env.local :
-///   EXPO_PUBLIC_API=http://localhost:3000
-///
-/// « localhost » y est parfaitement acceptable — voir `versLHote` juste en
-/// dessous, qui le traduit tout seul.
+/// « localhost » y est parfaitement acceptable — voir `resoudreAdresse` juste
+/// en dessous, qui le traduit tout seul.
 
 /// Sur un téléphone, « localhost » désigne LE TÉLÉPHONE.
 ///
@@ -19,25 +17,87 @@ import Constants from "expo-constants";
 /// l'app est servie sur l'iPhone, et le fetch part vers un serveur qui
 /// n'existe pas — avec pour seul indice « Could not connect to the server ».
 ///
-/// Expo connaît pourtant l'adresse du Mac : c'est celle qui a servi le bundle,
-/// exposée dans `hostUri` (« 192.168.1.192:8081 »). On remplace donc l'hôte,
-/// en gardant le port demandé. Sur la cible web, où « localhost » désigne bien
-/// la machine, on ne touche à rien.
-function versLHote(url: string): string {
-  if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(url)) return url;
+/// Expo connaît pourtant l'adresse du Mac : c'est celle qui a servi le bundle
+/// (`hostUri`, « 192.168.1.192:8090 »). On remplace donc l'hôte en gardant le
+/// port demandé.
+///
+/// Fonction pure, et testée par scripts/verif-adresse.mjs : c'est la seule
+/// pièce de l'app qu'on ne peut pas voir se tromper à l'écran — elle échoue
+/// en silence, dans une requête réseau.
+export function resoudreAdresse(
+  url: string,
+  hote: string | undefined,
+): { url: string; obstacle: string | null } {
+  // Sur la cible web, « localhost » désigne bien la machine : on ne touche à
+  // rien. Idem pour une adresse déjà distante.
+  if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(url)) {
+    return { url, obstacle: null };
+  }
 
-  const hote = (Constants.expoConfig?.hostUri ??
-    (Constants as { expoGoConfig?: { debuggerHost?: string } }).expoGoConfig
-      ?.debuggerHost) as string | undefined;
   const ip = hote?.split(":")[0];
-  if (!ip || ip === "localhost" || ip === "127.0.0.1") return url;
+  if (!ip || ip === "localhost" || ip === "127.0.0.1") {
+    return { url, obstacle: null };
+  }
 
-  return url.replace(/^(https?:\/\/)(localhost|127\.0\.0\.1)/i, "$1" + ip);
+  // `expo start --tunnel` sert le bundle depuis un domaine `exp.direct`, pas
+  // depuis une IP. Y recopier le port 3000 fabriquerait une adresse qui
+  // n'existe pas. Et de toute façon, si on a sorti le tunnel c'est que le
+  // téléphone n'est pas sur le réseau du Mac : le serveur local est hors
+  // d'atteinte quoi qu'on écrive. Autant le dire plutôt que de laisser
+  // chercher.
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+    return {
+      url,
+      obstacle:
+        `Le bundle arrive par un tunnel (${ip}), donc le téléphone n'est pas ` +
+        "sur le réseau du Mac et ne peut pas joindre son serveur. Reviens sur " +
+        "le même Wi-Fi, ou vise la production avec EXPO_PUBLIC_API.",
+    };
+  }
+
+  return {
+    url: url.replace(/^(https?:\/\/)(localhost|127\.0\.0\.1)/i, "$1" + ip),
+    obstacle: null,
+  };
 }
 
-export const API = versLHote(
-  process.env.EXPO_PUBLIC_API?.replace(/\/$/, "") ?? "https://five-scorer.vercel.app",
+/// L'hôte qui a servi le bundle. `expoConfig.hostUri` sur les versions
+/// récentes d'Expo, `expoGoConfig.debuggerHost` sur les plus anciennes.
+function hoteDuBundle(): string | undefined {
+  return (Constants.expoConfig?.hostUri ??
+    (Constants as { expoGoConfig?: { debuggerHost?: string } }).expoGoConfig
+      ?.debuggerHost) as string | undefined;
+}
+
+export const PROD = "https://five-scorer.vercel.app";
+
+/// En développement, on parle au serveur du Mac. En production, à la prod.
+///
+/// Ce n'est pas un confort, c'est une nécessité : le serveur n'accorde sa
+/// confiance aux origines `exp://` et `exps://` — celles d'Expo Go — QUE en
+/// développement. En production, seul le schéma `fivescorer://` d'un vrai
+/// build l'est, parce qu'une origine de confiance à schéma non-http reçoit le
+/// cookie de session dans l'URL de redirection : `exp://` de confiance en
+/// production donnerait à n'importe quelle app Expo un moyen d'en récupérer
+/// une.
+///
+/// Conséquence à connaître : dans Expo Go, **la connexion exige que
+/// `pnpm dev` tourne sur le Mac**. La vitrine publique, elle, n'a pas de
+/// contrôle d'origine et marcherait contre la production — mais on ne mélange
+/// pas deux serveurs dans une même session, ce serait indébrouillable.
+const DEFAUT = __DEV__ ? "http://localhost:3000" : PROD;
+
+const resolu = resoudreAdresse(
+  process.env.EXPO_PUBLIC_API?.replace(/\/$/, "") ?? DEFAUT,
+  hoteDuBundle(),
 );
+
+export const API = resolu.url;
+
+/// Ce qui empêche le téléphone de joindre le serveur, quand quelque chose
+/// l'empêche. `null` quand tout va bien. Affiché par l'écran de connexion :
+/// une adresse injoignable sans explication, c'est une demi-heure perdue.
+export const OBSTACLE = resolu.obstacle;
 
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
@@ -202,3 +262,13 @@ export async function appelAuthentifie<T>(
 export function chargerMoi(): Promise<Moi> {
   return appelAuthentifie<Moi>("/api/me");
 }
+
+/// Le compte d'essai de la base locale, créé par
+/// `node scripts/compte-dev.mjs` côté serveur. Il n'ouvre rien d'autre qu'un
+/// Postgres sur le Mac ; ce n'est pas un secret, et il n'existe pas ailleurs.
+///
+/// `null` dès qu'on ne parle pas à une machine du réseau local : ce serait
+/// afficher un bouton qui ne peut que produire « mot de passe incorrect ».
+export const COMPTE_DEV = /^https?:\/\/(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(API)
+  ? { courriel: "dev@five.local", motDePasse: "demo-five-2026" }
+  : null;
