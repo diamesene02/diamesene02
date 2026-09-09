@@ -228,6 +228,180 @@ export function chargerMatchs(clubId: string): Promise<EcranMatchs> {
   );
 }
 
+/// Une soirée telle que le calendrier l'affiche.
+export type LigneSoiree = {
+  id: string;
+  date: string;
+  jour: string;
+  heure: string;
+  aVenir: boolean;
+  annulee: boolean;
+  motifAnnulation: string | null;
+  lieu: string | null;
+  libelle: string | null;
+  presents: number;
+  matchs: number;
+  buts: number;
+  prixCents: number | null;
+  prix: string | null;
+  toutRegle: boolean;
+};
+
+export type GroupeMois = {
+  cle: string;
+  titre: string;
+  compte: number;
+  soirees: LigneSoiree[];
+};
+
+export type EcranSoirees = {
+  club: { id: string; slug: string; peutMarquer: boolean; peutGerer: boolean };
+  aujourdhui: string;
+  prochaines: GroupeMois[];
+  reste: GroupeMois[];
+  resteTotal: number;
+  passees: GroupeMois[];
+  vide: boolean;
+};
+
+export function chargerSoirees(clubId: string): Promise<EcranSoirees> {
+  return appelAuthentifie<EcranSoirees>(
+    `/api/clubs/${encodeURIComponent(clubId)}/soirees`,
+  );
+}
+
+export type StatutReponse = "IN" | "MAYBE" | "OUT";
+
+export type FicheSoiree = {
+  id: string;
+  date: string;
+  dateLabel: string;
+  heure: string;
+  lieu: string | null;
+  libelle: string | null;
+  notes: string | null;
+  sousTitre: string;
+  annulee: boolean;
+  passee: boolean;
+  commencee: boolean;
+  soireeFinie: boolean;
+  peutGerer: boolean;
+  peutScorer: boolean;
+  chasubles: {
+    a: { nom: string; lettre: string; couleur: string };
+    b: { nom: string; lettre: string; couleur: string };
+  };
+  presences: {
+    titre: string;
+    monPlayerId: string | null;
+    maReponse: StatutReponse | null;
+    compte: string;
+    phrase: string;
+    nbPresents: number;
+    nbAttente: number;
+    nbPeutEtre: number;
+    nbAbsents: number;
+    lignes: {
+      playerId: string;
+      nom: string;
+      photo: string | null;
+      moi: boolean;
+      statut: StatutReponse | null;
+      libelle: string;
+      ton: string;
+      viaAbonnement: boolean;
+      enAttente: boolean;
+      camp: "A" | "B" | null;
+      titulaire: boolean;
+    }[];
+  };
+  compo: {
+    faite: boolean;
+    nomA: string;
+    nomB: string;
+    joueurs: {
+      playerId: string;
+      nom: string;
+      photo: string | null;
+      niveau: number;
+      gardien: boolean;
+      camp: "A" | "B" | null;
+    }[];
+  };
+  terrain: {
+    visible: boolean;
+    prixCents: number | null;
+    prix: string | null;
+    part: string | null;
+    resume: string | null;
+    encaisse: string;
+    pourcentage: number;
+    payeurs: { playerId: string; nom: string; aPaye: boolean }[];
+  };
+  bilan: {
+    enCours: boolean;
+    victoiresA: number;
+    victoiresB: number;
+    nuls: number;
+    uniteA: string;
+    uniteB: string;
+    resume: string;
+    buts: number;
+    buteur: { nom: string; buts: number } | null;
+    mvp: { nom: string } | null;
+  } | null;
+  mot: string | null;
+  matchs: {
+    id: string;
+    statut: string;
+    direct: boolean;
+    aVenir: boolean;
+    nomA: string;
+    nomB: string;
+    scoreA: number;
+    scoreB: number;
+    etat: string;
+    heure: string;
+    buteursA: string;
+    buteursB: string;
+    pied: string | null;
+  }[];
+  cracks: {
+    rang: number;
+    playerId: string;
+    nom: string;
+    photo: string | null;
+    invite: boolean;
+    matchs: number;
+    victoires: number;
+    nuls: number;
+    defaites: number;
+    buts: number;
+    points: number;
+  }[];
+};
+
+export function chargerSoiree(clubId: string, soireeId: string): Promise<FicheSoiree> {
+  return appelAuthentifie<FicheSoiree>(
+    `/api/clubs/${encodeURIComponent(clubId)}/soirees/${encodeURIComponent(soireeId)}`,
+  );
+}
+
+/// Répondre à une soirée. Exige le réseau : c'est une réponse qu'on donne
+/// depuis son canapé, pas au bord du terrain, et la file d'attente locale ne
+/// sert que la saisie du match.
+export function repondrePresence(
+  clubId: string,
+  soireeId: string,
+  playerId: string,
+  statut: StatutReponse,
+): Promise<{ ok: boolean }> {
+  return appelAuthentifie<{ ok: boolean }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/soirees/${encodeURIComponent(soireeId)}/rsvp`,
+    { method: "POST", body: JSON.stringify({ playerId, statut }) },
+  );
+}
+
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
 export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy";

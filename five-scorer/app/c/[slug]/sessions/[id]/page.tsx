@@ -15,6 +15,7 @@ import SessionRsvpAdmin, { type SessionPlayerRow } from "./SessionRsvpAdmin";
 import DeleteSessionButton from "./DeleteSessionButton";
 import MotDeLaSoiree from "./MotDeLaSoiree";
 import { calculerPresences, phraseEtat } from "@/lib/presences";
+import { motDeLaSoiree as motSoiree } from "@/lib/soiree";
 import "./soiree.css";
 
 export const dynamic = "force-dynamic";
@@ -161,38 +162,32 @@ export default async function SessionDetailPage({
   };
 
   // Le mot de la soirée : ce qu'on tape à la main dans le groupe le mardi
-  // matin, et qu'on ne tape jamais. Composé ici, où sont les données.
-  const motDeLaSoiree = (() => {
-    if (internes.length === 0) return null;
-    const lignes: string[] = [];
-    lignes.push(`${D.jourLong(md.date)}${md.location ? ` — ${md.location}` : ""}`);
-    lignes.push("");
-    if (victoiresA !== victoiresB) {
-      const gagnant = victoiresA > victoiresB ? nomA : nomB;
-      lignes.push(
-        `${gagnant} gagne la soirée ${Math.max(victoiresA, victoiresB)}-${Math.min(victoiresA, victoiresB)}${nuls > 0 ? ` (${nuls} nul${nuls > 1 ? "s" : ""})` : ""}`,
-      );
-    } else {
-      lignes.push(`Soirée partagée ${victoiresA}-${victoiresB}${nuls > 0 ? ` (${nuls} nul${nuls > 1 ? "s" : ""})` : ""}`);
-    }
-    lignes.push("");
-    termines.forEach((m, i) => {
-      const nomAdverse =
-        m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName;
+  // matin, et qu'on ne tape jamais. La composition vit dans lib/soiree.ts —
+  // l'app mobile la partage, et deux implémentations donneraient deux mots
+  // pour la même soirée selon l'endroit d'où on le copie.
+  const motDeLaSoiree = motSoiree({
+    date: md.date,
+    lieu: md.location,
+    nomA,
+    nomB,
+    victoiresA,
+    victoiresB,
+    nuls,
+    matchs: termines.map((m) => {
       const { a, b } = buteursParCamp(m);
-      lignes.push(
-        `Match ${i + 1} : ${m.teamAName} ${m.scoreA} - ${m.scoreB} ${nomAdverse}`,
-      );
-      if (a) lignes.push(`  ${m.teamAName} : ${a}`);
-      if (b) lignes.push(`  ${nomAdverse} : ${b}`);
-    });
-    lignes.push("");
-    const fin: string[] = [`${butsDuSoir} but${butsDuSoir > 1 ? "s" : ""} dans la soirée`];
-    if (buteurDuSoir) fin.push(`meilleur buteur ${buteurDuSoir.name} (${buteurDuSoir.goals})`);
-    if (mvpDuSoir) fin.push(`homme du match ${mvpDuSoir.name}`);
-    lignes.push(fin.join(" · "));
-    return lignes.join("\n");
-  })();
+      return {
+        nomA: m.teamAName,
+        nomB: opponentOr(m),
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        buteursA: a,
+        buteursB: b,
+      };
+    }),
+    buts: butsDuSoir,
+    meilleurButeur: buteurDuSoir ? { nom: buteurDuSoir.name, buts: buteurDuSoir.goals } : null,
+    hommeDuMatch: mvpDuSoir ? { nom: mvpDuSoir.name } : null,
+  });
 
   const showMoney = ctx.canManage || md.fieldCostCents != null;
   const commencee = md.matches.length > 0;
