@@ -30,7 +30,14 @@ export default function Clubs() {
     setErreur(null);
     setOccupe(true);
     try {
-      setMoi(await chargerMoi());
+      const m = await chargerMoi();
+      // Un seul club, c'est le cas de tout le monde ici : l'écran de liste
+      // n'aurait alors qu'une ligne, et il s'interposerait entre l'app et ce
+      // pour quoi on l'ouvre. On file directement à l'accueil du club.
+      if (m.clubs.length === 1) {
+        return router.replace({ pathname: "/club/[id]", params: { id: m.clubs[0].id } });
+      }
+      setMoi(m);
     } catch (e) {
       if (e instanceof SessionExpiree) {
         router.replace("/connexion");
@@ -168,9 +175,9 @@ function CarteClub({ club, t }: { club: ClubDeMoi; t: Jetons }) {
           ) : (
             <BoutonPlein
               t={t}
-              titre="Nouveau match"
+              titre="Ouvrir le club"
               onPress={() =>
-                router.push({ pathname: "/compo", params: { clubId: club.id } })
+                router.push({ pathname: "/club/[id]", params: { id: club.id } })
               }
             />
           )}

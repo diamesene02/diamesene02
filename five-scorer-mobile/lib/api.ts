@@ -141,6 +141,50 @@ export const API = resolu.url;
 /// une adresse injoignable sans explication, c'est une demi-heure perdue.
 export const OBSTACLE = resolu.obstacle;
 
+/// Ce que l'accueil du club affiche, en un seul aller-retour.
+export type Accueil = {
+  saison: { id: string; nom: string } | null;
+  soiree: {
+    id: string;
+    date: string;
+    libelle: string | null;
+    annulee: boolean;
+    phrase: string;
+    presents: number;
+    attente: number;
+    compoFaite: boolean;
+    maReponse: "IN" | "OUT" | "MAYBE" | null;
+  } | null;
+  matchs: {
+    id: string;
+    joueLe: string;
+    statut: "LIVE" | "FINISHED";
+    nomA: string;
+    nomB: string;
+    scoreA: number;
+    scoreB: number;
+    dureeMin: number | null;
+  }[];
+  classement: {
+    rang: number;
+    playerId: string;
+    nom: string;
+    photo: string | null;
+    matchs: number;
+    victoires: number;
+    nuls: number;
+    defaites: number;
+    buts: number;
+    points: number;
+  }[];
+};
+
+export function chargerAccueil(clubId: string): Promise<Accueil> {
+  return appelAuthentifie<Accueil>(
+    `/api/clubs/${encodeURIComponent(clubId)}/accueil`,
+  );
+}
+
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
 export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy";

@@ -33,31 +33,13 @@ export type LigneClassement = {
   eloTrend: number;
 };
 
-/// Les points d'une ligne : le barème du club, celui qui sert déjà au
-/// championnat externe. Rendu public pour que les onglets Buteurs/Forme
-/// puissent classer dans le même ordre que le tableau.
-export function points(
-  r: Pick<LigneClassement, "wins" | "draws">,
-  pointsWin = 3,
-  pointsDraw = 1,
-): number {
-  return r.wins * pointsWin + r.draws * pointsDraw;
-}
+/// Le barème et l'ordre du tableau vivent dans `lib/classement.ts` : l'API
+/// mobile s'en sert aussi, et une route serveur n'a pas à importer un
+/// composant pour trier six lignes. Réexportés ici pour ne rien casser des
+/// appelants existants.
+import { points, trierParPoints } from "@/lib/classement";
+export { points, trierParPoints };
 
-/// L'ordre du tableau : points, puis victoires, puis buts, puis le nom.
-export function trierParPoints<T extends Pick<LigneClassement, "wins" | "draws" | "goals" | "name">>(
-  lignes: T[],
-  pointsWin = 3,
-  pointsDraw = 1,
-): T[] {
-  return [...lignes].sort(
-    (x, y) =>
-      points(y, pointsWin, pointsDraw) - points(x, pointsWin, pointsDraw) ||
-      y.wins - x.wins ||
-      y.goals - x.goals ||
-      x.name.localeCompare(y.name),
-  );
-}
 
 export default function Classement({
   slug,
