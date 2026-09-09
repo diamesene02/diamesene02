@@ -65,10 +65,18 @@ attendre.
 ## Ce qu'il faut savoir avant de lancer
 
 - **Les certificats.** L'équipe payante est `M283R456KQ` (`ios.appleTeamId`
-  dans app.json). Son certificat de développement **expire le 9 octobre 2026** —
-  il faudra alors relancer un build. L'équipe personnelle gratuite
-  `5B46ZNYDXV` ne doit jamais être utilisée : son certificat expire encore plus
-  tôt, et un build signé avec elle meurt au bout de sept jours.
+  dans app.json). EAS génère son propre certificat de distribution : celui du
+  premier build court jusqu'au **4 mars 2027**. Ne pas confondre avec les
+  certificats du trousseau local, plus anciens — c'est le profil embarqué dans
+  l'`.ipa` qui fait foi, et on le lit ainsi :
+
+  ```bash
+  unzip -q build.ipa && security cms -D -i Payload/*.app/embedded.mobileprovision \
+    | plutil -extract ExpirationDate raw -
+  ```
+
+  L'équipe personnelle gratuite `5B46ZNYDXV` ne doit jamais être utilisée : un
+  build signé avec elle meurt au bout de sept jours.
 - **Les appareils.** La distribution interne n'installe que sur les iPhones
   enregistrés dans l'équipe. `npx eas-cli device:list` les montre,
   `device:create` en ajoute.

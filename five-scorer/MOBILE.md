@@ -343,7 +343,7 @@ Règles de lecture pour l'agent :
 | **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. `Pressable` + `onLongPress` à 500 ms (le garde `suppressTapUntil` de 700 ms **disparaît** : en natif `onPress` n'est pas émis après `onLongPress`), tick d'affichage 500 ms isolé dans un composant `<Horloge>`, `useKeepAwake()`, haptics selon la table du §3.6. | `npx expo export --platform ios` en 0 ; `npx vitest run` vert (test de `minuteOf`/`fmt` et de la machine tap/appui-long) ; grep de contrôle : `grep -rc "suppressTapUntil" mobile/` → `0`. | à faire |
 | **15** | **Écran « jouer », partie 2** : la pelouse, le score, la barre d'invite 15 s (passe décisive / auteur du csc), les 3 chemins d'annulation, la chronologie, les feuilles (cartons, confirmation, MVP, temps plein) en `presentation: "formSheet"`. Route **hors des onglets**, `gestureEnabled: false` — un swipe-back pendant qu'on marque est le pire bug possible. | `npx expo export --platform ios` en 0 ; `npx tsc --noEmit` vert ; `grep -n "gestureEnabled" mobile/app/jouer.tsx` → la ligne existe et vaut `false`. | à faire |
 | **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
-| **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **bloqué** — pas par le projet mais par la machine : Expo SDK 57 recompile ExpoModulesJSI depuis ses sources et le Swift 6.2.4 de Xcode 26.3 refuse ses en-têtes d'interopérabilité C++. Xcode 26.4+ exige macOS 26.2, que ce Mac sous macOS 15.6 ne peut pas installer. Sortie retenue : EAS Build (`eas.json` écrit, profil `lundi`). |
+| **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **fait** — par EAS, pas en local. Build `9727ecbd`, profil `lundi`, terminé. Vérifié en téléchargeant l'`.ipa` : bundle `com.ibc.fivescorer`, signé par l'équipe payante (`M283R456KQ.com.ibc.fivescorer`), profil ad hoc n'autorisant **que** l'iPhone de Diame, `main.jsbundle` de 2,6 Mo embarqué (donc démarre sans Metro), schéma `fivescorer` enregistré, ATS `NSAllowsArbitraryLoads=false`. Le build local reste impossible sur cette machine — voir le journal. |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
 | **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `pnpm build` en 0, `pnpm test:api` vert, `npx expo export --platform ios` en 0. | à faire |
 | **3 bis** | **Le premier écran, sans authentification** — pour voir quelque chose de vrai dans Expo Go avant d'avoir porté la connexion. A demandé un endpoint public côté serveur (`GET /api/public/[slug]`, déployé sur `main`) qui rend la vitrine du club ET ses jetons de thème calculés par `lib/theme.ts` : la règle des couleurs ne doit exister qu'à un seul endroit. | `cd five-scorer-mobile && npx tsc --noEmit` en 0 ; `curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy \| python3 -c "import sys,json;d=json.load(sys.stdin);print(d['club']['nom'], len(d['classement']))"` → le nom du club et le nombre de joueurs. | **fait** — commits `36ce034`, `9944e84` sur `main` et `2b4ba1b` sur `mobile`. Rendu vérifié avec la cible web d'Expo : le club, les photos et le 18-9 du 7 septembre s'affichent. |
@@ -647,6 +647,29 @@ Xcode 26.3 », même toolchain Swift 6.2.4, erreur différente (`sending 'emitte
 risks causing data races`) mais même famille. Notre erreur exacte n'est
 indexée nulle part — c'est cohérent avec le fait que presque plus personne ne
 compile Expo SDK 57 sur un Mac Intel sous macOS 15.
+
+**Épilogue : ça marche, et ça confirme le diagnostic.** Le même code, le même
+commit (`63ebdba`), compilé par EAS avec un Xcode à jour : build `9727ecbd`,
+terminé sans erreur. Le blocage n'était donc bien que la version de Xcode.
+
+L'`.ipa` a été téléchargé et ouvert pour vérification avant toute
+installation :
+
+| contrôle | résultat |
+|---|---|
+| bundle | `com.ibc.fivescorer` — pas `com.ibc.samacours`, l'autre app est intacte |
+| signature | `M283R456KQ.com.ibc.fivescorer`, équipe « Diame SENE » (payante) |
+| appareils | **un seul**, `00008110-000E54E01A05801E` — l'iPhone de Diame |
+| expiration | **4 mars 2027** |
+| bundle JS | `main.jsbundle`, 2,6 Mo — embarqué, l'app démarre sans Metro |
+| schéma | `fivescorer` — celui que la production accepte |
+| ATS | `NSAllowsArbitraryLoads=false`, `NSAllowsLocalNetworking=true` |
+| iOS minimum | 16.4, contre 26.2.1 sur l'appareil |
+
+**Correction à une alerte donnée trop tôt.** J'avais annoncé une expiration au
+9 octobre 2026 — c'est la date du certificat qui traînait dans le trousseau du
+Mac. EAS en a généré un neuf : le profil embarqué court jusqu'au **4 mars
+2027**. Il n'y a donc rien à refaire avant dix-huit mois.
 
 **La sortie : bâtir dans le nuage.** `eas.json` est écrit, avec trois profils
 (`lundi` en distribution interne pour le terrain, `atelier` qui vise le Mac,
