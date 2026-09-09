@@ -1,0 +1,184 @@
+// Outillage couleur du système « craie sur gazon ».
+//
+// Un club choisit les couleurs de ses chasubles. Problème mesuré : une
+// couleur d'équipe brute ne porte pas de texte — de l'encre sombre sur
+// orange vif plafonne à Lc 50, sur bleu à Lc 43, là où il en faut 60.
+// On dérive donc mécaniquement, pour chaque couleur choisie, une variante
+// éclaircie qui atteint la cible ; l'aplat sert aux barres et pastilles,
+// l'encre au texte. C'est la parade d'Apple Sports au conflit de deux
+// couleurs d'équipe, appliquée par le calcul plutôt qu'à l'œil.
+
+const CANVAS = "#141917"; // --pitch-1, la surface sur laquelle on lit
+const TARGET_LC = 60; // petit texte / repère coloré
+
+function parse(hex: string): [number, number, number] {
+  const h = hex.replace("#", "").trim();
+  const full =
+    h.length === 3
+      ? h
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : h;
+  return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16)) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+function toHex(rgb: number[]): string {
+  return (
+    "#" +
+    rgb
+      .map((v) =>
+        Math.round(Math.max(0, Math.min(255, v)))
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")
+      .toUpperCase()
+  );
+}
+
+export function isValidHex(hex: string): boolean {
+  return /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex.trim());
+}
+
+/// Luminance perceptuelle d'APCA (exposant 2.4, pondérations sRGB).
+function screenY(hex: string): number {
+  const [r, g, b] = parse(hex).map((c) => (c / 255) ** 2.4);
+  return 0.2126729 * r + 0.7151522 * g + 0.072175 * b;
+}
+
+/// Contraste APCA-W3 (0.1.9), en valeur absolue. WCAG 2.x surestime le
+/// contraste sur fond sombre : c'est la bonne métrique ici.
+export function apca(text: string, background: string): number {
+  const BLK_THRS = 0.022;
+  const BLK_CLMP = 1.414;
+  let yT = screenY(text);
+  let yB = screenY(background);
+  yT = yT > BLK_THRS ? yT : yT + (BLK_THRS - yT) ** BLK_CLMP;
+  yB = yB > BLK_THRS ? yB : yB + (BLK_THRS - yB) ** BLK_CLMP;
+  if (Math.abs(yB - yT) < 0.0005) return 0;
+  let contrast: number;
+  if (yB > yT) {
+    const sapc = (yB ** 0.56 - yT ** 0.57) * 1.14;
+    contrast = sapc < 0.1 ? 0 : sapc - 0.027;
+  } else {
+    const sapc = (yB ** 0.65 - yT ** 0.62) * 1.14;
+    contrast = sapc > -0.1 ? 0 : sapc + 0.027;
+  }
+  return Math.abs(contrast * 100);
+}
+
+/// Éclaircit une couleur juste assez pour qu'elle porte du texte sur le
+/// fond de l'app. Retourne la couleur telle quelle si elle passe déjà.
+export function inkVariant(hex: string, background = CANVAS): string {
+  const base = parse(hex);
+  if (apca(toHex(base), background) >= TARGET_LC) return toHex(base);
+  for (let t = 0.02; t <= 1.0001; t += 0.02) {
+    const mixed = base.map((v) => v + (255 - v) * t);
+    if (apca(toHex(mixed), background) >= TARGET_LC) return toHex(mixed);
+  }
+  return "#FFFFFF";
+}
+
+/// Les deux couleurs par défaut : celles des vraies chasubles de five.
+export const DEFAULT_BIB_A = "#FF6B2C";
+export const DEFAULT_BIB_B = "#3D8BFF";
+
+/// Plancher de VISIBILITÉ d'une bande de chasuble.
+///
+/// La bande n'est pas du texte : elle n'a pas besoin de Lc 60. Mais une
+/// chasuble marine sur le gazon nocturne donne Lc 0 — la bande disparaît, et
+/// avec elle le seul repère d'équipe visible en vision périphérique. On
+/// éclaircit donc jusqu'à Lc 30, juste assez pour qu'elle se détache.
+const CIBLE_BANDE = 30;
+
+export function slabVariant(hex: string, background = "#0e1211"): string {
+  const base = parse(hex);
+  if (apca(toHex(base), background) >= CIBLE_BANDE) return toHex(base);
+  for (let t = 0.02; t <= 1.0001; t += 0.02) {
+    const mixed = base.map((v) => v + (255 - v) * t);
+    if (apca(toHex(mixed), background) >= CIBLE_BANDE) return toHex(mixed);
+  }
+  return "#FFFFFF";
+}
+
+export type BibTheme = {
+  aFill: string;
+  aInk: string;
+  aSlab: string;
+  bFill: string;
+  bInk: string;
+  bSlab: string;
+};
+
+export function bibTheme(a?: string | null, b?: string | null): BibTheme {
+  const aFill = a && isValidHex(a) ? normalize(a) : DEFAULT_BIB_A;
+  const bFill = b && isValidHex(b) ? normalize(b) : DEFAULT_BIB_B;
+  return {
+    aFill,
+    aInk: inkVariant(aFill),
+    aSlab: slabVariant(aFill),
+    bFill,
+    bInk: inkVariant(bFill),
+    bSlab: slabVariant(bFill),
+  };
+}
+
+function normalize(hex: string): string {
+  return toHex(parse(hex));
+}
+
+/// Nomme une couleur de chasuble en français.
+///
+/// Les noms d'équipe étaient écrits en dur (« Blanc » / « Noir ») pendant que
+/// le club réglait ailleurs ses vraies couleurs de chasubles. Les deux ne se
+/// parlaient pas : une équipe appelée « Blanc » pouvait porter une barre noire,
+/// et l'écran se lisait à l'envers. Le nom se DÉDUIT donc de la couleur — ils ne
+/// peuvent plus se contredire. Il reste modifiable à la main : un club qui joue
+/// « Sang et Or » doit pouvoir l'écrire.
+export function nomChasuble(hex: string): string {
+  if (!isValidHex(hex)) return "Équipe";
+  const [r, g, b] = parse(hex).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+
+  if (l >= 0.86 && sat < 0.18) return "Blanc";
+  if (l <= 0.16) return "Noir";
+  if (sat < 0.12) return "Gris";
+
+  let h: number;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+
+  if (h < 16 || h >= 345) return "Rouge";
+  if (h < 45) return "Orange";
+  if (h < 70) return "Jaune";
+  if (h < 160) return "Vert";
+  if (h < 200) return "Cyan";
+  if (h < 255) return "Bleu";
+  if (h < 290) return "Violet";
+  return "Rose";
+}
+
+/// Les deux noms par défaut d'un club, tirés de ses chasubles.
+export function nomsChasubles(
+  a?: string | null,
+  b?: string | null,
+): { a: string; b: string } {
+  const t = bibTheme(a, b);
+  const na = nomChasuble(t.aFill);
+  const nb = nomChasuble(t.bFill);
+  // Deux chasubles de la même famille : on désambiguïse plutôt que d'afficher
+  // deux fois le même nom.
+  if (na === nb) return { a: `${na} 1`, b: `${nb} 2` };
+  return { a: na, b: nb };
+}
