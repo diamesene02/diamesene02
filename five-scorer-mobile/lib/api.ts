@@ -185,6 +185,49 @@ export function chargerAccueil(clubId: string): Promise<Accueil> {
   );
 }
 
+type Camp = { nom: string; lettre: string };
+type CommunMatch = {
+  id: string;
+  saisonId: string | null;
+  genre: "INTERNAL" | "EXTERNAL";
+  a: Camp;
+  b: Camp;
+};
+
+/// L'écran « Les matchs », en un aller-retour.
+///
+/// Aucun filtre côté serveur : chaque ligne porte sa saison et son genre, et
+/// l'app filtre en local. Le site refait un tour de serveur à chaque pilule
+/// tapée ; au bord d'un terrain, c'est une seconde pour changer un mot.
+export type EcranMatchs = {
+  saisons: { id: string; nom: string; active: boolean }[];
+  saisonParDefaut: string;
+  direct: (CommunMatch & { scoreA: number; scoreB: number })[];
+  programmes: (CommunMatch & {
+    quand: string;
+    jour: string;
+    heure: string;
+    lieu: string | null;
+    presents: number;
+  })[];
+  joues: (CommunMatch & {
+    joueLe: string;
+    heure: string;
+    scoreA: number;
+    scoreB: number;
+    vainqueur: "A" | "B" | null;
+    adversaire: string | null;
+    hommeDuMatch: string | null;
+    groupe: { cle: string; titreJour: string; sousTitre: string | null; date: string };
+  })[];
+};
+
+export function chargerMatchs(clubId: string): Promise<EcranMatchs> {
+  return appelAuthentifie<EcranMatchs>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matchs`,
+  );
+}
+
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
 export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy";
