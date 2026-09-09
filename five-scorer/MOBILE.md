@@ -332,7 +332,7 @@ Règles de lecture pour l'agent :
 | **3** | **Créer le projet Expo** dans `five-scorer-mobile/`, SDK 57, TypeScript, expo-router. Poser `"scheme": "fivescorer"` dans `app.json`. | `cd five-scorer-mobile && node -p "require('./package.json').dependencies.expo"` commence par `57` ; `node -p "require('./app.json').expo.scheme"` → `fivescorer` ; `npx tsc --noEmit` sort en 0. | **fait** — SDK 57.0.21, RN 0.86.3, TypeScript, `scheme` = `fivescorer`, expo-router installé et point d'entrée basculé sur `expo-router/entry`. Quatre routes : `index` (aiguillage), `vitrine`, `connexion`, `clubs`. `tsc` vert. |
 | **4** | **Serveur : ouvrir la porte à Expo.** Ajouter `@better-auth/expo` aux dépendances du dépôt Next, monter `expo()` avant `nextCookies()`, étendre `trustedOrigins()` avec `fivescorer://` + (`exp://`, `exps://`) en développement seulement, ajouter `allowedDevOrigins` dans `next.config.js`. | `pnpm build` sort en 0 ; puis, `pnpm dev` lancé : `curl -s -X POST -H "Origin: exp://192.168.1.192:8081" ... /api/auth/sign-in/email \| grep -c INVALID_ORIGIN` → `0`. | **fait** — commit `f083477` sur `main`. La requête d'origine `exp://` reçoit `INVALID_EMAIL_OR_PASSWORD`, donc l'origine est acceptée et c'est bien le mot de passe qui est refusé. |
 | **5** | **Porter le noyau pur** dans `five-scorer-mobile/lib/noyau/` : `clock.ts` (41 l.), `ids.ts` (43 l.), `theme.ts` (182 l.), `color.ts` (184 l.), `balance.ts` (148 l.), `retro.ts` (28 l.) — copie verbatim — et poser un lanceur de tests. | `cd five-scorer-mobile && npx vitest run` → tous verts, au moins un test par fichier porté ; `npx tsc --noEmit` sort en 0. | **fait** — 626 lignes copiées octet pour octet, 78 tests verts en 7 fichiers, `tsc` vert. Vitest 4.1.11 (pas 5 : voir le journal). Un 7ᵉ fichier de test, `copie-conforme.test.ts`, vérifie l'égalité octet pour octet avec `five-scorer/lib/` et l'absence d'API navigateur : la copie ne peut plus diverger en silence. |
-| **6** | **Le schéma SQLite** : traduire les 6 tables de `lib/db.ts` en DDL (`mobile/db/schema.sql`), avec `AUTOINCREMENT` sur `outbox.id`, la colonne `match_id`, l'index `outbox_actives`, et `PRAGMA journal_mode = WAL` à l'ouverture. | `sqlite3 :memory: ".read mobile/db/schema.sql" "INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'),('t','c','{}'),('t','c','{}'); DELETE FROM outbox WHERE id=3; INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'); SELECT MAX(id) FROM outbox;"` → **`4`** (et non `3`). | à faire |
+| **6** | **Le schéma SQLite** : traduire les 6 tables de `lib/db.ts` en DDL (`five-scorer-mobile/db/schema.sql`), avec `AUTOINCREMENT` sur `outbox.id`, la colonne `match_id`, l'index `outbox_actives`, et `PRAGMA journal_mode = WAL` à l'ouverture. | Depuis `five-scorer-mobile/` (il n'y a **pas** de binaire `sqlite3` dans le nuage — `node:sqlite` est le même moteur, SQLite 3.51.2) :<br>`node --no-warnings -e "const {DatabaseSync}=require('node:sqlite'),fs=require('node:fs');const d=new DatabaseSync(':memory:');d.exec(fs.readFileSync('db/schema.sql','utf8'));d.exec(\"INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}'),('t','c','{}'),('t','c','{}'); DELETE FROM outbox WHERE id=3; INSERT INTO outbox(created_at,club_id,op) VALUES('t','c','{}');\");console.log(d.prepare('SELECT MAX(id) AS m FROM outbox').get().m)"` → **`4`** (et non `3`) ; puis `npx vitest run db` vert. | **fait** — `MAX(id) = 4`, et 19 tests dans `db/schema.test.ts`. Le contre-exemple est testé aussi : une table témoin **sans** `AUTOINCREMENT` redonne bien `3`, donc le mot n'est pas décoratif. Ajouts assumés au plan : un second index `outbox_match (match_id, blocked_at)` pour le blocage en cascade, des `CHECK` qui rejouent en base les unions fermées de `lib/db.ts`, un `UNIQUE (match_id, player_id)` sur `participants`, et `db/schema.ts` — copie conforme du `.sql`, générée par `scripts/schema-vers-ts.mjs` et vérifiée octet pour octet, parce que Metro ne sait pas charger un `.sql` sans plugin Babel. |
 | **7** | **Porter le drain de l'outbox** (`lib/sync.ts`) sur une couche d'accès abstraite (une interface `Db` avec deux implémentations : `expo-sqlite` en prod, `node:sqlite`/`better-sqlite3` en test). Garder la machine à états, le backoff 5→60 s, le timeout 8 s, `pending`/`blocked`/`needsAuth`, le blocage en cascade par `match_id`. **8** opérations → **8** appels fetch. | `cd mobile && npx vitest run sync` → vert, dont un test « 50 opérations enfilées, serveur en panne, processus relancé : 0 perdue, 0 dupliquée, ordre conservé » et un test « 403 sur une op → toutes les ops du même match passent `blocked`, aucune supprimée ». | à faire |
 | **8** | **La fonction d'appel authentifié** de l'app (`mobile/lib/api.ts`) : `credentials: "omit"` + en-tête `cookie` issu de `authClient.getCookie()`, URL absolues depuis `EXPO_PUBLIC_API_URL`, 401 → `needsAuth`. | `cd mobile && npx vitest run api` → vert, avec `fetch` moqué : assertions sur `credentials === "omit"`, présence de l'en-tête `cookie`, et bascule `needsAuth` sur 401. | à faire |
 | **9** | **Serveur : les 3 premiers GET** — `GET /api/me`, `GET /api/clubs/[clubId]`, extension de `GET .../roster` (+`abonne`, `userId`, `isArchived`). Tous via `getClubApiContext`, tous validant les identifiants avec `lib/ids.ts`. | `pnpm build` sort en 0 ; `pnpm test:api` (Vitest, session simulée) → vert ; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me` sans cookie → `401`. | **fait** — `GET /api/me` (tous mes clubs, l'amorce de la connexion), `GET /api/clubs/[clubId]` (un seul, pour rafraîchir les réglages sans repasser par la connexion ; 404 et non 403 sur un club dont on n'est pas membre, pour ne pas confirmer son existence), et l'effectif étendu (`abonne`, `isArchived`, `?archives=1` qui range les archivés en fin de liste). La forme du club vit dans `lib/clubApi.ts`, partagée par les deux routes : deux copies auraient divergé au premier réglage ajouté. **Écart assumé au plan** : `userId` demandé n'est pas rendu — l'app n'en a besoin que pour « lequel est moi ? » et « ce profil est-il revendiqué ? », on rend `estMoi` et `compteLie` plutôt que l'identifiant de compte de chaque joueur à tous les membres. Les 23 vérifications de `five-scorer-mobile/scripts/parcours-connexion.mjs` passent. |
@@ -363,7 +363,7 @@ Règles de lecture pour l'agent :
 - La logique pure portée verbatim : `clock.ts` (dérivation du chrono depuis `elapsedMs` + `runningSince`, y compris horloge qui recule), `balance.ts`, `color.ts`/`theme.ts` (le plancher APCA à Lc 60 est testable : une chasuble claire et une foncée doivent produire des encres différentes). **Fait à l'étape 5 : 78 tests dans `five-scorer-mobile/lib/noyau/`, `npm run tester`.**
 - **La non-divergence du noyau** : `copie-conforme.test.ts` compare octet pour octet les 6 fichiers de `lib/noyau/` à ceux de `five-scorer/lib/`, et vérifie qu'aucun n'a acquis de `document.`/`window.`/`navigator.`/`localStorage`. C'est le test qui empêche la réécriture de partir en deux versions de la même règle.
 - **Le drain de l'outbox contre un faux serveur** : c'est le test qui valide tout le reste, et il ne demande aucune interface. 50 opérations, serveur en panne, processus tué, relancé : rien de perdu, rien de dupliqué, ordre conservé. Plus le cas 403 → blocage en cascade sans suppression, et le cas 401 → `needsAuth`.
-- **Le SQL lui-même**, avec `sqlite3` en ligne de commande ou `node:sqlite` : la réutilisation d'identifiant sans `AUTOINCREMENT` (étape 6) est un test, pas une croyance.
+- **Le SQL lui-même**, avec `node:sqlite` — **il n'y a pas de binaire `sqlite3` dans le conteneur du nuage**, et c'est sans importance : `node:sqlite` embarque le même moteur (SQLite 3.51.2, relevé le 9 septembre), celui d'expo-sqlite sur le téléphone. **Fait à l'étape 6 : 19 tests dans `five-scorer-mobile/db/schema.test.ts`.** La réutilisation d'identifiant sans `AUTOINCREMENT` y est un test **et** son contre-exemple : une table témoin sans le mot redonne l'identifiant supprimé. Ce n'est pas une croyance.
 - **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents.
 
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
@@ -377,8 +377,18 @@ cd five-scorer-mobile && npx expo export --platform ios   # le bundle Metro se c
 **Le serveur se vérifie À CÔTÉ, jamais dans `.next` :**
 
 ```bash
-cd five-scorer && NEXT_DIST_DIR=.next-verif npx next build
+cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
 ```
+
+**`prisma generate` n'est pas facultatif dans un conteneur neuf**, et c'est le
+piège qui coûte vingt minutes de fausse alerte : `pnpm build` vaut
+`prisma generate && next build` (lire `package.json`), donc la commande de
+vérification écrite ici sans lui échoue sur des erreurs qui ressemblent à une
+régression du code — `Parameter 'tx' implicitly has an 'any' type` dans
+`app/actions/calendrier.ts`, et une dizaine d'autres du même genre. Ce ne sont
+pas des régressions : c'est le client Prisma absent, donc `prisma.$transaction`
+sans types. Vérifié le 9 septembre : avec `prisma generate` d'abord, le même
+build sort en 0.
 
 `next.config.js` lit `NEXT_DIST_DIR` exprès. Sans lui, `pnpm build` écrase le
 `.next` du `pnpm dev` en cours **et réécrit `next-env.d.ts`** (la ligne
@@ -437,6 +447,111 @@ Un agent ne peut trancher aucune de ces lignes.
 ## 7. Journal
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
+
+### 2026-09-09 12:2x — Étape 6 : le schéma SQLite
+
+- **État** : à faire → **fait**
+- **Vérifié par** (depuis `five-scorer-mobile/`) :
+
+  ```
+  $ node --no-warnings -e "…d.exec(fs.readFileSync('db/schema.sql','utf8'))…"
+  MAX(id) = 4
+  SQLite  = 3.51.2
+
+  $ npx vitest run db
+  Test Files  1 passed (1)
+       Tests  19 passed (19)
+
+  $ npx tsc --noEmit
+  tsc EXIT=0
+
+  $ npx vitest run
+  Test Files  8 passed (8)
+       Tests  97 passed (97)
+
+  $ cd ../five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  next build EXIT=0
+  ```
+
+- **Fichiers touchés** :
+
+  ```
+  five-scorer-mobile/db/schema.sql          (nouveau, seule source du schéma)
+  five-scorer-mobile/db/schema.ts           (nouveau, généré — ne pas éditer)
+  five-scorer-mobile/db/schema.test.ts      (nouveau, 19 tests)
+  five-scorer-mobile/scripts/schema-vers-ts.mjs  (nouveau, le générateur)
+  five-scorer/MOBILE.md
+  ```
+
+**Ce qui a surpris, et qui vaut plus que l'étape elle-même.**
+
+**Le `next build` de ce document échoue dans un conteneur neuf, et ça
+ressemble à une régression du code.** Onze erreurs de type dans des fichiers
+que je n'ai pas touchés, la première étant `Parameter 'tx' implicitly has an
+'any' type` à `app/actions/calendrier.ts:65`. La règle 6 du §5 dit qu'une
+régression sur le build arrête tout — j'ai donc arrêté, et cherché. Ce n'en
+était pas une : `pnpm build` vaut `prisma generate && next build`, et la
+commande de vérification écrite au §5 avait perdu la première moitié. Sans
+client Prisma généré, `prisma.$transaction` n'a plus de signature typée et son
+callback tombe en `any` implicite. Avec `npx prisma generate` d'abord, le même
+build sort en 0. **Le §5 est corrigé dans ce commit** — c'est vingt minutes
+rendues à la prochaine exécution, qui repartira elle aussi d'un conteneur vide.
+
+**Il n'y a pas de binaire `sqlite3` dans le nuage.** Le critère de l'étape 6
+était écrit pour la ligne de commande `sqlite3`. `node:sqlite` la remplace sans
+rien concéder : c'est le même moteur, en 3.51.2, et c'est celui d'expo-sqlite
+sur l'appareil. Le critère a été réécrit avec la commande réellement lançable
+plutôt que laissé faux.
+
+**Le contre-exemple compte autant que le test.** `AUTOINCREMENT` prouvé par
+`MAX(id) = 4` ne dit pas *pourquoi* le mot est là. Le test voisin crée une
+table témoin **sans** le mot, rejoue les mêmes trois insertions, la même
+suppression — et obtient `3`. C'est ce qu'un `finishMatch` ferait à la place
+d'un but déjà parti au serveur.
+
+**Écarts assumés au plan** (le plan disait « les 6 tables, `AUTOINCREMENT`,
+`match_id`, `outbox_actives`, WAL » ; tout y est, plus ceci) :
+
+- **`outbox_match (match_id, blocked_at)`.** L'index `outbox_actives` sert le
+  drain, pas le blocage en cascade, qui cherche par match. Sans lui, un refus
+  403 balaie toute la table.
+- **Des `CHECK` sur les unions fermées** de `lib/db.ts` (`'A' | 'B'`,
+  `'LIVE' | 'FINISHED'`, les cinq types d'événement, `motmMode`, les booléens).
+  Le typage TypeScript s'arrête à la frontière de la base ; ces contraintes
+  attrapent la faute de portage à l'écriture, pendant l'étape 11, plutôt qu'au
+  bord du terrain. Quatre tests le vérifient — dont un qui vérifie l'inverse :
+  un but **sans buteur** doit passer, puisque le score part au premier tap et
+  que le nom se choisit après.
+- **`UNIQUE (match_id, player_id)` sur `participants`.** La clé primaire est la
+  chaîne `"matchId::playerId"` héritée de Dexie ; une clé mal formée par le
+  portage aurait glissé un doublon sous le nez de la clé primaire.
+- **Aucune clé étrangère**, délibérément. Dexie n'en avait pas et
+  `lib/localMatch.ts` s'appuie sur ce fait : le cache local n'est jamais
+  « incohérent », seulement en retard. Des FK changeraient le comportement
+  porté au lieu de le reproduire.
+- **`db/schema.ts`, copie conforme générée.** Metro ne sait pas charger un
+  `.sql` sans `babel-plugin-inline-import`, et cette chaîne Babel a un
+  historique de casse à chaque montée d'Expo SDK. Plutôt que de l'ajouter, le
+  `.sql` reste la seule source et `scripts/schema-vers-ts.mjs` en écrit un
+  module TypeScript ordinaire ; le premier test du fichier compare les deux
+  octet pour octet. C'est exactement le procédé de `lib/noyau/`, qui a déjà
+  fait ses preuves. Le générateur a d'ailleurs refusé sa première exécution :
+  mes commentaires SQL contenaient des accents graves, qui auraient cassé le
+  littéral gabarit. Ils sont passés en guillemets français.
+- **`PRAGMA synchronous = NORMAL`** en plus de WAL : un `fsync` de moins par
+  transaction, et sur un but on écrit deux tables.
+
+**Ce qui n'a PAS été fait, et pourquoi.** Aucune couche d'accès, aucune
+ouverture de base, aucun `expo-sqlite` installé : c'est l'étape 7, et la règle
+« une exécution = une étape » vaut mieux qu'une étape 7 à moitié. Le WAL est
+vérifié sur un vrai fichier temporaire (en mémoire, SQLite répond « memory » et
+refuse WAL) — mais **jamais dans le bac à sable d'Expo Go**, ce qui reste à
+vérifier sur l'appareil.
+
+- **Reste ouvert** : l'étape 7 (le drain de l'outbox sur une couche d'accès
+  abstraite) est la suivante, et `db/schema.test.ts` y a déjà posé quatre des
+  requêtes qu'elle devra porter. Rien de nouveau pour le §6 — aucune décision
+  d'Ibrahima n'a été rencontrée cette fois.
 
 ### 2026-09-09 11:xx — Étape 17 : le development build iOS
 
@@ -754,22 +869,13 @@ Commit `a4bd614` sur `mobile`.
   ce qui doit être vérifié sur l'appareil>
 ```
 
-### Exemple (fictif, à supprimer à la première vraie entrée)
+### Exemple
 
-```markdown
-### 2026-09-10 09:15 — Étape 6 : Le schéma SQLite
+L'entrée réelle de l'étape 6 (2026-09-09 12:2x, plus haut dans ce journal) sert
+de modèle : la commande et sa sortie collées telles quelles, les écarts au plan
+nommés un par un, et ce qui n'a pas été fait dit franchement.
 
-- **État** : à faire → fait
-- **Vérifié par** :
-  ```
-  $ sqlite3 :memory: ".read mobile/db/schema.sql" "INSERT INTO outbox(...) ...; SELECT MAX(id) FROM outbox;"
-  4
-  ```
-- **Fichiers touchés** :
-  /Users/ibc/diamesene02/five-scorer/mobile/db/schema.sql
-  /Users/ibc/diamesene02/five-scorer/mobile/db/open.ts
-- **Ce qui a surpris** : rien sur l'AUTOINCREMENT. En revanche `lib/db.ts` déclare
-  l'index composé [matchId+createdAt] que je n'avais pas repris ; ajouté.
-- **Reste ouvert** : la persistance du fichier SQLite dans le bac à sable d'Expo Go
-  (survit-elle à une mise à jour d'Expo Go ?) — non vérifiable sans téléphone.
-```
+*(L'exemple fictif qui vivait ici a été retiré le 9 septembre : il décrivait
+l'étape 6, désormais faite pour de vrai, avec une commande `sqlite3` qui
+n'existe pas dans le nuage et des chemins `mobile/` abandonnés au §3.1. Deux
+entrées « étape 6 » dont une fausse, c'était le contraire d'une mémoire.)*
