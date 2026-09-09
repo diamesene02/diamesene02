@@ -19,6 +19,23 @@ export const dynamic = "force-dynamic";
 ///
 /// Il ne rend rien qu'un visiteur ne voie déjà sur la page publique : pas
 /// d'e-mail, pas de présences, pas de compte lié, pas de prix du terrain.
+/// La vitrine est publique : elle peut donc être lue depuis n'importe quelle
+/// origine. Sans ces en-têtes, l'app Expo rendue dans un navigateur (la cible
+/// « web », qui sert à travailler sans téléphone) se heurte au contrôle
+/// d'origine et échoue sur un « Failed to fetch » qui ne dit rien. Sur un
+/// vrai appareil la question ne se pose pas — le contrôle d'origine est une
+/// règle de NAVIGATEUR, pas de réseau.
+const ENTETES_CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, OPTIONS",
+  "access-control-allow-headers": "accept, content-type",
+  "access-control-max-age": "86400",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: ENTETES_CORS });
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string }> },
@@ -29,7 +46,10 @@ export async function GET(
     include: { club: true },
   });
   if (!org?.club || !org.club.isPublic) {
-    return NextResponse.json({ error: "introuvable" }, { status: 404 });
+    return NextResponse.json(
+      { error: "introuvable" },
+      { status: 404, headers: ENTETES_CORS },
+    );
   }
   const club = org.club;
 
@@ -49,7 +69,8 @@ export async function GET(
     }),
   ]);
 
-  return NextResponse.json({
+  return NextResponse.json(
+    {
     club: {
       slug,
       nom: org.name,
@@ -90,5 +111,7 @@ export async function GET(
       scoreB: m.scoreB,
       hommeDuMatch: m.mvp?.name ?? null,
     })),
-  });
+    },
+    { headers: ENTETES_CORS },
+  );
 }
