@@ -360,7 +360,7 @@ Règles de lecture pour l'agent :
 | **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
 | **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **fait** — par EAS, pas en local. Build `9727ecbd`, profil `lundi`, terminé. Vérifié en téléchargeant l'`.ipa` : bundle `com.ibc.fivescorer`, signé par l'équipe payante (`M283R456KQ.com.ibc.fivescorer`), profil ad hoc n'autorisant **que** l'iPhone de Diame, `main.jsbundle` de 2,6 Mo embarqué (donc démarre sans Metro), schéma `fivescorer` enregistré, ATS `NSAllowsArbitraryLoads=false`. Le build local reste impossible sur cette machine — voir le journal. |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
-| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `pnpm build` en 0, `pnpm test:api` vert, `npx expo export --platform ios` en 0. | à faire |
+| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `NEXT_DIST_DIR=.next-verif npx next build` en 0, `node scripts/parcours-lecture.mjs` vert (étendu au lot), `npx expo export --platform ios` en 0. (`pnpm test:api` n'existe pas — voir l'étape 12.) | à faire |
 | **3 bis** | **Le premier écran, sans authentification** — pour voir quelque chose de vrai dans Expo Go avant d'avoir porté la connexion. A demandé un endpoint public côté serveur (`GET /api/public/[slug]`, déployé sur `main`) qui rend la vitrine du club ET ses jetons de thème calculés par `lib/theme.ts` : la règle des couleurs ne doit exister qu'à un seul endroit. | `cd five-scorer-mobile && npx tsc --noEmit` en 0 ; `curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy \| python3 -c "import sys,json;d=json.load(sys.stdin);print(d['club']['nom'], len(d['classement']))"` → le nom du club et le nombre de joueurs. | **fait** — commits `36ce034`, `9944e84` sur `main` et `2b4ba1b` sur `mobile`. Rendu vérifié avec la cible web d'Expo : le club, les photos et le 18-9 du 7 septembre s'affichent. |
 | **X** | **Chantier séparé, sans urgence, jamais sur la prod en premier** : `ALTER TABLE "account" ALTER COLUMN "issuer" DROP NOT NULL;`, retrait du champ dans `schema.prisma`, essai d'inscription réelle sur une preview, **puis seulement** `better-auth@1.7.3` + `@better-auth/expo@1.7.3`. Aucun index unique à retirer au préalable (vérifié dans le SQL de la migration). | Sur une base de preview : `prisma migrate deploy` en 0, puis une inscription réelle qui renvoie 200, puis `node -p "require('./node_modules/better-auth/package.json').version"` → `1.7.3`. | à faire |
 | **Y** | **Chantier séparé** : porter `lib/shareCard.ts` (291 l.) en vues RN + `react-native-view-shot` + `expo-sharing`. | `npx expo export --platform ios` en 0 ; `grep -rc "getContext(\"2d\")" mobile/` → `0`. | à faire |
@@ -597,32 +597,49 @@ Un agent ne peut trancher aucune de ces lignes.
 - **Reste ouvert** :
   - **Aucun écran n'utilise encore ces trois endpoints.** Ils sont servis et
     vérifiés, pas branchés. C'est l'étape 15 et les lots du 19+ qui les
-    consommeront — et une autre session travaille en ce moment sur la parité
-    des écrans (`b76df9b`, `1fa69bd`, `7e9427f`), sans entrée de journal pour
-    l'instant. Celle-ci ne la remplace pas.
+    consommeront — et une autre session travaille en parallèle sur la parité
+    des écrans (`b76df9b`, `1fa69bd`, `7e9427f`) ; son entrée de journal, juste
+    en dessous, raconte ses dépendances. Les deux se sont croisées dans ce
+    fichier : conflit résolu à la main, aucune des deux entrées perdue.
   - **Rien n'a été lancé sur un appareil ni dans un simulateur**, comme
     toujours depuis le nuage.
   - Le point 5 du §6 (les photos des joueurs) n'a toujours pas sa mesure : la
     feuille de match ne renvoie **pas** les photos, c'est l'effectif qui les
     porte. Le choix reste entier.
 
-### 2026-09-09 19:3x — Vérification d'une dépendance, et non d'une étape
+### 2026-09-09 19:3x-20:0x — Les dépendances de la soirée, vérifiées une par une
 
 - **État** : aucune étape touchée. Cette entrée existe parce que la règle 4 du
   §5 l'exige, pas parce qu'un travail a avancé.
-- **Ce qui s'est passé.** Le commit `b76df9b` (« refaire d'après le site, pas
-  d'après un rapport », poussé par une autre session ce soir) ajoute
-  `@react-native-community/datetimepicker@9.1.0` à `package.json`. **C'est un
-  module natif tiers, pas un module du SDK Expo** — donc exactement le cas que
-  la contrainte structurante du §1 dit de vérifier et d'écrire à chaque fois.
-  Aucune ligne de ce document ne le mentionnait.
-- **Vérifié** : la documentation Expo le liste comme **inclus dans Expo Go**
+- **Ce qui s'est passé.** Trois dépendances sont entrées dans `package.json` ce
+  soir, poussées par la session qui travaille sur le Mac, sans qu'aucune ligne
+  de ce document ne les mentionne. Le tableau ci-dessous est le contrôle exigé
+  par la contrainte structurante du §1 — Expo Go n'exécute que ses propres
+  modules, donc chaque bibliothèque doit être classée avant d'être crue.
+
+  | dépendance | commit | nature | Expo Go |
+  |---|---|---|---|
+  | `@react-native-community/datetimepicker@9.1.0` | `b76df9b` | module natif tiers | **inclus** (voir la citation ci-dessous) |
+  | `react-native-svg@15.15.4` | `7e9427f` | module natif tiers | **inclus** — Expo le documente en `sdk/svg/`, le code natif est déjà dans l'app Expo Go |
+  | `@react-navigation/bottom-tabs@^7.18.18` | `7e9427f` | **JavaScript pur** | sans objet — aucun code natif à embarquer ; ses besoins natifs (`react-native-screens`, `react-native-safe-area-context`) étaient déjà là, et expo-router est lui-même bâti sur React Navigation |
+
+  **Conclusion : le développement dans Expo Go n'est pas cassé.** Aucune des
+  trois n'impose un development build.
+
+  Une réserve à garder en tête, pas un problème aujourd'hui :
+  `@react-navigation/bottom-tabs` est la seule dépendance du projet épinglée
+  avec un **caret** (`^7.18.18`). expo-router embarque sa propre version de
+  React Navigation ; le jour où le caret laissera passer une majeure
+  divergente, le symptôme sera un doublon de paquet, pas une erreur de
+  compilation. À figer si ça arrive.
+
+- **Vérifié pour datetimepicker** : la documentation Expo le liste comme
+  **inclus dans Expo Go**
   (`https://docs.expo.dev/versions/latest/sdk/date-time-picker/` : « The module
   is part of Expo Go. However, Expo Go may not contain the latest version of
   the module and therefore, the newest features and bugfixes may not be
-  available. »). **Le développement dans Expo Go n'est donc pas cassé** — c'est
-  l'un des rares modules tiers qu'Expo embarque, comme `react-native-svg` ou
-  `react-native-webview`.
+  available. »).
+- **Vérifié sur chaque head**, à chaque arrivée, après `npm install` :
 
   ```
   $ cd five-scorer-mobile && npx tsc --noEmit
@@ -633,10 +650,30 @@ Un agent ne peut trancher aucune de ces lignes.
         Tests  184 passed (184)
   ```
 
+  Et sur le commit `1fa69bd`, qui touchait l'app web (route
+  `/api/clubs/[clubId]/accueil`, barème du classement sorti de
+  `components/Classement.tsx` vers `lib/classement.ts`), le contrôle qui prime
+  sur tous les autres :
+
+  ```
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  ƒ Proxy (Middleware)
+  ○  (Static)   prerendered as static content
+  ƒ  (Dynamic)  server-rendered on demand
+  [exited with code 0]
+  ```
+
+  La production ne bouge pas. Le réexport de `points` et `trierParPoints`
+  depuis `Classement.tsx` garde les appelants existants du site intacts —
+  c'était la bonne façon de faire : une route serveur n'a pas à importer un
+  composant client pour trier six lignes.
+
 - **Ce que je n'ai PAS pu vérifier**, et il ne faut pas le croire vérifié :
-  **que `9.1.0` soit bien la version qu'`expo install` choisit pour le SDK 57.**
-  La commande qui le dit interroge l'API de versions d'Expo, et le proxy de
-  sortie de ce conteneur la refuse :
+  **que `9.1.0` et `15.15.4` soient bien les versions qu'`expo install` choisit
+  pour le SDK 57.** Le classement Expo Go ci-dessus, lui, ne dépend pas de la
+  version ; c'est l'accord de version qui reste non mesuré. La commande qui le
+  dit interroge l'API de versions d'Expo, et le proxy de sortie de ce conteneur
+  la refuse :
 
   ```
   $ npx expo install --check
