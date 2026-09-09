@@ -8,6 +8,16 @@ const nextConfig = {
       (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 12) ||
       String(Date.now()),
   },
+  // Next 16 refuse les requêtes de développement venant d'une autre origine
+  // que localhost. Or on développe l'app mobile depuis l'IP du Mac sur le
+  // réseau local : sans cette liste, le rechargement à chaud est refusé et
+  // l'app Expo ne peut pas parler au serveur de dev.
+  //
+  // Uniquement en développement — Next ignore ce réglage en production.
+  allowedDevOrigins: (process.env.DEV_ORIGINS ?? "192.168.1.192")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean),
   experimental: {
     typedRoutes: false,
   },
