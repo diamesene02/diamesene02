@@ -353,14 +353,14 @@ Règles de lecture pour l'agent :
 | **9** | **Serveur : les 3 premiers GET** — `GET /api/me`, `GET /api/clubs/[clubId]`, extension de `GET .../roster` (+`abonne`, `userId`, `isArchived`). Tous via `getClubApiContext`, tous validant les identifiants avec `lib/ids.ts`. | `pnpm build` sort en 0 ; `pnpm test:api` (Vitest, session simulée) → vert ; `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/me` sans cookie → `401`. | **fait** — `GET /api/me` (tous mes clubs, l'amorce de la connexion), `GET /api/clubs/[clubId]` (un seul, pour rafraîchir les réglages sans repasser par la connexion ; 404 et non 403 sur un club dont on n'est pas membre, pour ne pas confirmer son existence), et l'effectif étendu (`abonne`, `isArchived`, `?archives=1` qui range les archivés en fin de liste). La forme du club vit dans `lib/clubApi.ts`, partagée par les deux routes : deux copies auraient divergé au premier réglage ajouté. **Écart assumé au plan** : `userId` demandé n'est pas rendu — l'app n'en a besoin que pour « lequel est moi ? » et « ce profil est-il revendiqué ? », on rend `estMoi` et `compteLie` plutôt que l'identifiant de compte de chaque joueur à tous les membres. Les 23 vérifications de `five-scorer-mobile/scripts/parcours-connexion.mjs` passent. |
 | **10** | **Écran de connexion** (`mobile/app/(public)/connexion.tsx`) + inscription, avec `authClient.signIn.email` / `signUp.email` (API identique à `LoginForm.tsx`). Aiguillage `index.tsx` : session ? club : bienvenue. | `cd five-scorer-mobile && npx tsc --noEmit` vert ; et la chaîne complète vérifiée sans navigateur (voir le journal du 9 septembre). | **fait** — `connexion.tsx` (connexion + inscription sur le même écran, messages d'erreur en français dont `INVALID_ORIGIN` qui dit quoi corriger), `index.tsx` (aiguillage session → clubs, sinon vitrine), `clubs.tsx` (les clubs de l'utilisateur, leurs réglages, déconnexion). Chaîne complète rejouée sans téléphone par `five-scorer-mobile/scripts/parcours-connexion.mjs` : origine `exp://` acceptée, cookie délivré, `/api/me` servi, 401 sans cookie. **En Expo Go la connexion exige `pnpm dev` sur le Mac** — voir le journal du 9 septembre 10:4x. |
 | **11** | **Porter `lib/localMatch.ts`** (707 l., 41 appels Dexie, 9 transactions) sur la couche SQLite, en `withExclusiveTransactionAsync`. La logique métier (calcul de la minute, garde anti-équipe-vide, refus d'écrire dans un match terminé, invités) ne bouge pas. À couper en deux exécutions si nécessaire (lecture puis écriture). | `cd five-scorer-mobile && npx vitest run localMatch` → vert, dont « un but écrit `events` ET `outbox`, ou ni l'un ni l'autre » et « aucune écriture dans un match `FINISHED` ». | **fait** — 54 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`, dont les deux exigés, **et leur contre-épreuve** : la transaction retirée d'`addEvent` fait tomber le premier, les trois gardes `FINISHED` retirés font tomber le second (sorties collées au journal). Faite en une exécution, pas deux : le SQL est sorti dans `lib/match/tables.ts` (530 l.), la logique dans `lib/match/local.ts` (778 l.). Rien n'est global — `creerMatchLocal(deps)` reçoit la base, l'horloge et le générateur d'identifiants, comme `creerDrain` et `creerAppel`. **Écarts assumés** : (a) `getLocalMatch` lit **hors** transaction, comme le `Promise.all` du web — l'envelopper prendrait un verrou d'écriture (`BEGIN IMMEDIATE`) à chaque re-rendu de l'écran de match, et le drain attendrait derrière l'affichage ; (b) l'entrée de `saveRoster` accepte un `photo` optionnel, que le web n'a pas — l'endpoint de l'effectif l'envoie déjà et la feuille doit montrer les visages sans réseau (§3.3) ; à entrée identique, comportement identique. |
-| **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `pnpm build` en 0 ; `pnpm test:api` vert avec un cas par endpoint ; `curl` authentifié sur `matches/[matchId]` renvoie du JSON contenant `participants` et `events`. | à faire |
+| **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `NEXT_DIST_DIR=.next-verif npx next build` en 0 ; puis, serveur `next dev` lancé sur une base locale : `node scripts/jeu-dessai.mjs && node scripts/parcours-lecture.mjs` (depuis `five-scorer-mobile/`) → **TOUT VERT**, 39 vérifications. **`pnpm test:api` n'existe pas** — le plan l'inventait ; il n'y a aucun harnais Vitest côté web, et l'étape 9 avait déjà dû s'en passer. | **fait** — les trois GET, plus le jeu d'essai qui les rend vérifiables dans le nuage. La forme des réponses est celle de `LocalMatch` / `LocalParticipant` / `LocalEvent` (`lib/outbox/types.ts`) : chaque bloc se recopie tel quel dans sa table SQLite, sans couche de traduction. **Écarts assumés** : (a) les votes MOTM sont rendus **comptés**, jamais nominatifs — `{ total, byPlayer, mine }` — là où le plan disait « votes » ; (b) `?status=` refuse un statut inconnu par un **400** au lieu de l'ignorer ; (c) chaque participant porte déjà sa clé composée `matchId::playerId`, pour que la règle de `pKey` n'existe pas en deux exemplaires. |
 | **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx tsc --noEmit` vert, et surtout : la boucle rejouée à la main sur le simulateur, avec vérification en base. | **fait** — `app/compo.tsx`. **Écart assumé au site** : les abonnés arrivent présélectionnés et un bouton « Tous / Personne » double la liste, parce que taper quatorze joueurs un par un debout au bord du terrain est le geste le plus coûteux de la soirée. |
 | **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. | `npx tsc --noEmit` vert ; `grep -rc "suppressTapUntil" five-scorer-mobile/` → `0` ; geste vérifié sur simulateur. | **fait** — `app/match/[id].tsx`. Tap = but, appui long 500 ms = retirer son dernier but ; le garde `suppressTapUntil` du web a bien disparu, React Native n'émet pas `onPress` après `onLongPress`. Horloge dérivée du coup d'envoi, tic de 500 ms. Pas de `useKeepAwake` ni de son : `expo-keep-awake` et les fichiers audio restent à faire. |
 | **15** | **Écran « jouer », partie 2** : le score, la barre d'invite 15 s, les chemins d'annulation, la confirmation de fin. | `npx tsc --noEmit` vert ; parcours rejoué sur simulateur avec contrôle en base après chaque geste. | **en cours** — faits : le tableau de marque (le camp qui perd s'efface), l'invite 15 s pour la passe décisive ET pour l'auteur d'un csc, deux chemins d'annulation (appui long sur la tuile, bouton « Annuler » pour le dernier événement), la confirmation de fin. **Restent** : la chronologie, les cartons, l'élection du MVP, la correction de composition en cours de match, et `gestureEnabled: false` sur la route. |
 | **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
 | **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **fait** — par EAS, pas en local. Build `9727ecbd`, profil `lundi`, terminé. Vérifié en téléchargeant l'`.ipa` : bundle `com.ibc.fivescorer`, signé par l'équipe payante (`M283R456KQ.com.ibc.fivescorer`), profil ad hoc n'autorisant **que** l'iPhone de Diame, `main.jsbundle` de 2,6 Mo embarqué (donc démarre sans Metro), schéma `fivescorer` enregistré, ATS `NSAllowsArbitraryLoads=false`. Le build local reste impossible sur cette machine — voir le journal. |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
-| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `pnpm build` en 0, `pnpm test:api` vert, `npx expo export --platform ios` en 0. | à faire |
+| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `NEXT_DIST_DIR=.next-verif npx next build` en 0, `node scripts/parcours-lecture.mjs` vert (étendu au lot), `npx expo export --platform ios` en 0. (`pnpm test:api` n'existe pas — voir l'étape 12.) | à faire |
 | **3 bis** | **Le premier écran, sans authentification** — pour voir quelque chose de vrai dans Expo Go avant d'avoir porté la connexion. A demandé un endpoint public côté serveur (`GET /api/public/[slug]`, déployé sur `main`) qui rend la vitrine du club ET ses jetons de thème calculés par `lib/theme.ts` : la règle des couleurs ne doit exister qu'à un seul endroit. | `cd five-scorer-mobile && npx tsc --noEmit` en 0 ; `curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy \| python3 -c "import sys,json;d=json.load(sys.stdin);print(d['club']['nom'], len(d['classement']))"` → le nom du club et le nombre de joueurs. | **fait** — commits `36ce034`, `9944e84` sur `main` et `2b4ba1b` sur `mobile`. Rendu vérifié avec la cible web d'Expo : le club, les photos et le 18-9 du 7 septembre s'affichent. |
 | **X** | **Chantier séparé, sans urgence, jamais sur la prod en premier** : `ALTER TABLE "account" ALTER COLUMN "issuer" DROP NOT NULL;`, retrait du champ dans `schema.prisma`, essai d'inscription réelle sur une preview, **puis seulement** `better-auth@1.7.3` + `@better-auth/expo@1.7.3`. Aucun index unique à retirer au préalable (vérifié dans le SQL de la migration). | Sur une base de preview : `prisma migrate deploy` en 0, puis une inscription réelle qui renvoie 200, puis `node -p "require('./node_modules/better-auth/package.json').version"` → `1.7.3`. | à faire |
 | **Y** | **Chantier séparé** : porter `lib/shareCard.ts` (291 l.) en vues RN + `react-native-view-shot` + `expo-sharing`. | `npx expo export --platform ios` en 0 ; `grep -rc "getContext(\"2d\")" mobile/` → `0`. | à faire |
@@ -381,6 +381,8 @@ Règles de lecture pour l'agent :
 - **Le SQL lui-même**, avec `node:sqlite` — **il n'y a pas de binaire `sqlite3` dans le conteneur du nuage**, et c'est sans importance : `node:sqlite` embarque le même moteur (SQLite 3.51.2, relevé le 9 septembre), celui d'expo-sqlite sur le téléphone. **Fait à l'étape 6 : 19 tests dans `five-scorer-mobile/db/schema.test.ts`.** La réutilisation d'identifiant sans `AUTOINCREMENT` y est un test **et** son contre-exemple : une table témoin sans le mot redonne l'identifiant supprimé. Ce n'est pas une croyance.
 - **Les actions de match contre un vrai SQLite**. **Fait à l'étape 11 : 54 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`.** Le test qui compte n'est pas « un but est bien écrit », c'est **l'annulation** : une `BaseCapricieuse` refuse tout `INSERT INTO outbox`, et on vérifie qu'il ne reste NI événement NI opération NI point au score. Les deux règles gardées par les tests exigés ont été retirées du code une par une pour voir les tests tomber (journal du 9 septembre 18:1x) — sans cette contre-épreuve, un test vert ne dit rien.
 - **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents. **Fait à l'étape 8 : 17 tests dans `five-scorer-mobile/lib/appel.test.ts`.** Le test qui compte n'est pas « le cookie est là », c'est « le cookie est une **chaîne**, pas une promesse » : le `await` oublié sur `getCookie()` produit un 401 parfaitement trompeur, et rien à l'écran ne le distingue d'une session réellement expirée.
+
+- **Les endpoints de lecture, contre un vrai serveur et une vraie base.** **Fait à l'étape 12 : 39 vérifications dans `five-scorer-mobile/scripts/parcours-lecture.mjs`.** La découverte de l'étape est ailleurs : **il y a un PostgreSQL 16 complet dans le conteneur du nuage** (`/usr/lib/postgresql/16/bin/postgres`, à lancer sous l'utilisateur `postgres`). Le serveur n'est donc plus une boîte noire ici — on migre, on peuple avec `scripts/jeu-dessai.mjs`, on lance `next dev`, et on lit pour de vrai. Le jeu d'essai refuse toute `DATABASE_URL` qui ne soit pas locale : il écrit, et il ne doit jamais écrire ailleurs.
 
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
 
@@ -407,10 +409,25 @@ sans types. Vérifié le 9 septembre : avec `prisma generate` d'abord, le même
 build sort en 0.
 
 `next.config.js` lit `NEXT_DIST_DIR` exprès. Sans lui, `pnpm build` écrase le
-`.next` du `pnpm dev` en cours **et réécrit `next-env.d.ts`** (la ligne
-`import "./.next-verif/types/routes.d.ts"` redevient `.next`) : l'arbre git se
-salit d'un fichier qui n'a rien à voir avec le travail de l'exécution. Vérifié
-le 9 septembre — avec la variable, l'arbre reste propre.
+`.next` du `pnpm dev` en cours.
+
+**Mais la variable ne garde PAS l'arbre propre, contrairement à ce qui était
+écrit ici** : `next-env.d.ts` est **suivi par git** et regénéré par Next à
+chaque lancement, avec le chemin du dossier de sortie du moment —
+`./.next/types/…` après un build normal, `./.next-verif/types/…` après le build
+de vérification, `./.next/dev/types/…` après un `next dev`. Les trois se
+succèdent dans une exécution d'agent, et le dernier gagne.
+
+C'est ainsi que le commit `399a0b9` (étape 9) a poussé un `next-env.d.ts`
+pointant sur `.next-verif/`, un dossier de vérification **gitignoré qui
+n'existe ni sur le Mac ni sur Vercel**. La production n'en a pas souffert
+(`next build` réécrit le fichier avant de typer), mais un `tsc` sur un clone
+neuf, lui, cherche un fichier absent. Remis au 9 septembre à `./.next/types/`,
+la valeur d'un `next build` ordinaire — celle de Vercel.
+
+**La règle, donc :** avant chaque commit, `git diff -- five-scorer/next-env.d.ts`
+doit être vide. S'il ne l'est pas, remettre `./.next/types/routes.d.ts` à la
+main. Ce n'est pas du travail de l'exécution.
 
 **Playwright sur l'app web, qui reste en production** — c'est le filet de sécurité de la migration : chaque endpoint ajouté au serveur pour le mobile doit prouver qu'il n'a rien cassé côté web. Trois parcours suffisent : connexion, création d'un match, saisie de trois buts et fin de match. À lancer avant chaque déploiement du serveur, systématiquement, tant que la PWA est l'outil du lundi.
 
@@ -464,23 +481,165 @@ Un agent ne peut trancher aucune de ces lignes.
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
 
-### 2026-09-09 19:3x — Vérification d'une dépendance, et non d'une étape
+### 2026-09-09 20:2x — Étape 12 : les trois GET restants, et un Postgres dans le nuage
+
+- **État** : étape 12 `à faire → fait`
+- **Ce que j'ai trouvé en entrant, et qui n'était pas cassé.** Conteneur neuf :
+  aucun `node_modules` des deux côtés. Réinstallés, puis les vérifications
+  existantes lancées AVANT d'écrire une ligne — tout était vert, il n'y avait
+  rien à réparer côté code :
+
+  ```
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  ƒ Proxy (Middleware)   [exited with code 0]
+
+  $ cd five-scorer-mobile && npx tsc --noEmit && npm run tester
+   Test Files  12 passed (12)
+        Tests  184 passed (184)
+  ```
+
+- **La découverte qui change ce qu'un agent peut vérifier ici : il y a un
+  PostgreSQL 16 dans le conteneur du nuage.** `/usr/lib/postgresql/16/bin/`
+  existe, `initdb` et `pg_ctl` fonctionnent (sous l'utilisateur `postgres`, pas
+  root). Jusqu'ici les endpoints serveur ne se vérifiaient que par « le build
+  passe », c'est-à-dire par la compilation — pas par une réponse. Maintenant :
+
+  ```
+  $ su postgres -c "/usr/lib/postgresql/16/bin/initdb -D /var/tmp/pgdata -U fivescorer --auth=trust"
+  $ su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/tmp/pgdata -o '-p 5433 -k /tmp' start"
+  server started
+  $ npx prisma migrate deploy
+  All migrations have been successfully applied.
+  ```
+
+  Le `.env` local (jamais commité) pointe sur `postgresql://fivescorer@localhost:5433/five_scorer`.
+- **Ce que j'ai écrit** : les trois GET de la V1 (§3.4), et de quoi les
+  vérifier. Deux scripts nouveaux, tous deux dans `five-scorer-mobile/scripts/` :
+  `jeu-dessai.mjs` fabrique un compte, un club, douze joueurs, une soirée avec
+  sa compo, un match terminé et un match en direct ; `parcours-lecture.mjs`
+  rejoue ce que l'app appelle, cookie à la main comme en React Native.
+  `prisma/seed.ts` ne sème rien (« chaque club se crée depuis l'app »), donc
+  sans jeu d'essai il n'y a rien à lire, donc aucune vérification honnête.
+- **Vérifié par** :
+
+  ```
+  $ cd five-scorer-mobile && node scripts/jeu-dessai.mjs
+  { "clubId": "VJU443BGjj3FqUNqYEuPaS5JFQuXdpZe", "joueurs": 12, … }
+
+  $ node scripts/parcours-lecture.mjs
+    ok   « y a-t-il déjà un match ouvert ? » → un seul, et il est LIVE  — 1
+    ok   un statut inconnu est REFUSÉ, pas ignoré  — HTTP 400
+    ok   le joueur qui a changé de camp garde son équipe de départ  — A → B
+    ok   l'ordre est celui de la SAISIE, pas celui des minutes  — dernier : HALF_TIME (minute 6)
+    ok   mon vote est rendu  — joueur-essai-1
+    ok   …mais aucun votant n'est nommé
+    ok   les douze joueurs de la compo  — 12
+    ok   anonyme sur matches : 401  — HTTP 401
+    ok   matches/match-essai-fini : 404, pas 403  — HTTP 404
+  TOUT VERT        (39 vérifications)
+
+  $ cd five-scorer && NEXT_DIST_DIR=.next-verif npx next build
+  ├ ƒ /api/clubs/[clubId]/matchdays/[matchDayId]/lineup
+  ├ ƒ /api/clubs/[clubId]/matches
+  ├ ƒ /api/clubs/[clubId]/matches/[matchId]
+  [exited with code 0]
+
+  $ cd five-scorer-mobile && npx tsc --noEmit && npm run tester
+   Test Files  12 passed (12)
+        Tests  184 passed (184)
+  ```
+
+- **La contre-épreuve.** Deux gardes retirés, un à la fois, pour voir les
+  vérifications tomber — sans ça, « TOUT VERT » ne dit rien :
+
+  ```
+  # 1) le contrôle du statut désactivé
+  ÉCHEC  un statut inconnu est REFUSÉ, pas ignoré  — HTTP 500
+  # 2) les votes bruts remis dans la réponse
+  ÉCHEC  …mais aucun votant n'est nommé
+  2 ÉCHEC(S)        puis restauration, revérifiée : TOUT VERT
+  ```
+
+  **Et elle a corrigé un commentaire que j'avais écrit faux** : je pensais que
+  sans le garde, `?status=LVE` rendrait tous les matchs. Non — Prisma refuse la
+  valeur d'énumération et le serveur rend **500**. C'est pire que ce que je
+  croyais : un 500 est compté comme une panne par la relance exponentielle de
+  l'app, donc réessayé en boucle, donc jamais vu. Le commentaire du code dit
+  maintenant ce qui se passe vraiment.
+- **Ce qui a surpris, et qui était cassé — réparé :**
+  1. **`pnpm test:api` n'existe pas.** Le critère de terminé de l'étape 12 (et
+     celui de l'étape 9) l'exigeait ; il n'y a aucun script de ce nom dans
+     `package.json`, ni le moindre `*.test.ts` côté web. L'étape 9 avait dû
+     s'en passer en silence. Le plan dit désormais la vérité, et nomme la
+     commande qui existe.
+  2. **`next-env.d.ts` était commité cassé depuis l'étape 9** (`399a0b9`) : il
+     pointait sur `./.next-verif/types/routes.d.ts`, un dossier de vérification
+     **gitignoré**, absent du Mac comme de Vercel. Sans effet sur la production
+     (`next build` réécrit le fichier avant de typer), mais faux. Remis à
+     `./.next/types/routes.d.ts`, et le §5 explique le piège : la variable
+     `NEXT_DIST_DIR` protège le `.next` du `dev`, elle ne garde **pas** l'arbre
+     propre, contrairement à ce que ce document affirmait.
+  3. **Le hook `afterCreateOrganization` crée déjà le profil joueur du
+     fondateur** (`lib/auth.ts:106`). Le jeu d'essai le recréait et se heurtait
+     à `@@unique([clubId, userId])`. Bonne nouvelle déguisée en mur : la règle
+     « un compte, un joueur par club » tient vraiment.
+  4. **Anonyme sur `/api/clubs/**`, c'est 401, pas 404.** `middleware.ts`
+     répond avant tout handler. Le 404 « ne pas confirmer l'existence du club »
+     ne concerne donc que l'utilisateur **connecté mais non membre** — d'où le
+     second compte du jeu d'essai, sans quoi cette garantie n'était pas testée.
+- **Fichiers touchés** :
+  - `five-scorer/app/api/clubs/[clubId]/matches/route.ts` (GET ajouté ; le POST n'est pas touché)
+  - `five-scorer/app/api/clubs/[clubId]/matches/[matchId]/route.ts` (GET ajouté ; PATCH et DELETE ne sont pas touchés)
+  - `five-scorer/app/api/clubs/[clubId]/matchdays/[matchDayId]/lineup/route.ts` (nouveau)
+  - `five-scorer/next-env.d.ts` (réparation)
+  - `five-scorer/MOBILE.md` (étape 12, §5, cette entrée)
+  - `five-scorer-mobile/scripts/jeu-dessai.mjs`, `five-scorer-mobile/scripts/parcours-lecture.mjs` (nouveaux)
+- **Reste ouvert** :
+  - **Aucun écran n'utilise encore ces trois endpoints.** Ils sont servis et
+    vérifiés, pas branchés. C'est l'étape 15 et les lots du 19+ qui les
+    consommeront — et une autre session travaille en parallèle sur la parité
+    des écrans (`b76df9b`, `1fa69bd`, `7e9427f`) ; son entrée de journal, juste
+    en dessous, raconte ses dépendances. Les deux se sont croisées dans ce
+    fichier : conflit résolu à la main, aucune des deux entrées perdue.
+  - **Rien n'a été lancé sur un appareil ni dans un simulateur**, comme
+    toujours depuis le nuage.
+  - Le point 5 du §6 (les photos des joueurs) n'a toujours pas sa mesure : la
+    feuille de match ne renvoie **pas** les photos, c'est l'effectif qui les
+    porte. Le choix reste entier.
+
+### 2026-09-09 19:3x-20:0x — Les dépendances de la soirée, vérifiées une par une
 
 - **État** : aucune étape touchée. Cette entrée existe parce que la règle 4 du
   §5 l'exige, pas parce qu'un travail a avancé.
-- **Ce qui s'est passé.** Le commit `b76df9b` (« refaire d'après le site, pas
-  d'après un rapport », poussé par une autre session ce soir) ajoute
-  `@react-native-community/datetimepicker@9.1.0` à `package.json`. **C'est un
-  module natif tiers, pas un module du SDK Expo** — donc exactement le cas que
-  la contrainte structurante du §1 dit de vérifier et d'écrire à chaque fois.
-  Aucune ligne de ce document ne le mentionnait.
-- **Vérifié** : la documentation Expo le liste comme **inclus dans Expo Go**
+- **Ce qui s'est passé.** Trois dépendances sont entrées dans `package.json` ce
+  soir, poussées par la session qui travaille sur le Mac, sans qu'aucune ligne
+  de ce document ne les mentionne. Le tableau ci-dessous est le contrôle exigé
+  par la contrainte structurante du §1 — Expo Go n'exécute que ses propres
+  modules, donc chaque bibliothèque doit être classée avant d'être crue.
+
+  | dépendance | commit | nature | Expo Go |
+  |---|---|---|---|
+  | `@react-native-community/datetimepicker@9.1.0` | `b76df9b` | module natif tiers | **inclus** (voir la citation ci-dessous) |
+  | `react-native-svg@15.15.4` | `7e9427f` | module natif tiers | **inclus** — Expo le documente en `sdk/svg/`, le code natif est déjà dans l'app Expo Go |
+  | `@react-navigation/bottom-tabs@^7.18.18` | `7e9427f` | **JavaScript pur** | sans objet — aucun code natif à embarquer ; ses besoins natifs (`react-native-screens`, `react-native-safe-area-context`) étaient déjà là, et expo-router est lui-même bâti sur React Navigation |
+
+  **Conclusion : le développement dans Expo Go n'est pas cassé.** Aucune des
+  trois n'impose un development build.
+
+  Une réserve à garder en tête, pas un problème aujourd'hui :
+  `@react-navigation/bottom-tabs` est la seule dépendance du projet épinglée
+  avec un **caret** (`^7.18.18`). expo-router embarque sa propre version de
+  React Navigation ; le jour où le caret laissera passer une majeure
+  divergente, le symptôme sera un doublon de paquet, pas une erreur de
+  compilation. À figer si ça arrive.
+
+- **Vérifié pour datetimepicker** : la documentation Expo le liste comme
+  **inclus dans Expo Go**
   (`https://docs.expo.dev/versions/latest/sdk/date-time-picker/` : « The module
   is part of Expo Go. However, Expo Go may not contain the latest version of
   the module and therefore, the newest features and bugfixes may not be
-  available. »). **Le développement dans Expo Go n'est donc pas cassé** — c'est
-  l'un des rares modules tiers qu'Expo embarque, comme `react-native-svg` ou
-  `react-native-webview`.
+  available. »).
+- **Vérifié sur chaque head**, à chaque arrivée, après `npm install` :
 
   ```
   $ cd five-scorer-mobile && npx tsc --noEmit
@@ -491,10 +650,30 @@ Un agent ne peut trancher aucune de ces lignes.
         Tests  184 passed (184)
   ```
 
+  Et sur le commit `1fa69bd`, qui touchait l'app web (route
+  `/api/clubs/[clubId]/accueil`, barème du classement sorti de
+  `components/Classement.tsx` vers `lib/classement.ts`), le contrôle qui prime
+  sur tous les autres :
+
+  ```
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  ƒ Proxy (Middleware)
+  ○  (Static)   prerendered as static content
+  ƒ  (Dynamic)  server-rendered on demand
+  [exited with code 0]
+  ```
+
+  La production ne bouge pas. Le réexport de `points` et `trierParPoints`
+  depuis `Classement.tsx` garde les appelants existants du site intacts —
+  c'était la bonne façon de faire : une route serveur n'a pas à importer un
+  composant client pour trier six lignes.
+
 - **Ce que je n'ai PAS pu vérifier**, et il ne faut pas le croire vérifié :
-  **que `9.1.0` soit bien la version qu'`expo install` choisit pour le SDK 57.**
-  La commande qui le dit interroge l'API de versions d'Expo, et le proxy de
-  sortie de ce conteneur la refuse :
+  **que `9.1.0` et `15.15.4` soient bien les versions qu'`expo install` choisit
+  pour le SDK 57.** Le classement Expo Go ci-dessus, lui, ne dépend pas de la
+  version ; c'est l'accord de version qui reste non mesuré. La commande qui le
+  dit interroge l'API de versions d'Expo, et le proxy de sortie de ce conteneur
+  la refuse :
 
   ```
   $ npx expo install --check
