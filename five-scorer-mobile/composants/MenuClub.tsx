@@ -170,6 +170,17 @@ export default function MenuClub({
               libelle="Mes clubs"
               onPress={aller(() => router.push("/clubs"))}
             />
+            {/* Il faut cette ligne ICI, et pas seulement sur l'écran « Mes
+                clubs » : celui-ci saute droit au club quand on n'en a qu'un —
+                c'est le cas de tout le monde — donc quelqu'un à qui on envoie
+                le lien d'un second club n'atteindrait jamais l'écran qui
+                permet d'y entrer. */}
+            <Item
+              t={t}
+              chemin={CHEMINS.rejoindre}
+              libelle="Rejoindre un club"
+              onPress={aller(() => router.push("/rejoindre"))}
+            />
             <Item
               t={t}
               chemin={CHEMINS.sortir}

@@ -668,6 +668,33 @@ export function rattacherJoueur(
   );
 }
 
+/// « On m'a filé un code. »
+///
+/// Le seul geste qui fait entrer un compte neuf dans un club. Sans lui, celui
+/// qui installe l'app et s'inscrit reste devant une liste de clubs vide, sans
+/// rien à toucher.
+///
+/// `code` accepte le LIEN entier autant que le code seul : ce que le nouveau
+/// venu a dans WhatsApp est une URL `.../join/<code>`, et c'est elle qu'il
+/// collera. Le tri se fait côté serveur (`normaliserCode` de
+/// `lib/rejoindre.ts`), pour que le site en profite aussi et qu'il n'y ait
+/// qu'une règle.
+///
+/// En ligne obligatoirement, jamais par la file : devenir membre est une
+/// décision du serveur, et rien de local n'a de sens avant qu'elle soit prise.
+export function rejoindreClub(code: string): Promise<{
+  ok: boolean;
+  clubId: string;
+  slug: string;
+  nom: string;
+  dejaMembre: boolean;
+}> {
+  return appelAuthentifie("/api/rejoindre", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
 export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy";

@@ -108,6 +108,11 @@ export const CHEMINS = {
     "M20.5 9.5H11l-2.2-2.2H3.5v3.4a6.3 6.3 0 1 0 12.4 1.6h4.6zM9.6 13.2m-2.1 0a2.1 2.1 0 1 0 4.2 0a2.1 2.1 0 1 0-4.2 0",
   clubs: "M4 6h16M4 12h16M4 18h16",
   sortir: "M9 4H5v16h4M13 8l4 4-4 4M17 12H8",
+  // Le miroir exact de `sortir` : même porte, même flèche, l'autre sens. On
+  // entre au lieu de partir. Grille de 24, tracé symétrique de celui du
+  // dessus autour de x = 12 — les deux lignes se ressemblent au menu, et
+  // c'est voulu : c'est la même porte.
+  rejoindre: "M15 4h4v16h-4M11 8l4 4-4 4M15 12H6",
   // « Effectif » n'existe pas au menu du site : la page s'y atteint par
   // « Mon profil ». Sur le téléphone elle a sa propre entrée — c'est là qu'on
   // ajoute un joueur avant un lundi, et fouiller un profil pour y arriver

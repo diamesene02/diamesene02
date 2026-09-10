@@ -97,6 +97,30 @@ export default function Clubs() {
               <CarteClub key={c.id} club={c} t={t} />
             ))}
 
+            {/* Sans club, c'est le SEUL geste utile de l'écran : il passe donc
+                devant, en bouton plein. Avec un club, il reste accessible mais
+                s'efface — on peut jouer dans deux clubs, c'est rare. */}
+            {moi.clubs.length === 0 ? (
+              <Carte t={t} titre="Rejoindre un club">
+                <Text style={[s.aide, { color: t.i2 }]}>
+                  On t&apos;a envoyé un lien d&apos;invitation ? C&apos;est par
+                  là que tu entres.
+                </Text>
+                <View style={{ height: 14 }} />
+                <BoutonPlein
+                  t={t}
+                  titre="J'ai un lien d'invitation"
+                  onPress={() => router.push("/rejoindre")}
+                />
+              </Carte>
+            ) : (
+              <BoutonVerre
+                t={t}
+                titre="Rejoindre un autre club"
+                onPress={() => router.push("/rejoindre")}
+              />
+            )}
+
             <BoutonVerre
               t={t}
               titre="Se déconnecter"

@@ -362,7 +362,7 @@ Règles de lecture pour l'agent :
 | **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. Plus `expo-haptics` à la place de `Vibration` (iOS ignore la durée) et `useKeepAwake()`. | `ls -1 five-scorer-mobile/assets/audio/*.wav \| wc -l` → `4` (**`.wav` et non `.m4a`** : il n'y a ni `ffmpeg` ni `afconvert` dans le nuage — voir le journal du 10 septembre) ; `npx vitest run sons` vert ; `npx expo export --platform ios` en 0 **et les 4 `wav` présents dans `dist/metadata.json`** ; `grep -c "react-native-audio-api" five-scorer-mobile/package.json` → `0` (interdit en Expo Go). | **fait** — 4 `.wav` mono 16 bits 44,1 kHz (108 ko en tout), fabriqués par `scripts/faire-sons.mjs` depuis les fréquences du web, et 21 tests dans `lib/son/sons.test.ts` qui refabriquent les fichiers et les comparent octet pour octet. **Écarts assumés** : (a) `.wav` PCM au lieu de `.m4a` — pas d'encodeur AAC ici, et le PCM ne réveille aucun décodeur au premier but ; (b) le bouton « Son / Muet » du site est repris, même clé de réglage (`fs-sound-enabled`), stockage `expo-sqlite/kv-store` ; (c) `unlockAudio()` (12 l.) disparaît sans remplacement — il n'y a rien à déverrouiller en natif. **Jamais entendu par une oreille** : voir le journal. |
 | **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **fait** — par EAS, pas en local. Build `9727ecbd`, profil `lundi`, terminé. Vérifié en téléchargeant l'`.ipa` : bundle `com.ibc.fivescorer`, signé par l'équipe payante (`M283R456KQ.com.ibc.fivescorer`), profil ad hoc n'autorisant **que** l'iPhone de Diame, `main.jsbundle` de 2,6 Mo embarqué (donc démarre sans Metro), schéma `fivescorer` enregistré, ATS `NSAllowsArbitraryLoads=false`. Le build local reste impossible sur cette machine — voir le journal. |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
-| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `NEXT_DIST_DIR=.next-verif npx next build` en 0, `node scripts/parcours-lecture.mjs` vert (étendu au lot), `npx expo export --platform ios` en 0. (`pnpm test:api` n'existe pas — voir l'étape 12.) | **en cours** — faits : l'accueil, la liste des matchs, le récap, les soirées et leur calendrier, la soirée (avec la réponse de présence), **le vestiaire et la fiche joueur**. Chacun a son GET serveur d'abord ; `scripts/parcours-lecture.mjs` a grossi d'autant (l'effectif, la fiche, la bascule « je viens tous les lundis » et ses refus) et reste **TOUT VERT**. La fiche joueur a corrigé deux choses **des deux côtés** : le rang du sous-titre se lit maintenant au TABLEAU (aux points, `trierParPoints`) et non dans l'ordre des buteurs — le site annonçait « 1er » à qui son propre classement mettait deuxième ; et « Tu peut toujours se déclarer absent » est devenu « Tu peux toujours te déclarer absent ». Le menu de la pilule (`composants/MenuClub.tsx`) porte ce que la barre du bas ne porte pas : mon profil, l'effectif, le partage de la vitrine, mes clubs, la déconnexion. **Les stats** ensuite, en un seul `GET .../stats` — le tableau, les buteurs, la forme, le palmarès, le derby, les gardiens, les records, le bilan contre les adversaires, et le choix de la saison. Elles ont corrigé un défaut de lisibilité **du site** : une chasuble servant de COULEUR (la barre d'un buteur, la jauge du derby) était peinte en brut, si bien qu'un club en noir et blanc n'avait qu'une moitié visible — on passe partout par les variantes redressées `taR`/`tbR`, comme l'anneau des avatars le faisait déjà. Et la forme se lit désormais dans le même sens sur les deux écrans (la plus récente à droite) : la fiche joueur la peignait à l'envers de la page des stats. **La saison et les réglages** ensuite, avec ce qu'ils entraînent : « Poser toute la saison » (le générateur de calendrier, `lib/calendrier.ts` recopié dans le mobile et vérifié octet pour octet par 18 tests), « Ajouter une soirée », et le câblage du menu de la pilule — l'écran Saison existait sans que rien n'y mène. Trois défauts livrés corrigés au passage : la feuille « Créer » ouvrait la compo sur « Maintenant » alors qu'on avait tapé « Saisir un match déjà joué » (le paramètre `quand` n'était pas lu), un match saisi ne se rattachait à AUCUNE soirée (`matchDayId` jamais passé), et la déconnexion laissait la base locale derrière elle — sur un téléphone prêté, la personne suivante ouvrait l'app sur le vestiaire du club précédent, et une soirée non synchronisée disparaissait sans un mot. Une faille du SITE aussi : `setMemberRole` ne validait `role` qu'au type, si bien qu'un admin pouvait s'envoyer « owner » — un rôle que rien ne permet ensuite de retirer. **Le formulaire d'ajout/édition d'un joueur** ensuite (10 septembre 04:xx) : `POST /api/clubs/[clubId]/joueurs` et `PATCH .../joueurs/[playerId]` côté serveur, `app/joueur/edition.tsx` côté app, avec un identifiant fabriqué sur le téléphone — renvoyer deux fois la même fiche n'inscrit pas deux joueurs. La règle de nettoyage d'une fiche (bornes du niveau, coupe du nom, photo refusée si ce n'est pas un JPEG sous 200 ko) a été **sortie de `app/actions/roster.ts` vers `lib/joueur.ts`** pour qu'elle n'existe qu'une fois : un fichier `"use server"` ne s'importe pas depuis une route. **Sans la photo**, dite manquante dans le code plutôt que bâclée : elle demande `expo-image-picker` + `expo-image-manipulator` (tous deux SDK Expo, donc Expo Go) et son propre incrément. **« Ce joueur, c'est moi »** ensuite (10 septembre 12:xx) : `POST .../joueurs/[playerId]/rattachement`, le jumeau HTTP de `linkPlayerToUser`, et le bouton du site repris à l'identique dans l'effectif — il n'existe qu'au premier passage, tant que le membre n'a revendiqué personne. Sans lui, un membre voyait son propre nom dans la liste sans pouvoir s'y reconnaître : ni présence par défaut, ni « ma fiche », et le site à ressortir sur un ordinateur pour un geste qu'on fait une fois. La règle a été **sortie de `app/actions/roster.ts` vers `lib/rattachement.ts`** (même raison qu'à `lib/joueur.ts` : un `"use server"` ne s'importe pas depuis une route), et un test relit les trois fichiers pour qu'elle ne réapparaisse jamais en double. **Restent** : programmer un match contre un club extérieur (il demande tout le carnet d'adversaires ; ce club joue contre lui-même), et rejoindre/créer un club. **Laissé de côté sciemment** : « Exporter en CSV » sous le tableau — un fichier téléchargé n'a nulle part où aller sur un téléphone ; il faudra le partager (`expo-sharing`), ce qui relève du chantier Y. **Remarque du 9 septembre, gardée parce qu'elle a servi** : ce tableau a longtemps été en retard sur le dépôt — trois lots livrés sans entrée au journal. Ce qu'un commit fait se lit dans son diff ; ce qu'il a ÉCARTÉ ne se lit nulle part ailleurs qu'ici. |
+| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `NEXT_DIST_DIR=.next-verif npx next build` en 0, `node scripts/parcours-lecture.mjs` vert (étendu au lot), `npx expo export --platform ios` en 0. (`pnpm test:api` n'existe pas — voir l'étape 12.) | **en cours** — faits : l'accueil, la liste des matchs, le récap, les soirées et leur calendrier, la soirée (avec la réponse de présence), **le vestiaire et la fiche joueur**. Chacun a son GET serveur d'abord ; `scripts/parcours-lecture.mjs` a grossi d'autant (l'effectif, la fiche, la bascule « je viens tous les lundis » et ses refus) et reste **TOUT VERT**. La fiche joueur a corrigé deux choses **des deux côtés** : le rang du sous-titre se lit maintenant au TABLEAU (aux points, `trierParPoints`) et non dans l'ordre des buteurs — le site annonçait « 1er » à qui son propre classement mettait deuxième ; et « Tu peut toujours se déclarer absent » est devenu « Tu peux toujours te déclarer absent ». Le menu de la pilule (`composants/MenuClub.tsx`) porte ce que la barre du bas ne porte pas : mon profil, l'effectif, le partage de la vitrine, mes clubs, la déconnexion. **Les stats** ensuite, en un seul `GET .../stats` — le tableau, les buteurs, la forme, le palmarès, le derby, les gardiens, les records, le bilan contre les adversaires, et le choix de la saison. Elles ont corrigé un défaut de lisibilité **du site** : une chasuble servant de COULEUR (la barre d'un buteur, la jauge du derby) était peinte en brut, si bien qu'un club en noir et blanc n'avait qu'une moitié visible — on passe partout par les variantes redressées `taR`/`tbR`, comme l'anneau des avatars le faisait déjà. Et la forme se lit désormais dans le même sens sur les deux écrans (la plus récente à droite) : la fiche joueur la peignait à l'envers de la page des stats. **La saison et les réglages** ensuite, avec ce qu'ils entraînent : « Poser toute la saison » (le générateur de calendrier, `lib/calendrier.ts` recopié dans le mobile et vérifié octet pour octet par 18 tests), « Ajouter une soirée », et le câblage du menu de la pilule — l'écran Saison existait sans que rien n'y mène. Trois défauts livrés corrigés au passage : la feuille « Créer » ouvrait la compo sur « Maintenant » alors qu'on avait tapé « Saisir un match déjà joué » (le paramètre `quand` n'était pas lu), un match saisi ne se rattachait à AUCUNE soirée (`matchDayId` jamais passé), et la déconnexion laissait la base locale derrière elle — sur un téléphone prêté, la personne suivante ouvrait l'app sur le vestiaire du club précédent, et une soirée non synchronisée disparaissait sans un mot. Une faille du SITE aussi : `setMemberRole` ne validait `role` qu'au type, si bien qu'un admin pouvait s'envoyer « owner » — un rôle que rien ne permet ensuite de retirer. **Le formulaire d'ajout/édition d'un joueur** ensuite (10 septembre 04:xx) : `POST /api/clubs/[clubId]/joueurs` et `PATCH .../joueurs/[playerId]` côté serveur, `app/joueur/edition.tsx` côté app, avec un identifiant fabriqué sur le téléphone — renvoyer deux fois la même fiche n'inscrit pas deux joueurs. La règle de nettoyage d'une fiche (bornes du niveau, coupe du nom, photo refusée si ce n'est pas un JPEG sous 200 ko) a été **sortie de `app/actions/roster.ts` vers `lib/joueur.ts`** pour qu'elle n'existe qu'une fois : un fichier `"use server"` ne s'importe pas depuis une route. **Sans la photo**, dite manquante dans le code plutôt que bâclée : elle demande `expo-image-picker` + `expo-image-manipulator` (tous deux SDK Expo, donc Expo Go) et son propre incrément. **« Ce joueur, c'est moi »** ensuite (10 septembre 12:xx) : `POST .../joueurs/[playerId]/rattachement`, le jumeau HTTP de `linkPlayerToUser`, et le bouton du site repris à l'identique dans l'effectif — il n'existe qu'au premier passage, tant que le membre n'a revendiqué personne. Sans lui, un membre voyait son propre nom dans la liste sans pouvoir s'y reconnaître : ni présence par défaut, ni « ma fiche », et le site à ressortir sur un ordinateur pour un geste qu'on fait une fois. La règle a été **sortie de `app/actions/roster.ts` vers `lib/rattachement.ts`** (même raison qu'à `lib/joueur.ts` : un `"use server"` ne s'importe pas depuis une route), et un test relit les trois fichiers pour qu'elle ne réapparaisse jamais en double. **« Rejoindre un club »** ensuite (10 septembre 14:xx) : `POST /api/rejoindre`, le jumeau HTTP de `joinClubByCode`, l'écran `app/rejoindre.tsx`, et l'entrée au menu de la pilule. C'était le seul mur SANS contournement de toute l'app — un compte neuf arrivait sur une liste de clubs vide où le seul geste possible était « Se déconnecter » ; il fallait ressortir le site sur un ordinateur pour entrer dans son propre club. La règle a été **sortie de `app/actions/club.ts` vers `lib/rejoindre.ts`** (troisième extraction du même genre, même raison), `ensureLinkedPlayer` avec elle — c'est elle qui évite qu'un arrivant apparaisse DEUX fois au vestiaire, la fiche que le capitaine lui avait préparée et la sienne. Le champ accepte le **lien collé entier** autant que le code seul, et la casse : ce que les gens ont dans WhatsApp est une URL `.../join/<code>`, pas douze caractères recopiés — le site, qui intitulait son champ « Code d'invitation », ne trouvait rien quand on y collait le lien. Corrigé **des deux côtés**, la règle étant partagée. **Restent** : programmer un match contre un club extérieur (il demande tout le carnet d'adversaires ; ce club joue contre lui-même), et **créer** un club depuis l'app (l'autre moitié du lot : `authClient.organization.create` + `PATCH .../reglages`, dont le jumeau HTTP existe déjà ; c'est un écran de choix de chasubles, pas un endpoint à écrire). **Laissé de côté sciemment** : « Exporter en CSV » sous le tableau — un fichier téléchargé n'a nulle part où aller sur un téléphone ; il faudra le partager (`expo-sharing`), ce qui relève du chantier Y. **Remarque du 9 septembre, gardée parce qu'elle a servi** : ce tableau a longtemps été en retard sur le dépôt — trois lots livrés sans entrée au journal. Ce qu'un commit fait se lit dans son diff ; ce qu'il a ÉCARTÉ ne se lit nulle part ailleurs qu'ici. |
 | **3 bis** | **Le premier écran, sans authentification** — pour voir quelque chose de vrai dans Expo Go avant d'avoir porté la connexion. A demandé un endpoint public côté serveur (`GET /api/public/[slug]`, déployé sur `main`) qui rend la vitrine du club ET ses jetons de thème calculés par `lib/theme.ts` : la règle des couleurs ne doit exister qu'à un seul endroit. | `cd five-scorer-mobile && npx tsc --noEmit` en 0 ; `curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy \| python3 -c "import sys,json;d=json.load(sys.stdin);print(d['club']['nom'], len(d['classement']))"` → le nom du club et le nombre de joueurs. | **fait** — commits `36ce034`, `9944e84` sur `main` et `2b4ba1b` sur `mobile`. Rendu vérifié avec la cible web d'Expo : le club, les photos et le 18-9 du 7 septembre s'affichent. |
 | **X** | **Chantier séparé, sans urgence, jamais sur la prod en premier** : `ALTER TABLE "account" ALTER COLUMN "issuer" DROP NOT NULL;`, retrait du champ dans `schema.prisma`, essai d'inscription réelle sur une preview, **puis seulement** `better-auth@1.7.3` + `@better-auth/expo@1.7.3`. Aucun index unique à retirer au préalable (vérifié dans le SQL de la migration). | Sur une base de preview : `prisma migrate deploy` en 0, puis une inscription réelle qui renvoie 200, puis `node -p "require('./node_modules/better-auth/package.json').version"` → `1.7.3`. | à faire |
 | **Y** | **Chantier séparé** : porter `lib/shareCard.ts` (291 l.) en vues RN + `react-native-view-shot` + `expo-sharing`. | `npx expo export --platform ios` en 0 ; `grep -rc "getContext(\"2d\")" mobile/` → `0`. | à faire |
@@ -379,14 +379,14 @@ Règles de lecture pour l'agent :
 
 - La logique pure portée verbatim : `clock.ts` (dérivation du chrono depuis `elapsedMs` + `runningSince`, y compris horloge qui recule), `balance.ts`, `color.ts`/`theme.ts` (le plancher APCA à Lc 60 est testable : une chasuble claire et une foncée doivent produire des encres différentes). **Fait à l'étape 5 : 78 tests dans `five-scorer-mobile/lib/noyau/`, `npm run tester`.**
 - **La non-divergence du noyau** : `copie-conforme.test.ts` compare octet pour octet les 6 fichiers de `lib/noyau/` à ceux de `five-scorer/lib/`, et vérifie qu'aucun n'a acquis de `document.`/`window.`/`navigator.`/`localStorage`. C'est le test qui empêche la réécriture de partir en deux versions de la même règle.
-- **La non-divergence des règles PARTAGÉES par le site et l'app**, celles qui vivent dans `five-scorer/lib/` et que deux appelants lisent (une server action, une route d'API). **Fait le 10 septembre : 5 tests dans `five-scorer-mobile/lib/rattachement.test.ts`**, qui relisent les trois fichiers du rattachement en texte. Le comportement, lui, est vérifié par le parcours contre un vrai serveur ; ce que ce test-là garde est ailleurs, et c'est ce qu'aucun test de comportement ne voit : qu'il n'y ait pas **deux** copies de la règle. Une copie passe tous les tests le jour où on la fait, et diverge au premier garde ajouté d'un seul côté — ici celui qui protège la course entre deux téléphones. Contre-épreuve faite : `link_conflict` recollé dans la server action fait tomber le test.
+- **La non-divergence des règles PARTAGÉES par le site et l'app**, celles qui vivent dans `five-scorer/lib/` et que deux appelants lisent (une server action, une route d'API). **Fait le 10 septembre : 5 tests dans `five-scorer-mobile/lib/rattachement.test.ts`, et 7 de plus dans `lib/rejoindre.test.ts`** (celui-là garde en plus que le rattrapage de profil joueur n'a qu'une copie — son absence ne casse rien tout de suite, elle fait juste apparaître l'arrivant deux fois au vestiaire). **Un piège de ce genre de test, découvert en l'écrivant :** il relit du code source, donc il doit lire le CODE et pas les commentaires — trois assertions tombaient sur mes propres phrases et sur `regenerateInviteCode`, qui vit légitimement dans la server action puisqu'il ÉCRIT le code au lieu de s'en servir pour entrer. Un test qui se trompe de cible est pire qu'absent : on le relâche pour avancer, et on relâche du même coup ce qu'il protégeait, qui relisent les trois fichiers du rattachement en texte. Le comportement, lui, est vérifié par le parcours contre un vrai serveur ; ce que ce test-là garde est ailleurs, et c'est ce qu'aucun test de comportement ne voit : qu'il n'y ait pas **deux** copies de la règle. Une copie passe tous les tests le jour où on la fait, et diverge au premier garde ajouté d'un seul côté — ici celui qui protège la course entre deux téléphones. Contre-épreuve faite : `link_conflict` recollé dans la server action fait tomber le test.
 - **Le drain de l'outbox contre un faux serveur** : c'est le test qui valide tout le reste, et il ne demande aucune interface. 50 opérations, serveur en panne, processus tué, relancé : rien de perdu, rien de dupliqué, ordre conservé. Plus le cas 403 → blocage en cascade sans suppression, et le cas 401 → `needsAuth`. **Fait à l'étape 7 : 13 tests dans `five-scorer-mobile/lib/outbox/sync.test.ts`.** « Processus tué » y est deux instances de drain sur le même fichier SQLite, la première abandonnée en pleine panne réseau.
 - **Le SQL lui-même**, avec `node:sqlite` — **il n'y a pas de binaire `sqlite3` dans le conteneur du nuage**, et c'est sans importance : `node:sqlite` embarque le même moteur (SQLite 3.51.2, relevé le 9 septembre), celui d'expo-sqlite sur le téléphone. **Fait à l'étape 6 : 19 tests dans `five-scorer-mobile/db/schema.test.ts`.** La réutilisation d'identifiant sans `AUTOINCREMENT` y est un test **et** son contre-exemple : une table témoin sans le mot redonne l'identifiant supprimé. Ce n'est pas une croyance.
 - **Les actions de match contre un vrai SQLite**. **Fait à l'étape 11 : 59 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`** (54 à l'étape 11, +5 pour le coup de sifflet le 9 septembre au soir). Le test qui compte n'est pas « un but est bien écrit », c'est **l'annulation** : une `BaseCapricieuse` refuse tout `INSERT INTO outbox`, et on vérifie qu'il ne reste NI événement NI opération NI point au score. Les deux règles gardées par les tests exigés ont été retirées du code une par une pour voir les tests tomber (journal du 9 septembre 18:1x) — sans cette contre-épreuve, un test vert ne dit rien.
 - **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents. **Fait à l'étape 8 : 17 tests dans `five-scorer-mobile/lib/appel.test.ts`.** Le test qui compte n'est pas « le cookie est là », c'est « le cookie est une **chaîne**, pas une promesse » : le `await` oublié sur `getCookie()` produit un 401 parfaitement trompeur, et rien à l'écran ne le distingue d'une session réellement expirée.
 
 - **Les quatre sons du match, contre leur spécification.** **Fait à l'étape 16 : 21 tests dans `five-scorer-mobile/lib/son/sons.test.ts`.** Un fichier audio pré-rendu ne dit pas d'où il vient : le test refabrique les quatre `.wav` avec `scripts/faire-sons.mjs` et les compare **octet pour octet** à ceux du dépôt, puis vérifie que chaque fréquence citée existe encore dans `five-scorer/lib/audio.ts`. Le test qui compte n'est pas « le fichier existe », c'est **« le but de A monte et celui de B descend »** — mesuré aux passages par zéro sur les 85 premières millisecondes, avant l'entrée du second ton. C'est la seule raison d'avoir deux fichiers plutôt qu'un, et personne ne s'apercevrait en relisant le code qu'ils glissent dans le même sens. Un dernier garde, structurel : autant de couches ici que d'appels à `playTone` sur le site.
-- **Les endpoints de lecture, contre un vrai serveur et une vraie base.** **Fait à l'étape 12 : 39 vérifications dans `five-scorer-mobile/scripts/parcours-lecture.mjs`** (150 au 10 septembre, les lots de l'étape 19+ l'ayant fait grossir d'autant). La découverte de l'étape est ailleurs : **il y a un PostgreSQL 16 complet dans le conteneur du nuage** (`/usr/lib/postgresql/16/bin/postgres`, à lancer sous l'utilisateur `postgres`). Le serveur n'est donc plus une boîte noire ici — on migre, on peuple avec `scripts/jeu-dessai.mjs`, on lance `next dev`, et on lit pour de vrai. Le jeu d'essai refuse toute `DATABASE_URL` qui ne soit pas locale : il écrit, et il ne doit jamais écrire ailleurs.
+- **Les endpoints de lecture, contre un vrai serveur et une vraie base.** **Fait à l'étape 12 : 39 vérifications dans `five-scorer-mobile/scripts/parcours-lecture.mjs`** (174 au 10 septembre en fin d'après-midi, les lots de l'étape 19+ l'ayant fait grossir d'autant). **Une exigence qui n'était pas écrite et qui l'est maintenant : le parcours doit se relancer SANS repeupler et rester vert.** C'est ce qui distingue un harnais d'une démonstration — et le lot « rejoindre » l'a cassée le premier, parce qu'il fait entrer des comptes et laissait donc deux fiches rattachées derrière lui. La règle : toute section qui écrit se remet en état par les endpoints de l'app, à la fin, et le vérifie (`actifs === 12`, un seul compte lié). La découverte de l'étape est ailleurs : **il y a un PostgreSQL 16 complet dans le conteneur du nuage** (`/usr/lib/postgresql/16/bin/postgres`, à lancer sous l'utilisateur `postgres`). Le serveur n'est donc plus une boîte noire ici — on migre, on peuple avec `scripts/jeu-dessai.mjs`, on lance `next dev`, et on lit pour de vrai. Le jeu d'essai refuse toute `DATABASE_URL` qui ne soit pas locale : il écrit, et il ne doit jamais écrire ailleurs.
 
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
 
@@ -509,11 +509,235 @@ Un agent ne peut trancher aucune de ces lignes.
 10. **Les jetons de thème : calculés par le serveur, ou recalculés sur le téléphone ?** Les deux existent aujourd'hui dans l'app et ne se contredisent pas encore. Le serveur les envoie déjà tout faits (`/api/public/[slug]`, et l'endpoint 2 du §3.4 les enverra pour un club authentifié) ; `lib/noyau/theme.ts` sait aussi les calculer localement depuis les deux chasubles. **Ma recommandation : le serveur reste la source, on met les jetons en cache SQLite au premier bootstrap connecté, et `lib/noyau/theme.ts` ne sert que de repli hors ligne.** On garde une seule règle vivante, et l'app se peint quand même au bord du terrain sans réseau. Ton avis ? Ça se tranche avant l'étape 13.
 11. **`iron-session`, `SESSION_SECRET`, `SCORING_PIN_HASH`** sont du **code mort** : zéro import dans tout le dépôt, il n'y a pas de second mécanisme d'authentification à porter. On les supprime du dépôt web au passage ? (Trois lignes, mais c'est ta décision.)
 12. **La règle « un écran n'est *fait* que s'il a été VU dans le simulateur » (§4) est aujourd'hui inapplicable dans le nuage — et déjà enfreinte.** Il n'y a ni macOS ni Xcode ici. Cinq écrans sont dans le dépôt sans que personne les ait regardés : `compo` et `match/[id]` (étapes 13-14, marquées *fait*), et les lots `matchs`, `soirées`, `récap` (poussés sans journal). Deux sorties possibles, et c'est toi qui choisis : (a) **la règle tient** — une exécution depuis le Mac fait la revue visuelle de ces cinq écrans côte à côte avec le site, avant qu'on en ajoute un sixième ; (b) **la règle change** — elle dit alors ce que le nuage doit faire à sa place (`tsc`, `expo export`, tests des couches appelées) et réserve le mot *fait* à ce qui a été vu. Ma recommandation : (a) une fois, maintenant, tant qu'il n'y a que cinq écrans — puis (b) pour la suite. Ce qu'il ne faut pas, c'est laisser une règle écrite que personne ne tient : c'est ce qui rend tout le reste du document négociable.
+13. **Rien n'empêche en base d'être inscrit DEUX FOIS au même club.** `model Member` (`prisma/schema.prisma:101`) n'a aucun index unique sur `(organizationId, userId)` — deux index simples, et c'est tout (recompté le 10 septembre). Deux appuis rapides sur « Rejoindre », ou deux clics sur le site, produisent donc deux lignes `member` pour la même personne. Les conséquences ne se voient pas tout de suite et sont vilaines : le club apparaît en double dans « Mes clubs » (`getUserClubs` rend une ligne par appartenance), la personne apparaît deux fois dans la liste des membres, et surtout **`removeMember` n'en supprime qu'une** — on croit avoir retiré quelqu'un du club alors qu'il y a toujours accès. Ce qu'un agent peut faire, il l'a fait : le serveur vérifie l'appartenance avant d'ajouter, et l'écran refuse le second appui pendant l'aller-retour. Ça ne ferme pas la course, ça la rend improbable. **La vraie correction est un index unique, donc une migration Prisma sur la production — hors de ce qu'un agent peut décider** (interdits permanents du §5). Elle demande de dédoublonner les lignes existantes d'abord (`select organizationId, userId, count(*) … having count(*) > 1`). À faire le même soir calme que le chantier X.
+14. **Le code d'invitation qu'on AFFICHE n'est pas celui qui MARCHE.** L'écran des réglages montre `affiche` = les huit derniers caractères en MAJUSCULES (`route.ts` des réglages, et l'app le reprend), alors que le code réel fait douze caractères en minuscules. Tant qu'on partage le **lien**, tout va bien — c'est le geste normal, et c'est celui que le bouton « Partager le lien » fait. Mais quelqu'un qui lit ces huit caractères à voix haute, ou qui les recopie dans le champ « Rejoindre un club », ne peut PAS entrer : ce n'est pas un code. Ma recommandation : ou bien on ne montre plus qu'un lien (et l'étiquette ne ressemble plus à un code), ou bien on montre le code entier. C'est ton dessin, et le champ accepte déjà la casse et le lien complet — donc rien ne presse.
 
 
 ---
 
 ## 7. Journal
+
+### 2026-09-10 14:2x — Étape 19+ : rejoindre un club
+
+- **État** : étape 19+ `en cours` → `en cours` (un lot de plus : rejoindre un
+  club par son lien d'invitation ; restent le match contre un club extérieur et
+  la **création** d'un club).
+- **Rien n'était cassé au départ**, vérifié avant d'écrire une ligne, sur un
+  conteneur neuf (aucun `node_modules` des deux côtés) :
+
+  ```
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  TSC=0
+  $ npm run tester
+   Test Files  15 passed (15)
+        Tests  233 passed (233)
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  BUILD=0
+  $ cd five-scorer-mobile && node scripts/jeu-dessai.mjs && node scripts/parcours-lecture.mjs
+  TOUT VERT        (150 vérifications)
+  ```
+
+- **Contradiction avec le message de la routine, signalée une troisième fois :
+  la PR #3 y est toujours écrite en dur, et elle est fusionnée depuis le
+  10 septembre 02:50.** La pull request vivante est **#4**
+  (https://github.com/diamesene02/diamesene02/pull/4), et c'est elle que ce
+  travail met à jour. **Proposition à Ibrahima, inchangée** : remplacer la
+  phrase par « la pull request ouverte depuis la branche `mobile` », sans
+  numéro. Tant que le numéro est en dur, chaque exécution devra le corriger
+  ici.
+- **Ce que ça règle, et pourquoi c'était le plus urgent des lots restants.**
+  Les deux qui restaient étaient « le match contre un club extérieur » et
+  « rejoindre/créer un club ». Le premier est écrit dans ce document avec sa
+  propre réserve — *ce club joue contre lui-même* —, donc il ne sert personne
+  aujourd'hui. Le second était le **seul mur de l'app sans aucun
+  contournement** : quelqu'un qui installe l'app, s'inscrit, et arrive sur
+  « Mes clubs » n'y trouvait rien — la liste vide, et pour tout geste possible
+  « Se déconnecter ». Tous les autres écrans manquants laissaient au moins le
+  site accessible depuis un ordinateur ; celui-là, non : sans appartenance, il
+  n'y a pas de club à ouvrir, donc rien à voir. Un membre de l'équipe à qui
+  Ibrahima envoie le lien pouvait installer l'app et ne jamais entrer.
+- **Le chemin est celui du site, à la lettre.** `POST /api/rejoindre` est le
+  jumeau HTTP de `joinClubByCode` : même lecture du club par son code, même
+  `auth.api.addMember` en rôle `member`, même rattrapage de profil joueur. Il
+  vit **hors** de `/api/clubs/[clubId]/` exprès — on n'est pas encore membre,
+  donc `getClubApiContext` n'a rien à contextualiser, et le code d'invitation
+  est ce qui tient lieu d'autorisation (c'est déjà le contrat de `/join/[code]`
+  sur le site).
+- **Troisième règle sortie de sa cachette, en trois exécutions.**
+  `joinClubByCode` et son `ensureLinkedPlayer` vivaient dans
+  `app/actions/club.ts`, un fichier `"use server"` qu'une route n'a pas le
+  droit d'importer. Les deux sont dans `lib/rejoindre.ts`, sous les noms
+  `rejoindreParCode` et `assurerProfilJoueur` ; la server action ne garde que
+  la redirection. `claimLegacy` appelait le même helper : il appelle
+  maintenant la version partagée, donc il n'en existe toujours qu'une.
+  Celle-là valait le déplacement plus que les deux précédentes : son absence
+  ne casse rien tout de suite, elle fait juste apparaître l'arrivant **deux
+  fois** au vestiaire — la fiche que le capitaine lui avait préparée, et la
+  sienne, vide. Personne ne cherche cette panne dans un code de rattachement.
+- **Le défaut que ce lot a trouvé, et qui était sur le SITE depuis le début.**
+  Un club ne partage pas un code, il partage un **lien** : le bouton des
+  réglages s'appelle « Partager le lien » et envoie `.../join/<code>`. Ce que
+  le nouveau venu a donc sous le pouce est une URL. Or le champ du site
+  s'intitule « Code d'invitation », et `joinClubByCode` faisait
+  `code.trim()` : le lien collé tel quel ne trouvait **rien**, avec pour seule
+  explication « Code d'invitation invalide. » — la phrase la plus trompeuse
+  possible, puisque le code, lui, était bon. `normaliserCode` accepte
+  maintenant les deux formes, plus la casse. Comme la règle est partagée, le
+  site en profite dans le même commit.
+  Deux choix à l'intérieur, écrits pour être relus : abaisser la casse est sûr
+  **parce que tous les codes du dépôt sont en minuscules** — vérifié, pas
+  supposé : `@default(cuid())` et `createId().slice(0, 12)` produisent du
+  base36 minuscule, et le code du club migré vient de
+  `substr(md5(random()::text), 1, 12)`, que Postgres rend en minuscules
+  (`migration.sql:454`). Et le code passe par `estId` de `lib/ids.ts` avant
+  d'atteindre Prisma : sans ça, un objet passé pour un code devient un filtre
+  sur `findUnique`, et fait entrer dans un club dont on n'a jamais reçu le
+  lien. C'est le bug déjà vécu ici, à un endroit de plus.
+- **Ce qui a surpris : mon propre test se trompait de cible.** Le test de
+  non-divergence relit du code source pour vérifier qu'une règle n'existe pas
+  en double. Trois de ses sept assertions tombaient — et le code était bon :
+  elles lisaient les **commentaires**. Celui qui dit « ce qui s'appelait
+  `ensureLinkedPlayer` », l'exemple d'URL `.../join/<code>`, et surtout
+  `regenerateInviteCode`, qui vit toujours dans la server action et a
+  parfaitement le droit d'y vivre — il **écrit** le code, il ne s'en sert pas
+  pour entrer. Corrigé en filtrant les lignes de commentaire et en visant la
+  seule chose qui ne doit exister qu'une fois : la **lecture** d'un club par
+  son code (`findUnique … inviteCode`). Un test qui se trompe de cible est
+  pire qu'absent : on le relâche pour avancer, et on relâche du même coup
+  celui qui protégeait quelque chose.
+- **Ce qui a surpris aussi : le parcours salissait derrière lui.** Faire entrer
+  deux comptes laisse deux fiches rattachées ; relancé sans repeupler, le
+  parcours tombait alors sur ses propres traces — « les douze du vestiaire » en
+  voyait quatorze, « le vestiaire est comme au début » comptait trois comptes
+  liés. Ce n'était pas le serveur, c'était le script. Il se remet en état par
+  les endpoints de l'app, comme la section précédente : il n'y a pas de
+  « délier » (le site n'en a pas non plus), mais revendiquer **déplace** un
+  rattachement — le gérant reprend chaque fiche, revient sur la sienne, et les
+  deux fiches sont libres, puis archivées. Ces trois appels sont eux-mêmes une
+  vérification : ils ne peuvent réussir que si l'arbitrage du gérant marche.
+  La propriété « relancé sans repeupler → TOUT VERT » est donc gardée, et
+  vérifiée trois fois de suite.
+- **Ce qu'un agent ne peut pas corriger, et qui est maintenant écrit au §6
+  (ligne 13).** `model Member` n'a **aucun index unique** sur
+  `(organizationId, userId)` — recompté. Deux appuis rapides sur « Rejoindre »
+  inscrivent donc deux fois la même personne, et le pire n'est pas le doublon :
+  c'est que **`removeMember` n'en supprime qu'un**, si bien qu'on croit avoir
+  retiré quelqu'un du club alors qu'il y a toujours accès. Ce qui était à ma
+  portée est fait (le serveur vérifie l'appartenance avant d'ajouter, l'écran
+  refuse le second appui pendant l'aller-retour) et ne **ferme pas** la course,
+  seulement la rend improbable. La vraie correction est un index unique, donc
+  une migration sur la production : interdit permanent du §5, et c'est très
+  bien — elle demande de dédoublonner l'existant d'abord.
+- **Vérifié par** :
+
+  ```
+  $ cd five-scorer-mobile && node scripts/jeu-dessai.mjs && node scripts/parcours-lecture.mjs
+  — rejoindre un club —
+    ok   le capitaine lit le code d'invitation  — HTTP 200
+    ok   le capitaine a préparé une fiche pour quelqu'un qui n'a pas encore de compte  — HTTP 200
+    ok   un compte tout neuf s'inscrit  — HTTP 200
+    ok   il n'est dans AUCUN club — c'est le mur qu'on vient d'abattre  — 0 club(s)
+    ok   sans session : 401, on ne rejoint pas anonymement  — HTTP 401
+    ok   un code inconnu : 404, pas 403  — HTTP 404
+    ok   …et le refus est écrit en français, prêt à afficher
+    ok   un code qui est un objet : 400, pas un filtre Prisma  — HTTP 400
+    ok   aucun code du tout : 400  — HTTP 400
+    ok   le LIEN collé entier fait entrer dans le club  — HTTP 200
+    ok   …et c'est bien une première entrée
+    ok   …dans le bon club  — Five d'essai
+    ok   il a maintenant un club, et un seul  — 1
+    ok   …et une fiche joueur, sans quoi il ne compterait dans aucune présence  — Nouveau Venu mtvmfhsy
+    ok   le code seul marche aussi, et rejoindre deux fois n'est pas une erreur  — HTTP 200
+    ok   …le serveur le DIT au lieu d'une fausse bienvenue
+    ok   le code en MAJUSCULES est accepté : un code se recopie mal  — HTTP 200
+    ok   …et après trois passages il n'est membre qu'UNE fois  — 1 club(s)
+    ok   une deuxième personne s'inscrit, du nom d'une fiche déjà là  — HTTP 200
+    ok   elle rejoint le club  — HTTP 200
+    ok   …et elle ADOPTE la fiche préparée pour elle, malgré la casse et l'accent  — Zoé mtvmfhsy (joueur-essai-neuf-adopte-mtvmfhsy)
+    ok   …le vestiaire n'a grossi que d'UNE fiche pour deux arrivées  — 15 → 16
+    ok   les arrivants rangés : le vestiaire est rendu à ses douze  — 12 actifs
+    ok   …et un seul compte lié, comme au début  — 1 lié(s)
+
+  TOUT VERT        (174 vérifications, contre 150 avant : +24)
+
+  $ node scripts/parcours-lecture.mjs      # relancé sans repeupler, deux fois
+  TOUT VERT
+  TOUT VERT
+
+  $ npx tsc --noEmit
+  TSC=0
+
+  $ npm run tester
+   Test Files  16 passed (16)
+        Tests  240 passed (240)
+
+  $ npx expo export --platform ios
+  Exported: dist
+  EXPORT=0
+
+  $ cd five-scorer && NEXT_DIST_DIR=.next-verif npx next build
+  ✓ Compiled successfully in 13.6s
+  ├ ƒ /api/rejoindre
+  BUILD=0
+  ```
+
+  **Les contre-épreuves — trois, parce qu'un test vert ne dit rien tant qu'on
+  ne l'a pas vu tomber.** Chaque garde a été retiré du code, une fois, pour
+  voir quelle ligne s'allume :
+
+  ```
+  # 1) le démontage du lien retiré de normaliserCode
+  ÉCHEC  le LIEN collé entier fait entrer dans le club  — HTTP 404
+  ÉCHEC  il a maintenant un club, et un seul  — 0
+  8 ÉCHEC(S)
+
+  # 2) l'appel à assurerProfilJoueur retiré
+  ÉCHEC  …et une fiche joueur, sans quoi il ne compterait dans aucune présence
+  ÉCHEC  …et elle ADOPTE la fiche préparée pour elle, malgré la casse et l'accent  — undefined (undefined)
+  ÉCHEC  …le vestiaire n'a grossi que d'UNE fiche pour deux arrivées  — 35 → 35
+
+  # 3) addMember recollé dans la server action (non-divergence)
+  × ni l'une ni l'autre ne réimplémente l'entrée dans le club
+  AssertionError: expected '"use server";…' not to contain 'addMember'
+  Tests  1 failed | 6 passed (7)
+  ```
+
+- **Fichiers touchés** :
+  - `five-scorer/lib/rejoindre.ts` (neuf — la règle, une seule fois)
+  - `five-scorer/app/api/rejoindre/route.ts` (neuf)
+  - `five-scorer/app/actions/club.ts` (délègue au lieu de porter ; 70 lignes → 15)
+  - `five-scorer-mobile/lib/api.ts` (`rejoindreClub`)
+  - `five-scorer-mobile/app/rejoindre.tsx` (neuf — l'écran)
+  - `five-scorer-mobile/app/clubs.tsx` (l'entrée, en bouton plein quand on n'a aucun club)
+  - `five-scorer-mobile/composants/MenuClub.tsx` (l'entrée au menu de la pilule)
+  - `five-scorer-mobile/composants/Icones.tsx` (`CHEMINS.rejoindre`)
+  - `five-scorer-mobile/lib/rejoindre.test.ts` (neuf — 7 tests)
+  - `five-scorer-mobile/scripts/parcours-lecture.mjs` (+24 vérifications, et son ménage)
+- **Reste ouvert** :
+  - **Une reprise à faire dans l'app, que je n'ai pas su décider seul.** L'écran
+    « Mes clubs » saute droit au club quand on n'en a qu'un — c'est le cas de
+    tout le monde, et c'est un bon choix. Conséquence : l'entrée « Rejoindre un
+    club » de cet écran n'est atteignable qu'à partir de DEUX clubs. J'ai donc
+    aussi posé la ligne au menu de la pilule, où elle est toujours atteignable.
+    Les deux chemins mènent au même écran ; c'est peut-être une ligne de trop
+    au menu, et ça se juge à l'œil.
+  - **Cet écran n'a été vu par personne** — le champ, l'attente pendant
+    l'aller-retour, et l'icône `CHEMINS.rejoindre` que j'ai dessinée comme le
+    miroir exact de `sortir` sans pouvoir la regarder. C'est le douzième écran
+    dans ce cas, et c'est toujours la **ligne 12 du §6** qui attend une réponse.
+    Elle a maintenant trois jours.
+  - **Créer un club depuis l'app n'est pas fait** — l'autre moitié du lot. Le
+    serveur n'a rien à recevoir (`authClient.organization.create` puis le
+    `PATCH .../reglages` qui existe déjà) ; ce qui manque est un écran de choix
+    de nom, de format et de deux chasubles, avec le fond qui change sous le
+    doigt. C'est un incrément de dessin, pas de règle, et il vaut mieux seul.
+  - **Le site n'a pas été rejoué.** L'extraction est pure, le build passe et un
+    test prouve que le site lit bien le même code, mais il n'y a toujours aucun
+    harnais Playwright dans ce dépôt (§5) : le chemin « Rejoindre » du
+    navigateur n'est vérifié que par la compilation.
+  - `next-env.d.ts` a de nouveau été réécrit par `NEXT_DIST_DIR=.next-verif` et
+    restauré avant le commit. Quatrième exécution de suite ; le piège est
+    intact.
 
 ### 2026-09-10 12:1x — Étape 19+ : « ce joueur, c'est moi »
 

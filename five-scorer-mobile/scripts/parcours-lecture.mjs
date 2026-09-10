@@ -743,6 +743,198 @@ async function main() {
     }
   }
 
+
+  // --- 3 bis⁴. Rejoindre un club --------------------------------------------
+  //
+  // Le geste d'AVANT tous les autres : sans lui, quelqu'un qui installe l'app
+  // et se crée un compte arrive sur une liste de clubs vide, sans un seul
+  // bouton pour en sortir. C'est le seul mur de l'app qui n'avait aucun
+  // contournement — tous les autres écrans manquants laissaient au moins le
+  // site accessible depuis un ordinateur.
+  //
+  // Cette section vient EN DERNIER exprès : elle fait entrer des comptes dans
+  // le club, et les vérifications « un étranger reçoit 404 » ci-dessus
+  // tomberaient si l'étranger était devenu membre avant elles.
+  //
+  // Chaque exécution fabrique ses propres comptes (horodatés) : le parcours se
+  // relance sans repeupler et reste vert, ce qui ne serait pas le cas si on
+  // réutilisait un compte déjà entré au tour précédent.
+
+  console.log("\n— rejoindre un club —");
+
+  const marque = Date.now().toString(36);
+
+  // Le capitaine lit le code dans ses réglages : c'est le vrai chemin, celui
+  // que l'écran des réglages de l'app affiche déjà.
+  const [rReg, reg] = await lire(`${C}/reglages`);
+  ok(rReg.ok && typeof reg?.invitation?.code === "string", "le capitaine lit le code d'invitation", `HTTP ${rReg.status}`);
+  const code = reg?.invitation?.code;
+  const lien = `https://five-scorer.vercel.app/join/${code}`;
+
+  // Une fiche libre, au nom accentué, préparée par le capitaine avant que la
+  // personne ne s'inscrive : c'est le cas le plus fréquent d'un vrai club, et
+  // celui que `assurerProfilJoueur` existe pour rattraper.
+  const nomAdopte = `Zoé ${marque}`;
+  const idAdopte = `joueur-essai-neuf-adopte-${marque}`;
+  const rPrep = await envoyer(`${C}/joueurs`, "POST", { id: idAdopte, nom: nomAdopte });
+  ok(rPrep.ok, "le capitaine a préparé une fiche pour quelqu'un qui n'a pas encore de compte", `HTTP ${rPrep.status}`);
+
+  const [, effAvant] = await lire(`${C}/effectif`);
+  const combienAvant = effAvant.joueurs.length;
+
+  /// Un compte tout neuf, comme après une installation depuis l'App Store.
+  const inscrire = async (nom) => {
+    const res = await fetch(`${BASE}/api/auth/sign-up/email`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGINE },
+      body: JSON.stringify({
+        email: `nouveau-${nom.replace(/[^a-z0-9]/gi, "").toLowerCase()}@five.local`,
+        password: MOT_DE_PASSE,
+        name: nom,
+      }),
+    });
+    return [res, cookies(res)];
+  };
+  const rejoindre = (cookieDuCompte, corps) =>
+    fetch(`${BASE}/api/rejoindre`, {
+      method: "POST",
+      headers: { cookie: cookieDuCompte, origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+
+  /// L'identifiant de la fiche créée pour l'arrivant : le ménage en a besoin.
+  let ficheArrivant = null;
+  const [rArrivant, cArrivant] = await inscrire(`Nouveau Venu ${marque}`);
+  ok(rArrivant.ok, "un compte tout neuf s'inscrit", `HTTP ${rArrivant.status}`);
+
+  if (rArrivant.ok && code) {
+    const [, moiVide] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cArrivant, origin: ORIGINE } })).json()];
+    ok(
+      moiVide.clubs.length === 0,
+      "il n'est dans AUCUN club — c'est le mur qu'on vient d'abattre",
+      `${moiVide.clubs.length} club(s)`,
+    );
+
+    // Les refus d'abord : une fois membre, la scène n'est plus la même.
+    const rAnonyme = await fetch(`${BASE}/api/rejoindre`, {
+      method: "POST",
+      headers: { origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    ok(rAnonyme.status === 401, "sans session : 401, on ne rejoint pas anonymement", `HTTP ${rAnonyme.status}`);
+
+    const rInconnu = await rejoindre(cArrivant, { code: "codequinexistepas" });
+    ok(rInconnu.status === 404, "un code inconnu : 404, pas 403", `HTTP ${rInconnu.status}`);
+    ok(
+      (await rInconnu.json()).error === "Code d'invitation invalide.",
+      "…et le refus est écrit en français, prêt à afficher",
+    );
+
+    // Le bug déjà vécu ici : un objet passé pour un identifiant devient un
+    // filtre Prisma. Sur `findUnique({ where: { inviteCode } })`, il ferait
+    // entrer dans un club dont on n'a jamais reçu le lien.
+    const rObjet = await rejoindre(cArrivant, { code: { not: "" } });
+    ok(rObjet.status === 400, "un code qui est un objet : 400, pas un filtre Prisma", `HTTP ${rObjet.status}`);
+
+    const rVide = await rejoindre(cArrivant, {});
+    ok(rVide.status === 400, "aucun code du tout : 400", `HTTP ${rVide.status}`);
+
+    // LE cas qui compte : ce qu'on a réellement dans WhatsApp est le LIEN,
+    // pas douze caractères qu'on aurait recopiés à la main.
+    const rLien = await rejoindre(cArrivant, { code: lien });
+    ok(rLien.ok, "le LIEN collé entier fait entrer dans le club", `HTTP ${rLien.status}`);
+    const entre = rLien.ok ? await rLien.json() : {};
+    ok(entre.dejaMembre === false, "…et c'est bien une première entrée");
+    ok(entre.slug === club.slug, "…dans le bon club", entre.nom);
+
+    const [, moiPlein] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cArrivant, origin: ORIGINE } })).json()];
+    ok(moiPlein.clubs.length === 1, "il a maintenant un club, et un seul", `${moiPlein.clubs.length}`);
+    ok(
+      moiPlein.clubs[0]?.monJoueur != null,
+      "…et une fiche joueur, sans quoi il ne compterait dans aucune présence",
+      moiPlein.clubs[0]?.monJoueur?.nom,
+    );
+    ficheArrivant = moiPlein.clubs[0]?.monJoueur?.id ?? null;
+
+    // Rejouer le même lien n'est PAS une erreur : c'est le geste de quelqu'un
+    // qui ne sait plus s'il a déjà rejoint. Ce qui serait grave est d'être
+    // inscrit deux fois — rien en base ne l'interdit (aucun index unique sur
+    // `member`), donc c'est ici que ça se voit.
+    const rEncore = await rejoindre(cArrivant, { code });
+    ok(rEncore.ok, "le code seul marche aussi, et rejoindre deux fois n'est pas une erreur", `HTTP ${rEncore.status}`);
+    ok((await rEncore.json()).dejaMembre === true, "…le serveur le DIT au lieu d'une fausse bienvenue");
+
+    const rMajuscules = await rejoindre(cArrivant, { code: code.toUpperCase() });
+    ok(rMajuscules.ok, "le code en MAJUSCULES est accepté : un code se recopie mal", `HTTP ${rMajuscules.status}`);
+
+    const [, moiEncore] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cArrivant, origin: ORIGINE } })).json()];
+    ok(
+      moiEncore.clubs.length === 1,
+      "…et après trois passages il n'est membre qu'UNE fois",
+      `${moiEncore.clubs.length} club(s)`,
+    );
+  }
+
+  // L'adoption : le nom compte, pas la casse ni les accents. Sans elle, la
+  // personne apparaît DEUX fois au vestiaire — la fiche que le capitaine lui
+  // avait préparée, et la sienne, vide.
+  const [rZoe, cZoe] = await inscrire(`zoe ${marque}`);
+  ok(rZoe.ok, "une deuxième personne s'inscrit, du nom d'une fiche déjà là", `HTTP ${rZoe.status}`);
+  if (rZoe.ok && code) {
+    const rEntree = await rejoindre(cZoe, { code });
+    ok(rEntree.ok, "elle rejoint le club", `HTTP ${rEntree.status}`);
+    const [, sonMoi] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cZoe, origin: ORIGINE } })).json()];
+    ok(
+      sonMoi.clubs[0]?.monJoueur?.id === idAdopte,
+      "…et elle ADOPTE la fiche préparée pour elle, malgré la casse et l'accent",
+      `${sonMoi.clubs[0]?.monJoueur?.nom} (${sonMoi.clubs[0]?.monJoueur?.id})`,
+    );
+    const [, effApres] = await lire(`${C}/effectif`);
+    ok(
+      effApres.joueurs.length === combienAvant + 1,
+      "…le vestiaire n'a grossi que d'UNE fiche pour deux arrivées",
+      `${combienAvant} → ${effApres.joueurs.length}`,
+    );
+  }
+
+  // --- Remettre le vestiaire comme on l'a trouvé -----------------------------
+  //
+  // Cette section fait entrer deux comptes, donc elle laisse deux fiches
+  // RATTACHÉES derrière elle. Relancé sans repeupler, le parcours tombait alors
+  // sur ses propres traces : « les douze du vestiaire » en voyait quatorze, et
+  // « le vestiaire est comme au début » comptait trois comptes liés au lieu
+  // d'un. Ce n'était pas un défaut du serveur, c'était le parcours qui salissait
+  // derrière lui.
+  //
+  // On se remet en état par les endpoints de l'app, comme la section
+  // précédente : il n'y a pas de « délier » (le site n'en a pas non plus), mais
+  // revendiquer DÉPLACE un rattachement — le gérant reprend chaque fiche, puis
+  // revient sur la sienne, et les deux fiches sont libres. Ces trois appels
+  // sont eux-mêmes une vérification : ils ne peuvent réussir que si
+  // l'arbitrage du gérant fonctionne.
+  const [, effFin] = await lire(`${C}/effectif`);
+  const maFicheDeChef = effFin.monJoueurId;
+  const laissees = [idAdopte, ficheArrivant].filter(Boolean);
+  for (const id of laissees) {
+    await envoyer(`${C}/joueurs/${id}/rattachement`, "POST", {});
+  }
+  if (maFicheDeChef) {
+    await envoyer(`${C}/joueurs/${maFicheDeChef}/rattachement`, "POST", {});
+  }
+  for (const id of laissees) {
+    await envoyer(`${C}/joueurs/${id}`, "PATCH", { archive: true });
+  }
+  const [, effRendu] = await lire(`${C}/effectif`);
+  ok(
+    effRendu.actifs === 12,
+    "les arrivants rangés : le vestiaire est rendu à ses douze",
+    `${effRendu.actifs} actifs`,
+  );
+  ok(
+    effRendu.joueurs.filter((j) => j.compteLie).length === 1,
+    "…et un seul compte lié, comme au début",
+    `${effRendu.joueurs.filter((j) => j.compteLie).length} lié(s)`,
+  );
   console.log(rates === 0 ? "\nTOUT VERT" : `\n${rates} ÉCHEC(S)`);
   process.exitCode = rates === 0 ? 0 : 1;
 }
