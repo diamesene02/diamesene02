@@ -30,6 +30,7 @@ const ORIGINE = process.env.ORIGINE ?? "exp://192.168.1.192:8090";
 const COURRIEL = process.env.COURRIEL ?? "dev@five.local";
 const MOT_DE_PASSE = process.env.MOT_DE_PASSE ?? "demo-five-2026";
 const INTRUS = process.env.INTRUS ?? "intrus@five.local";
+const MEMBRE = process.env.MEMBRE ?? "membre@five.local";
 
 // --- garde-fou ---------------------------------------------------------------
 
@@ -117,8 +118,39 @@ async function main() {
   // connecté mais étranger au club reçoive 404 — pas 403, qui confirmerait
   // l'existence du club à qui devine un identifiant.
   await compte(INTRUS, "Intrus");
+  // Un troisième compte, membre ORDINAIRE du club et SANS profil joueur.
+  // C'est l'état réel du premier soir : quelqu'un rejoint le club, ouvre
+  // l'effectif, et doit pouvoir dire « ce joueur, c'est moi ». Le créateur du
+  // club ne peut pas jouer ce rôle — le hook de `lib/auth.ts` lui a déjà fait
+  // une fiche —, et l'intrus non plus, il n'est membre de rien.
+  await compte(MEMBRE, "Membre Simple");
   const clubId = await club(cookie);
   const moi = await prisma.user.findUnique({ where: { email: COURRIEL } });
+  const membre = await prisma.user.findUniqueOrThrow({ where: { email: MEMBRE } });
+  // La ligne `member` est posée en base, pas par une invitation : on ne veut
+  // ni le courriel ni l'acceptation, seulement l'état d'arrivée. Et surtout
+  // AUCUN joueur ne lui est créé — c'est tout le sujet.
+  const dejaMembre = await prisma.member.findFirst({
+    where: { organizationId: clubId, userId: membre.id },
+  });
+  if (!dejaMembre) {
+    await prisma.member.create({
+      data: {
+        id: "membre-essai-simple",
+        organizationId: clubId,
+        userId: membre.id,
+        role: "member",
+        createdAt: new Date(),
+      },
+    });
+  }
+  // Il repart sans profil à chaque exécution : le parcours en revendique un,
+  // et sans ce déliement la seconde exécution trouverait « j'ai déjà un
+  // profil » — donc plus aucun bouton « C'est moi » à éprouver.
+  await prisma.player.updateMany({
+    where: { clubId, userId: membre.id },
+    data: { userId: null },
+  });
 
   await prisma.club.update({
     where: { id: clubId },
@@ -313,6 +345,7 @@ async function main() {
         clubId,
         soireeId: soiree.id,
         intrus: INTRUS,
+        membre: MEMBRE,
         matchFini: "match-essai-fini",
         matchLive: "match-essai-live",
         joueurs: joueurs.length,

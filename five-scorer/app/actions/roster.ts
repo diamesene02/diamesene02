@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { idsValides } from "@/lib/ids";
 import { type EntreeJoueur, nettoyerJoueur } from "@/lib/joueur";
+import { rattacherJoueur } from "@/lib/rattachement";
 
 /// Le type et la règle de nettoyage vivent dans `lib/joueur.ts` : les routes
 /// d'API du mobile écrivent les mêmes fiches, et un fichier `"use server"` ne
@@ -106,87 +107,24 @@ export async function setPlayerArchived(
 }
 
 /// Un membre revendique un profil joueur existant (ou l'admin lie pour lui).
+///
+/// La règle elle-même vit dans `lib/rattachement.ts` : l'app mobile la
+/// revendique par HTTP, et un fichier `"use server"` ne s'importe pas depuis
+/// une route. Ici ne restent que le slug, la garde du site et le cache.
 export async function linkPlayerToUser(
   slug: string,
   playerId: string,
   userId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Les types TypeScript ne survivent pas à la compilation : un appelant peut
-  // envoyer un objet là où le code attend une chaîne, et Prisma l'interprète
-  // comme un filtre. Sans ce contrôle, `{ in: [...] }` en guise d'identifiant
-  // faisait porter l'écriture sur tous les profils libres du club d'un coup.
-  if (!idsValides(playerId, userId)) {
-    return { ok: false, error: "Identifiant invalide." };
-  }
-
   const ctx = await requireClub(slug);
-  const isSelf = userId === ctx.user.id;
-  if (!isSelf && !ctx.canManage) {
-    return { ok: false, error: "Réservé aux admins." };
-  }
-  const isMember = await prisma.member.findFirst({
-    where: { organizationId: ctx.club.id, userId },
+  const res = await rattacherJoueur({
+    clubId: ctx.club.id,
+    playerId,
+    userId,
+    acteurId: ctx.user.id,
+    canManage: ctx.canManage,
   });
-  if (!isMember) return { ok: false, error: "Pas membre du club." };
-
-  // Le playerId vient du client : il doit être rattaché à CE club, sinon un
-  // membre peut délier le profil d'un joueur d'un club dont il n'est même pas
-  // membre. Les garde-fous n'existaient que dans l'affichage du trombinoscope,
-  // c'est-à-dire nulle part du point de vue du serveur.
-  const cible = await prisma.player.findFirst({
-    where: { id: playerId, clubId: ctx.club.id },
-    select: { id: true, userId: true, isGuest: true, isArchived: true },
-  });
-  if (!cible) return { ok: false, error: "Joueur introuvable dans ce club." };
-  if (cible.isArchived) {
-    return { ok: false, error: "Ce joueur est archivé." };
-  }
-  if (cible.isGuest) {
-    return { ok: false, error: "Un invité ne peut pas être revendiqué." };
-  }
-  // Profil déjà rattaché à quelqu'un d'autre : seul un admin peut trancher.
-  if (cible.userId && cible.userId !== userId && !ctx.canManage) {
-    return { ok: false, error: "Ce profil est déjà pris par un autre compte." };
-  }
-
-  // L'échec doit être une EXCEPTION, pas une valeur de retour : renvoyer un
-  // compte laissait la transaction se terminer normalement, donc COMMITTER le
-  // déliement qui la précède. Le compte perdait son profil pendant que
-  // l'interface annonçait qu'il ne s'était rien passé.
-  const conflit = await prisma
-    .$transaction(async (tx) => {
-      // Un compte = un seul profil joueur par club.
-      await tx.player.updateMany({
-        where: { clubId: ctx.club.id, userId },
-        data: { userId: null },
-      });
-      // updateMany plutôt qu'update : le filtre clubId reste appliqué au
-      // moment de l'écriture, et le compte retourné confirme qu'une ligne —
-      // et une seule — a bougé.
-      const res = await tx.player.updateMany({
-        where: {
-          id: playerId,
-          clubId: ctx.club.id,
-          // Course entre deux revendications simultanées : on n'écrase que si
-          // le profil est encore libre, ou déjà celui de ce compte, ou si un
-          // admin opère.
-          ...(ctx.canManage ? {} : { OR: [{ userId: null }, { userId }] }),
-        },
-        data: { userId, isGuest: false },
-      });
-      if (res.count !== 1) throw new Error("link_conflict");
-      return null;
-    })
-    .catch((e: Error) => {
-      if (e.message === "link_conflict") return "conflit";
-      throw e;
-    });
-  if (conflit) {
-    return {
-      ok: false,
-      error: "Ce profil vient d'être pris par un autre compte.",
-    };
-  }
+  if (!res.ok) return { ok: false, error: res.error };
 
   revalidatePath(`/c/${slug}/players`);
   return { ok: true };

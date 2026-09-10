@@ -647,6 +647,27 @@ export function reglerAbonnement(
   );
 }
 
+/// « Ce joueur, c'est moi. »
+///
+/// Se fait EN LIGNE, jamais par la file d'attente : c'est le geste du premier
+/// soir, on le fait au chaud, et deux téléphones qui revendiquent le même
+/// profil doivent être départagés par le serveur au moment où ils le
+/// demandent. Rejoué plus tard, le second aurait volé le profil du premier
+/// sans que personne le voie.
+///
+/// Le serveur refuse par un statut parlant (409 pour un profil déjà pris, un
+/// invité ou un archivé) ; `ErreurServeur` porte le message français tel quel,
+/// il est fait pour être affiché.
+export function rattacherJoueur(
+  clubId: string,
+  joueurId: string,
+): Promise<{ ok: boolean; joueurId: string }> {
+  return appelAuthentifie<{ ok: boolean; joueurId: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}/rattachement`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
 /// portée. Il vient de l'environnement pour ne pas figer un club dans le code.
 export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy";

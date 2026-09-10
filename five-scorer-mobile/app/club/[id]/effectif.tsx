@@ -16,10 +16,12 @@ import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import {
   chargerEcranEffectif,
   chargerMoi,
+  rattacherJoueur,
   SessionExpiree,
   type ClubDeMoi,
   type EcranEffectif,
 } from "../../../lib/api";
+import { toucheFranche } from "../../../lib/vibrer";
 
 /// « Effectif » — le vestiaire du club.
 ///
@@ -37,6 +39,11 @@ export default function Effectif() {
   const [archivesOuverts, setArchivesOuverts] = useState(false);
   const [occupe, setOccupe] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
+  /// L'identifiant du joueur en cours de revendication : il désarme les autres
+  /// boutons pendant l'aller-retour. Deux « C'est moi » tapés coup sur coup
+  /// sur deux rangées voisines, et le second gagne — ce n'est pas ce qu'on
+  /// voulait dire.
+  const [revendique, setRevendique] = useState<string | null>(null);
 
   const t: Jetons = club?.theme.sombre ?? JETONS_NEUTRES;
 
@@ -65,8 +72,38 @@ export default function Effectif() {
     }, [charger]),
   );
 
+  /// « C'est moi », le premier soir.
+  ///
+  /// Le serveur tranche seul : il refuse un profil déjà pris, un invité, un
+  /// archivé, et la course entre deux téléphones. On recharge dans tous les
+  /// cas — en cas de refus, ce qu'on avait à l'écran était périmé, et c'est
+  /// justement ce qui explique le refus.
+  const revendiquer = useCallback(
+    async (joueurId: string) => {
+      if (!id || revendique) return;
+      setRevendique(joueurId);
+      setErreur(null);
+      try {
+        await rattacherJoueur(id, joueurId);
+        toucheFranche();
+      } catch (e) {
+        if (e instanceof SessionExpiree) return router.replace("/connexion");
+        setErreur(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRevendique(null);
+        await charger();
+      }
+    },
+    [id, revendique, charger],
+  );
+
   const actifs = (donnees?.joueurs ?? []).filter((j) => !j.archive);
   const archives = (donnees?.joueurs ?? []).filter((j) => j.archive);
+  /// La même condition que le site : le bouton n'existe qu'au premier passage,
+  /// tant que ce membre n'a revendiqué personne. Un invité ne se revendique
+  /// pas (il n'a pas de compte à lui), un profil déjà pris non plus — c'est un
+  /// arbitrage d'admin, il se fait sur le site.
+  const peutRevendiquer = donnees != null && !donnees.aDejaUnProfil;
 
   return (
     <Ecran t={t} chasubles={{ a: club?.couleurA ?? "#fff", b: club?.couleurB ?? "#111" }}>
@@ -109,7 +146,20 @@ export default function Effectif() {
         {actifs.length > 0 && (
           <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
             {actifs.map((j, i) => (
-              <Rangee key={j.id} j={j} t={t} premiere={i === 0} clubId={id} />
+              <Rangee
+                key={j.id}
+                j={j}
+                t={t}
+                premiere={i === 0}
+                clubId={id}
+                surRevendication={
+                  peutRevendiquer && !j.compteLie && !j.invite
+                    ? () => void revendiquer(j.id)
+                    : undefined
+                }
+                occupe={revendique != null}
+                enCours={revendique === j.id}
+              />
             ))}
           </View>
         )}
@@ -160,12 +210,20 @@ function Rangee({
   premiere,
   clubId,
   petite,
+  surRevendication,
+  occupe,
+  enCours,
 }: {
   j: EcranEffectif["joueurs"][number];
   t: Jetons;
   premiere: boolean;
   clubId: string;
   petite?: boolean;
+  /// Absent = pas de bouton. C'est l'écran qui décide qui est revendicable,
+  /// la rangée ne fait que peindre.
+  surRevendication?: () => void;
+  occupe?: boolean;
+  enCours?: boolean;
 }) {
   const encre = petite ? t.i2 : t.ink;
   return (
@@ -197,7 +255,28 @@ function Rangee({
           </Text>
         </View>
       </View>
-      <Text style={[s.chevron, { color: t.i3 }]}>›</Text>
+      {/* « C'est moi » remplace le chevron plutôt que de s'ajouter à côté :
+          la rangée reste tapable pour ouvrir la fiche, et une rangée qui
+          porterait les deux ferait quatre cibles du pouce sur 64 px. */}
+      {surRevendication ? (
+        <Pressable
+          onPress={surRevendication}
+          disabled={occupe}
+          hitSlop={6}
+          style={({ pressed }) => [
+            s.revendiquer,
+            { borderColor: t.cb, opacity: occupe && !enCours ? 0.4 : pressed ? 0.7 : 1 },
+          ]}
+        >
+          {enCours ? (
+            <ActivityIndicator size="small" color={t.ink} />
+          ) : (
+            <Text style={[s.revendiquerTexte, { color: t.ink }]}>C&apos;est moi</Text>
+          )}
+        </Pressable>
+      ) : (
+        <Text style={[s.chevron, { color: t.i3 }]}>›</Text>
+      )}
     </Pressable>
   );
 }
@@ -220,6 +299,16 @@ const s = StyleSheet.create({
   sousLigne: { flexDirection: "row", alignItems: "center", gap: 10 },
   chiffres: { fontSize: 13, flexShrink: 1 },
   chevron: { fontSize: 20 },
+  revendiquer: {
+    height: 34,
+    minWidth: 88,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  revendiquerTexte: { fontSize: 14, fontWeight: "600" },
 
   ajouter: {
     marginTop: 16,
