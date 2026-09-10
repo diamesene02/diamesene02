@@ -28,25 +28,21 @@ import {
 } from "./contrat";
 
 const ICI = dirname(fileURLToPath(import.meta.url));
-const SERVEUR = join(
-  ICI,
-  "..",
-  "..",
-  "..",
-  "five-scorer",
-  "lib",
-  "roster-serveur.ts",
-);
+/// La règle du serveur vit dans `five-scorer/lib/joueur.ts`. Elle a déjà
+/// déménagé une fois (de `app/actions/roster.ts` vers là) : ce test la relit à
+/// sa source plutôt que de recopier le plafond, pour que le jour où elle
+/// bouge encore, ce soit lui qui le dise et pas une photo qui disparaît.
+const SERVEUR = join(ICI, "..", "..", "..", "five-scorer", "lib", "joueur.ts");
 
 /// Un vrai JPEG carré de 256 px, tel qu'en produit la chaîne.
 const JPEG = readFileSync(join(ICI, "essai-256.jpg"));
 
 describe("le contrat du serveur", () => {
-  it("PHOTO_MAX et le préfixe sont ceux de roster.ts", () => {
+  it("PHOTO_MAX et le préfixe sont ceux de lib/joueur.ts", () => {
     const source = readFileSync(SERVEUR, "utf8");
 
-    const plafond = source.match(/const PHOTO_MAX = ([\d_]+);/);
-    expect(plafond, "PHOTO_MAX introuvable dans roster.ts").not.toBeNull();
+    const plafond = source.match(/PHOTO_MAX = ([\d_]+);/);
+    expect(plafond, "PHOTO_MAX introuvable dans lib/joueur.ts").not.toBeNull();
     expect(Number(plafond![1].replace(/_/g, ""))).toBe(PHOTO_MAX);
 
     const prefixe = source.match(/v\.startsWith\("([^"]+)"\)/);

@@ -496,6 +496,65 @@ export function chargerEcranEffectif(clubId: string): Promise<EcranEffectif> {
   );
 }
 
+/// Ce qu'un formulaire de fiche peut écrire.
+///
+/// `abonne` n'y est pas : « je viens tous les lundis » est une décision
+/// personnelle, elle a son endpoint et ses propres droits (chacun règle le
+/// sien, ce PATCH-ci est réservé aux gérants). Le serveur refuse le champ
+/// plutôt que de l'ignorer, et l'app n'a donc aucune raison de l'envoyer.
+export type FicheAEcrire = Partial<{
+  nom: string;
+  surnom: string | null;
+  niveau: number;
+  gardien: boolean;
+  invite: boolean;
+  /// Data-URL JPEG, `null` pour retirer. Le serveur refuse tout le reste.
+  photo: string | null;
+  archive: boolean;
+}>;
+
+/// Ajouter un joueur au vestiaire.
+///
+/// **L'identifiant est fabriqué ici, sur le téléphone**, et le serveur l'écrit
+/// tel quel : renvoyer deux fois la même fiche n'inscrit pas deux joueurs.
+/// C'est ce qui rend le bouton sûr au gymnase, où la réponse se perd plus
+/// souvent que la requête — et c'est le même procédé que pour un match.
+export function creerJoueur(
+  clubId: string,
+  id: string,
+  fiche: FicheAEcrire,
+): Promise<{
+  ok: boolean;
+  joueurId: string;
+  initiales?: string;
+  rejeu?: boolean;
+  /// Arrive avec un HTTP 200 : le serveur a ENREGISTRÉ la fiche et jeté la
+  /// photo. Qui ne teste que le succès annonce « enregistré » sur une fiche
+  /// qui reviendra sans visage.
+  avertissement?: string;
+}> {
+  return appelAuthentifie(`/api/clubs/${encodeURIComponent(clubId)}/joueurs`, {
+    method: "POST",
+    body: JSON.stringify({ id, ...fiche }),
+  });
+}
+
+/// Modifier une fiche — ou l'archiver, ce qui est le même formulaire.
+///
+/// Envoi PARTIEL : ce qu'on n'envoie pas ne bouge pas. C'est ce qui évite
+/// qu'un formulaire ouvert avant une photo prise sur un autre téléphone
+/// l'efface en enregistrant un surnom.
+export function modifierJoueur(
+  clubId: string,
+  joueurId: string,
+  diff: FicheAEcrire,
+): Promise<{ ok: boolean; avertissement?: string }> {
+  return appelAuthentifie(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}`,
+    { method: "PATCH", body: JSON.stringify(diff) },
+  );
+}
+
 /// La fiche d'un joueur : la carte d'identité du vestiaire.
 ///
 /// Tout arrive assemblé — le sous-titre, les libellés de paliers, la date
@@ -595,6 +654,54 @@ export function reglerAbonnement(
     `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}/abonnement`,
     { method: "POST", body: JSON.stringify({ abonne }) },
   );
+}
+
+/// « Ce joueur, c'est moi. »
+///
+/// Se fait EN LIGNE, jamais par la file d'attente : c'est le geste du premier
+/// soir, on le fait au chaud, et deux téléphones qui revendiquent le même
+/// profil doivent être départagés par le serveur au moment où ils le
+/// demandent. Rejoué plus tard, le second aurait volé le profil du premier
+/// sans que personne le voie.
+///
+/// Le serveur refuse par un statut parlant (409 pour un profil déjà pris, un
+/// invité ou un archivé) ; `ErreurServeur` porte le message français tel quel,
+/// il est fait pour être affiché.
+export function rattacherJoueur(
+  clubId: string,
+  joueurId: string,
+): Promise<{ ok: boolean; joueurId: string }> {
+  return appelAuthentifie<{ ok: boolean; joueurId: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}/rattachement`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+/// « On m'a filé un code. »
+///
+/// Le seul geste qui fait entrer un compte neuf dans un club. Sans lui, celui
+/// qui installe l'app et s'inscrit reste devant une liste de clubs vide, sans
+/// rien à toucher.
+///
+/// `code` accepte le LIEN entier autant que le code seul : ce que le nouveau
+/// venu a dans WhatsApp est une URL `.../join/<code>`, et c'est elle qu'il
+/// collera. Le tri se fait côté serveur (`normaliserCode` de
+/// `lib/rejoindre.ts`), pour que le site en profite aussi et qu'il n'y ait
+/// qu'une règle.
+///
+/// En ligne obligatoirement, jamais par la file : devenir membre est une
+/// décision du serveur, et rien de local n'a de sens avant qu'elle soit prise.
+export function rejoindreClub(code: string): Promise<{
+  ok: boolean;
+  clubId: string;
+  slug: string;
+  nom: string;
+  dejaMembre: boolean;
+}> {
+  return appelAuthentifie("/api/rejoindre", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
 }
 
 /// Le club dont on affiche la vitrine tant que l'authentification n'est pas
@@ -1108,58 +1215,5 @@ export function basculerSaison(
   return appelAuthentifie<{ ok: boolean; active: boolean }>(
     `/api/clubs/${encodeURIComponent(clubId)}/saisons/${encodeURIComponent(saisonId)}`,
     { method: "PATCH", body: JSON.stringify({ active }) },
-  );
-}
-
-/// La fiche d'un joueur, telle qu'on l'ÉCRIT.
-///
-/// Volontairement étroite : on n'envoie que ce que le formulaire touche. Le
-/// serveur accepte aussi `abonne` et `isGuest` dans le même corps, et renvoyer
-/// tel quel l'objet reçu du GET réécrirait « Vient tous les lundis » à chaque
-/// enregistrement de fiche — un réglage personnel écrasé par un geste d'admin,
-/// sans que personne ne s'en aperçoive.
-export type FicheAEcrire = {
-  name?: string;
-  nickname?: string | null;
-  skill?: number;
-  isGk?: boolean;
-  /// Data-URL JPEG carrée, préparée par `lib/photo`. `null` retire la photo.
-  photo?: string | null;
-};
-
-/// Ce que rendent l'ajout et l'édition.
-///
-/// `avertissement` arrive avec un HTTP 200 : le serveur ENREGISTRE la fiche et
-/// jette la photo s'il ne l'accepte pas. Un client qui ne teste que le succès
-/// annonce « enregistré » sur une fiche qui reviendra sans visage — il faut
-/// donc le lire, toujours.
-export type ReponseFiche = { ok: boolean; joueurId?: string; avertissement?: string };
-
-export function ajouterJoueur(clubId: string, fiche: FicheAEcrire): Promise<ReponseFiche> {
-  return appelAuthentifie<ReponseFiche>(
-    `/api/clubs/${encodeURIComponent(clubId)}/joueurs`,
-    { method: "POST", body: JSON.stringify(fiche) },
-  );
-}
-
-export function modifierJoueur(
-  clubId: string,
-  joueurId: string,
-  fiche: FicheAEcrire & { archive?: boolean },
-): Promise<ReponseFiche> {
-  return appelAuthentifie<ReponseFiche>(
-    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}`,
-    { method: "PATCH", body: JSON.stringify(fiche) },
-  );
-}
-
-/// « C'est moi » — revendiquer sa propre fiche, et elle seule.
-export function revendiquerJoueur(
-  clubId: string,
-  joueurId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  return appelAuthentifie<{ ok: boolean; error?: string }>(
-    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}/lier`,
-    { method: "POST" },
   );
 }

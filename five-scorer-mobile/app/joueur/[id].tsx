@@ -78,7 +78,7 @@ export default function Joueur() {
         {/* « Modifier » vit ICI et nulle part ailleurs, comme sur le site : dix
             boutons dans la liste du vestiaire, pour un geste qu'on fait deux
             fois par saison, c'est dix occasions de le taper par erreur. */}
-        {fiche?.droits.peutModifier && club && (
+        {fiche?.droits.peutModifier && club ? (
           <Pressable
             onPress={() =>
               router.push({ pathname: "/joueur/fiche", params: { clubId: club, id } })
@@ -91,6 +91,10 @@ export default function Joueur() {
           >
             <Text style={[s.modifierTexte, { color: t.ink }]}>Modifier</Text>
           </Pressable>
+        ) : (
+          // La place reste prise même sans le bouton : sinon le titre glisse
+          // vers la droite sur la fiche d'un joueur qu'on ne gère pas.
+          <View style={{ width: 44 }} />
         )}
       </View>
 

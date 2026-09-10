@@ -167,9 +167,14 @@ async function main() {
   console.log("\n— l'effectif —");
   const [rEff, eff] = await lire(`${C}/effectif`);
   ok(rEff.ok, "GET effectif répond", `HTTP ${rEff.status}`);
-  // Au moins les douze du jeu d'essai. Pas « exactement douze » : ce script
-  // crée un joueur témoin plus bas, et un nombre en dur tombait au deuxième
-  // passage — un test qui ne passe qu'une fois n'est pas un test.
+  // Au moins les douze du jeu d'essai, et le compte relatif plutôt qu'un
+  // nombre en dur : ce parcours crée des fiches témoins plus bas, et un
+  // `=== 12` tombait au deuxième passage — un test qui ne passe qu'une fois
+  // n'est pas un test.
+  //
+  // `actifs` n'est PAS `joueurs.length` : la réponse porte aussi les archivés,
+  // par conception — l'écran doit pouvoir les montrer pour les faire revenir
+  // sans redemander au serveur.
   ok(eff.joueurs.length >= 12, "au moins les douze du vestiaire", `${eff.joueurs.length}`);
   ok(
     eff.sousTitre === `${eff.actifs} joueur${eff.actifs > 1 ? "s" : ""} au vestiaire`,
@@ -246,6 +251,117 @@ async function main() {
     body: JSON.stringify({ abonne: "oui" }),
   });
   ok(rMauvais.status === 400, "une valeur qui n'est pas un booléen : 400", `HTTP ${rMauvais.status}`);
+
+  // --- 3 bis². Ajouter et modifier une fiche ---------------------------------
+  //
+  // Le formulaire du vestiaire. Ce qui compte ici n'est pas « le POST répond
+  // 200 » : c'est qu'un second envoi du MÊME identifiant n'inscrive pas un
+  // second joueur — le geste réel étant un pouce qui retape « Enregistrer »
+  // quand la réponse tarde, au bord d'un terrain.
+
+  console.log("\n— ajouter un joueur —");
+  const envoyer = (chemin, methode, corps) =>
+    fetch(`${BASE}${chemin}`, {
+      method: methode,
+      headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+
+  const neuf = `joueur-essai-neuf-${Date.now().toString(36)}`;
+  const fiche = {
+    id: neuf,
+    nom: "  Mamadou Ndiaye  ",
+    surnom: "Mams",
+    niveau: 9,
+    gardien: true,
+  };
+  const rNeuf = await envoyer(`${C}/joueurs`, "POST", fiche);
+  const corpsNeuf = rNeuf.ok ? await rNeuf.json() : null;
+  ok(rNeuf.ok, "POST joueurs crée la fiche", `HTTP ${rNeuf.status}`);
+  ok(corpsNeuf?.joueurId === neuf, "l'identifiant du téléphone est celui de la base", corpsNeuf?.joueurId);
+  ok(corpsNeuf?.initiales === "MN", "les initiales reviennent avec la réponse", corpsNeuf?.initiales);
+
+  const [, apresNeuf] = await lire(`${C}/effectif`);
+  const lui = apresNeuf.joueurs.find((j) => j.id === neuf);
+  ok(Boolean(lui), "il est au vestiaire", lui?.nom);
+  ok(lui?.nom === "Mamadou Ndiaye", "le nom est ébarbé", JSON.stringify(lui?.nom));
+  ok(lui?.niveau === 5, "un niveau 9 est ramené à 5", String(lui?.niveau));
+  ok(lui?.gardien === true, "gardien, comme demandé");
+
+  const rRejeu = await envoyer(`${C}/joueurs`, "POST", fiche);
+  const corpsRejeu = rRejeu.ok ? await rRejeu.json() : null;
+  ok(rRejeu.ok && corpsRejeu?.rejeu === true, "le MÊME identifiant renvoyé n'est pas une seconde création", `HTTP ${rRejeu.status}`);
+  const [, apresRejeu] = await lire(`${C}/effectif`);
+  const mamadous = apresRejeu.joueurs.filter((j) => j.nom === "Mamadou Ndiaye" && !j.archive);
+  ok(
+    mamadous.length === 1,
+    "…et le vestiaire n'a qu'un Mamadou",
+    String(mamadous.length),
+  );
+
+  const rSansNom = await envoyer(`${C}/joueurs`, "POST", { surnom: "Personne" });
+  ok(rSansNom.status === 400, "une fiche sans nom : 400", `HTTP ${rSansNom.status}`);
+  const rIdTordu = await envoyer(`${C}/joueurs`, "POST", { id: { in: ["x"] }, nom: "Filtre" });
+  ok(rIdTordu.status === 400, "un identifiant qui est un objet : 400, pas un filtre Prisma", `HTTP ${rIdTordu.status}`);
+
+  console.log("\n— modifier une fiche —");
+  const rPatch = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { surnom: "Mams le mur", niveau: 2 });
+  ok(rPatch.ok, "PATCH joueurs/[id] répond", `HTTP ${rPatch.status}`);
+  const [, ficheApres] = await lire(`${C}/joueurs/${neuf}`);
+  ok(ficheApres.joueur.surnom === "Mams le mur", "le surnom a changé", ficheApres.joueur.surnom);
+  ok(ficheApres.joueur.niveau === 2, "le niveau aussi", String(ficheApres.joueur.niveau));
+  ok(ficheApres.joueur.nom === "Mamadou Ndiaye", "…et le nom, qu'on n'a pas envoyé, n'a pas bougé", ficheApres.joueur.nom);
+  ok(ficheApres.joueur.estGardien === true, "…ni le fait qu'il garde");
+
+  const rNomVide = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { nom: "   " });
+  ok(rNomVide.status === 400, "un nom effacé par mégarde : 400, pas un silence", `HTTP ${rNomVide.status}`);
+  const rPhotoTordue = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { photo: "data:image/svg+xml,<svg/>" });
+  const [, apresPhoto] = await lire(`${C}/joueurs/${neuf}`);
+  ok(
+    rPhotoTordue.ok && apresPhoto.joueur.photo === null,
+    "une photo qui n'est pas un JPEG en data-URL n'entre pas en base",
+    JSON.stringify(apresPhoto.joueur.photo),
+  );
+  const rAbonneParPatch = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { abonne: true });
+  const [, apresAbo] = await lire(`${C}/joueurs/${neuf}`);
+  ok(
+    rAbonneParPatch.status === 400 && apresAbo.joueur.abonne === false,
+    "« je viens tous les lundis » ne se règle pas par ce PATCH — il a son endpoint, et le refus est DIT",
+    `HTTP ${rAbonneParPatch.status}, abonne=${apresAbo.joueur.abonne}`,
+  );
+  const rVide = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", {});
+  ok(
+    rVide.status === 400,
+    "un corps sans rien d'écrivable : 400, jamais le 404 qui ferait croire à une fiche disparue",
+    `HTTP ${rVide.status}`,
+  );
+
+  console.log("\n— archiver, puis faire revenir —");
+  const rArchive = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: true });
+  const [, apresArchive] = await lire(`${C}/effectif`);
+  ok(
+    rArchive.ok && apresArchive.joueurs.find((j) => j.id === neuf)?.archive === true,
+    "archivé, et toujours dans la réponse pour pouvoir revenir",
+  );
+  ok(
+    apresArchive.actifs === apresNeuf.actifs - 1,
+    "le compte du vestiaire le retire",
+    `${apresNeuf.actifs} → ${apresArchive.actifs}`,
+  );
+  const rRetour = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: false });
+  const [, apresRetour] = await lire(`${C}/effectif`);
+  ok(
+    rRetour.ok && apresRetour.actifs === apresNeuf.actifs,
+    "…et il revient au complet",
+    `${apresArchive.actifs} → ${apresRetour.actifs}`,
+  );
+  const rArchiveTordue = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: "oui" });
+  ok(rArchiveTordue.status === 400, "une valeur d'archivage qui n'est pas un booléen : 400", `HTTP ${rArchiveTordue.status}`);
+  const rPatchFantome = await envoyer(`${C}/joueurs/joueur-qui-nexiste-pas`, "PATCH", { niveau: 4 });
+  ok(rPatchFantome.status === 404, "modifier un joueur inconnu : 404", `HTTP ${rPatchFantome.status}`);
+  // On laisse la scène comme on l'a trouvée : la fiche d'essai repart au fond
+  // du vestiaire. `jeu-dessai.mjs` la supprime au prochain passage.
+  await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: true });
 
   // --- 3 ter. L'écran des stats ----------------------------------------------
 
@@ -535,8 +651,382 @@ async function main() {
       });
       ok(res.status === 404, `${nom(chemin)} : 404, pas 403`, `HTTP ${res.status}`);
     }
+    // Écrire dans le vestiaire d'un club dont on n'est pas membre : même
+    // règle, et il ne suffit pas qu'un GET soit gardé — c'est le POST qui
+    // ajoute une ligne en base.
+    const rPostIntrus = await fetch(`${BASE}${C}/joueurs`, {
+      method: "POST",
+      headers: { cookie: cIntrus, origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify({ nom: "Intrus" }),
+    });
+    ok(rPostIntrus.status === 404, "POST joueurs par un étranger : 404, pas 403", `HTTP ${rPostIntrus.status}`);
+    const rPatchIntrus = await fetch(`${BASE}${C}/joueurs/joueur-essai-1`, {
+      method: "PATCH",
+      headers: { cookie: cIntrus, origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify({ niveau: 1 }),
+    });
+    ok(rPatchIntrus.status === 404, "PATCH joueurs/[id] par un étranger : 404, pas 403", `HTTP ${rPatchIntrus.status}`);
+    const [, intact] = await lire(`${C}/joueurs/joueur-essai-1`);
+    ok(intact.joueur.niveau === 3, "…et la fiche visée n'a pas bougé", String(intact.joueur.niveau));
   }
 
+  // --- 3 bis³. « Ce joueur, c'est moi » --------------------------------------
+  //
+  // Le geste du premier soir : quelqu'un rejoint le club, ouvre l'effectif et
+  // revendique sa fiche. Sans lui, un membre voit son propre nom dans la liste
+  // sans pouvoir s'y reconnaître — donc sans compter dans les présences, et
+  // sans que « ma fiche » veuille dire quoi que ce soit sur son téléphone.
+  //
+  // On le rejoue avec le compte qui vit vraiment ça : `membre@five.local`,
+  // membre ordinaire et sans profil. Le propriétaire du club en a déjà un (le
+  // hook de `lib/auth.ts` le lui a fait), et il est admin — il ne rencontrerait
+  // aucun des refus qui comptent.
+
+  console.log("\n— « ce joueur, c'est moi » —");
+  const membre = await fetch(`${BASE}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: ORIGINE },
+    body: JSON.stringify({
+      email: process.env.MEMBRE ?? "membre@five.local",
+      password: MOT_DE_PASSE,
+    }),
+  });
+  ok(membre.ok, "le membre ordinaire se connecte", `HTTP ${membre.status}`);
+  if (membre.ok) {
+    const hm = { cookie: cookies(membre), origin: ORIGINE };
+    const revendiquer = (joueurId, corps = {}) =>
+      fetch(`${BASE}${C}/joueurs/${joueurId}/rattachement`, {
+        method: "POST",
+        headers: { ...hm, "content-type": "application/json" },
+        body: JSON.stringify(corps),
+      });
+    const effectifDe = async (entetes) => {
+      const res = await fetch(`${BASE}${C}/effectif`, { headers: entetes });
+      return res.json();
+    };
+
+    const avant = await effectifDe(hm);
+    ok(
+      avant.aDejaUnProfil === false && avant.monJoueurId === null,
+      "il arrive sans profil — c'est ce qui fait apparaître le bouton",
+      `aDejaUnProfil=${avant.aDejaUnProfil}`,
+    );
+    ok(
+      avant.peutGerer === false,
+      "…et il n'est pas gérant : il ne peut revendiquer que pour lui-même",
+    );
+
+    // Les refus D'ABORD : une fois le profil pris, `aDejaUnProfil` change et
+    // la scène n'est plus la même. Un invité ne se revendique pas — il n'a pas
+    // de compte à lui, et le laisser faire supprimerait la seule chose qui
+    // distingue un invité d'un membre.
+    const rInvite = await envoyer(`${C}/joueurs`, "POST", {
+      id: `joueur-essai-neuf-invite-${Date.now().toString(36)}`,
+      nom: "Invité d'un soir",
+      invite: true,
+    });
+    const { joueurId: idInvite } = await rInvite.json();
+    const rRevInvite = await revendiquer(idInvite);
+    ok(rRevInvite.status === 409, "un invité ne se revendique pas : 409", `HTTP ${rRevInvite.status}`);
+    ok(
+      (await rRevInvite.json()).error === "Un invité ne peut pas être revendiqué.",
+      "…et le refus est écrit en français, prêt à afficher",
+    );
+
+    // Un archivé non plus : il a quitté le club, le reprendre le ferait
+    // réapparaître dans les compositions par un chemin détourné.
+    await envoyer(`${C}/joueurs/${idInvite}`, "PATCH", { invite: false, archive: true });
+    const rRevArchive = await revendiquer(idInvite);
+    ok(rRevArchive.status === 409, "un archivé non plus : 409", `HTTP ${rRevArchive.status}`);
+
+    // Le profil du propriétaire est pris. Un membre ordinaire ne peut pas le
+    // lui retirer : c'est un arbitrage, il revient aux gérants.
+    const monProfilDuChef = avant.joueurs.find((j) => j.compteLie);
+    const rRevPris = await revendiquer(monProfilDuChef.id);
+    ok(
+      rRevPris.status === 409,
+      "un profil déjà pris : 409, et pas en douce",
+      `HTTP ${rRevPris.status}`,
+    );
+
+    // Revendiquer POUR QUELQU'UN D'AUTRE est réservé aux gérants. Sans ce
+    // contrôle, n'importe quel membre pourrait attribuer les fiches du club.
+    const rPourUnTiers = await revendiquer("joueur-essai-2", { userId: "un-autre-compte" });
+    ok(
+      rPourUnTiers.status === 403,
+      "revendiquer pour un tiers : 403, réservé aux admins",
+      `HTTP ${rPourUnTiers.status}`,
+    );
+    const rIdObjet = await revendiquer("joueur-essai-2", { userId: { in: ["a", "b"] } });
+    ok(
+      rIdObjet.status === 400,
+      "un identifiant qui est un objet : 400, pas un filtre Prisma",
+      `HTTP ${rIdObjet.status}`,
+    );
+    const rFantome = await revendiquer("joueur-qui-nexiste-pas");
+    ok(rFantome.status === 404, "un joueur inconnu : 404", `HTTP ${rFantome.status}`);
+
+    // Et enfin le geste lui-même.
+    const rPris = await revendiquer("joueur-essai-2");
+    ok(rPris.ok, "« c'est moi » sur une fiche libre : accepté", `HTTP ${rPris.status}`);
+    const apres = await effectifDe(hm);
+    const sien = apres.joueurs.find((j) => j.id === "joueur-essai-2");
+    ok(apres.aDejaUnProfil === true, "…il a maintenant un profil");
+    ok(apres.monJoueurId === "joueur-essai-2", "…et c'est celui-là", apres.monJoueurId);
+    ok(sien.estMoi === true && sien.compteLie === true, "…la rangée le dit des deux façons");
+    ok(
+      apres.joueurs.filter((j) => j.estMoi).length === 1,
+      "un compte, un seul profil dans ce club",
+    );
+
+    // Un compte = un profil : en revendiquer un second doit DÉPLACER le
+    // rattachement, pas en ajouter un. C'est la transaction qui délie puis
+    // relie, et c'est le seul endroit du portage où un commit à moitié fait
+    // laisserait quelqu'un sans fiche.
+    const rDeplace = await revendiquer("joueur-essai-3");
+    ok(rDeplace.ok, "revendiquer une seconde fiche : accepté", `HTTP ${rDeplace.status}`);
+    const apres2 = await effectifDe(hm);
+    ok(
+      apres2.monJoueurId === "joueur-essai-3" &&
+        apres2.joueurs.filter((j) => j.estMoi).length === 1,
+      "…le rattachement a été DÉPLACÉ, pas dupliqué",
+      apres2.monJoueurId,
+    );
+    ok(
+      apres2.joueurs.find((j) => j.id === "joueur-essai-2").compteLie === false,
+      "…et la première fiche est redevenue libre",
+    );
+
+    // Un gérant, lui, tranche : il peut reprendre un profil déjà pris. C'est
+    // le seul recours quand deux personnes se sont réclamées de la même fiche.
+    // Et c'est aussi ce qui REMET LA SCÈNE EN ÉTAT : le membre repart sans
+    // profil, donc ce parcours se rejoue sans repeupler la base.
+    const rArbitrage = await envoyer(`${C}/joueurs/joueur-essai-3/rattachement`, "POST", {});
+    ok(rArbitrage.ok, "un gérant reprend un profil pris : accepté", `HTTP ${rArbitrage.status}`);
+    const rendu = await effectifDe(hm);
+    ok(
+      rendu.aDejaUnProfil === false,
+      "…et le membre se retrouve sans profil, comme avant",
+      `monJoueurId=${rendu.monJoueurId}`,
+    );
+    await envoyer(`${C}/joueurs/${monProfilDuChef.id}/rattachement`, "POST", {});
+    const [, remis] = await lire(`${C}/effectif`);
+    ok(
+      remis.monJoueurId === monProfilDuChef.id &&
+        remis.joueurs.filter((j) => j.compteLie).length === 1,
+      "…le gérant est revenu sur sa propre fiche, le vestiaire est comme au début",
+      remis.monJoueurId,
+    );
+
+    // Un étranger au club, comme partout ailleurs : 404, jamais 403.
+    if (intrus.ok) {
+      const rIntrus = await fetch(`${BASE}${C}/joueurs/joueur-essai-4/rattachement`, {
+        method: "POST",
+        headers: { cookie: cookies(intrus), origin: ORIGINE, "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      ok(
+        rIntrus.status === 404,
+        "rattachement par un étranger : 404, pas 403",
+        `HTTP ${rIntrus.status}`,
+      );
+      const [, libre] = await lire(`${C}/joueurs/joueur-essai-4`);
+      ok(libre.joueur.estMoi === false, "…et la fiche visée n'a bougé pour personne");
+    }
+  }
+
+
+  // --- 3 bis⁴. Rejoindre un club --------------------------------------------
+  //
+  // Le geste d'AVANT tous les autres : sans lui, quelqu'un qui installe l'app
+  // et se crée un compte arrive sur une liste de clubs vide, sans un seul
+  // bouton pour en sortir. C'est le seul mur de l'app qui n'avait aucun
+  // contournement — tous les autres écrans manquants laissaient au moins le
+  // site accessible depuis un ordinateur.
+  //
+  // Cette section vient EN DERNIER exprès : elle fait entrer des comptes dans
+  // le club, et les vérifications « un étranger reçoit 404 » ci-dessus
+  // tomberaient si l'étranger était devenu membre avant elles.
+  //
+  // Chaque exécution fabrique ses propres comptes (horodatés) : le parcours se
+  // relance sans repeupler et reste vert, ce qui ne serait pas le cas si on
+  // réutilisait un compte déjà entré au tour précédent.
+
+  console.log("\n— rejoindre un club —");
+
+  const marque = Date.now().toString(36);
+
+  // Le capitaine lit le code dans ses réglages : c'est le vrai chemin, celui
+  // que l'écran des réglages de l'app affiche déjà.
+  const [rReg, reg] = await lire(`${C}/reglages`);
+  ok(rReg.ok && typeof reg?.invitation?.code === "string", "le capitaine lit le code d'invitation", `HTTP ${rReg.status}`);
+  const code = reg?.invitation?.code;
+  const lien = `https://five-scorer.vercel.app/join/${code}`;
+
+  // Une fiche libre, au nom accentué, préparée par le capitaine avant que la
+  // personne ne s'inscrive : c'est le cas le plus fréquent d'un vrai club, et
+  // celui que `assurerProfilJoueur` existe pour rattraper.
+  const nomAdopte = `Zoé ${marque}`;
+  const idAdopte = `joueur-essai-neuf-adopte-${marque}`;
+  const rPrep = await envoyer(`${C}/joueurs`, "POST", { id: idAdopte, nom: nomAdopte });
+  ok(rPrep.ok, "le capitaine a préparé une fiche pour quelqu'un qui n'a pas encore de compte", `HTTP ${rPrep.status}`);
+
+  const [, effAvant] = await lire(`${C}/effectif`);
+  const combienAvant = effAvant.joueurs.length;
+
+  /// Un compte tout neuf, comme après une installation depuis l'App Store.
+  const inscrire = async (nom) => {
+    const res = await fetch(`${BASE}/api/auth/sign-up/email`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGINE },
+      body: JSON.stringify({
+        email: `nouveau-${nom.replace(/[^a-z0-9]/gi, "").toLowerCase()}@five.local`,
+        password: MOT_DE_PASSE,
+        name: nom,
+      }),
+    });
+    return [res, cookies(res)];
+  };
+  const rejoindre = (cookieDuCompte, corps) =>
+    fetch(`${BASE}/api/rejoindre`, {
+      method: "POST",
+      headers: { cookie: cookieDuCompte, origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+
+  /// L'identifiant de la fiche créée pour l'arrivant : le ménage en a besoin.
+  let ficheArrivant = null;
+  const [rArrivant, cArrivant] = await inscrire(`Nouveau Venu ${marque}`);
+  ok(rArrivant.ok, "un compte tout neuf s'inscrit", `HTTP ${rArrivant.status}`);
+
+  if (rArrivant.ok && code) {
+    const [, moiVide] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cArrivant, origin: ORIGINE } })).json()];
+    ok(
+      moiVide.clubs.length === 0,
+      "il n'est dans AUCUN club — c'est le mur qu'on vient d'abattre",
+      `${moiVide.clubs.length} club(s)`,
+    );
+
+    // Les refus d'abord : une fois membre, la scène n'est plus la même.
+    const rAnonyme = await fetch(`${BASE}/api/rejoindre`, {
+      method: "POST",
+      headers: { origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    ok(rAnonyme.status === 401, "sans session : 401, on ne rejoint pas anonymement", `HTTP ${rAnonyme.status}`);
+
+    const rInconnu = await rejoindre(cArrivant, { code: "codequinexistepas" });
+    ok(rInconnu.status === 404, "un code inconnu : 404, pas 403", `HTTP ${rInconnu.status}`);
+    ok(
+      (await rInconnu.json()).error === "Code d'invitation invalide.",
+      "…et le refus est écrit en français, prêt à afficher",
+    );
+
+    // Le bug déjà vécu ici : un objet passé pour un identifiant devient un
+    // filtre Prisma. Sur `findUnique({ where: { inviteCode } })`, il ferait
+    // entrer dans un club dont on n'a jamais reçu le lien.
+    const rObjet = await rejoindre(cArrivant, { code: { not: "" } });
+    ok(rObjet.status === 400, "un code qui est un objet : 400, pas un filtre Prisma", `HTTP ${rObjet.status}`);
+
+    const rVide = await rejoindre(cArrivant, {});
+    ok(rVide.status === 400, "aucun code du tout : 400", `HTTP ${rVide.status}`);
+
+    // LE cas qui compte : ce qu'on a réellement dans WhatsApp est le LIEN,
+    // pas douze caractères qu'on aurait recopiés à la main.
+    const rLien = await rejoindre(cArrivant, { code: lien });
+    ok(rLien.ok, "le LIEN collé entier fait entrer dans le club", `HTTP ${rLien.status}`);
+    const entre = rLien.ok ? await rLien.json() : {};
+    ok(entre.dejaMembre === false, "…et c'est bien une première entrée");
+    ok(entre.slug === club.slug, "…dans le bon club", entre.nom);
+
+    const [, moiPlein] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cArrivant, origin: ORIGINE } })).json()];
+    ok(moiPlein.clubs.length === 1, "il a maintenant un club, et un seul", `${moiPlein.clubs.length}`);
+    ok(
+      moiPlein.clubs[0]?.monJoueur != null,
+      "…et une fiche joueur, sans quoi il ne compterait dans aucune présence",
+      moiPlein.clubs[0]?.monJoueur?.nom,
+    );
+    ficheArrivant = moiPlein.clubs[0]?.monJoueur?.id ?? null;
+
+    // Rejouer le même lien n'est PAS une erreur : c'est le geste de quelqu'un
+    // qui ne sait plus s'il a déjà rejoint. Ce qui serait grave est d'être
+    // inscrit deux fois — rien en base ne l'interdit (aucun index unique sur
+    // `member`), donc c'est ici que ça se voit.
+    const rEncore = await rejoindre(cArrivant, { code });
+    ok(rEncore.ok, "le code seul marche aussi, et rejoindre deux fois n'est pas une erreur", `HTTP ${rEncore.status}`);
+    ok((await rEncore.json()).dejaMembre === true, "…le serveur le DIT au lieu d'une fausse bienvenue");
+
+    const rMajuscules = await rejoindre(cArrivant, { code: code.toUpperCase() });
+    ok(rMajuscules.ok, "le code en MAJUSCULES est accepté : un code se recopie mal", `HTTP ${rMajuscules.status}`);
+
+    const [, moiEncore] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cArrivant, origin: ORIGINE } })).json()];
+    ok(
+      moiEncore.clubs.length === 1,
+      "…et après trois passages il n'est membre qu'UNE fois",
+      `${moiEncore.clubs.length} club(s)`,
+    );
+  }
+
+  // L'adoption : le nom compte, pas la casse ni les accents. Sans elle, la
+  // personne apparaît DEUX fois au vestiaire — la fiche que le capitaine lui
+  // avait préparée, et la sienne, vide.
+  const [rZoe, cZoe] = await inscrire(`zoe ${marque}`);
+  ok(rZoe.ok, "une deuxième personne s'inscrit, du nom d'une fiche déjà là", `HTTP ${rZoe.status}`);
+  if (rZoe.ok && code) {
+    const rEntree = await rejoindre(cZoe, { code });
+    ok(rEntree.ok, "elle rejoint le club", `HTTP ${rEntree.status}`);
+    const [, sonMoi] = [null, await (await fetch(`${BASE}/api/me`, { headers: { cookie: cZoe, origin: ORIGINE } })).json()];
+    ok(
+      sonMoi.clubs[0]?.monJoueur?.id === idAdopte,
+      "…et elle ADOPTE la fiche préparée pour elle, malgré la casse et l'accent",
+      `${sonMoi.clubs[0]?.monJoueur?.nom} (${sonMoi.clubs[0]?.monJoueur?.id})`,
+    );
+    const [, effApres] = await lire(`${C}/effectif`);
+    ok(
+      effApres.joueurs.length === combienAvant + 1,
+      "…le vestiaire n'a grossi que d'UNE fiche pour deux arrivées",
+      `${combienAvant} → ${effApres.joueurs.length}`,
+    );
+  }
+
+  // --- Remettre le vestiaire comme on l'a trouvé -----------------------------
+  //
+  // Cette section fait entrer deux comptes, donc elle laisse deux fiches
+  // RATTACHÉES derrière elle. Relancé sans repeupler, le parcours tombait alors
+  // sur ses propres traces : « les douze du vestiaire » en voyait quatorze, et
+  // « le vestiaire est comme au début » comptait trois comptes liés au lieu
+  // d'un. Ce n'était pas un défaut du serveur, c'était le parcours qui salissait
+  // derrière lui.
+  //
+  // On se remet en état par les endpoints de l'app, comme la section
+  // précédente : il n'y a pas de « délier » (le site n'en a pas non plus), mais
+  // revendiquer DÉPLACE un rattachement — le gérant reprend chaque fiche, puis
+  // revient sur la sienne, et les deux fiches sont libres. Ces trois appels
+  // sont eux-mêmes une vérification : ils ne peuvent réussir que si
+  // l'arbitrage du gérant fonctionne.
+  const [, effFin] = await lire(`${C}/effectif`);
+  const maFicheDeChef = effFin.monJoueurId;
+  const laissees = [idAdopte, ficheArrivant].filter(Boolean);
+  for (const id of laissees) {
+    await envoyer(`${C}/joueurs/${id}/rattachement`, "POST", {});
+  }
+  if (maFicheDeChef) {
+    await envoyer(`${C}/joueurs/${maFicheDeChef}/rattachement`, "POST", {});
+  }
+  for (const id of laissees) {
+    await envoyer(`${C}/joueurs/${id}`, "PATCH", { archive: true });
+  }
+  const [, effRendu] = await lire(`${C}/effectif`);
+  ok(
+    effRendu.actifs === 12,
+    "les arrivants rangés : le vestiaire est rendu à ses douze",
+    `${effRendu.actifs} actifs`,
+  );
+  ok(
+    effRendu.joueurs.filter((j) => j.compteLie).length === 1,
+    "…et un seul compte lié, comme au début",
+    `${effRendu.joueurs.filter((j) => j.compteLie).length} lié(s)`,
+  );
   console.log(rates === 0 ? "\nTOUT VERT" : `\n${rates} ÉCHEC(S)`);
   process.exitCode = rates === 0 ? 0 : 1;
 }

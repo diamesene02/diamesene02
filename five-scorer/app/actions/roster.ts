@@ -4,13 +4,16 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { idsValides } from "@/lib/ids";
-import {
-  lierJoueurAuCompte,
-  sanitize,
-  type PlayerInput,
-} from "@/lib/roster-serveur";
+import { type EntreeJoueur, nettoyerJoueur } from "@/lib/joueur";
+import { rattacherJoueur } from "@/lib/rattachement";
 
-export type { PlayerInput } from "@/lib/roster-serveur";
+/// Le type et la règle de nettoyage vivent dans `lib/joueur.ts` : les routes
+/// d'API du mobile écrivent les mêmes fiches, et un fichier `"use server"` ne
+/// s'importe pas depuis une route. `PlayerInput` reste exporté sous son nom —
+/// c'est celui qu'utilisent les écrans du site.
+export type PlayerInput = EntreeJoueur;
+
+const sanitize = nettoyerJoueur;
 
 /// S'abonner aux lundis, ou s'en désabonner.
 ///
@@ -104,28 +107,24 @@ export async function setPlayerArchived(
 }
 
 /// Un membre revendique un profil joueur existant (ou l'admin lie pour lui).
+///
+/// La règle elle-même vit dans `lib/rattachement.ts` : l'app mobile la
+/// revendique par HTTP, et un fichier `"use server"` ne s'importe pas depuis
+/// une route. Ici ne restent que le slug, la garde du site et le cache.
 export async function linkPlayerToUser(
   slug: string,
   playerId: string,
   userId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Les types TypeScript ne survivent pas à la compilation : un appelant peut
-  // envoyer un objet là où le code attend une chaîne, et Prisma l'interprète
-  // comme un filtre. Sans ce contrôle, `{ in: [...] }` en guise d'identifiant
-  // faisait porter l'écriture sur tous les profils libres du club d'un coup.
-  if (!idsValides(playerId, userId)) {
-    return { ok: false, error: "Identifiant invalide." };
-  }
-
   const ctx = await requireClub(slug);
-  const res = await lierJoueurAuCompte({
+  const res = await rattacherJoueur({
     clubId: ctx.club.id,
     playerId,
     userId,
-    moi: ctx.user.id,
-    peutGerer: ctx.canManage,
+    acteurId: ctx.user.id,
+    canManage: ctx.canManage,
   });
-  if (!res.ok) return res;
+  if (!res.ok) return { ok: false, error: res.error };
 
   revalidatePath(`/c/${slug}/players`);
   return { ok: true };

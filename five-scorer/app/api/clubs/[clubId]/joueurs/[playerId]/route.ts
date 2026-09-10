@@ -6,8 +6,8 @@ import { trierParPoints } from "@/lib/classement";
 import { nomsChasubles } from "@/lib/color";
 import { ini } from "@/lib/ini";
 import { idsValides } from "@/lib/ids";
-import { sanitize, type PlayerInput } from "@/lib/roster-serveur";
 import { jourCourt } from "@/lib/dates";
+import { entreeDepuisCorps, nettoyerJoueur } from "@/lib/joueur";
 
 export const dynamic = "force-dynamic";
 
@@ -192,55 +192,83 @@ export async function GET(
   });
 }
 
-/// Modifier une fiche, ou l'archiver.
+/// Modifier une fiche, ou la ranger au fond du vestiaire.
 ///
-/// Archiver n'est PAS supprimer : le joueur sort de la liste de ceux qui
-/// viennent lundi, ses matchs, ses buts et ses votes restent au club. Rien
-/// dans l'app ne supprime un joueur — un classement de saison ne doit pas se
-/// réécrire parce que quelqu'un a déménagé.
+/// Le jumeau HTTP de `updatePlayer` et de `setPlayerArchived`, réunis : côté
+/// site ce sont deux gestes d'interface distincts, côté app c'est le même
+/// formulaire, et deux endpoints obligeraient l'écran à envoyer deux requêtes
+/// pour un seul « Enregistrer » — avec la moitié qui passe et l'autre qui
+/// échoue comme récompense.
+///
+/// **Modification partielle** : un champ absent du corps ne bouge pas. C'est
+/// ce qui permet à l'écran de n'envoyer que ce qui a changé, et ce qui évite
+/// qu'un formulaire ouvert avant une photo prise sur un autre téléphone
+/// l'efface en enregistrant un surnom.
+///
+/// L'abonnement n'est PAS ici : il a son endpoint, ouvert à chacun pour
+/// lui-même (`joueurs/[playerId]/abonnement`), là où ce PATCH est réservé aux
+/// gérants. Les mélanger rendrait « je viens tous les lundis » réservé aux
+/// admins, ce que le club a justement voulu éviter.
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ clubId: string; playerId: string }> },
 ) {
   const { clubId, playerId } = await params;
+  const ctx = await getClubApiContext(clubId);
+  if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
   if (!idsValides(playerId)) {
     return NextResponse.json({ error: "Identifiant invalide." }, { status: 400 });
   }
-  const ctx = await getClubApiContext(clubId);
-  if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
   if (!ctx.canManage) {
     return NextResponse.json({ error: "Réservé aux admins." }, { status: 403 });
   }
 
-  const corps = (await req.json().catch(() => null)) as
-    | (PlayerInput & { archive?: unknown })
-    | null;
-  if (!corps || typeof corps !== "object" || Array.isArray(corps)) {
-    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
-  }
+  const corps = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  const data = nettoyerJoueur(entreeDepuisCorps(corps));
+  // `abonne` a son endpoint et ses propres droits : reçu ici, il est ignoré
+  // plutôt qu'écrit en douce sous le contrôle « admin ».
+  delete (data as { abonne?: boolean }).abonne;
 
-  const joueur = await prisma.player.findFirst({
-    where: { id: playerId, clubId },
-    select: { id: true },
-  });
-  if (!joueur) return NextResponse.json({ error: "Joueur introuvable." }, { status: 404 });
-
-  const { archive, ...fiche } = corps;
-  const data = sanitize(fiche);
-  // Un nom vide passerait inaperçu : `sanitize` le laisse tomber, et la fiche
-  // garderait l'ancien. Ce n'est pas ce qu'on a tapé.
-  if (fiche.name !== undefined && !data.name) {
+  // Le nom ne peut pas devenir vide. `nettoyerJoueur` laisse tomber une chaîne
+  // blanche, ce qui, sans ce contrôle, ferait passer un champ effacé par
+  // mégarde pour « je n'ai pas touché au nom ».
+  if (corps && "nom" in corps && !data.name) {
     return NextResponse.json({ error: "Nom requis." }, { status: 400 });
   }
-  const photoRefusee = fiche.photo != null && data.photo == null;
 
-  await prisma.player.update({
-    where: { id: playerId },
+  // Une photo d'un format ou d'un poids refusés ressort à `null` de
+  // `nettoyerJoueur`, sans bruit. On le DIT : annoncer « enregistré » sur une
+  // fiche qui reviendra sans visage, c'est faire chercher la panne du côté du
+  // réseau alors qu'elle est dans le fichier.
+  const photoRefusee = typeof corps?.photo === "string" && data.photo == null;
+
+  const archive = corps?.archive;
+  if (archive !== undefined && typeof archive !== "boolean") {
+    return NextResponse.json({ error: "Valeur invalide." }, { status: 400 });
+  }
+
+  // Rien de reconnu dans le corps : on le DIT. `updateMany` avec un `data`
+  // vide ne touche aucune ligne et renvoie `count: 0`, indiscernable d'un
+  // joueur qui n'existe pas — l'app aurait affiché « ce joueur n'est plus au
+  // vestiaire » à quelqu'un qui a simplement envoyé un champ que ce PATCH ne
+  // règle pas (`abonne`, par exemple, qui a le sien).
+  if (Object.keys(data).length === 0 && archive === undefined) {
+    return NextResponse.json({ error: "Rien à modifier." }, { status: 400 });
+  }
+
+  // updateMany plutôt qu'update : le filtre `clubId` reste appliqué au moment
+  // de l'écriture, et le compte retourné dit si la fiche appartenait bien à ce
+  // club — 404 comme le GET, plutôt qu'un 403 qui confirmerait son existence.
+  const res = await prisma.player.updateMany({
+    where: { id: playerId, clubId },
     data: {
       ...data,
-      ...(typeof archive === "boolean" ? { isArchived: archive } : null),
+      ...(typeof archive === "boolean" ? { isArchived: archive } : {}),
     },
   });
+  if (res.count === 0) {
+    return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  }
 
   return NextResponse.json({
     ok: true,

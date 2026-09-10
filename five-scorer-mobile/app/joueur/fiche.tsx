@@ -15,10 +15,11 @@ import Ecran from "../../composants/Ecran";
 import { BoutonPlein, BoutonRond, BoutonVerre, Carte } from "../../composants/base";
 import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { choisirPhoto } from "../../lib/photo/choisir";
+import { newId } from "../../lib/noyau/ids";
 import {
-  ajouterJoueur,
   chargerFicheJoueur,
   chargerMoi,
+  creerJoueur,
   modifierJoueur,
   SessionExpiree,
   type ClubDeMoi,
@@ -38,6 +39,12 @@ import {
 export default function FicheJoueur() {
   const { clubId, id } = useLocalSearchParams<{ clubId?: string; id?: string }>();
   const edition = typeof id === "string" && id.length > 0;
+  // Fabriqué une seule fois, à l'ouverture : deux appuis sur « Enregistrer »
+  // — ou un renvoi après une réponse perdue au gymnase — portent le MÊME
+  // identifiant, et le serveur n'inscrit qu'un joueur. Sans lui, un pouce
+  // impatient crée deux Sofiane, et il faut ensuite en archiver un en ayant
+  // perdu les buts partis sur l'autre.
+  const [idNeuf] = useState(() => newId());
 
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [nom, setNom] = useState("");
@@ -104,16 +111,16 @@ export default function FicheJoueur() {
       // passent par la même route ; renvoyer la fiche entière écraserait
       // « Vient tous les lundis », qui est une décision personnelle.
       const fiche = {
-        name: propre,
-        nickname: surnom.trim() || null,
-        skill: niveau,
-        isGk: gardien,
+        nom: propre,
+        surnom: surnom.trim() || null,
+        niveau,
+        gardien,
         photo,
       };
       const r =
         edition && id
           ? await modifierJoueur(clubId, id, fiche)
-          : await ajouterJoueur(clubId, fiche);
+          : await creerJoueur(clubId, idNeuf, fiche);
 
       // Le serveur répond 200 même quand il a REFUSÉ la photo : il enregistre
       // la fiche et la met à `null`. Sans lire ce champ, on annoncerait
