@@ -75,7 +75,25 @@ export default function Joueur() {
       <View style={s.barre}>
         <BoutonRond t={t} symbole="‹" etiquette="Retour" onPress={() => router.back()} />
         <View style={{ flex: 1 }} />
-        <View style={{ width: 44 }} />
+        {/* « Modifier » là où le site met son bouton : sur la fiche, pas dans
+            la liste. On corrige un niveau ou un surnom en regardant la fiche,
+            pas en balayant le vestiaire. La place de 44 px était déjà réservée
+            pour garder le titre centré ; elle sert enfin à quelque chose. */}
+        {fiche?.droits.peutModifier && club ? (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/joueur/edition",
+                params: { clubId: club, joueur: id },
+              })
+            }
+            style={({ pressed }) => [s.modifier, pressed && { opacity: 0.6 }]}
+          >
+            <Text style={[s.modifierTexte, { color: t.ink }]}>Modifier</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
       </View>
 
       <ScrollView
@@ -462,6 +480,8 @@ function nombre(n: number, min = 0, max = min): string {
 
 const s = StyleSheet.create({
   barre: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingBottom: 4 },
+  modifier: { minWidth: 44, height: 44, justifyContent: "center", alignItems: "flex-end" },
+  modifierTexte: { fontSize: 16, fontWeight: "600" },
   contenu: { paddingHorizontal: 14, paddingBottom: 40 },
   centre: { paddingTop: 60, alignItems: "center", gap: 12 },
   aide: { fontSize: 15 },

@@ -496,6 +496,56 @@ export function chargerEcranEffectif(clubId: string): Promise<EcranEffectif> {
   );
 }
 
+/// Ce qu'un formulaire de fiche peut écrire.
+///
+/// `abonne` n'y est pas : « je viens tous les lundis » est une décision
+/// personnelle, elle a son endpoint et ses propres droits (chacun règle le
+/// sien, ce PATCH-ci est réservé aux gérants). Le serveur refuse le champ
+/// plutôt que de l'ignorer, et l'app n'a donc aucune raison de l'envoyer.
+export type FicheAEcrire = Partial<{
+  nom: string;
+  surnom: string | null;
+  niveau: number;
+  gardien: boolean;
+  invite: boolean;
+  /// Data-URL JPEG, `null` pour retirer. Le serveur refuse tout le reste.
+  photo: string | null;
+  archive: boolean;
+}>;
+
+/// Ajouter un joueur au vestiaire.
+///
+/// **L'identifiant est fabriqué ici, sur le téléphone**, et le serveur l'écrit
+/// tel quel : renvoyer deux fois la même fiche n'inscrit pas deux joueurs.
+/// C'est ce qui rend le bouton sûr au gymnase, où la réponse se perd plus
+/// souvent que la requête — et c'est le même procédé que pour un match.
+export function creerJoueur(
+  clubId: string,
+  id: string,
+  fiche: FicheAEcrire,
+): Promise<{ ok: boolean; joueurId: string; initiales?: string; rejeu?: boolean }> {
+  return appelAuthentifie(`/api/clubs/${encodeURIComponent(clubId)}/joueurs`, {
+    method: "POST",
+    body: JSON.stringify({ id, ...fiche }),
+  });
+}
+
+/// Modifier une fiche — ou l'archiver, ce qui est le même formulaire.
+///
+/// Envoi PARTIEL : ce qu'on n'envoie pas ne bouge pas. C'est ce qui évite
+/// qu'un formulaire ouvert avant une photo prise sur un autre téléphone
+/// l'efface en enregistrant un surnom.
+export function modifierJoueur(
+  clubId: string,
+  joueurId: string,
+  diff: FicheAEcrire,
+): Promise<{ ok: boolean }> {
+  return appelAuthentifie(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}`,
+    { method: "PATCH", body: JSON.stringify(diff) },
+  );
+}
+
 /// La fiche d'un joueur : la carte d'identité du vestiaire.
 ///
 /// Tout arrive assemblé — le sous-titre, les libellés de paliers, la date

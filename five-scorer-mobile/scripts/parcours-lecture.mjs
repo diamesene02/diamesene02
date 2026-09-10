@@ -167,7 +167,12 @@ async function main() {
   console.log("\n— l'effectif —");
   const [rEff, eff] = await lire(`${C}/effectif`);
   ok(rEff.ok, "GET effectif répond", `HTTP ${rEff.status}`);
-  ok(eff.joueurs.length === 12, "les douze du vestiaire", `${eff.joueurs.length}`);
+  // `actifs`, pas `joueurs.length` : la réponse porte AUSSI les archivés, par
+  // conception — l'écran doit pouvoir les montrer pour les faire revenir sans
+  // redemander au serveur. Compter le tableau entier faisait échouer ce test
+  // dès la deuxième exécution du parcours, la fiche d'essai de la section
+  // « ajouter un joueur » restant archivée au fond du vestiaire.
+  ok(eff.actifs === 12, "les douze du vestiaire", `${eff.actifs} actifs sur ${eff.joueurs.length} fiches`);
   ok(eff.sousTitre === "12 joueurs au vestiaire", "le sous-titre arrive fait", eff.sousTitre);
   ok(
     eff.joueurs.every((j) => j.initiales && j.initiales.length <= 2),
@@ -239,6 +244,117 @@ async function main() {
     body: JSON.stringify({ abonne: "oui" }),
   });
   ok(rMauvais.status === 400, "une valeur qui n'est pas un booléen : 400", `HTTP ${rMauvais.status}`);
+
+  // --- 3 bis². Ajouter et modifier une fiche ---------------------------------
+  //
+  // Le formulaire du vestiaire. Ce qui compte ici n'est pas « le POST répond
+  // 200 » : c'est qu'un second envoi du MÊME identifiant n'inscrive pas un
+  // second joueur — le geste réel étant un pouce qui retape « Enregistrer »
+  // quand la réponse tarde, au bord d'un terrain.
+
+  console.log("\n— ajouter un joueur —");
+  const envoyer = (chemin, methode, corps) =>
+    fetch(`${BASE}${chemin}`, {
+      method: methode,
+      headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+
+  const neuf = `joueur-essai-neuf-${Date.now().toString(36)}`;
+  const fiche = {
+    id: neuf,
+    nom: "  Mamadou Ndiaye  ",
+    surnom: "Mams",
+    niveau: 9,
+    gardien: true,
+  };
+  const rNeuf = await envoyer(`${C}/joueurs`, "POST", fiche);
+  const corpsNeuf = rNeuf.ok ? await rNeuf.json() : null;
+  ok(rNeuf.ok, "POST joueurs crée la fiche", `HTTP ${rNeuf.status}`);
+  ok(corpsNeuf?.joueurId === neuf, "l'identifiant du téléphone est celui de la base", corpsNeuf?.joueurId);
+  ok(corpsNeuf?.initiales === "MN", "les initiales reviennent avec la réponse", corpsNeuf?.initiales);
+
+  const [, apresNeuf] = await lire(`${C}/effectif`);
+  const lui = apresNeuf.joueurs.find((j) => j.id === neuf);
+  ok(Boolean(lui), "il est au vestiaire", lui?.nom);
+  ok(lui?.nom === "Mamadou Ndiaye", "le nom est ébarbé", JSON.stringify(lui?.nom));
+  ok(lui?.niveau === 5, "un niveau 9 est ramené à 5", String(lui?.niveau));
+  ok(lui?.gardien === true, "gardien, comme demandé");
+
+  const rRejeu = await envoyer(`${C}/joueurs`, "POST", fiche);
+  const corpsRejeu = rRejeu.ok ? await rRejeu.json() : null;
+  ok(rRejeu.ok && corpsRejeu?.rejeu === true, "le MÊME identifiant renvoyé n'est pas une seconde création", `HTTP ${rRejeu.status}`);
+  const [, apresRejeu] = await lire(`${C}/effectif`);
+  const mamadous = apresRejeu.joueurs.filter((j) => j.nom === "Mamadou Ndiaye" && !j.archive);
+  ok(
+    mamadous.length === 1,
+    "…et le vestiaire n'a qu'un Mamadou",
+    String(mamadous.length),
+  );
+
+  const rSansNom = await envoyer(`${C}/joueurs`, "POST", { surnom: "Personne" });
+  ok(rSansNom.status === 400, "une fiche sans nom : 400", `HTTP ${rSansNom.status}`);
+  const rIdTordu = await envoyer(`${C}/joueurs`, "POST", { id: { in: ["x"] }, nom: "Filtre" });
+  ok(rIdTordu.status === 400, "un identifiant qui est un objet : 400, pas un filtre Prisma", `HTTP ${rIdTordu.status}`);
+
+  console.log("\n— modifier une fiche —");
+  const rPatch = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { surnom: "Mams le mur", niveau: 2 });
+  ok(rPatch.ok, "PATCH joueurs/[id] répond", `HTTP ${rPatch.status}`);
+  const [, ficheApres] = await lire(`${C}/joueurs/${neuf}`);
+  ok(ficheApres.joueur.surnom === "Mams le mur", "le surnom a changé", ficheApres.joueur.surnom);
+  ok(ficheApres.joueur.niveau === 2, "le niveau aussi", String(ficheApres.joueur.niveau));
+  ok(ficheApres.joueur.nom === "Mamadou Ndiaye", "…et le nom, qu'on n'a pas envoyé, n'a pas bougé", ficheApres.joueur.nom);
+  ok(ficheApres.joueur.estGardien === true, "…ni le fait qu'il garde");
+
+  const rNomVide = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { nom: "   " });
+  ok(rNomVide.status === 400, "un nom effacé par mégarde : 400, pas un silence", `HTTP ${rNomVide.status}`);
+  const rPhotoTordue = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { photo: "data:image/svg+xml,<svg/>" });
+  const [, apresPhoto] = await lire(`${C}/joueurs/${neuf}`);
+  ok(
+    rPhotoTordue.ok && apresPhoto.joueur.photo === null,
+    "une photo qui n'est pas un JPEG en data-URL n'entre pas en base",
+    JSON.stringify(apresPhoto.joueur.photo),
+  );
+  const rAbonneParPatch = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { abonne: true });
+  const [, apresAbo] = await lire(`${C}/joueurs/${neuf}`);
+  ok(
+    rAbonneParPatch.status === 400 && apresAbo.joueur.abonne === false,
+    "« je viens tous les lundis » ne se règle pas par ce PATCH — il a son endpoint, et le refus est DIT",
+    `HTTP ${rAbonneParPatch.status}, abonne=${apresAbo.joueur.abonne}`,
+  );
+  const rVide = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", {});
+  ok(
+    rVide.status === 400,
+    "un corps sans rien d'écrivable : 400, jamais le 404 qui ferait croire à une fiche disparue",
+    `HTTP ${rVide.status}`,
+  );
+
+  console.log("\n— archiver, puis faire revenir —");
+  const rArchive = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: true });
+  const [, apresArchive] = await lire(`${C}/effectif`);
+  ok(
+    rArchive.ok && apresArchive.joueurs.find((j) => j.id === neuf)?.archive === true,
+    "archivé, et toujours dans la réponse pour pouvoir revenir",
+  );
+  ok(
+    apresArchive.actifs === apresNeuf.actifs - 1,
+    "le compte du vestiaire le retire",
+    `${apresNeuf.actifs} → ${apresArchive.actifs}`,
+  );
+  const rRetour = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: false });
+  const [, apresRetour] = await lire(`${C}/effectif`);
+  ok(
+    rRetour.ok && apresRetour.actifs === apresNeuf.actifs,
+    "…et il revient au complet",
+    `${apresArchive.actifs} → ${apresRetour.actifs}`,
+  );
+  const rArchiveTordue = await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: "oui" });
+  ok(rArchiveTordue.status === 400, "une valeur d'archivage qui n'est pas un booléen : 400", `HTTP ${rArchiveTordue.status}`);
+  const rPatchFantome = await envoyer(`${C}/joueurs/joueur-qui-nexiste-pas`, "PATCH", { niveau: 4 });
+  ok(rPatchFantome.status === 404, "modifier un joueur inconnu : 404", `HTTP ${rPatchFantome.status}`);
+  // On laisse la scène comme on l'a trouvée : la fiche d'essai repart au fond
+  // du vestiaire. `jeu-dessai.mjs` la supprime au prochain passage.
+  await envoyer(`${C}/joueurs/${neuf}`, "PATCH", { archive: true });
 
   // --- 3 ter. L'écran des stats ----------------------------------------------
 
@@ -443,6 +559,23 @@ async function main() {
       });
       ok(res.status === 404, `${nom(chemin)} : 404, pas 403`, `HTTP ${res.status}`);
     }
+    // Écrire dans le vestiaire d'un club dont on n'est pas membre : même
+    // règle, et il ne suffit pas qu'un GET soit gardé — c'est le POST qui
+    // ajoute une ligne en base.
+    const rPostIntrus = await fetch(`${BASE}${C}/joueurs`, {
+      method: "POST",
+      headers: { cookie: cIntrus, origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify({ nom: "Intrus" }),
+    });
+    ok(rPostIntrus.status === 404, "POST joueurs par un étranger : 404, pas 403", `HTTP ${rPostIntrus.status}`);
+    const rPatchIntrus = await fetch(`${BASE}${C}/joueurs/joueur-essai-1`, {
+      method: "PATCH",
+      headers: { cookie: cIntrus, origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify({ niveau: 1 }),
+    });
+    ok(rPatchIntrus.status === 404, "PATCH joueurs/[id] par un étranger : 404, pas 403", `HTTP ${rPatchIntrus.status}`);
+    const [, intact] = await lire(`${C}/joueurs/joueur-essai-1`);
+    ok(intact.joueur.niveau === 3, "…et la fiche visée n'a pas bougé", String(intact.joueur.niveau));
   }
 
   console.log(rates === 0 ? "\nTOUT VERT" : `\n${rates} ÉCHEC(S)`);

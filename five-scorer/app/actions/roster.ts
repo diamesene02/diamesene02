@@ -4,50 +4,15 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { idsValides } from "@/lib/ids";
+import { type EntreeJoueur, nettoyerJoueur } from "@/lib/joueur";
 
-export type PlayerInput = {
-  name?: string;
-  nickname?: string | null;
-  skill?: number;
-  isGk?: boolean;
-  isGuest?: boolean;
-  /// Data-URL JPEG carrée, réduite sur l'appareil (cf. PhotoJoueur).
-  /// `null` retire la photo.
-  photo?: string | null;
-  /// « Je viens tous les lundis » (cf. lib/presences).
-  abonne?: boolean;
-};
+/// Le type et la règle de nettoyage vivent dans `lib/joueur.ts` : les routes
+/// d'API du mobile écrivent les mêmes fiches, et un fichier `"use server"` ne
+/// s'importe pas depuis une route. `PlayerInput` reste exporté sous son nom —
+/// c'est celui qu'utilisent les écrans du site.
+export type PlayerInput = EntreeJoueur;
 
-/// La photo arrive du client : on ne la croit pas sur parole.
-///
-/// Seul un JPEG en data-URL est accepté, et sous 200 ko — le composant en
-/// produit une vingtaine. Sans ce plafond, n'importe qui pourrait pousser
-/// plusieurs mégaoctets dans une colonne texte à chaque enregistrement de
-/// fiche, et la lire ensuite sur toutes les pages du club.
-const PHOTO_MAX = 200_000;
-
-function photoValide(v: string): boolean {
-  return v.startsWith("data:image/jpeg;base64,") && v.length <= PHOTO_MAX;
-}
-
-function sanitize(input: PlayerInput) {
-  const name = input.name?.trim().slice(0, 60);
-  return {
-    ...(name ? { name } : {}),
-    ...(input.nickname !== undefined
-      ? { nickname: input.nickname?.trim().slice(0, 40) || null }
-      : {}),
-    ...(input.skill !== undefined
-      ? { skill: Math.min(5, Math.max(1, Math.round(input.skill))) }
-      : {}),
-    ...(input.isGk !== undefined ? { isGk: input.isGk } : {}),
-    ...(input.isGuest !== undefined ? { isGuest: input.isGuest } : {}),
-    ...(input.photo !== undefined
-      ? { photo: input.photo && photoValide(input.photo) ? input.photo : null }
-      : {}),
-    ...(input.abonne !== undefined ? { abonne: input.abonne } : {}),
-  };
-}
+const sanitize = nettoyerJoueur;
 
 /// S'abonner aux lundis, ou s'en désabonner.
 ///

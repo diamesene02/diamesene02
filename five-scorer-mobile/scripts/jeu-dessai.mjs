@@ -142,6 +142,15 @@ async function main() {
   // `@@unique([clubId, userId])` — c'est le premier mur qu'on a rencontré ici,
   // et c'est une bonne nouvelle : la règle « un compte, un joueur par club »
   // tient. On le récupère, on ne le refait pas.
+  // Les fiches laissées par le parcours d'écriture (`parcours-lecture.mjs`
+  // ajoute un joueur pour éprouver le formulaire du vestiaire). Sans ce
+  // balayage, chaque exécution en laisse une de plus et les comptes du
+  // vestiaire — « 12 joueurs », « un seul Mamadou » — cessent d'être
+  // vérifiables. Le jeu d'essai remet la scène en état ; c'est son travail.
+  await prisma.player.deleteMany({
+    where: { clubId, id: { startsWith: "joueur-essai-neuf" } },
+  });
+
   const joueurs = [
     await prisma.player.findFirstOrThrow({
       where: { clubId, userId: moi.id },

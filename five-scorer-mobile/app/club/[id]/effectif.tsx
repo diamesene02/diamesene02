@@ -114,6 +114,25 @@ export default function Effectif() {
           </View>
         )}
 
+        {/* « + Ajouter un joueur » vit SOUS la liste, pas dans la barre du
+            haut : le geste courant ici est de consulter, et un nouveau arrive
+            deux ou trois fois par saison. Réservé aux gérants — c'est le
+            serveur qui tranche, l'écran ne fait que ne pas mentir. */}
+        {donnees?.peutGerer && (
+          <Pressable
+            onPress={() =>
+              router.push({ pathname: "/joueur/edition", params: { clubId: id } })
+            }
+            style={({ pressed }) => [
+              s.ajouter,
+              { borderColor: t.cb },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={[s.ajouterTexte, { color: t.ink }]}>+ Ajouter un joueur</Text>
+          </Pressable>
+        )}
+
         {archives.length > 0 && (
           <>
             <Pressable onPress={() => setArchivesOuverts((o) => !o)} style={s.deplier}>
@@ -201,6 +220,17 @@ const s = StyleSheet.create({
   sousLigne: { flexDirection: "row", alignItems: "center", gap: 10 },
   chiffres: { fontSize: 13, flexShrink: 1 },
   chevron: { fontSize: 20 },
+
+  ajouter: {
+    marginTop: 16,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ajouterTexte: { fontSize: 16, fontWeight: "600" },
 
   deplier: { paddingVertical: 14, alignItems: "center" },
   deplierTexte: { fontSize: 15, fontWeight: "600" },
