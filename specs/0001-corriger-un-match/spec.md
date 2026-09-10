@@ -1,6 +1,10 @@
 # 0001 — Corriger un match après coup
 
-*État : à valider · Écrit le 10 septembre 2026, révisé le même jour après le balayage « Après le match »*
+*État : **questions tranchées, prête pour le plan** · Écrite le 10 septembre 2026,
+révisée le même jour après le balayage « Après le match », puis passée à la garde
+`/clarifier` — les huit questions sont fermées : **une par le code** (Q1),
+**quatre par Ibrahima** (Q2, Q5, Q6, Q8) et **trois tranchées ici** parce
+qu'elles n'avaient qu'une réponse défendable (Q3, Q4, Q7).*
 
 ## Le problème
 
@@ -68,38 +72,100 @@ le soir même, en se rhabillant, quand quelqu'un dit « attends, c'était 4-3 »
 - **Corriger un match d'une saison clôturée** sans le dire très fort : le
   classement d'une saison finie a déjà été lu et commenté.
 
-## Questions ouvertes — à trancher avant le plan
+## Questions tranchées
 
-- **Q1. Qui a le droit ?** Le serveur dit aujourd'hui `canManage` (le
-  capitaine et les admins). La spec proposait `canScore` (celui qui a saisi).
-  Le code a tranché avant nous, et sa raison tient : « modifier un match
-  terminé = correction rétroactive → admin ». *Proposition révisée : on garde
-  `canManage`, et un membre qui constate l'erreur peut la SIGNALER au
-  capitaine depuis le récap — pas la corriger.*
-- **Q2. Jusqu'à quand ?** Toujours, ou une fenêtre ? Le calendrier de la saison
-  utilise déjà six semaines pour « on peut encore rattraper une soirée »
-  (`app/api/clubs/[clubId]/saison/route.ts`). *Proposition : la même fenêtre,
-  au-delà c'est un geste d'admin.*
-- **Q3. Où ça vit ?** Sur le récap du match, ou dans un écran à part ?
-  *Proposition : sur le récap, qui est déjà l'endroit où l'on constate
-  l'erreur.*
-- **Q4. Hors-ligne ?** La correction passe-t-elle par la file d'attente comme
-  la saisie en direct, ou exige-t-elle le réseau comme les réglages ? *La
-  saisie en direct est hors-ligne parce qu'on est au gymnase ; une correction
-  se fait au chaud. Proposition : réseau exigé.*
-- **Q5. Un but ajouté après coup n'a pas de minute.** On la demande, on le met
-  en fin de chronologie, ou à une place choisie ? *Proposition : sans minute,
-  en fin de chronologie, marqué « ajouté après coup » — demander une minute
-  qu'on a oubliée, c'est inviter à l'inventer.*
-- **Q6. Le vote de l'homme du match.** Quand un admin le désigne à la main
-  dans un club qui vote, sa désignation prime-t-elle (et ferme le vote), ou le
-  prochain vote l'écrase-t-il ? Aujourd'hui le second (`app/actions/motm.ts`
-  recalcule à chaque voix). *Proposition : la désignation à la main ferme le
-  vote, et le dit.*
-- **Q7. Le « signalement » de Q1.** Un membre qui voit l'erreur : un bouton
-  « Signaler une erreur » qui prévient les admins, ou rien (il le dit sur
-  WhatsApp) ? *Proposition : rien dans cette spec — WhatsApp existe ; on y
-  reviendra avec les notifications.*
+*Garde `/clarifier` passée le 10 septembre 2026. Trois questions l'ont été par
+le code — la preuve est citée. Quatre par Ibrahima le même jour. Aucune ne
+reste ouverte : le plan peut s'écrire.*
+
+- **Q1. Qui a le droit ? → `canManage`.** *Tranchée par le code, pas par nous.*
+  `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:68-73` répond déjà
+  403 « Admin requis pour modifier un match terminé » à qui ne gère pas. La
+  raison tient : modifier un match terminé est une correction rétroactive. On ne
+  la rediscute pas.
+
+- **Q2. Jusqu'à quand ? → six semaines, puis un geste d'admin.** *Ibrahima, le
+  10 septembre 2026.* La même fenêtre que le calendrier utilise déjà pour
+  réclamer une soirée non saisie — `app/api/clubs/[clubId]/saison/route.ts:127`,
+  `42 * 86400_000` — dont le commentaire dit exactement pourquoi : « au-delà de
+  six semaines on se tait, le score, plus personne ne l'a en tête ». Au-delà, la
+  correction reste possible mais demande une confirmation qui **dit** que cette
+  saison a déjà été lue et commentée.
+
+- **Q3. Où ça vit ? → sur le récap du match.** *Tranchée ici, sans le déranger :
+  c'est là qu'on constate l'erreur, et un écran de plus pour un geste qu'on fait
+  deux fois par saison est un écran qu'on ne trouve pas.*
+
+- **Q4. Hors-ligne ? → réseau exigé.** *Tranchée ici.* La saisie en direct est
+  hors-ligne parce qu'on est au gymnase ; une correction se fait au chaud, et
+  rejouée depuis la file elle écraserait un arbitrage que quelqu'un d'autre
+  aurait rendu entre-temps. C'est déjà la règle pour les Stats, la Saison et les
+  Réglages (spec 0000). **Conséquence à tenir :** le refus doit le dire — pas un
+  bouton qui ne réagit pas (constitution, article V).
+
+- **Q5. La minute d'un but ajouté après coup ? → aucune, en fin de chronologie,
+  marqué comme tel.** *Ibrahima, le 10 septembre 2026.* Demander une minute
+  qu'on a oubliée, c'est inviter à l'inventer — et rien ne la distinguerait plus
+  jamais d'une minute réelle.
+
+- **Q6. La désignation à la main contre le vote ? → la désignation ferme le
+  vote, et le dit.** *Ibrahima, le 10 septembre 2026.* Aujourd'hui c'est
+  l'inverse, et en silence : `app/actions/matches.ts:43` écrit `mvpId` **sans
+  regarder `motmMode`**, puis `app/actions/motm.ts:70` recompte à chaque voix et
+  l'écrase. Le récap doit afficher « désigné par le capitaine » et fermer le
+  vote. **Trouvé au passage, à corriger dans le même lot :**
+  `updateMatchDetails` vérifie que l'homme du match est un joueur **du club**
+  (`matches.ts:22`), pas **du match** — on peut donc désigner quelqu'un qui n'a
+  pas joué. La spec 0000 le liste comme une règle tenue par personne.
+
+- **Q7. Le signalement par un membre ? → rien dans cette spec.** *Tranchée ici.*
+  WhatsApp existe et fonctionne. Un bouton qui « prévient les admins » sans
+  qu'aucune notification n'existe dans le produit (spec 0000, Q-E) serait un
+  bouton qui ne fait rien. On y reviendra avec les notifications.
+
+- **Q8. La suppression ? → l'annulation, pour le MATCH seulement, dans ce
+  lot.** *Ibrahima, le 10 septembre 2026.* Le statut `CANCELED` existe déjà
+  (`prisma/schema.prisma:344`) et `app/actions/schedule.ts:103-104` s'en sert —
+  mais seulement sur un match `SCHEDULED`. L'étendre aux matchs terminés est un
+  mot dans une clause `where`, et les statistiques n'ont rien à apprendre :
+  elles ne lisent que `FINISHED` (`lib/stats.ts`), donc un match annulé en sort
+  tout seul. Les **six autres** chemins de suppression dure du dépôt (la soirée
+  et sa cascade sur qui a payé, l'adversaire, le membre, la compo — spec 0000
+  § 7.5) restent ouverts et attendent leur propre lot. C'est un périmètre
+  assumé, pas un oubli (constitution, article X).
+
+## Les cas de la base que ce lot referme
+
+*La spec 0000 est la base ; celle-ci est un delta. Vingt cas, tous vérifiés
+présents dans [`cas.md`](../0000-le-club-et-lapp/cas.md). Quand le lot est
+livré, leur état y passe à `fait`.*
+
+**Corriger un match terminé** — `TRANS-29` (✗ le sujet même de cette spec) ·
+`APRES-11` (⚠ les à-côtés) · `APRES-02` (◐ un but rattrapé avec une minute
+antérieure) · `APRES-52` (✗ corriger la minute d'un but) · `APRES-15` (◐ un
+match saisi le mauvais jour) · `APRES-D3` (⚠ la date corrigée tombe au mauvais
+jour) · `APRES-21` (◐ un nom d'équipe vide ou d'une phrase entière) ·
+`APRES-50` (◐ le bilan sous l'écusson après correction d'un nom).
+
+**Annuler au lieu de supprimer** — `APRES-25` (⚠ un admin supprime un match
+terminé) · `APRES-26` (⚠ la suppression échoue) · `APRES-51` (◐ retrouver un
+match annulé trois semaines après) · `APRES-24` (✗ revenir sur une annulation) ·
+`APRES-27` (◐ un match supprimé pendant qu'un téléphone a encore ses buts en
+file).
+
+**L'homme du match** — `APRES-17` (⚠ l'admin le pose dans un club qui vote) ·
+`APRES-18` (◐ le désigné n'a pas joué ce match) · `APRES-D2` (⚠ attribué par
+erreur à quelqu'un qui n'était pas là) · `TRANS-22` (◐ le formulaire du site
+envoie un homme du match ou une saison).
+
+**La fenêtre et les droits** — `APRES-14` (⚠ corriger un match d'une saison
+clôturée) · `APRES-12` (◐ celui qui a saisi constate l'erreur et ne peut rien) ·
+`APRES-30` (◐ deux admins corrigent le même match en même temps).
+
+**Explicitement PAS dans ce lot**, et c'est une décision (constitution,
+article X) : les six autres chemins de suppression dure — la soirée et sa
+cascade sur qui a payé (`SOIREE-51`, `SOIREE-D3`), l'adversaire (`ADV-04`), le
+membre, la compo. Ils restent `⚠ faux` dans la base jusqu'à leur propre lot.
 
 ## À quoi on saura que c'est fait
 
@@ -113,7 +179,20 @@ le soir même, en se rhabillant, quand quelqu'un dit « attends, c'était 4-3 »
       affiche, sur l'app ET sur le site.
 - [ ] Un but ajouté après coup apparaît en fin de chronologie, marqué comme tel.
 - [ ] Un match terminé s'ANNULE (barré, hors des stats, avec un motif) ; le
-      bouton « Supprimer » et la route `DELETE` ont disparu du site.
+      bouton « Supprimer » et la route `DELETE` ont disparu du site ET de l'app.
+      L'annulation réutilise le statut `CANCELED` qui existe déjà
+      (`prisma/schema.prisma:344`) : `lib/stats.ts` ne lit que `FINISHED`, donc
+      un match annulé sort des chiffres sans qu'on touche aux statistiques.
+- [ ] Passé six semaines (`42 * 86400_000`, la fenêtre du calendrier), corriger
+      demande une confirmation qui DIT que cette saison a déjà été lue — pas un
+      « Êtes-vous sûr ? » (constitution, article V).
+- [ ] Une désignation d'homme du match à la main FERME le vote, et le récap
+      affiche « désigné par le capitaine ». Un second vote ne l'écrase plus.
+- [ ] On ne peut pas désigner comme homme du match quelqu'un qui n'a pas joué
+      ce match — le contrôle porte sur la FEUILLE, pas sur le club
+      (`app/actions/matches.ts:22` vérifie aujourd'hui le club).
+- [ ] Une correction tentée sans réseau le dit et ne fait rien à moitié ; elle
+      ne part PAS dans la file d'attente.
 - [ ] Un match annulé peut être rétabli, et revient dans les stats.
 - [ ] Un membre sans droit reçoit un refus explicite, pas un écran qui ne
       réagit pas.
