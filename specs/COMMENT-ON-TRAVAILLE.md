@@ -80,10 +80,42 @@ Elles s'ouvrent avec une commande, et elles ne sont pas facultatives.
 base**. C'est la relecture adverse, rendue systématique au lieu d'être un coup
 de chance.
 
+## spec-kit est installé — et voilà comment il cohabite
+
+`specify-cli 1.0.6` est posé à la racine du dépôt (`specify init --here
+--integration claude`, 10 septembre 2026). Il n'a **rien écrasé** : vérifié dans
+un bac à sable d'abord, il ne crée que `.specify/` et `.claude/skills/`, et ne
+touche jamais à `specs/`.
+
+**Ce qu'il apporte.** Dix compétences — `/speckit-specify`, `/speckit-plan`,
+`/speckit-tasks`, `/speckit-implement`, plus `/speckit-clarify`,
+`/speckit-analyze`, `/speckit-checklist`, `/speckit-converge`. Elles lisent
+toutes la constitution.
+
+**Deux ajustements faits à l'installation :**
+
+1. **La constitution est une seule et même chose des deux côtés.**
+   `.specify/memory/constitution.md` est la source (c'est là que les dix
+   compétences la lisent) ; `specs/CONSTITUTION.md` est un **lien symbolique**
+   vers elle. Deux copies auraient violé l'article III de la constitution
+   elle-même.
+2. **La numérotation est passée à quatre chiffres** (`printf "%04d"` dans
+   `.specify/scripts/bash/create-new-feature.sh`), pour que le prochain lot
+   s'appelle `0002-…` et non `002-…` à côté de `0000-` et `0001-`.
+
+Les compétences sont visibles depuis `five-scorer/` et `five-scorer-mobile/`
+par un lien vers `.claude/skills` de la racine — le dépôt a deux répertoires de
+travail, l'outil n'en connaît qu'un.
+
+**Quand utiliser quoi.**
+
+| | |
+|---|---|
+| `/speckit-*` | Un lot neuf, quand on veut la rigueur complète et les gabarits. Ils écrivent en anglais par défaut — **exiger le français dans la demande**. |
+| `/clarifier` et `/analyser` | Nos deux gardes, en français, pour les specs écrites à la main (0000, 0001). `/analyser` va plus loin que `/speckit-analyze` : elle rouvre chaque `fichier:ligne` cité et recompte les nombres repris d'un autre document. |
+
 ## Ce qu'on n'a pas pris, et pourquoi
 
-- **Le CLI de spec-kit** (`.specify/`, Python, gabarits anglais) : il installerait
-  un second `specs/` à côté du nôtre, en anglais, pour faire ce que nos quatre
-  fichiers font déjà. Ses bonnes idées sont ci-dessus.
-- **`openspec/changes/`** : même raison — c'est notre `specs/NNNN-…/`.
+- **`openspec/changes/`** : c'est notre `specs/NNNN-…/`. On lui a pris son idée
+  — base et deltas — pas son répertoire.
 - **BMAD-METHOD** : douze agents pour simuler une équipe agile. On est un.
