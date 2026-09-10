@@ -55,6 +55,13 @@ const INVITE_MS = 15_000;
 /// était pour le navigateur.
 const APPUI_LONG_MS = 500;
 
+/// L'éclair de fond d'une tuile qui vient de changer de colonne.
+///
+/// 400 ms, comme l'animation `liveArrive` du site. En mode correction, les
+/// deux colonnes se ressemblent : sans cette trace, on ne sait pas si le tap a
+/// déplacé le joueur ou si on a manqué la tuile.
+const ECLAIR_MS = 400;
+
 type Vue = Awaited<ReturnType<ReturnType<typeof useNoyau>["local"]["getLocalMatch"]>>;
 type Invite = {
   eventId: string;
@@ -87,8 +94,21 @@ export default function Match() {
   const [confirmeFin, setConfirmeFin] = useState(false);
   const [mvpOuvert, setMvpOuvert] = useState(false);
   const [mvpChoisi, setMvpChoisi] = useState<string | null>(null);
+  // Le mode correction de composition. Les tuiles cessent de compter des buts
+  // et ne servent plus qu'à envoyer un joueur dans l'autre camp : c'est toute
+  // la raison d'un mode. Un même tap ne peut pas vouloir dire deux choses
+  // quand on le fait vingt-sept fois dans une soirée, souvent sans regarder.
+  const [compo, setCompo] = useState(false);
+  // Le vivier du club, hors de ce match : le retardataire de la 10e minute.
+  const [vivier, setVivier] = useState<{ id: string; name: string }[]>([]);
+  const [ajoutOuvert, setAjoutOuvert] = useState(false);
+  // Le garde anti-équipe-vide se déclenche par un geste ordinaire — le dernier
+  // joueur d'une colonne. Muet, le tap passerait pour un bogue de l'app.
+  const [refus, setRefus] = useState<string | null>(null);
+  const [bouge, setBouge] = useState<string | null>(null);
   const [, setTic] = useState(0);
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const minuteurBouge = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ce qu'affiche la feuille pendant qu'elle redescend. Sans cette mémoire,
   // fermer le choix d'un carton ferait clignoter « Événements » le temps de
   // l'animation : le contenu disparaît avant le panneau.
@@ -138,9 +158,28 @@ export default function Match() {
     return () => clearInterval(h);
   }, [tourne, retro]);
 
+  // Le vivier se relit à chaque ouverture du mode ET après chaque changement
+  // de la feuille : celui qu'on vient de faire entrer doit quitter la liste
+  // des absents, sinon on le fait entrer deux fois.
+  useEffect(() => {
+    if (!compo) {
+      setAjoutOuvert(false);
+      setRefus(null);
+      return;
+    }
+    let vivant = true;
+    void local.joueursAbsentsDuMatch(id).then((v) => {
+      if (vivant) setVivier(v);
+    });
+    return () => {
+      vivant = false;
+    };
+  }, [compo, id, local, vue]);
+
   useEffect(
     () => () => {
       if (minuteur.current) clearTimeout(minuteur.current);
+      if (minuteurBouge.current) clearTimeout(minuteurBouge.current);
     },
     [],
   );
@@ -166,6 +205,11 @@ export default function Match() {
   const depasse =
     club?.matchDurationMin != null && ecoule > club.matchDurationMin * 60_000;
   const enJeu = match.status === "LIVE";
+  // Sur un match contre un adversaire extérieur, l'équipe B n'est pas une
+  // équipe du club : il n'y a personne à y envoyer, et la couche locale refuse
+  // le déplacement. Le mode n'a donc pas lieu d'exister sur ces matchs.
+  const corrigeable = enJeu && match.kind !== "EXTERNAL";
+  const enCorrection = compo && corrigeable;
 
   function armerInvite(x: Invite) {
     if (minuteur.current) clearTimeout(minuteur.current);
@@ -247,6 +291,52 @@ export default function Match() {
     setFeuille(null);
     Vibration.vibrate(18);
     await local.addEvent(match!.id, { type: carton, team: camp, playerId: joueurId });
+    await relire();
+    void drain.relancer();
+  }
+
+  /// L'éclair qui suit une tuile d'une colonne à l'autre.
+  function signaler(joueurId: string) {
+    if (minuteurBouge.current) clearTimeout(minuteurBouge.current);
+    setBouge(joueurId);
+    minuteurBouge.current = setTimeout(
+      () => setBouge((x) => (x === joueurId ? null : x)),
+      ECLAIR_MS,
+    );
+  }
+
+  /// Envoie un joueur dans l'autre camp. Appelé depuis les tuiles, et
+  /// uniquement en mode correction : hors de ce mode, un tap est un but.
+  ///
+  /// Les buts déjà marqués gardent leur camp d'origine — ils ont bien été
+  /// marqués pour celui-là. C'est la couche locale qui le garantit.
+  async function deplacer(joueur: LivePlayer, depuis: "A" | "B") {
+    try {
+      await local.movePlayerTeam(match!.id, joueur.id, depuis === "A" ? "B" : "A");
+    } catch (e) {
+      setRefus(e instanceof Error ? e.message : "Déplacement refusé");
+      return;
+    }
+    setRefus(null);
+    Vibration.vibrate(18);
+    signaler(joueur.id);
+    await relire();
+    void drain.relancer();
+  }
+
+  /// Le retardataire. Il arrive à la 10e minute, il n'est sur aucune feuille,
+  /// et sans ce geste ses buts étaient refusés (« Joueur non inscrit »).
+  async function faireEntrer(joueurId: string, camp: "A" | "B") {
+    setAjoutOuvert(false);
+    try {
+      await local.ajouterJoueurAuMatch(match!.id, joueurId, camp);
+    } catch (e) {
+      setRefus(e instanceof Error ? e.message : "Entrée refusée");
+      return;
+    }
+    setRefus(null);
+    Vibration.vibrate(18);
+    signaler(joueurId);
     await relire();
     void drain.relancer();
   }
@@ -388,21 +478,103 @@ export default function Match() {
         ))}
       </View>
 
+      {/* Corriger la compo est un moment distinct du match, avec sa propre
+          bande : jamais sur une rangée de joueur. C'est ce qui garde la rangée
+          entièrement dédiée au but. */}
+      {enCorrection && (
+        <View style={[s.bandeau, { borderColor: t.cb }]}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[s.bandeauTitre, { color: t.ink }]}>Corriger la composition</Text>
+            <Text style={[s.bandeauAide, { color: t.i2 }]}>
+              Tape un joueur pour l&apos;envoyer dans l&apos;autre équipe. Aucun but ne
+              se compte tant que ce bandeau est là.
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setCompo(false)}
+            style={({ pressed }) => [
+              s.termine,
+              { backgroundColor: t.bt, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Text style={[s.termineTexte, { color: t.bf }]}>Terminé</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {enCorrection && refus && (
+        <Text style={[s.refus, { color: ROUGE }]}>{refus}</Text>
+      )}
+
       <ScrollView contentContainerStyle={s.corps}>
+        {/* Le retardataire, au-dessus des colonnes comme sur le site : c'est
+            une liste de noms, elle doit pouvoir défiler avec le reste. */}
+        {enCorrection && vivier.length > 0 && (
+          <View style={s.ajout}>
+            {ajoutOuvert ? (
+              <>
+                <Text style={[s.ajoutTitre, { color: t.ink }]}>
+                  Il arrive en retard — dans quelle équipe ?
+                </Text>
+                {vivier.map((v) => (
+                  <View key={v.id} style={s.ajoutLigne}>
+                    <Text style={[s.ajoutNom, { color: t.ink }]} numberOfLines={1}>
+                      {v.name}
+                    </Text>
+                    {equipes.map((e) => (
+                      <Pressable
+                        key={e.camp}
+                        onPress={() => void faireEntrer(v.id, e.camp)}
+                        style={({ pressed }) => [
+                          s.ajoutBouton,
+                          { backgroundColor: e.couleur, opacity: pressed ? 0.8 : 1 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.ajoutBoutonTexte,
+                            { color: e.camp === "A" ? (t.taF ?? "#fff") : (t.tbF ?? "#fff") },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {e.nom}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ))}
+                <Pressable onPress={() => setAjoutOuvert(false)} style={s.entree} hitSlop={6}>
+                  <Text style={[s.entreeTexte, { color: t.i2 }]}>Fermer</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable onPress={() => setAjoutOuvert(true)} style={s.entree} hitSlop={6}>
+                <Text style={[s.entreeTexte, { color: t.i2 }]}>+ Faire entrer un joueur</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
         <View style={s.cartes}>
           {equipes.map((e) => (
             <View key={e.camp} style={s.carte}>
               {e.joueurs.map((j, i) => (
                 <Pressable
                   key={j.id}
-                  onPress={() => void marquer(e.camp, j)}
-                  onLongPress={() => void annulerSonDernier(j)}
+                  onPress={() =>
+                    enCorrection ? void deplacer(j, e.camp) : void marquer(e.camp, j)
+                  }
+                  onLongPress={enCorrection ? undefined : () => void annulerSonDernier(j)}
                   delayLongPress={APPUI_LONG_MS}
                   disabled={!enJeu}
-                  accessibilityLabel={`${j.name} — but (maintenir pour annuler)`}
+                  accessibilityLabel={
+                    enCorrection
+                      ? `${j.name} — envoyer dans l'autre équipe`
+                      : `${j.name} — but (maintenir pour annuler)`
+                  }
                   style={({ pressed }) => [
                     s.joueur,
                     i > 0 && s.separe,
+                    bouge === j.id && s.arrive,
                     pressed && { backgroundColor: e.couleur + "33" },
                   ]}
                 >
@@ -416,13 +588,26 @@ export default function Match() {
                   <Text style={[s.nomJoueur, { color: t.ink }]} numberOfLines={1}>
                     {j.name}
                   </Text>
-                  {/* Qui est déjà averti, qui est sorti : ça se lit sur la
-                      tuile, pas en ouvrant la chronologie. */}
-                  {j.yellow > 0 && <Marque couleur={JAUNE} nombre={j.yellow} />}
-                  {j.red > 0 && <Marque couleur={ROUGE} nombre={j.red} />}
-                  <Text style={[s.buts, { color: t.ink }]}>{j.goals || ""}</Text>
+                  {/* En correction, la tuile ne dit plus qu'une chose : de
+                      quel côté ce tap enverrait le joueur. Les buts et les
+                      cartons se liraient comme des cibles. */}
+                  {enCorrection ? (
+                    <Text style={[s.fleche, { color: t.i2 }]}>
+                      {e.camp === "A" ? "→" : "←"}
+                    </Text>
+                  ) : (
+                    <>
+                      {/* Qui est déjà averti, qui est sorti : ça se lit sur la
+                          tuile, pas en ouvrant la chronologie. */}
+                      {j.yellow > 0 && <Marque couleur={JAUNE} nombre={j.yellow} />}
+                      {j.red > 0 && <Marque couleur={ROUGE} nombre={j.red} />}
+                      <Text style={[s.buts, { color: t.ink }]}>{j.goals || ""}</Text>
+                    </>
+                  )}
                 </Pressable>
               ))}
+              {!enCorrection && (
+                <>
               <Pressable
                 onPress={() => void contreSonCamp(e.camp)}
                 disabled={!enJeu}
@@ -459,9 +644,16 @@ export default function Match() {
                   ))}
                 </View>
               )}
+                </>
+              )}
             </View>
           ))}
         </View>
+        {corrigeable && !compo && (
+          <Pressable onPress={() => setCompo(true)} style={s.entree} hitSlop={6}>
+            <Text style={[s.entreeTexte, { color: t.i2 }]}>Corriger la composition ›</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       {invite && (
@@ -880,6 +1072,52 @@ const s = StyleSheet.create({
   cartonPetit: { width: 9, height: 13, borderRadius: 2 },
   marqueCarton: { flexDirection: "row", alignItems: "center", gap: 2 },
   marqueNombre: { fontSize: 12, fontWeight: "700" },
+
+  // Le mode correction : le bandeau, la bande du retardataire, l'entrée.
+  // Valeurs relevées sur `.live-compo`, `.live-ajout` et `.live-compo-entree`.
+  bandeau: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 14,
+    marginTop: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  bandeauTitre: { fontSize: 17, fontWeight: "600" },
+  bandeauAide: { fontSize: 13 },
+  termine: { height: 44, paddingHorizontal: 16, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  termineTexte: { fontSize: 17, fontWeight: "600" },
+  refus: { fontSize: 13, fontWeight: "600", paddingHorizontal: 20, paddingTop: 8 },
+  // La tuile qui vient de changer de colonne. Le site l'anime en fondu depuis
+  // un fond clair ; ici c'est le même fond, tenu 400 ms puis retiré — sans
+  // Reanimated, qu'un éclair de cette durée ne justifie pas.
+  arrive: { backgroundColor: "rgba(255,255,255,0.25)" },
+  fleche: { fontSize: 20, fontWeight: "600", minWidth: 14, textAlign: "right" },
+  ajout: {
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  ajoutTitre: { fontSize: 15, fontWeight: "600", marginBottom: 8 },
+  ajoutLigne: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  ajoutNom: { flex: 1, minWidth: 0, fontSize: 15 },
+  ajoutBouton: {
+    height: 34,
+    maxWidth: 110,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ajoutBoutonTexte: { fontSize: 13, fontWeight: "600" },
+  entree: { alignSelf: "center", paddingVertical: 4, paddingHorizontal: 12, marginTop: 10 },
+  entreeTexte: { fontSize: 15, fontWeight: "600" },
 
   invite: {
     paddingHorizontal: 14,

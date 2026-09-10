@@ -356,7 +356,7 @@ Règles de lecture pour l'agent :
 | **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `NEXT_DIST_DIR=.next-verif npx next build` en 0 ; puis, serveur `next dev` lancé sur une base locale : `node scripts/jeu-dessai.mjs && node scripts/parcours-lecture.mjs` (depuis `five-scorer-mobile/`) → **TOUT VERT**, 39 vérifications. **`pnpm test:api` n'existe pas** — le plan l'inventait ; il n'y a aucun harnais Vitest côté web, et l'étape 9 avait déjà dû s'en passer. | **fait** — les trois GET, plus le jeu d'essai qui les rend vérifiables dans le nuage. La forme des réponses est celle de `LocalMatch` / `LocalParticipant` / `LocalEvent` (`lib/outbox/types.ts`) : chaque bloc se recopie tel quel dans sa table SQLite, sans couche de traduction. **Écarts assumés** : (a) les votes MOTM sont rendus **comptés**, jamais nominatifs — `{ total, byPlayer, mine }` — là où le plan disait « votes » ; (b) `?status=` refuse un statut inconnu par un **400** au lieu de l'ignorer ; (c) chaque participant porte déjà sa clé composée `matchId::playerId`, pour que la règle de `pKey` n'existe pas en deux exemplaires. |
 | **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx tsc --noEmit` vert, et surtout : la boucle rejouée à la main sur le simulateur, avec vérification en base. | **fait** — `app/compo.tsx`. **Écart assumé au site** : les abonnés arrivent présélectionnés et un bouton « Tous / Personne » double la liste, parce que taper quatorze joueurs un par un debout au bord du terrain est le geste le plus coûteux de la soirée. |
 | **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. | `npx tsc --noEmit` vert ; `grep -rc "suppressTapUntil" five-scorer-mobile/` → `0` ; geste vérifié sur simulateur. | **fait** — `app/match/[id].tsx`. Tap = but, appui long 500 ms = retirer son dernier but ; le garde `suppressTapUntil` du web a bien disparu, React Native n'émet pas `onPress` après `onLongPress`. Horloge dérivée du coup d'envoi, tic de 500 ms. Pas de `useKeepAwake` ni de son : `expo-keep-awake` et les fichiers audio restent à faire. |
-| **15** | **Écran « jouer », partie 2** : le score, la barre d'invite 15 s, les chemins d'annulation, la confirmation de fin. | `npx tsc --noEmit` vert ; parcours rejoué sur simulateur avec contrôle en base après chaque geste. | **en cours** — faits : le tableau de marque (le camp qui perd s'efface), l'invite 15 s pour la passe décisive ET pour l'auteur d'un csc, deux chemins d'annulation (appui long sur la tuile, bouton « Annuler » pour le dernier événement), la confirmation de fin ; **et, le 9 septembre 22:1x** : la chronologie (feuille du bas, le plus récent en haut, « Annuler » par ligne), les cartons (jaune/rouge par carte d'équipe, si `trackCards`, avec le compteur sur la tuile), l'élection du MVP (feuille du bas, seulement en `motmMode === "ADMIN"`, facultative), et `gestureEnabled: false` sur la route. **Reste** : la correction de composition en cours de match (`movePlayerTeam` / `ajouterJoueurAuMatch` existent et sont testés — il manque l'écran). **Et reste la vérification que le nuage ne peut pas faire** : ces écrans n'ont été VUS par personne (voir le journal du 9 septembre 22:1x, « une règle que le nuage ne peut pas tenir »). |
+| **15** | **Écran « jouer », partie 2** : le score, la barre d'invite 15 s, les chemins d'annulation, la confirmation de fin. | `npx tsc --noEmit` vert ; parcours rejoué sur simulateur avec contrôle en base après chaque geste. | **en cours** — faits : le tableau de marque (le camp qui perd s'efface), l'invite 15 s pour la passe décisive ET pour l'auteur d'un csc, deux chemins d'annulation (appui long sur la tuile, bouton « Annuler » pour le dernier événement), la confirmation de fin ; **et, le 9 septembre 22:1x** : la chronologie (feuille du bas, le plus récent en haut, « Annuler » par ligne), les cartons (jaune/rouge par carte d'équipe, si `trackCards`, avec le compteur sur la tuile), l'élection du MVP (feuille du bas, seulement en `motmMode === "ADMIN"`, facultative), et `gestureEnabled: false` sur la route. **Et, le 10 septembre 00:1x** : la correction de composition en cours de match — bandeau « Corriger la composition », tap sur une tuile pour envoyer un joueur dans l'autre camp, « + Faire entrer un joueur » pour le retardataire, éclair de 400 ms sur la tuile déplacée, refus du garde anti-équipe-vide affiché en clair. **Tout le code de l'étape est écrit.** Ce qui la sépare de `fait` n'est plus du code : c'est la **vérification visuelle que le nuage ne peut pas faire** — ces écrans n'ont été VUS par personne (§6, ligne 12). |
 | **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
 | **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **fait** — par EAS, pas en local. Build `9727ecbd`, profil `lundi`, terminé. Vérifié en téléchargeant l'`.ipa` : bundle `com.ibc.fivescorer`, signé par l'équipe payante (`M283R456KQ.com.ibc.fivescorer`), profil ad hoc n'autorisant **que** l'iPhone de Diame, `main.jsbundle` de 2,6 Mo embarqué (donc démarre sans Metro), schéma `fivescorer` enregistré, ATS `NSAllowsArbitraryLoads=false`. Le build local reste impossible sur cette machine — voir le journal. |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
@@ -512,6 +512,101 @@ Un agent ne peut trancher aucune de ces lignes.
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
 
+### 2026-09-10 00:1x — Étape 15 : le retardataire et le mauvais camp
+
+- **État** : étape 15 `en cours` → `en cours`. **Tout le code de l'étape est
+  écrit** ; ce qui reste n'est pas du code, c'est la revue visuelle que le nuage
+  ne peut pas faire (§6, ligne 12, toujours sans réponse). La prochaine
+  exécution peut passer à l'étape 16 sans rien laisser derrière elle.
+- **Rien n'était cassé au départ**, vérifié avant d'ajouter quoi que ce soit :
+  `npx tsc --noEmit` en 0 et 189 tests verts sur un `node_modules` réinstallé
+  de zéro (le conteneur arrive vide : `npm install` dans `five-scorer-mobile/`
+  et `pnpm install --frozen-lockfile` dans `five-scorer/` font partie de
+  l'exécution, pas de la mise en route).
+- **Ce que ça règle, et c'est le dernier trou du lundi soir** : deux copains
+  dans la même équipe qu'on ne voit qu'au coup d'envoi, et le type qui arrive à
+  la 10ᵉ minute. Les deux se terminaient de la même façon — terminer le match
+  et tout ressaisir — parce que `addEvent` refuse les buts d'un joueur non
+  inscrit. La couche locale savait déjà le faire (`movePlayerTeam`,
+  `ajouterJoueurAuMatch`, `joueursAbsentsDuMatch`, testés à l'étape 11) ;
+  il n'y avait aucun geste pour l'atteindre.
+- **Un mode, pas un geste de plus sur la tuile.** C'est le choix du site et il
+  se défend seul : la rangée d'un joueur porte le tap le plus fait de la
+  soirée. Lui donner un second sens — même sous un appui long, déjà pris par
+  l'annulation — c'est un but non compté un lundi sur trois. Donc un bandeau
+  qui dit ce qui est en cours (« Aucun but ne se compte tant que ce bandeau est
+  là »), des tuiles qui ne montrent plus que la flèche du camp d'arrivée, ni
+  csc ni cartons pendant ce temps, et un bouton « Terminé » pour en sortir.
+- **Ce que j'ai ajouté et que le site n'a pas** : le message de refus, affiché
+  sous le bandeau. Le garde anti-équipe-vide (« Il faut au moins un joueur de
+  chaque côté ») se déclenche par un geste parfaitement ordinaire — le dernier
+  joueur d'une colonne — et le site le range dans son `setError` général. Ici,
+  muet, le tap passerait pour une tuile mal visée : on retape, et on ne
+  comprend pas. Les deux actions attrapent l'exception et l'écrivent en rouge.
+- **L'éclair de la tuile déplacée** est un fond clair tenu 400 ms puis retiré,
+  là où le site fait un fondu `@keyframes liveArrive`. Sans Reanimated : une
+  animation de 400 ms ne justifie pas de brancher la bibliothèque sur cet
+  écran, et un fond qui s'éteint d'un coup se voit aussi bien qu'un fondu. En
+  correction, les deux colonnes se ressemblent — sans cette trace, on ne sait
+  pas si le tap a déplacé le joueur ou manqué la tuile.
+- **Le mode n'existe pas sur un match contre un adversaire extérieur.** Sur un
+  `EXTERNAL`, l'équipe B n'est pas une équipe du club : `movePlayerTeam` refuse
+  déjà d'y envoyer quelqu'un (« Pas d'équipe B à composer sur ce match »).
+  Afficher une entrée qui ne mène qu'à un refus, c'est pire que ne rien
+  afficher. Même règle que le site, écrite ici à partir du garde plutôt que
+  recopiée.
+- **Vérifié par** :
+
+  ```
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  TSC=0
+
+  $ npm run tester
+   Test Files  12 passed (12)
+        Tests  189 passed (189)
+
+  $ npx expo export --platform ios
+  › ios bundles (1):
+  _expo/static/js/ios/entry-92a6761d6397167d7e080e58b1f1874b.hbc (3.3MB)
+  Exported: dist
+  EXPORT=0
+
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  BUILD EXIT=0
+
+  $ git checkout -- five-scorer/next-env.d.ts && git status --short
+   M five-scorer-mobile/app/match/[id].tsx
+  ```
+
+- **Ce qui a surpris** : le journal du 9 septembre 22:1x annonçait
+  `app/match/[id].tsx` à **843 lignes**. Recompté sur le commit `0997c2b` :
+  **962**. Le chiffre avait dû être pris en cours de travail, pas à la fin.
+  Corrigé dans l'entrée elle-même, dans ce commit. Ce n'est pas anodin : ce
+  fichier est la seule mémoire, et un chiffre faux y est indiscernable d'un
+  chiffre vrai. **Recompter à la fin, jamais pendant.** (Le fichier fait
+  1 200 lignes après cette exécution — compté après.)
+- **Ce que je n'ai PAS pu vérifier, et qu'il ne faut pas se raconter** : aucun
+  de ces gestes n'a été fait par un doigt. `tsc`, les 189 tests des couches
+  appelées et le bundle Metro disent que le code tient debout ; ils ne disent
+  pas que le bandeau ne recouvre pas le score, ni que la flèche se voit sur une
+  chasuble blanche. Deux défauts que dix secondes de simulateur trancheraient.
+- **Fichiers touchés** :
+  `/home/user/diamesene02/five-scorer-mobile/app/match/[id].tsx`
+  `/home/user/diamesene02/five-scorer/MOBILE.md`
+- **Reste ouvert** :
+  - **le son (étape 16), et c'est maintenant le premier de la liste** : les
+    quatre fichiers audio n'existent toujours pas, `useKeepAwake` n'est pas
+    posé. Ce sont les deux choses qui se verraient — s'entendraient — au club
+    dès la première soirée ;
+  - la revue visuelle des six écrans jamais vus (§6, ligne 12) : `compo`,
+    `match/[id]`, `matchs`, `soirées`, `récap`, et maintenant le mode
+    correction. La question posée le 9 septembre au soir attend toujours ;
+  - `lib/soiree.ts` n'a toujours pas de test ;
+  - l'opération `movePlayer` et `addParticipant` ont bien un destinataire côté
+    serveur (elles sont dans les 8 `kind` du drain, testées à l'étape 7) —
+    **jamais rejouées contre un vrai serveur depuis cet écran**, comme
+    `HALF_TIME`.
+
 ### 2026-09-09 22:1x — Étape 15 : la chronologie, les cartons, le MVP — et un coup de sifflet qui ne partait nulle part
 
 - **État** : étape 15 `en cours` → `en cours` (il reste la correction de
@@ -531,7 +626,8 @@ Un agent ne peut trancher aucune de ces lignes.
   remise à 1 vit dans `removeEvent` (couche locale), pas dans l'écran comme
   côté web : les deux chemins d'annulation (la chronologie et le bouton
   « Annuler ») en héritent sans que la règle existe en deux exemplaires.
-- **Ajouté à l'écran** (`app/match/[id].tsx`, 612 → 843 lignes) :
+- **Ajouté à l'écran** (`app/match/[id].tsx`, 612 → 962 lignes ; *le « 843 » écrit
+  ici le 9 septembre était faux — recompté sur le commit `0997c2b` le 10 septembre*) :
   - **la chronologie** — feuille qui monte du bas, ouverte par le bouton rond
     de la barre du haut, le plus récent en haut (c'est celui qu'on vient de se
     tromper), minute, pastille de chasuble ou carton, nom (« csc de Rouges »
