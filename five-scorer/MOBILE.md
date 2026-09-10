@@ -311,10 +311,12 @@ Briques de dessin, toutes vérifiées dans Expo Go : `expo-linear-gradient` (lin
 Aucune enquête ne les avait mis dans son bilan ; ils pèsent **432 lignes** (compté : 141 + 291).
 
 - **`lib/audio.ts` (141 lignes) est synthétisé, pas joué.** `playGoalSound("A")` fait glisser un triangle de 440 → 880 Hz, `("B")` fait l'inverse, avec un commentaire qui dit pourquoi : « le marqueur regarde le jeu, pas l'écran — l'oreille est le seul canal qui reste ». Il n'y a **aucun fichier audio dans le dépôt**. La seule implémentation Web Audio en React Native, `react-native-audio-api` (Software Mansion), est explicitement **hors Expo Go** (« contains native custom code and isn't part of the Expo Go application »). **Décision : pré-rendre 4 fichiers courts (but A, but B, annulation, coup de sifflet) depuis les fréquences exactes du fichier, et les jouer avec `expo-audio` (~57.0.4, dans Expo Go).** `lib/audio.ts` devient la **spécification**, pas du code porté. `playsInSilentMode` vaut `true` par défaut : le son sort téléphone en silencieux, ce qu'on veut. Et `unlockAudio()` disparaît — c'était une cicatrice de navigateur.
+  **Fait le 10 septembre (étape 16)**, en `.wav` PCM et non en `.m4a` : il n'y a ni `ffmpeg` ni `afconvert` dans le nuage, et le PCM ne réveille aucun décodeur au premier but. 108 ko pour les quatre. `scripts/faire-sons.mjs` les fabrique, `lib/son/sons.test.ts` les refabrique et compare octet pour octet — la spécification ne peut plus diverger en silence. Vérifié dans le code installé, pas seulement dans la doc : `playsInSilentMode` est bien `true` par défaut et `interruptionMode` vaut `mixWithOthers` (`node_modules/expo-audio/build/Audio.types.d.ts`). Les deux sont quand même écrits explicitement — ce sont eux qui décident si l'app sert à quelque chose au gymnase.
 - **`lib/shareCard.ts` (291 lignes) est du Canvas 2D** (`getContext("2d")`, `fillText`, `measureText`, `toBlob`, `navigator.share`). **Décision : redessiner la carte en composants React Native et la capturer avec `react-native-view-shot`** (« Included in Expo Go »), puis `expo-sharing`. Plus simple à maintenir que 291 lignes de dessin impératif. (`@shopify/react-native-skia` serait le portage le plus fidèle mais coûte le development build.)
 - **Retour haptique : 6 sites d'appel** de `navigator.vibrate` (LiveMatch 448/465/535, PlayerTile 69/74/90 — une contre-enquête annonce 12, ce sont les **occurrences du mot**, garde `typeof` comprise). `expo-haptics` n'accepte **aucune durée en ms** : 12 → `impactAsync(Light)`, 18 → `selectionAsync()`, 30 → `impactAsync(Medium)`, `[12,40,12]` → `notificationAsync(Warning)`. On perd la nuance de durée, on gagne le Taptic Engine.
+  **Fait le 10 septembre (étape 16)** : `lib/vibrer.ts`, et les 8 `Vibration.vibrate(ms)` de `app/match/[id].tsx` remplacés (compté sur le commit `d8822c3`). Ce que le tableau ne disait pas et qui est la vraie raison de le faire : **iOS ignore la durée** de `Vibration.vibrate`, donc les trois nuances y produisaient le même buzz de vibreur, vingt-sept fois par soirée. `[12,40,12]` n'a aucun site d'appel dans le portage — la ligne reste pour mémoire.
 - **Autres API navigateur à recâbler**, absentes des inventaires : `navigator.clipboard` (5 usages) → `expo-clipboard` ; `navigator.share` (4) → `expo-sharing` ; `localStorage` (6) → `expo-sqlite/kv-store` ou AsyncStorage.
-- **Un gain gratuit** : `useKeepAwake()` (`expo-keep-awake`, dans Expo Go). Il n'y a **aucun Wake Lock dans le dépôt** aujourd'hui : l'écran s'éteint à la 20ᵉ minute pendant qu'on regarde le jeu. Une ligne, visible dès la première démo au club.
+- **Un gain gratuit** : `useKeepAwake()` (`expo-keep-awake`, dans Expo Go). Il n'y a **aucun Wake Lock dans le dépôt** aujourd'hui : l'écran s'éteint à la 20ᵉ minute pendant qu'on regarde le jeu. Une ligne, visible dès la première démo au club. **Posé le 10 septembre (étape 16)**, sur `app/match/[id].tsx` et là seulement : l'écran reste allumé pendant la feuille, pas dans les listes.
 - **Notifications push : le seul vrai mur, et il tombe tôt.** `expo-notifications` (~57.0.17) est dans Expo Go, mais le push distant y est indisponible sur Android depuis le SDK 53, et sur iOS le jeton serait rattaché au bundle d'Expo Go — inexploitable en production. Les notifications **locales** marchent (« match dans 1 h »). « Qui vient lundi ? » envoyé le jeudi = **development build obligatoire** (étape 17).
 
 ---
@@ -357,7 +359,7 @@ Règles de lecture pour l'agent :
 | **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx tsc --noEmit` vert, et surtout : la boucle rejouée à la main sur le simulateur, avec vérification en base. | **fait** — `app/compo.tsx`. **Écart assumé au site** : les abonnés arrivent présélectionnés et un bouton « Tous / Personne » double la liste, parce que taper quatorze joueurs un par un debout au bord du terrain est le geste le plus coûteux de la soirée. |
 | **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. | `npx tsc --noEmit` vert ; `grep -rc "suppressTapUntil" five-scorer-mobile/` → `0` ; geste vérifié sur simulateur. | **fait** — `app/match/[id].tsx`. Tap = but, appui long 500 ms = retirer son dernier but ; le garde `suppressTapUntil` du web a bien disparu, React Native n'émet pas `onPress` après `onLongPress`. Horloge dérivée du coup d'envoi, tic de 500 ms. Pas de `useKeepAwake` ni de son : `expo-keep-awake` et les fichiers audio restent à faire. |
 | **15** | **Écran « jouer », partie 2** : le score, la barre d'invite 15 s, les chemins d'annulation, la confirmation de fin. | `npx tsc --noEmit` vert ; parcours rejoué sur simulateur avec contrôle en base après chaque geste. | **en cours** — faits : le tableau de marque (le camp qui perd s'efface), l'invite 15 s pour la passe décisive ET pour l'auteur d'un csc, deux chemins d'annulation (appui long sur la tuile, bouton « Annuler » pour le dernier événement), la confirmation de fin ; **et, le 9 septembre 22:1x** : la chronologie (feuille du bas, le plus récent en haut, « Annuler » par ligne), les cartons (jaune/rouge par carte d'équipe, si `trackCards`, avec le compteur sur la tuile), l'élection du MVP (feuille du bas, seulement en `motmMode === "ADMIN"`, facultative), et `gestureEnabled: false` sur la route. **Et, le 10 septembre 00:1x** : la correction de composition en cours de match — bandeau « Corriger la composition », tap sur une tuile pour envoyer un joueur dans l'autre camp, « + Faire entrer un joueur » pour le retardataire, éclair de 400 ms sur la tuile déplacée, refus du garde anti-équipe-vide affiché en clair. **Tout le code de l'étape est écrit.** Ce qui la sépare de `fait` n'est plus du code : c'est la **vérification visuelle que le nuage ne peut pas faire** — ces écrans n'ont été VUS par personne (§6, ligne 12). |
-| **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
+| **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. Plus `expo-haptics` à la place de `Vibration` (iOS ignore la durée) et `useKeepAwake()`. | `ls -1 five-scorer-mobile/assets/audio/*.wav \| wc -l` → `4` (**`.wav` et non `.m4a`** : il n'y a ni `ffmpeg` ni `afconvert` dans le nuage — voir le journal du 10 septembre) ; `npx vitest run sons` vert ; `npx expo export --platform ios` en 0 **et les 4 `wav` présents dans `dist/metadata.json`** ; `grep -c "react-native-audio-api" five-scorer-mobile/package.json` → `0` (interdit en Expo Go). | **fait** — 4 `.wav` mono 16 bits 44,1 kHz (108 ko en tout), fabriqués par `scripts/faire-sons.mjs` depuis les fréquences du web, et 21 tests dans `lib/son/sons.test.ts` qui refabriquent les fichiers et les comparent octet pour octet. **Écarts assumés** : (a) `.wav` PCM au lieu de `.m4a` — pas d'encodeur AAC ici, et le PCM ne réveille aucun décodeur au premier but ; (b) le bouton « Son / Muet » du site est repris, même clé de réglage (`fs-sound-enabled`), stockage `expo-sqlite/kv-store` ; (c) `unlockAudio()` (12 l.) disparaît sans remplacement — il n'y a rien à déverrouiller en natif. **Jamais entendu par une oreille** : voir le journal. |
 | **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **fait** — par EAS, pas en local. Build `9727ecbd`, profil `lundi`, terminé. Vérifié en téléchargeant l'`.ipa` : bundle `com.ibc.fivescorer`, signé par l'équipe payante (`M283R456KQ.com.ibc.fivescorer`), profil ad hoc n'autorisant **que** l'iPhone de Diame, `main.jsbundle` de 2,6 Mo embarqué (donc démarre sans Metro), schéma `fivescorer` enregistré, ATS `NSAllowsArbitraryLoads=false`. Le build local reste impossible sur cette machine — voir le journal. |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
 | **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `NEXT_DIST_DIR=.next-verif npx next build` en 0, `node scripts/parcours-lecture.mjs` vert (étendu au lot), `npx expo export --platform ios` en 0. (`pnpm test:api` n'existe pas — voir l'étape 12.) | **en cours, et le tableau était en retard sur le dépôt** — au 9 septembre 22:1x, `five-scorer-mobile/app/` porte déjà `club/[id]/index.tsx` (accueil), `club/[id]/matchs.tsx`, `club/[id]/soirees.tsx`, `club/[id]/stats.tsx`, `recap/[id].tsx` et `soiree/[id].tsx`, avec leurs GET côté serveur (commits `5ace403`, `1360559`, `ae6d84c`). **Aucun des trois n'a d'entrée au journal** : ce qu'ils font est lisible dans le diff, ce qu'ils ont écarté ne l'est pas. Restent au moins l'effectif et les réglages. |
@@ -382,6 +384,7 @@ Règles de lecture pour l'agent :
 - **Les actions de match contre un vrai SQLite**. **Fait à l'étape 11 : 59 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`** (54 à l'étape 11, +5 pour le coup de sifflet le 9 septembre au soir). Le test qui compte n'est pas « un but est bien écrit », c'est **l'annulation** : une `BaseCapricieuse` refuse tout `INSERT INTO outbox`, et on vérifie qu'il ne reste NI événement NI opération NI point au score. Les deux règles gardées par les tests exigés ont été retirées du code une par une pour voir les tests tomber (journal du 9 septembre 18:1x) — sans cette contre-épreuve, un test vert ne dit rien.
 - **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents. **Fait à l'étape 8 : 17 tests dans `five-scorer-mobile/lib/appel.test.ts`.** Le test qui compte n'est pas « le cookie est là », c'est « le cookie est une **chaîne**, pas une promesse » : le `await` oublié sur `getCookie()` produit un 401 parfaitement trompeur, et rien à l'écran ne le distingue d'une session réellement expirée.
 
+- **Les quatre sons du match, contre leur spécification.** **Fait à l'étape 16 : 21 tests dans `five-scorer-mobile/lib/son/sons.test.ts`.** Un fichier audio pré-rendu ne dit pas d'où il vient : le test refabrique les quatre `.wav` avec `scripts/faire-sons.mjs` et les compare **octet pour octet** à ceux du dépôt, puis vérifie que chaque fréquence citée existe encore dans `five-scorer/lib/audio.ts`. Le test qui compte n'est pas « le fichier existe », c'est **« le but de A monte et celui de B descend »** — mesuré aux passages par zéro sur les 85 premières millisecondes, avant l'entrée du second ton. C'est la seule raison d'avoir deux fichiers plutôt qu'un, et personne ne s'apercevrait en relisant le code qu'ils glissent dans le même sens. Un dernier garde, structurel : autant de couches ici que d'appels à `playTone` sur le site.
 - **Les endpoints de lecture, contre un vrai serveur et une vraie base.** **Fait à l'étape 12 : 39 vérifications dans `five-scorer-mobile/scripts/parcours-lecture.mjs`.** La découverte de l'étape est ailleurs : **il y a un PostgreSQL 16 complet dans le conteneur du nuage** (`/usr/lib/postgresql/16/bin/postgres`, à lancer sous l'utilisateur `postgres`). Le serveur n'est donc plus une boîte noire ici — on migre, on peuple avec `scripts/jeu-dessai.mjs`, on lance `next dev`, et on lit pour de vrai. Le jeu d'essai refuse toute `DATABASE_URL` qui ne soit pas locale : il écrit, et il ne doit jamais écrire ailleurs.
 
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
@@ -468,6 +471,7 @@ Ce n'est pas du travail de l'exécution.
 
 - **Ouvrir l'app déjà sans réseau, au bord du terrain.** Impossible en Expo Go (Metro sert le bundle par le réseau). Ce test n'existe qu'à partir de l'étape 17.
 - La connexion Google en Expo Go (voir §6).
+- **Les quatre sons, et les trois retours haptiques : aucun n'a jamais été entendu ni senti.** Ce qui est prouvé sans appareil, c'est que les `.wav` sortent bien des fréquences du site et qu'ils sont embarqués dans le bundle (4 entrées `wav` dans `dist/metadata.json`). Ce qui ne l'est pas : le volume au gymnase, et surtout **le rejeu d'un son déjà en cours** — `seekTo(0)` puis `play()` sur deux buts à deux secondes d'intervalle. C'est le seul point du portage audio qui pourrait ne pas marcher du premier coup, et il se voit en dix secondes sur un appareil.
 - La taille réelle du cookie `session_data` dans SecureStore.
 - Le rendu du dégradé radial de `crest()` par `experimental_backgroundImage`.
 - La latence du cycle « but → `useLiveQuery` → re-rendu » avec 14 photos data-URI.
@@ -511,6 +515,158 @@ Un agent ne peut trancher aucune de ces lignes.
 ## 7. Journal
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
+
+### 2026-09-10 02:1x — Étape 16 : le son du but, et l'écran qui reste allumé
+
+- **État** : étape 16 `à faire` → `fait`.
+- **Rien n'était cassé au départ**, vérifié avant d'ajouter quoi que ce soit,
+  sur un `node_modules` réinstallé de zéro (le conteneur arrive vide) :
+  `npx tsc --noEmit` en 0, **189 tests verts en 12 fichiers**.
+- **Ce que ça règle** : c'est la première chose qui s'entendra au club. Un but
+  ne faisait aucun bruit dans l'app native, alors que le site fait glisser un
+  triangle de 440 à 880 Hz pour le camp A et l'inverse pour le camp B —
+  précisément parce que « le marqueur regarde le jeu, pas l'écran ». Et
+  l'écran s'éteignait à la 20ᵉ minute : `useKeepAwake()`, une ligne, un défaut
+  que même le site a.
+- **Le web synthétise, on ne peut pas.** `lib/audio.ts` n'a aucun fichier
+  audio : il fabrique ses sons au vol en Web Audio. La seule implémentation
+  Web Audio en React Native, `react-native-audio-api`, est hors Expo Go. Donc
+  on pré-rend — et un fichier pré-rendu ne dit pas d'où il vient. C'est le
+  vrai travail de l'étape : `scripts/faire-sons.mjs` transcrit les 5 appels à
+  `playTone` du site (formes d'onde, glissandos exponentiels, enveloppes de
+  gain, décalages) et les rend en PCM ; `lib/son/sons.test.ts` les refabrique
+  et les compare octet pour octet, et refuse que les fréquences citées
+  disparaissent de `lib/audio.ts`. Même intention que
+  `copie-conforme.test.ts` : la règle vit à deux endroits, donc quelque chose
+  doit crier quand l'un des deux bouge.
+- **Écart assumé au plan : `.wav` et non `.m4a`.** Le critère de l'étape
+  demandait `assets/audio/*.m4a`. Il n'y a **ni `ffmpeg` ni `afconvert` dans
+  le conteneur**, et `apt-get install ffmpeg` échoue ici (404 sur deux paquets
+  de `security.ubuntu.com`). Trois sorties possibles : renoncer, encoder de
+  l'AAC à la main, ou changer de format. Le `.wav` PCM est le bon choix
+  indépendamment de la contrainte — 108 ko pour les quatre sons, et aucun
+  décodeur à réveiller au premier but, ce qui est exactement ce qu'on veut
+  d'un son qui doit partir dans la milliseconde. `wav` est dans les
+  `assetExts` de Metro par défaut (vérifié), et les quatre fichiers ressortent
+  bien dans `dist/metadata.json`. Le critère de l'étape a été corrigé au §4
+  dans ce commit.
+- **La synthèse n'est pas une approximation.** Les formes d'onde sont
+  limitées en bande (somme d'harmoniques jusqu'à Nyquist, table normalisée à
+  1) comme le fait Web Audio, et non échantillonnées naïvement : un carré à
+  1760 Hz replié s'entend. Contrôlé sur le signal produit — crête 0,274 pour
+  un gain déclaré à 0,28, et la fréquence relevée aux passages par zéro à
+  25 ms vaut 500 Hz là où la rampe exponentielle 440→880 sur 140 ms en prédit
+  498.
+- **Ce que j'ai ajouté et qui n'était pas au plan** : le retour haptique.
+  Il était dans la même ligne du §4 mais aurait pu attendre ; il ne devait
+  pas. `Vibration.vibrate(ms)` de React Native était la traduction littérale
+  de `navigator.vibrate`, et **iOS ignore la durée** : les trois nuances du
+  site (12, 18, 30 ms) y produisaient le même buzz de vibreur, sur le geste
+  qu'on fait vingt-sept fois dans une soirée. `expo-haptics` donne trois
+  retours distincts par le Taptic Engine.
+- **Où le son ne va PAS, et c'est délibéré** : pas de son sur un carton, pas
+  de son à la mi-temps, pas de son en fin de match. Le site n'en a pas — il ne
+  siffle qu'au **franchissement du temps réglementaire**, une seule fois, avec
+  une garde `null` au premier passage pour ne pas siffler à chaque réouverture
+  d'un match déjà dépassé. C'est repris tel quel. Le seul endroit où j'ai
+  ajouté une ligne : le son de but part **avant** l'écriture (la tuile répond
+  au doigt, et le but est de toute façon compté), tandis que le son
+  d'annulation part **après** — `undoLastGoalOf` peut ne rien trouver à
+  annuler, et un bruit de retrait sur un score inchangé ferait croire à un but
+  effacé.
+- **Vérifié par** :
+
+  ```
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  TSC=0
+
+  $ node scripts/faire-sons.mjs
+  but-a.wav  20330 octets  230 ms
+  but-b.wav  20330 octets  230 ms
+  annulation.wav  15920 octets  180 ms
+  sifflet.wav  51202 octets  580 ms
+
+  $ ls -1 assets/audio/*.wav | wc -l
+  4
+
+  $ npm run tester
+   Test Files  13 passed (13)
+        Tests  210 passed (210)
+
+  $ npx expo export --platform ios
+  › ios bundles (1):
+  _expo/static/js/ios/entry-076e7c7eb26b3497c461ef70d78d50fe.hbc (3.4MB)
+  Exported: dist
+  EXPORT=0
+
+  $ python3 -c "import json;print([a for a in json.load(open('dist/metadata.json'))['fileMetadata']['ios']['assets'] if a['ext']=='wav'])"
+  [{'path': 'assets/a11b9f8543f625ad56552cac3afa1eb8', 'ext': 'wav'},
+   {'path': 'assets/5649005998d7de1986be216a6fcc8b0c', 'ext': 'wav'},
+   {'path': 'assets/92039551a55f7a5fb164fc9ab9dead08', 'ext': 'wav'},
+   {'path': 'assets/f1793b1abc13a282804e57ba7bb87676', 'ext': 'wav'}]
+  (tailles sur disque : 20330, 20330, 15920, 51202 — les nôtres, en-tête RIFF)
+
+  $ grep -c "react-native-audio-api" package.json
+  0
+
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  BUILD EXIT=0
+
+  $ git checkout -- five-scorer/next-env.d.ts && git diff --stat -- five-scorer/next-env.d.ts
+  (zéro ligne)
+  ```
+
+- **Ce qui a surpris** :
+  - **`npx expo install` ne marche pas dans ce conteneur.** Il interroge
+    `api.expo.dev` pour connaître la version compatible avec le SDK, et le
+    proxy répond `Forbidden`. Le repli est propre et vaut d'être écrit ici
+    pour les prochaines fois : `node -p "require('expo/bundledNativeModules.json')['expo-audio']"`
+    donne exactement la version qu'`expo install` aurait posée
+    (`~57.0.4`, `~57.0.2`, `~57.0.1`), et `npm install --save` la pose. Trois
+    dépendances ajoutées, toutes prévues au §3.6.
+  - **`playTone({` apparaît 6 fois dans `lib/audio.ts`, pas 5** : la
+    déclaration de la fonction compte. Le test structurel est tombé
+    là-dessus au premier passage. Corrigé en retirant la déclaration du
+    compte — un test qui se corrige en changeant le chiffre attendu n'aurait
+    rien gardé.
+  - **`find dist -name "*.wav"` ne trouve rien, et ce n'est pas une panne** :
+    Metro stocke les assets sous un nom de hachage **sans extension**, et
+    c'est `dist/metadata.json` qui porte le `ext`. J'ai failli conclure que
+    les sons n'étaient pas embarqués. La bonne vérification est celle collée
+    ci-dessus.
+- **Fichiers touchés** :
+  `/home/user/diamesene02/five-scorer-mobile/scripts/faire-sons.mjs` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/but-a.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/but-b.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/annulation.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/sifflet.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/lib/son/son.ts` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/lib/son/sons.test.ts` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/lib/vibrer.ts` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/app/match/[id].tsx`
+  `/home/user/diamesene02/five-scorer-mobile/package.json`
+  `/home/user/diamesene02/five-scorer-mobile/package-lock.json`
+  `/home/user/diamesene02/five-scorer/MOBILE.md`
+- **Ce que je n'ai PAS pu vérifier, et qu'il ne faut pas se raconter** :
+  **aucun de ces quatre sons n'a jamais été entendu, aucun de ces trois
+  retours haptiques n'a jamais été senti.** Ce qui est prouvé : les fichiers
+  sortent des bonnes fréquences, ils sont dans le bundle, et le bon appel part
+  au bon endroit. Ce qui ne l'est pas, et qui est le seul vrai risque du
+  portage audio : **le rejeu d'un son déjà en cours** — deux buts à deux
+  secondes d'intervalle. `seekTo(0)` puis `play()` est le recours documenté,
+  mais `seekTo` rend une promesse et je n'ai pas pu observer ce qui se passe
+  si `play()` part avant qu'elle se résolve. Dix secondes sur un appareil le
+  trancheraient. Ajouté au §5.
+- **Reste ouvert** :
+  - **l'ordre de dépendance du §4 dit « à l'issue de l'étape 16 l'app sert un
+    lundi soir ». En code, on y est. En vérité, non** : rien de tout ça n'a
+    été VU ni entendu. La question du §6 ligne 12, posée le 9 septembre au
+    soir, attend toujours — et elle vient de gagner un septième écran et
+    quatre sons ;
+  - l'étape 18 (Maestro) et l'étape 19+ (effectif, réglages) ;
+  - `lib/soiree.ts` n'a toujours pas de test ;
+  - `movePlayer`, `addParticipant` et `HALF_TIME` n'ont **jamais été rejoués
+    contre un vrai serveur depuis cet écran**.
 
 ### 2026-09-10 00:1x — Étape 15 : le retardataire et le mauvais camp
 

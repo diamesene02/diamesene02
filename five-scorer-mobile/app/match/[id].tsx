@@ -6,10 +6,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  Vibration,
   View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { useKeepAwake } from "expo-keep-awake";
 import Ecran from "../../composants/Ecran";
 import {
   Avatar,
@@ -27,6 +27,14 @@ import { estRetro } from "../../lib/noyau/retro";
 import type { LivePlayer } from "../../lib/match/local";
 import type { LocalClub } from "../../lib/outbox/types";
 import type { EtatSynchro } from "../../lib/outbox/sync";
+import {
+  basculerSon,
+  jouerAnnulation,
+  jouerBut,
+  jouerSifflet,
+  sonActif,
+} from "../../lib/son/son";
+import { toucheChoix, toucheFranche, toucheLegere } from "../../lib/vibrer";
 
 /// La feuille de match, reprise de celle du site (maquette « Live », tour 4).
 ///
@@ -106,6 +114,9 @@ export default function Match() {
   // joueur d'une colonne. Muet, le tap passerait pour un bogue de l'app.
   const [refus, setRefus] = useState<string | null>(null);
   const [bouge, setBouge] = useState<string | null>(null);
+  // Le réglage vit dans le stockage local ; cet état n'est là que pour
+  // redessiner le bouton « Son / Muet » de la chronologie.
+  const [son, setSon] = useState(true);
   const [, setTic] = useState(0);
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
   const minuteurBouge = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,6 +146,46 @@ export default function Match() {
 
   const retro = match ? estRetro(match.playedAt) : false;
   const tourne = Boolean(match?.clockRunningSince);
+
+  // Le chrono, calculé avant le retour anticipé : le coup de sifflet de fin du
+  // temps réglementaire est un effet, et un effet ne se déclare pas après un
+  // `return`.
+  const ecoule = match
+    ? nowElapsed({
+        elapsedMs: match.clockElapsedMs ?? 0,
+        runningSince: match.clockRunningSince ?? null,
+      })
+    : 0;
+  const depasse =
+    !!match && club?.matchDurationMin != null && ecoule > club.matchDurationMin * 60_000;
+
+  // L'écran reste allumé tant qu'on est sur la feuille. Il n'y a AUCUN Wake
+  // Lock dans l'app web : elle s'éteint à la 20e minute pendant qu'on regarde
+  // le jeu, et il faut la réveiller pour compter un but. Une ligne, et c'est
+  // la première chose qui se remarquera au club.
+  useKeepAwake();
+
+  useEffect(() => {
+    setSon(sonActif());
+  }, []);
+
+  // Le double coup de sifflet au franchissement du temps réglementaire, une
+  // seule fois. La garde `null` du premier passage est celle du site, et elle
+  // compte : sans elle, rouvrir un match déjà au-delà de la limite sifflerait
+  // la fin à chaque ouverture.
+  const etaitDepasse = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!vue) return;
+    if (etaitDepasse.current === null) {
+      etaitDepasse.current = depasse;
+      return;
+    }
+    if (depasse && !etaitDepasse.current) {
+      jouerSifflet();
+      toucheFranche();
+    }
+    etaitDepasse.current = depasse;
+  }, [vue, depasse]);
 
   // Amorcer le chrono à la première ouverture, comme le site.
   //
@@ -198,12 +249,6 @@ export default function Match() {
   const couleurA = club?.colorA ?? "#ffffff";
   const couleurB = club?.colorB ?? "#111111";
   const t: Jetons = club ? themeTokens(couleurA, couleurB, "dark") : JETONS_NEUTRES;
-  const ecoule = nowElapsed({
-    elapsedMs: match.clockElapsedMs ?? 0,
-    runningSince: match.clockRunningSince ?? null,
-  });
-  const depasse =
-    club?.matchDurationMin != null && ecoule > club.matchDurationMin * 60_000;
   const enJeu = match.status === "LIVE";
   // Sur un match contre un adversaire extérieur, l'équipe B n'est pas une
   // équipe du club : il n'y a personne à y envoyer, et la couche locale refuse
@@ -223,7 +268,11 @@ export default function Match() {
   }
 
   async function marquer(camp: "A" | "B", joueur: LivePlayer) {
-    Vibration.vibrate(12);
+    // Le son AVANT l'écriture, comme sur le site : la tuile répond au doigt,
+    // pas à SQLite. Le but est déjà compté de toute façon — rien ici ne peut
+    // le refuser.
+    jouerBut(camp);
+    toucheLegere();
     const eventId = await local.addEvent(match!.id, {
       type: "GOAL",
       team: camp,
@@ -240,7 +289,10 @@ export default function Match() {
 
   async function contreSonCamp(campQuiConcede: "A" | "B") {
     const campCredite = campQuiConcede === "A" ? "B" : "A";
-    Vibration.vibrate(12);
+    // Le son est celui du camp CRÉDITÉ, pas de celui qui concède : l'oreille
+    // doit entendre le même but que le tableau d'affichage.
+    jouerBut(campCredite);
+    toucheLegere();
     const eventId = await local.addEvent(match!.id, {
       type: "OWN_GOAL",
       team: campCredite,
@@ -255,8 +307,12 @@ export default function Match() {
   }
 
   async function annulerSonDernier(joueur: LivePlayer) {
+    // Ici le son vient APRÈS, et c'est délibéré : `undoLastGoalOf` peut ne rien
+    // trouver à annuler. Un son de retrait sur un score inchangé ferait croire
+    // à un but effacé.
     if (!(await local.undoLastGoalOf(match!.id, joueur.id))) return;
-    Vibration.vibrate(30);
+    jouerAnnulation();
+    toucheFranche();
     fermerInvite();
     await relire();
     void drain.relancer();
@@ -268,7 +324,8 @@ export default function Match() {
   /// par `removeEvent` : les deux chemins en héritent, sans la réécrire.
   async function annulerEvenement(eventId: string) {
     if (!(await local.removeEvent(match!.id, eventId))) return;
-    Vibration.vibrate(30);
+    jouerAnnulation();
+    toucheFranche();
     if (invite?.eventId === eventId) fermerInvite();
     await relire();
     void drain.relancer();
@@ -283,13 +340,14 @@ export default function Match() {
   /// Un carton, pour un joueur du camp de la carte où on l'a demandé.
   ///
   /// Le score n'en bouge pas — c'est le compteur de la tuile et la
-  /// chronologie qui le montrent. Vibration courte : on veut savoir que c'est
-  /// pris sans quitter le jeu des yeux.
+  /// chronologie qui le montrent. Retour haptique de choix : on veut savoir
+  /// que c'est pris sans quitter le jeu des yeux. Pas de son — le site n'en a
+  /// pas, et un carton ne se signale pas au terrain comme un but.
   async function donnerCarton(joueurId: string) {
     if (feuille?.genre !== "carton") return;
     const { camp, carton } = feuille;
     setFeuille(null);
-    Vibration.vibrate(18);
+    toucheChoix();
     await local.addEvent(match!.id, { type: carton, team: camp, playerId: joueurId });
     await relire();
     void drain.relancer();
@@ -318,7 +376,7 @@ export default function Match() {
       return;
     }
     setRefus(null);
-    Vibration.vibrate(18);
+    toucheChoix();
     signaler(joueur.id);
     await relire();
     void drain.relancer();
@@ -335,7 +393,7 @@ export default function Match() {
       return;
     }
     setRefus(null);
-    Vibration.vibrate(18);
+    toucheChoix();
     signaler(joueurId);
     await relire();
     void drain.relancer();
@@ -362,7 +420,7 @@ export default function Match() {
 
   async function siffler() {
     if (await local.siffletMiTemps(match!.id)) {
-      Vibration.vibrate(30);
+      toucheFranche();
       await relire();
     }
   }
@@ -835,12 +893,23 @@ export default function Match() {
               <>
                 <View style={s.feuilleTete}>
                   <Text style={[s.feuilleTitre, { color: t.ink }]}>Événements</Text>
-                  <BoutonRond
-                    t={t}
-                    symbole="×"
-                    etiquette="Fermer"
-                    onPress={() => setFeuille(null)}
-                  />
+                  {/* Le son se coupe ici et nulle part ailleurs, comme sur le
+                      site : c'est le seul panneau qu'on ouvre sans être en
+                      train de compter un but. Le mettre sur la barre du bas,
+                      c'est le couper par mégarde à la place d'annuler. */}
+                  <View style={s.feuilleActions}>
+                    <BoutonVerre
+                      t={t}
+                      titre={son ? "Son" : "Muet"}
+                      onPress={() => setSon(basculerSon())}
+                    />
+                    <BoutonRond
+                      t={t}
+                      symbole="×"
+                      etiquette="Fermer"
+                      onPress={() => setFeuille(null)}
+                    />
+                  </View>
                 </View>
                 {vue.events.length === 0 ? (
                   <Text style={[s.aide, { color: t.i2, paddingVertical: 24, textAlign: "center" }]}>
@@ -1175,6 +1244,7 @@ const s = StyleSheet.create({
     gap: 10,
     paddingTop: 4,
   },
+  feuilleActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   feuilleTitre: { fontSize: 20, fontWeight: "600", paddingVertical: 8 },
   liste: { flexGrow: 0 },
   ligneChoix: {
