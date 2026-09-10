@@ -167,8 +167,15 @@ async function main() {
   console.log("\n— l'effectif —");
   const [rEff, eff] = await lire(`${C}/effectif`);
   ok(rEff.ok, "GET effectif répond", `HTTP ${rEff.status}`);
-  ok(eff.joueurs.length === 12, "les douze du vestiaire", `${eff.joueurs.length}`);
-  ok(eff.sousTitre === "12 joueurs au vestiaire", "le sous-titre arrive fait", eff.sousTitre);
+  // Au moins les douze du jeu d'essai. Pas « exactement douze » : ce script
+  // crée un joueur témoin plus bas, et un nombre en dur tombait au deuxième
+  // passage — un test qui ne passe qu'une fois n'est pas un test.
+  ok(eff.joueurs.length >= 12, "au moins les douze du vestiaire", `${eff.joueurs.length}`);
+  ok(
+    eff.sousTitre === `${eff.actifs} joueur${eff.actifs > 1 ? "s" : ""} au vestiaire`,
+    "le sous-titre arrive fait",
+    eff.sousTitre,
+  );
   ok(
     eff.joueurs.every((j) => j.initiales && j.initiales.length <= 2),
     "chaque fiche porte ses initiales, calculées par le serveur",
@@ -398,6 +405,91 @@ async function main() {
     body: JSON.stringify({ role: "owner" }),
   });
   ok(rRole.status === 400, "« owner » n'est pas un rôle qu'on s'attribue", `HTTP ${rRole.status}`);
+
+  // --- 3 quinquies. La fiche d'un joueur, écrite --------------------------------
+
+  console.log("\n— ajouter et modifier un joueur —");
+  const poster = (chemin, corps, methode = "POST") =>
+    fetch(`${BASE}${chemin}`, {
+      method: methode,
+      headers: { ...h, "content-type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+
+  const rNeuf = await poster(`${C}/joueurs`, {
+    name: "Parcours Essai",
+    skill: 4,
+    isGk: true,
+    nickname: "Le témoin",
+  });
+  const neuf = await rNeuf.json();
+  ok(rNeuf.ok && neuf.joueurId, "un joueur se crée", `HTTP ${rNeuf.status}`);
+
+  if (neuf.joueurId) {
+    const [, fj] = await lire(`${C}/joueurs/${neuf.joueurId}`);
+    ok(
+      fj.joueur.nom === "Parcours Essai" && fj.joueur.niveau === 4 && fj.joueur.estGardien,
+      "…avec ce qu'on lui a donné",
+      fj.joueur.sousTitre,
+    );
+
+    const rMod = await poster(
+      `${C}/joueurs/${neuf.joueurId}`,
+      { skill: 2, isGk: false, nickname: null },
+      "PATCH",
+    );
+    ok(rMod.ok, "une fiche se modifie", `HTTP ${rMod.status}`);
+    const [, fj2] = await lire(`${C}/joueurs/${neuf.joueurId}`);
+    ok(
+      fj2.joueur.niveau === 2 && !fj2.joueur.estGardien && fj2.joueur.surnom === null,
+      "…et la relecture le confirme",
+      `niveau ${fj2.joueur.niveau}`,
+    );
+
+    // Le serveur ENREGISTRE la fiche et jette la photo qu'il refuse, avec un
+    // HTTP 200. Un client qui ne teste que le succès annonce « enregistré »
+    // sur une fiche qui reviendra sans visage.
+    const rPhoto = await poster(
+      `${C}/joueurs/${neuf.joueurId}`,
+      { photo: "data:image/png;base64,AAAA" },
+      "PATCH",
+    );
+    const photo = await rPhoto.json();
+    ok(
+      rPhoto.ok && typeof photo.avertissement === "string",
+      "une photo refusée est ANNONCÉE, pas avalée",
+      photo.avertissement ?? "aucun avertissement",
+    );
+
+    const rNomVide = await poster(`${C}/joueurs/${neuf.joueurId}`, { name: "  " }, "PATCH");
+    ok(rNomVide.status === 400, "un nom vide est refusé", `HTTP ${rNomVide.status}`);
+
+    // Archiver n'est pas supprimer : le joueur sort du vestiaire, son
+    // histoire reste.
+    await poster(`${C}/joueurs/${neuf.joueurId}`, { archive: true }, "PATCH");
+    const [, eff2] = await lire(`${C}/effectif`);
+    const range = eff2.joueurs.find((j) => j.id === neuf.joueurId);
+    ok(range?.archive === true, "archiver le sort de la liste");
+    ok(range !== undefined, "…sans le faire disparaître");
+
+    await poster(`${C}/joueurs/${neuf.joueurId}`, { archive: false }, "PATCH");
+
+    // « C'est moi » : un invité ne se revendique pas.
+    await poster(`${C}/joueurs/${neuf.joueurId}`, { isGuest: true }, "PATCH");
+    const rInvite = await poster(`${C}/joueurs/${neuf.joueurId}/lier`, {});
+    ok(rInvite.status === 400, "un invité ne se revendique pas", `HTTP ${rInvite.status}`);
+    const invite = await rInvite.json();
+    ok(/invité/.test(invite.error ?? ""), "…et on dit pourquoi", invite.error);
+
+    // On range le témoin : rien ne le supprime — c'est la doctrine, un joueur
+    // ne s'efface pas — alors on l'archive et on lui retire l'étiquette
+    // d'invité. Le vestiaire actif reste celui du jeu d'essai.
+    await poster(
+      `${C}/joueurs/${neuf.joueurId}`,
+      { isGuest: false, archive: true },
+      "PATCH",
+    );
+  }
 
   // --- 4. Qui n'a rien à y faire ---------------------------------------------
 

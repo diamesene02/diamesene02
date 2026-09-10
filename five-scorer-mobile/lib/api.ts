@@ -1110,3 +1110,56 @@ export function basculerSaison(
     { method: "PATCH", body: JSON.stringify({ active }) },
   );
 }
+
+/// La fiche d'un joueur, telle qu'on l'ÉCRIT.
+///
+/// Volontairement étroite : on n'envoie que ce que le formulaire touche. Le
+/// serveur accepte aussi `abonne` et `isGuest` dans le même corps, et renvoyer
+/// tel quel l'objet reçu du GET réécrirait « Vient tous les lundis » à chaque
+/// enregistrement de fiche — un réglage personnel écrasé par un geste d'admin,
+/// sans que personne ne s'en aperçoive.
+export type FicheAEcrire = {
+  name?: string;
+  nickname?: string | null;
+  skill?: number;
+  isGk?: boolean;
+  /// Data-URL JPEG carrée, préparée par `lib/photo`. `null` retire la photo.
+  photo?: string | null;
+};
+
+/// Ce que rendent l'ajout et l'édition.
+///
+/// `avertissement` arrive avec un HTTP 200 : le serveur ENREGISTRE la fiche et
+/// jette la photo s'il ne l'accepte pas. Un client qui ne teste que le succès
+/// annonce « enregistré » sur une fiche qui reviendra sans visage — il faut
+/// donc le lire, toujours.
+export type ReponseFiche = { ok: boolean; joueurId?: string; avertissement?: string };
+
+export function ajouterJoueur(clubId: string, fiche: FicheAEcrire): Promise<ReponseFiche> {
+  return appelAuthentifie<ReponseFiche>(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs`,
+    { method: "POST", body: JSON.stringify(fiche) },
+  );
+}
+
+export function modifierJoueur(
+  clubId: string,
+  joueurId: string,
+  fiche: FicheAEcrire & { archive?: boolean },
+): Promise<ReponseFiche> {
+  return appelAuthentifie<ReponseFiche>(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}`,
+    { method: "PATCH", body: JSON.stringify(fiche) },
+  );
+}
+
+/// « C'est moi » — revendiquer sa propre fiche, et elle seule.
+export function revendiquerJoueur(
+  clubId: string,
+  joueurId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return appelAuthentifie<{ ok: boolean; error?: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/joueurs/${encodeURIComponent(joueurId)}/lier`,
+    { method: "POST" },
+  );
+}

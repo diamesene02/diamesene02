@@ -13,7 +13,9 @@
       "buildNumber": "3",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Pour joindre le serveur de développement sur ton ordinateur.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Pour mettre un visage sur la fiche d'un joueur du vestiaire.",
+        "NSCameraUsageDescription": "Pour prendre la photo d'un joueur du vestiaire."
       }
     },
     "android": {
@@ -36,7 +38,15 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-sqlite",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pour choisir la photo d'un joueur dans tes photos.",
+          "cameraPermission": "Pour prendre la photo d'un joueur.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

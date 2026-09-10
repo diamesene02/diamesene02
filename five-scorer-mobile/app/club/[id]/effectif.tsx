@@ -8,14 +8,17 @@ import {
   Text,
   View,
 } from "react-native";
+import { Alert } from "react-native";
 import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
 import Ecran from "../../../composants/Ecran";
-import { Avatar, BoutonRond } from "../../../composants/base";
+import { Avatar, BoutonRond, BoutonVerre } from "../../../composants/base";
 import Etoiles from "../../../composants/Etoiles";
 import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import {
   chargerEcranEffectif,
   chargerMoi,
+  modifierJoueur,
+  revendiquerJoueur,
   SessionExpiree,
   type ClubDeMoi,
   type EcranEffectif,
@@ -65,6 +68,50 @@ export default function Effectif() {
     }, [charger]),
   );
 
+  /// « C'est moi » : je récupère mon historique de joueur.
+  ///
+  /// Le geste du nouveau membre. Il rejoint le club par un lien, et sa fiche
+  /// est déjà là — quinze matchs sous son prénom, créés par le capitaine avant
+  /// qu'il n'ait un compte. Sans ce bouton il repart de zéro à côté de sa
+  /// propre histoire.
+  const revendiquer = (joueurId: string, nom: string) => {
+    if (!id) return;
+    Alert.alert(
+      `${nom}, c'est toi ?`,
+      "Ta fiche et tout son historique — matchs, buts, votes — seront rattachés à ton compte.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Oui, c'est moi",
+          onPress: () => {
+            void revendiquerJoueur(id, joueurId)
+              .then(charger)
+              .catch((e: Error) => setErreur(e.message));
+          },
+        },
+      ],
+    );
+  };
+
+  const reactiver = (joueurId: string, nom: string) => {
+    if (!id) return;
+    Alert.alert(
+      `Réactiver ${nom} ?`,
+      "Il revient dans la liste de ceux qui viennent lundi.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Réactiver",
+          onPress: () => {
+            void modifierJoueur(id, joueurId, { archive: false })
+              .then(charger)
+              .catch((e: Error) => setErreur(e.message));
+          },
+        },
+      ],
+    );
+  };
+
   const actifs = (donnees?.joueurs ?? []).filter((j) => !j.archive);
   const archives = (donnees?.joueurs ?? []).filter((j) => j.archive);
 
@@ -106,10 +153,37 @@ export default function Effectif() {
         )}
         {erreur && <Text style={[s.erreur, { color: "#ff453a" }]}>{erreur}</Text>}
 
+        {donnees?.peutGerer && (
+          <View style={{ paddingTop: 4 }}>
+            <BoutonVerre
+              t={t}
+              titre="Ajouter un joueur"
+              onPress={() =>
+                router.push({ pathname: "/joueur/fiche", params: { clubId: id } })
+              }
+            />
+          </View>
+        )}
+
         {actifs.length > 0 && (
           <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
             {actifs.map((j, i) => (
-              <Rangee key={j.id} j={j} t={t} premiere={i === 0} clubId={id} />
+              <Rangee
+                key={j.id}
+                j={j}
+                t={t}
+                premiere={i === 0}
+                clubId={id}
+                // « C'est moi » ne s'affiche que sur une fiche revendiquable :
+                // libre, pas un invité, et seulement si je n'ai pas déjà la
+                // mienne. Ces trois conditions sont le SEUL garde-fou côté
+                // site aussi — la règle serveur, elle, laisse passer un
+                // gérant. On les reproduit exactement.
+                revendiquable={
+                  !donnees?.aDejaUnProfil && !j.compteLie && !j.invite
+                }
+                onRevendiquer={() => revendiquer(j.id, j.nom)}
+              />
             ))}
           </View>
         )}
@@ -124,7 +198,17 @@ export default function Effectif() {
             {archivesOuverts && (
               <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
                 {archives.map((j, i) => (
-                  <Rangee key={j.id} j={j} t={t} premiere={i === 0} clubId={id} petite />
+                  <Rangee
+                    key={j.id}
+                    j={j}
+                    t={t}
+                    premiere={i === 0}
+                    clubId={id}
+                    petite
+                    onReactiver={
+                      donnees?.peutGerer ? () => reactiver(j.id, j.nom) : undefined
+                    }
+                  />
                 ))}
               </View>
             )}
@@ -141,45 +225,81 @@ function Rangee({
   premiere,
   clubId,
   petite,
+  revendiquable,
+  onRevendiquer,
+  onReactiver,
 }: {
   j: EcranEffectif["joueurs"][number];
   t: Jetons;
   premiere: boolean;
   clubId: string;
   petite?: boolean;
+  revendiquable?: boolean;
+  onRevendiquer?: () => void;
+  onReactiver?: () => void;
 }) {
   const encre = petite ? t.i2 : t.ink;
   return (
-    <Pressable
-      onPress={() => router.push({ pathname: "/joueur/[id]", params: { id: j.id, clubId } })}
-      style={({ pressed }) => [
-        s.rangee,
-        petite && { minHeight: 54 },
+    <View
+      style={[
         !premiere && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.sep },
-        pressed && { opacity: 0.7 },
       ]}
     >
-      <Avatar nom={j.nom} photo={j.photo} t={t} taille={petite ? 34 : 44} />
-      <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-        <View style={s.ligneNom}>
-          <Text style={[s.nom, { color: encre }]} numberOfLines={1}>
-            {j.nom}
-          </Text>
-          {j.gardien && <Text style={[s.gant, { color: t.i3 }]}>· gardien</Text>}
-          {/* Le point vert dit que quelqu'un a revendiqué ce profil : c'est ce
-              qui lui permet de répondre présent depuis son téléphone. */}
-          {j.compteLie && <View style={s.pointLie} />}
+      <Pressable
+        onPress={() => router.push({ pathname: "/joueur/[id]", params: { id: j.id, clubId } })}
+        style={({ pressed }) => [s.rangee, petite && s.rangeePetite, pressed && { opacity: 0.7 }]}
+      >
+        <Avatar nom={j.nom} photo={j.photo} t={t} taille={petite ? 34 : 44} />
+        <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+          <View style={s.ligneNom}>
+            <Text style={[s.nom, { color: encre }]} numberOfLines={1}>
+              {j.nom}
+            </Text>
+            {/* Un archivé ne montre ni son poste, ni son niveau, ni ses
+                chiffres, ni de chevron : il ne joue plus. Le site le dépouille
+                pareil — une rangée archivée qui garde tout n'est qu'une
+                rangée grisée, et l'œil la relit comme les autres. */}
+            {!petite && j.gardien && <Text style={[s.gant, { color: t.i3 }]}>· gardien</Text>}
+            {!petite && j.compteLie && <View style={s.pointLie} />}
+          </View>
+          {!petite && (
+            <View style={s.sousLigne}>
+              <Etoiles niveau={j.niveau} couleur={t.i2} />
+              <Text style={[s.chiffres, { color: t.i2 }]} numberOfLines={1}>
+                {j.matchs} match{j.matchs > 1 ? "s" : ""} · {j.buts} but
+                {j.buts > 1 ? "s" : ""}
+                {j.invite ? " · invité" : ""}
+              </Text>
+            </View>
+          )}
         </View>
-        <View style={s.sousLigne}>
-          <Etoiles niveau={j.niveau} couleur={t.i2} />
-          <Text style={[s.chiffres, { color: t.i2 }]} numberOfLines={1}>
-            {j.matchs} match{j.matchs > 1 ? "s" : ""} · {j.buts} but{j.buts > 1 ? "s" : ""}
-            {j.invite ? " · invité" : ""}
-          </Text>
+        {!petite && <Text style={[s.chevron, { color: t.i3 }]}>›</Text>}
+      </Pressable>
+
+      {/* Les outils sous la rangée, alignés sur le texte : ce sont des gestes
+          rares — deux fois par saison — et ils n'ont pas à disputer la place
+          au nom, qu'on lit toutes les semaines. */}
+      {(revendiquable || onReactiver) && (
+        <View style={[s.outils, petite && { paddingLeft: 46 }]}>
+          {revendiquable && onRevendiquer && (
+            <Pressable
+              onPress={onRevendiquer}
+              style={({ pressed }) => [s.outil, { borderColor: t.cb }, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={[s.outilTexte, { color: t.ink }]}>C&apos;est moi</Text>
+            </Pressable>
+          )}
+          {onReactiver && (
+            <Pressable
+              onPress={onReactiver}
+              style={({ pressed }) => [s.outil, { borderColor: t.cb }, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={[s.outilTexte, { color: t.ink }]}>Réactiver</Text>
+            </Pressable>
+          )}
         </View>
-      </View>
-      <Text style={[s.chevron, { color: t.i3 }]}>›</Text>
-    </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -194,6 +314,10 @@ const s = StyleSheet.create({
 
   carte: { borderRadius: 28, borderWidth: 1, paddingHorizontal: 16, marginTop: 16 },
   rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64 },
+  rangeePetite: { minHeight: 52 },
+  outils: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingLeft: 56, paddingBottom: 12 },
+  outil: { height: 34, borderRadius: 17, borderWidth: 1, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" },
+  outilTexte: { fontSize: 15, fontWeight: "600" },
   ligneNom: { flexDirection: "row", alignItems: "center", gap: 6 },
   nom: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
   gant: { fontSize: 13 },

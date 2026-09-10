@@ -5,6 +5,8 @@ import { getGardiens, getPlayerDetail, getTropheesJoueur } from "@/lib/stats";
 import { trierParPoints } from "@/lib/classement";
 import { nomsChasubles } from "@/lib/color";
 import { ini } from "@/lib/ini";
+import { idsValides } from "@/lib/ids";
+import { sanitize, type PlayerInput } from "@/lib/roster-serveur";
 import { jourCourt } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -187,5 +189,63 @@ export async function GET(
         homme: m.wasMvp,
       };
     }),
+  });
+}
+
+/// Modifier une fiche, ou l'archiver.
+///
+/// Archiver n'est PAS supprimer : le joueur sort de la liste de ceux qui
+/// viennent lundi, ses matchs, ses buts et ses votes restent au club. Rien
+/// dans l'app ne supprime un joueur — un classement de saison ne doit pas se
+/// réécrire parce que quelqu'un a déménagé.
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ clubId: string; playerId: string }> },
+) {
+  const { clubId, playerId } = await params;
+  if (!idsValides(playerId)) {
+    return NextResponse.json({ error: "Identifiant invalide." }, { status: 400 });
+  }
+  const ctx = await getClubApiContext(clubId);
+  if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  if (!ctx.canManage) {
+    return NextResponse.json({ error: "Réservé aux admins." }, { status: 403 });
+  }
+
+  const corps = (await req.json().catch(() => null)) as
+    | (PlayerInput & { archive?: unknown })
+    | null;
+  if (!corps || typeof corps !== "object" || Array.isArray(corps)) {
+    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+  }
+
+  const joueur = await prisma.player.findFirst({
+    where: { id: playerId, clubId },
+    select: { id: true },
+  });
+  if (!joueur) return NextResponse.json({ error: "Joueur introuvable." }, { status: 404 });
+
+  const { archive, ...fiche } = corps;
+  const data = sanitize(fiche);
+  // Un nom vide passerait inaperçu : `sanitize` le laisse tomber, et la fiche
+  // garderait l'ancien. Ce n'est pas ce qu'on a tapé.
+  if (fiche.name !== undefined && !data.name) {
+    return NextResponse.json({ error: "Nom requis." }, { status: 400 });
+  }
+  const photoRefusee = fiche.photo != null && data.photo == null;
+
+  await prisma.player.update({
+    where: { id: playerId },
+    data: {
+      ...data,
+      ...(typeof archive === "boolean" ? { isArchived: archive } : null),
+    },
+  });
+
+  return NextResponse.json({
+    ok: true,
+    ...(photoRefusee
+      ? { avertissement: "La photo n'a pas pu être enregistrée : format ou taille refusés." }
+      : null),
   });
 }
