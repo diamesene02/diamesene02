@@ -329,12 +329,24 @@ l'audio. Une soirée à vingt-sept buts, c'est vingt-sept vibrations obligatoire
 ### 8bis.5 L'argent n'est qu'un booléen
 
 Le modèle est un coût de terrain sur la soirée et un `hasPaid` sur la réponse.
-La part encaissée n'est donc **pas un fait, c'est une reconstitution** —
-`MoneyPanel.tsx:54-57` recalcule `Math.ceil(coût ÷ titulaires)` à chaque
-affichage. `Math.ceil` : 48 € pour 7, c'est 6,86 € arrondi à 7, donc 49 €
-collectés pour 48 € dus — et la jauge est plafonnée à 100 %, donc personne ne le
-voit. Rien ne porte une dette d'une semaine sur l'autre, rien ne dit qui a
-avancé, rien ne permet de payer.
+La part encaissée n'est donc **pas un fait, c'est une reconstitution** :
+`MoneyPanel.tsx:53-56` recalcule `Math.ceil(coût ÷ titulaires)` **à chaque
+rendu**, depuis la liste des présents du moment. Une réponse qui change après la
+soirée change donc *rétroactivement* ce que « a payé » voulait dire — le montant
+que quelqu'un a réellement donné n'est écrit nulle part.
+
+> **Correction du 10 septembre au soir.** Une première version de ce paragraphe
+> affirmait que `Math.ceil` sur-collecte un euro par soirée (« 48 € pour 7, donc
+> 49 € »). **C'est faux, d'un facteur cinquante.** `cost` est en CENTIMES
+> (`:46-48`, `:69`) : `Math.ceil(4800 ÷ 7)` fait 686 centimes, soit 6,86 €, et
+> sept parts font 48,02 €. Le sur-encaissement est de **deux centimes**, pas
+> d'un euro. L'erreur est née d'un arrondi lu à l'euro au lieu du centime, et
+> elle avait survécu à une relecture ; c'est une seconde qui l'a vue. Le défaut
+> réel est celui du paragraphe ci-dessus — la part n'est pas figée — et il est
+> plus grave, parce qu'il est silencieux.
+
+Rien ne porte une dette d'une semaine sur l'autre, rien ne dit qui a avancé,
+rien ne permet de payer.
 
 Dans un club de quinze, l'argent est la deuxième cause de friction après les
 équipes. Et c'est un **chiffre** : priorité 2 au sens du § 2, pas du confort.
