@@ -1,14 +1,15 @@
 # 0000 — Les cas, tous les cas
 
-*Annexe de la spec produit. 549 cas relevés le 10 septembre 2026 par un balayage
-en huit domaines puis six regards (le gymnase, le nouveau, le capitaine sur une saison,
-l'occasionnel, le téléphone lui-même, les données). Chaque cas a été vérifié dans le code —
-la colonne « où » porte le fichier et la ligne.*
+*Annexe de la spec produit. **549 cas** relevés le 10 septembre 2026 par un balayage
+en huit domaines puis six regards. Chaque cas a été vérifié dans le code — la ligne `>` porte
+le fichier et la ligne. Les identifiants sont ceux du balayage ; c'est par eux que les specs
+numérotées citeront les cas.*
 
-**État** — `✔ fait` : ça marche des deux côtés · `◐ partiel` : ça marche d'un seul côté, ou à moitié ·
+**160 faits · 159 partiels · 96 absents · 134 faux.**
+**49 bloquent un lundi · 140 en gênent un · 152 gênent une saison · 208 relèvent du confort.**
+
+**État** — `✔ fait` : ça marche des deux côtés · `◐ partiel` : d'un seul côté, ou à moitié ·
 `✗ absent` : rien ne le fait · `⚠ faux` : ça existe et ça se trompe, ce qui est pire.
-
-**Gravité** — ce que ça coûte AU CLUB, pas au code.
 
 ---
 
@@ -5021,3 +5022,529 @@ la colonne « où » porte le fichier et la ligne.*
 **Où ça en est.** `debloquerToutes` fait `UPDATE outbox SET blocked_at = NULL WHERE blocked_at IS NOT NULL` — tous clubs, tous matchs, sans distinction — et remet les compteurs de tentatives à zéro. Sur l'app la question est théorique (rien ne l'appelle, cf. TRANS-13) ; sur le site, un tap sur la pastille relance des opérations qui seront à nouveau refusées, en boucle.
 
 > `five-scorer-mobile/lib/outbox/outbox.ts:148-156 ; lib/outbox/sync.ts:390-397 ; côté site components/SyncBadge.tsx:53-56`
+
+## Regard : le nouveau venu
+
+*13 cas — 0 faits, 0 partiels, 3 absents, **10 faux**.*
+
+### `REG-N01` — ⚠ faux · *bloque un lundi*
+
+**La situation.** Le nouveau n'a pas le lien sous la main. Au téléphone, le capitaine lui lit le code qu'il voit dans ses Réglages — « A7K2M9QX ». Ça ne marche pas. Le capitaine essaie alors de fabriquer le lien avec ce code : la page répond « Lien invalide ou expiré. Demande un nouveau lien au capitaine — les codes peuvent être régénérés. » Il régénère.
+
+**Ce qu'on attend.** Le code affiché est celui qui marche. Et un code qui ne marche pas ne doit pas s'annoncer comme « expiré » : c'est ce mot qui pousse à régénérer.
+
+**Où ça en est.** Les deux Réglages affichent `inviteCode.slice(-8).toUpperCase()` (app/c/[slug]/settings/page.tsx:78 et app/api/clubs/[clubId]/reglages/route.ts:107) : huit lettres majuscules qui ne sont NI le code (un cuid entier, ou 12 caractères après régénération, app/actions/club.ts:73) NI acceptables par `findUnique({ where: { inviteCode } })`. Le champ « Rejoindre » pardonne beaucoup — `normaliserCode` accepte le lien entier et abaisse la casse (lib/rejoindre.ts:56-71) — mais la page /join/[code] n'y passe PAS : elle interroge la base avec le segment d'URL brut (app/join/[code]/page.tsx:20-21). Et son message de refus accuse le lien plutôt que la saisie (:41-46). Le capitaine régénère alors le code — geste irréversible qui tue les liens déjà envoyés à trois autres personnes (REG-21), pour un code qui n'avait jamais expiré.
+
+> `Site : app/c/[slug]/settings/page.tsx:78, app/join/[code]/page.tsx:20-21,41-46, lib/rejoindre.ts:56-71 (`normaliserCode`), app/actions/club.ts:70-79 (`regenerateInviteCode`). App : app/api/clubs/[clubId]/reglages/route.ts:103-107 (`affiche`), five-scorer-mobile/app/club/[id]/reglages.tsx:409-441.`
+
+### `SOIREE-N01` — ⚠ faux · *bloque un lundi*
+
+**La situation.** Le nouveau, samedi, tape « Je serai là » depuis l'accueil. La soirée est déjà complète (douze abonnés, capacité 12) : il est treizième. L'accueil affiche alors sa réponse.
+
+**Ce qu'on attend.** On lui dit qu'il est sur la liste d'attente, pas qu'il est « Présent ». Sinon il prend la voiture lundi pour rien.
+
+**Où ça en est.** `lib/presences.ts` calcule bien `rang` et `enAttente` pour chaque joueur (:38-40, :104-112), et la page de la soirée l'utilise (app/c/[slug]/sessions/[id]/page.tsx:97 → SessionRsvpAdmin affiche « En attente »). Mais l'accueil ne le lit jamais : `maReponse` ne rend que le statut brut du RSVP (app/c/[slug]/page.tsx:398) et `BoutonPresence` le traduit par la table `LIBELLES = { IN: "Présent", … }` (BoutonPresence.tsx:8-12), affichée telle quelle une fois la réponse envoyée (:31-41). `grep attente app/c/[slug]/page.tsx` ne rend RIEN. Côté app c'est pareil : la route accueil calcule `attente: presences.attente.length` (:110) mais rend `maReponse` en statut brut (:115), et la bannière n'affiche que ça (five-scorer-mobile/app/club/[id]/index.tsx:122-133). Le même écran dit « 12 présents · complet » deux lignes plus haut — et « Présent » sur la ligne du treizième.
+
+> `Site : app/c/[slug]/_accueil/BoutonPresence.tsx:8-12,31-41, app/c/[slug]/page.tsx:398, lib/presences.ts:38-40,104-112. App : app/api/clubs/[clubId]/accueil/route.ts:109-115, five-scorer-mobile/app/club/[id]/index.tsx:122-133.`
+
+### `COMPTES-N01` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Jeudi soir. Le nouveau ouvre le lien WhatsApp sur son téléphone, dans un navigateur qui porte encore un vieux cookie Five Scorer (un ancien compte, une session morte pendant l'été, un navigateur partagé). Il n'est plus reconnu, la page d'invitation lui propose donc « Créer un compte et rejoindre ».
+
+**Ce qu'on attend.** Il crée son compte et entre dans le club, comme n'importe qui d'autre. Le code qu'on lui a envoyé ne doit pas se perdre entre deux écrans.
+
+**Où ça en est.** Le lien « Créer un compte et rejoindre » pointe sur /signup?next=%2Fjoin%2F<code> (app/join/[code]/page.tsx:88-91). Le middleware juge la session sur la SEULE PRÉSENCE du cookie (middleware.ts:22 `getSessionCookie`) : il croit l'utilisateur connecté et renvoie sur /onboarding — `NextResponse.redirect(new URL("/onboarding", req.url))` (middleware.ts:26), qui ABANDONNE la chaîne de requête. /onboarding appelle requireUser(), la vraie session est morte, on part sur /session-expiree, qui nettoie les cookies et redirige sur `/login?session=expiree` (app/session-expiree/route.ts:26) — encore sans `next`. Le nouveau se retrouve sur un écran de connexion nu, sans compte et sans code : il doit retourner chercher le lien dans WhatsApp. Le même trou avale `next` pour tout le monde, mais ici c'est la seule porte d'entrée du club.
+
+> `Site : middleware.ts:25-26, app/join/[code]/page.tsx:88-99, app/session-expiree/route.ts:26, app/login/page.tsx:21. App : aucun (le lien n'ouvre pas l'app, cf. TRANS-41).`
+
+### `DIRECT-N01` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Karim est venu trois lundis comme invité : le capitaine tapait « + Invité · Karim » à chaque fois. Ce jeudi il rejoint le club par le lien. Lundi, on compose la feuille : il y a deux « Karim » dans la liste, et au moment du but il faut taper sur la bonne tuile.
+
+**Ce qu'on attend.** Un seul Karim sur la feuille. Ses trois lundis d'invité le suivent, ou au minimum on distingue les deux fiches d'un coup d'œil avant le coup d'envoi.
+
+**Où ça en est.** `assurerProfilJoueur` n'adopte que des fiches `isGuest: false` (lib/rejoindre.ts:97-100) : la fiche invitée de Karim, avec ses trois matchs et ses buts, n'est jamais rattachée — une deuxième fiche vide est créée. Karim ne peut pas non plus la revendiquer : `rattacherJoueur` refuse explicitement (« Un invité ne peut pas être revendiqué. », lib/rattachement.ts:98-103), et aucun geste ne transforme une fiche invitée en fiche normale (`nettoyerJoueur` accepte `isGuest` mais aucun écran ne l'envoie). Les deux fiches arrivent ensemble dans la compo et sur la feuille : la page de la soirée charge tous les joueurs non archivés, invités compris (app/c/[slug]/sessions/[id]/page.tsx:60-64), la route roster aussi (app/api/clubs/[clubId]/roster/route.ts:22-24), et la tuile n'affiche que `name` (components/PlayerTile.tsx:113,134) — deux tuiles « Karim » identiques, l'une avec une photo, l'autre sans. Le premier but du nouveau membre a une chance sur deux d'aller sur la fiche d'un fantôme, et APRES-20 interdira ensuite de le rendre à son auteur.
+
+> `Site : lib/rejoindre.ts:97-100 (l'adoption ignore `isGuest`), app/c/[slug]/sessions/[id]/page.tsx:60-64 (les invités sont dans la liste), components/CompoSoiree.tsx, components/PlayerTile.tsx:113,134, lib/rattachement.ts:98-103. App : five-scorer-mobile/app/compo.tsx, app/api/clubs/[clubId]/roster/route.ts:22-24.`
+
+### `VEST-N01` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Le nouveau s'inscrit. Selon ce qu'il tape — ou ce que Google lui renvoie — son nom peut être « karim  b », « Karim Benzema Junior de Guyancourt », ou coller de 300 caractères. Puis il rejoint le club par le lien.
+
+**Ce qu'on attend.** Le nom qui entre au vestiaire est propre et borné, comme celui qu'un capitaine tape dans une fiche : 60 caractères, sans espaces en trop.
+
+**Où ça en est.** `assurerProfilJoueur` crée la fiche avec `data: { clubId, name: user.name, userId: user.id }` (lib/rejoindre.ts:114-116) : ni `trim`, ni `slice`, ni passage par `nettoyerJoueur` — alors que la MÊME base impose 60 caractères dès qu'un admin remplit une fiche (lib/joueur.ts:44). Rien ne borne le nom en amont non plus : ni le champ du site (app/signup/SignupForm.tsx:82-95), ni celui de l'app (five-scorer-mobile/app/connexion.tsx:90-100), ni Better Auth (lib/auth.ts:76-79). Ce nom s'affiche ensuite en entier sur la tuile de la feuille de match (components/PlayerTile.tsx:113 et 134, `<span className="nom">{name}</span>`), dans le classement, sur la pelouse de la compo et dans la carte de partage. Un seul membre mal inscrit rend la feuille du lundi illisible, et seul un admin peut réparer.
+
+> `Site : lib/rejoindre.ts:114-116 (`prisma.player.create`), lib/joueur.ts:44 (`nettoyerJoueur` : `name?.trim().slice(0, 60)`), app/signup/SignupForm.tsx:82-95 (aucun `maxLength`), components/PlayerTile.tsx:113,134. App : five-scorer-mobile/app/connexion.tsx:90-100 (champ Nom, aucune borne).`
+
+### `VEST-N03` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Le nouveau rejoint le jeudi. Lundi, personne n'a ouvert sa fiche. Le capitaine tape « Équilibrer » pour faire les deux équipes.
+
+**Ce qu'on attend.** Le générateur sait qu'on ne connaît pas encore ce joueur — ou au moins, le capitaine voit qu'il reste des fiches à noter avant de tirer les équipes.
+
+**Où ça en est.** La fiche créée en rejoignant ne porte aucun niveau : elle prend le défaut de la base, `skill Int @default(3)` (prisma/schema.prisma:219), parce que `assurerProfilJoueur` n'écrit que `clubId`, `name` et `userId` (lib/rejoindre.ts:114-116). Or `strength(p) = p.skill + (p.form ?? 0) * 0.5` (lib/balance.ts:31) : l'équilibrage compte ce 3 comme une note, au même titre que le 3 d'un joueur que le capitaine a réellement évalué. Rien dans le schéma ni dans l'affichage ne distingue « niveau 3 » de « jamais noté » : la fiche annonce « Niveau 3 » à tout le club (app/c/[slug]/players/[id]/page.tsx:69) et le vestiaire lui dessine trois étoiles pleines. Le premier lundi d'un nouveau — celui où on ne sait justement pas ce qu'il vaut — est celui où l'équilibrage se trompe le plus, sans le dire.
+
+> `Site : prisma/schema.prisma:219 (`skill Int @default(3)`), lib/rejoindre.ts:114-116, lib/balance.ts:31,47-58, components/CompoSoiree.tsx, app/c/[slug]/players/[id]/page.tsx:69 (« Niveau {player.skill} » dans le sous-titre). App : five-scorer-mobile/lib/noyau/balance.ts, five-scorer-mobile/app/club/[id]/effectif.tsx (étoiles).`
+
+### `COMPTES-N02` — ⚠ faux · *gêne une saison*
+
+**La situation.** Le nouveau crée son compte (depuis l'App Store, ou depuis la page d'accueil) et arrive sur « Mes clubs ». Avant même de savoir où est son club, on lui propose : « L'appli a changé de peau, pas de mémoire. Les matchs et joueurs d'avant la v2 sont dans le club « … ». Saisis l'ancien PIN admin pour en devenir capitaine. »
+
+**Ce qu'on attend.** Un compte neuf ne se voit pas proposer de prendre la capitainerie d'un club qu'il ne connaît pas. Et si la reprise est fermée, on n'en parle pas du tout.
+
+**Où ça en est.** `getUnclaimedLegacyClub()` (lib/legacy.ts:14-21) ne regarde QUE si le club historique existe et n'a aucun membre — il ne consulte jamais `revendicationOuverte()` (lib/legacy.ts:41-42, `LEGACY_CLAIM_OPEN === "1"`). La page d'onboarding affiche donc la carte et le champ PIN à TOUT compte neuf (app/onboarding/page.tsx:49-58), avec le nom du club historique en clair. Le refus n'arrive qu'après l'envoi, dans `claimLegacyClub` (lib/legacy.ts:52-57). Le garde tient — rien n'est pris — mais la première chose que voit un nouveau membre, c'est une invitation à revendiquer l'historique d'un club, avec un code à quatre chiffres pour cible.
+
+> `Site : app/onboarding/page.tsx:29,49-58, lib/legacy.ts:14-21,41-56, app/onboarding/ClaimLegacyForm.tsx. App : aucun écran équivalent (donc rien à corriger côté app).`
+
+### `COMPTES-N03` — ⚠ faux · *gêne une saison*
+
+**La situation.** Le nouveau a entendu parler de l'app avant de recevoir le lien. Il crée son compte depuis la page d'accueil (ou depuis l'app puis passe sur le site). Il arrive sur « Ton club t'attend ».
+
+**Ce qu'on attend.** Le geste normal d'un compte neuf, dans ce club, c'est d'ENTRER dans un club existant. « Rejoindre » passe devant ; « Créer un club » attend qu'on le demande.
+
+**Où ça en est.** Sur /onboarding, la section « Créer un club » est écrite AVANT « Rejoindre un club » (app/onboarding/page.tsx:61 puis :80), et quand le compte n'a aucun club le formulaire de création est DÉPLIÉ d'office (`clubs.length === 0` → `<CreateClubForm />` nu, :63-68) tandis que « Rejoindre » reste un champ de texte en bas de page. L'app mobile fait exactement l'inverse — bouton plein « J'ai un lien d'invitation » quand il n'y a aucun club (five-scorer-mobile/app/clubs.tsx:100-113). Résultat côté site : un nouveau qui n'a pas encore son lien sous la main crée « Renault Five » bis, devient capitaine d'un club vide, et le vrai club a maintenant un jumeau qui ne se supprime pas (aucune suppression de club nulle part, cf. COMPTE-32).
+
+> `Site : app/onboarding/page.tsx:61-79 (Créer) vs 80-89 (Rejoindre), app/onboarding/CreateClubForm.tsx. App : five-scorer-mobile/app/clubs.tsx:100-113 (l'app fait l'inverse, et n'a pas de création de club).`
+
+### `COMPTES-N04` — ✗ absent · *gêne une saison*
+
+**La situation.** Le nouveau installe l'app et tape « Créer mon compte » sur l'écran de connexion.
+
+**Ce qu'on attend.** Il accepte des conditions d'utilisation et sait ce qu'on fait de ses données — comme sur le site, où les deux liens sont sous le bouton.
+
+**Où ça en est.** `grep -rniE "cgu|confidentialit|privacy|terms|conditions"` sur tout five-scorer-mobile (app, lib, composants, app.json) ne rend AUCUNE ligne. L'écran d'inscription de l'app (five-scorer-mobile/app/connexion.tsx:88-140) enchaîne nom / e-mail / mot de passe / « Créer mon compte », sans un mot. Le site, lui, les affiche à l'inscription et sur la page d'accueil (app/page.tsx:38-40). Deux conséquences : la moitié des nouveaux membres (ceux qui entrent par l'app) n'acceptent rien, et une soumission App Store sur un compte utilisateur sans lien de confidentialité se fait renvoyer.
+
+> `App : five-scorer-mobile/app/connexion.tsx (formulaire d'inscription complet, aucune mention). Site : app/signup/SignupForm.tsx (bloc `bv-pied` : « En créant un compte, tu acceptes les CGU et la politique de confidentialité »), app/terms/page.tsx, app/privacy/page.tsx.`
+
+### `VEST-N02` — ✗ absent · *gêne une saison*
+
+**La situation.** Karim a joué trois lundis, le capitaine lui avait fait une fiche « Karim ». Il s'inscrit sous « Karim Benzema » et rejoint par le lien : une deuxième fiche naît. Le capitaine s'en aperçoit et rattache le compte à la BONNE fiche depuis le site.
+
+**Ce qu'on attend.** Une fois le rattachement corrigé, le vestiaire redevient propre : une seule fiche Karim.
+
+**Où ça en est.** `rattacherJoueur` commence par DÉLIER toutes les fiches de ce compte dans le club — `tx.player.updateMany({ where: { clubId, userId }, data: { userId: null } })` (lib/rattachement.ts:126-129) — puis lie la cible. La fiche vide créée au moment de rejoindre survit donc : libre, non archivée, non invitée, zéro match. Elle reste dans le vestiaire, dans la liste des présences de chaque soirée (app/c/[slug]/sessions/[id]/page.tsx:60-64 charge tous les joueurs non archivés), dans le vivier de l'accueil (app/c/[slug]/page.tsx:189-193) et dans la pelouse de la compo. Aucune suppression de joueur n'existe nulle part dans le dépôt : la seule sortie est `setPlayerArchived` (app/actions/roster.ts:86). Le doublon devient un archivé de plus, dépliable, portant le nom d'un joueur bien vivant. Et rien ne signale au capitaine que le doublon existe.
+
+> `Site : lib/rattachement.ts:126-131, app/actions/roster.ts (aucun `deletePlayer` : addPlayer:47, updatePlayer:63, setPlayerArchived:86, linkPlayerToUser:113), app/c/[slug]/players/RosterClient.tsx. App : five-scorer-mobile/app/club/[id]/effectif.tsx (archivage/réactivation seulement).`
+
+### `COMPTES-N05` — ⚠ faux · *confort*
+
+**La situation.** Le nouveau installe l'app avant d'avoir son lien et tape « Voir le club sans compte » pour jeter un œil.
+
+**Ce qu'on attend.** Soit on lui montre le club dont on lui parle, soit on lui demande lequel — pas un club au hasard.
+
+**Où ça en est.** `export const CLUB = process.env.EXPO_PUBLIC_CLUB ?? "renault-five-urban-guy"` (five-scorer-mobile/lib/api.ts:709), et `chargerVitrine(slug = CLUB)` (:754) : le slug est figé dans le bundle publié — la variable d'environnement n'existe qu'au moment du build. Pour ce club-ci, c'est juste par accident. Pour n'importe quel autre nouveau membre — le five du jeudi, un club voisin — « Voir le club sans compte » montre le classement de Renault Five Urban Guy, ou l'erreur « Aucun club public à « renault-five-urban-guy » » (:763) si le club a éteint sa vitrine. L'écran n'offre nulle part de choisir un club.
+
+> `App : five-scorer-mobile/lib/api.ts:709,754, five-scorer-mobile/app/vitrine.tsx:33. Site : app/p/[slug]/page.tsx, app/api/public/[slug]/route.ts (le slug fait partie de l'URL, donc le problème n'existe pas).`
+
+### `SOIREE-N02` — ⚠ faux · *confort*
+
+**La situation.** Le nouveau, curieux, remonte le calendrier et ouvre la soirée du 15 janvier — trois mois avant son arrivée au club.
+
+**Ce qu'on attend.** La liste des présences d'une soirée passée est celle des gens qui étaient au club ce soir-là.
+
+**Où ça en est.** La page de la soirée charge l'effectif D'AUJOURD'HUI — `prisma.player.findMany({ where: { clubId, isArchived: false } })` (app/c/[slug]/sessions/[id]/page.tsx:60-64) — sans jamais regarder la date de la soirée ni `Player.createdAt` (prisma/schema.prisma:232, présent en base et lu nulle part). Chaque joueur devient une entrée de `calculerPresences` (:75-84), donc une ligne « sans réponse » sur une soirée à laquelle il ne pouvait pas répondre. La route mobile fait le même calcul (app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:113-124). Symétriquement, un joueur archivé depuis disparaît de la liste d'une soirée où il a joué. Le nouveau se lit donc absent d'un lundi où il n'existait pas, et le capitaine qui rouvre une vieille soirée pour la caisse voit une liste qui n'est plus celle du soir-là.
+
+> `Site : app/c/[slug]/sessions/[id]/page.tsx:60-64,75-97, lib/presences.ts:66-96, prisma/schema.prisma:232 (`Player.createdAt`, jamais lu). App : app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:113-124.`
+
+### `STATS-N01` — ✗ absent · *confort*
+
+**La situation.** Mardi matin, après son premier lundi. Le nouveau ouvre Stats pour la seule question qui l'intéresse : « je suis où ? ». Le club fait vingt joueurs.
+
+**Ce qu'on attend.** Sa ligne se trouve tout de suite — elle est marquée, ou le tableau s'ouvre dessus.
+
+**Où ça en est.** Le composant `Classement` reçoit `slug`, `lignes`, `avecFiches`, `pointsWin`, `pointsDraw`, `camps` (components/Classement.tsx:44-60) : aucun identifiant de joueur courant, aucune classe de surbrillance, aucun ancrage. `grep -n "moi|estMoi|surbrillance" components/Classement.tsx` ne rend rien. Côté app, l'écran Stats appelle bien `chargerMoi()` (five-scorer-mobile/app/club/[id]/stats.tsx:58) mais uniquement pour retrouver les couleurs du club (:59) — la ligne du joueur n'est pas distinguée non plus. Le contraste est net avec la liste des présences, qui met « moi d'abord » (SOIREE-69). Pour quelqu'un qui a un match au compteur au milieu de vingt lignes triées aux points, se trouver demande de lire tous les noms.
+
+> `Site : components/Classement.tsx:44-60 (aucune notion de « moi »), app/c/[slug]/stats/page.tsx. App : five-scorer-mobile/app/club/[id]/stats.tsx:58-59 (`chargerMoi` n'est lu que pour le thème du club).`
+
+## Regard : le capitaine sur une saison
+
+*14 cas — 0 faits, 0 partiels, 9 absents, **5 faux**.*
+
+### `SOIREE-72` — ✗ absent · *gêne un lundi*
+
+**La situation.** Lundi 21 h 40, au bord du terrain. Trois joueurs tendent leur billet au capitaine, qui a son téléphone à la main et l'app ouverte sur la soirée.
+
+**Ce qu'on attend.** Cocher « a payé » là, tout de suite, depuis le téléphone — c'est le seul moment où l'argent circule vraiment.
+
+**Où ça en est.** La route de la soirée que lit l'app n'expose que `GET` (app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:27) — il n'existe aucune route d'écriture pour le prix ni pour « a payé » : `setFieldCost` et `setRsvpPaid` sont des server actions du site (app/actions/payments.ts:12,47), inatteignables depuis React Native. L'app calcule et envoie pourtant déjà `payeurs` et `encaisseCents` (soirees/[matchDayId]/route.ts:143-148), mais l'écran n'en montre qu'une ligne : « X encaissés sur Y ». Le capitaine encaisse au gymnase et doit rouvrir un navigateur en rentrant.
+
+> `five-scorer-mobile/app/soiree/[id].tsx:302-306 (affichage seul) ; côté site five-scorer/app/c/[slug]/sessions/[id]/MoneyPanel.tsx:110-201 et five-scorer/app/actions/payments.ts`
+
+### `SOIREE-73` — ✗ absent · *gêne un lundi*
+
+**La situation.** Karim paie pour lui et pour Momo qui a oublié son liquide. Un autre soir, quelqu'un donne 10 € sur une part de 4,80 € et on lui doit la monnaie.
+
+**Ce qu'on attend.** Pouvoir écrire ce qui a réellement été donné, et par qui, pas seulement « payé / pas payé ».
+
+**Où ça en est.** `Rsvp.hasPaid` est un `Boolean @default(false)` (schema.prisma:462) : il n'y a nulle part de montant reçu. L'« encaissé » affiché est une déduction, pas de l'argent compté — `collectedCents = paidCount * shareCents` (MoneyPanel.tsx:57), plafonné à la note (l.193). Un joueur qui paie pour deux oblige à cocher une case qui ment sur l'autre ligne, et la monnaie due n'existe dans aucun champ.
+
+> `five-scorer/prisma/schema.prisma:452-468 (Rsvp), five-scorer/app/actions/payments.ts:47-78, five-scorer/app/c/[slug]/sessions/[id]/MoneyPanel.tsx:56-57`
+
+### `SAISON-70` — ⚠ faux · *gêne une saison*
+
+**La situation.** En janvier, Urban change de lot de chasubles : le blanc devient jaune. Le capitaine met à jour les couleurs dans les réglages. En juin, on regarde le derby de la saison et les fiches des joueurs.
+
+**Ce qu'on attend.** Les matchs de septembre à décembre restent « Blanc contre Noir », ceux d'après « Jaune contre Noir », et personne ne se voit attribuer une chasuble qu'il n'a jamais portée.
+
+**Où ça en est.** Le nom d'équipe se DÉDUIT de la couleur (`nomChasuble`, color.ts:137-166) — c'est le bon choix, mais il n'a pas de mémoire. Trois conséquences vérifiées : (1) chaque `Match` fige `teamAName` le jour où il se joue (schema.prisma:369), donc l'histoire garde « Blanc » ; (2) le derby de la saison prend son titre du DERNIER match — `const dernier = matches[matches.length - 1]` puis `nomA: dernier.teamAName` (stats.ts:851-853) — donc « Jaune contre Noir » coiffe rétroactivement les 25 lundis joués en blanc, dont les victoires sont pourtant bien comptées ensemble ; (3) la fiche d'un joueur étiquette TOUTE sa carrière avec les couleurs d'aujourd'hui : `noms = nomsChasubles(ctx.club.colorA, ctx.club.colorB)` appliqué au camp majoritaire de tous ses matchs (players/[id]/page.tsx:54-72). Un joueur qui n'a jamais porté de jaune est annoncé « Jaune · Niveau 4 ».
+
+> `five-scorer/lib/color.ts:137-183 (nomChasuble/nomsChasubles), five-scorer/lib/stats.ts:849-855 (derby), five-scorer/app/c/[slug]/players/[id]/page.tsx:54-72, five-scorer/prisma/schema.prisma:369 ; côté app five-scorer-mobile/app/joueur/[id].tsx via app/api/clubs/[clubId]/joueurs/[playerId]/route.ts:63`
+
+### `SOIREE-74` — ⚠ faux · *gêne une saison*
+
+**La situation.** Le capitaine saisit 48 € le lundi matin. À 17 h, Urban annonce le terrain fermé : la soirée n'a pas lieu. En juin, il regarde l'onglet Bilan pour savoir ce que la saison a coûté.
+
+**Ce qu'on attend.** Le total « Terrain » ne compte que les soirées qui ont eu lieu.
+
+**Où ça en est.** `const terrain = soirees.reduce((s, md) => s + (md.fieldCostCents ?? 0), 0)` somme TOUTES les soirées de la saison, sans filtrer `canceledAt` — alors que la même fonction sait très bien reconnaître une soirée annulée dix lignes plus haut (saison/route.ts:107-111, « Annulée »). `soireesPayantes` (l.271) la compte aussi, donc la moyenne « par soirée » est fausse dans les deux termes. Quatre soirées annulées dans l'année = 192 € fantômes dans le seul chiffre d'argent que le club lit de toute la saison.
+
+> `five-scorer/app/api/clubs/[clubId]/saison/route.ts:270-271 et five-scorer/app/c/[slug]/saison/page.tsx:221-222`
+
+### `SOIREE-75` — ⚠ faux · *gêne une saison*
+
+**La situation.** Le club a 14 abonnés pour 12 places. Toute la saison, ce sont les deux mêmes qui se retrouvent sur la liste d'attente — et personne ne comprend pourquoi eux.
+
+**Ce qu'on attend.** À égalité d'engagement, la place tourne — ou au moins la règle est dite, et elle est la même sur tous les écrans.
+
+**Où ça en est.** Un abonné n'a pas de réponse, donc son engagement vaut `creeeLe` (presences.ts:93). Les 44 soirées étant créées d'un bloc par `createMany` (lib/calendrier-serveur.ts:133), les 14 abonnés sont à ÉGALITÉ PARFAITE sur toute l'année. Le tri `presents.sort((a, b) => a.engageA - b.engageA)` (l.103) est stable : l'ordre d'arrivée du tableau tranche. Or cet ordre n'est pas le même partout — la page de la soirée charge les joueurs `orderBy: { name: "asc" }` (sessions/[id]/page.tsx:44), l'écran Saison les charge SANS `orderBy` (saison/route.ts:44-48). Donc : la liste d'attente est alphabétique toute la saison sur un écran, et dans l'ordre de la base sur l'autre — deux écrans peuvent nommer deux titulaires différents pour le même lundi. Le commentaire (l.100-102) assume l'égalité, mais pas qu'elle se fige pendant dix mois.
+
+> `five-scorer/lib/presences.ts:90-115, five-scorer/app/c/[slug]/sessions/[id]/page.tsx:42-44, five-scorer/app/api/clubs/[clubId]/saison/route.ts:44-48`
+
+### `STATS-70` — ⚠ faux · *gêne une saison*
+
+**La situation.** 15 juillet, dernier lundi joué. Le capitaine ouvre Stats pour sortir le palmarès de l'année et le coller dans le groupe. Il n'a pas encore clôturé la saison — il ne le fera qu'en septembre, comme chaque année.
+
+**Ce qu'on attend.** Le palmarès complet de l'année en cours, ou une phrase qui dit clairement qu'il faut d'abord clôturer.
+
+**Où ça en est.** `getSeasonHonours` n'est appelé QUE si la saison choisie est dans `cloturees` : `cloturees.some((s) => s.id === choisie) ? await getSeasonHonours(...) : null` (stats/route.ts:99-101 ; idem page.tsx:144-147). Tant que la saison est active, la carte s'appelle quand même « Palmarès de la saison » (stats/route.ts:330) mais ne porte que trois titres calculés à la volée — homme du match, buteur, passeur (l.109-111) — sans le meilleur %V, sans l'Élo le plus haut, sans l'inoxydable. Rien ne dit au capitaine que ces trois-là arrivent avec la clôture. Et comme personne ne clôture en juillet (c'est exactement la situation de SAISON-03), le club ne voit jamais son palmarès complet de l'année.
+
+> `five-scorer/app/api/clubs/[clubId]/stats/route.ts:97-101 et 325-331, five-scorer/app/c/[slug]/stats/page.tsx:141-155 et 493-514 ; côté app five-scorer-mobile/app/club/[id]/stats.tsx`
+
+### `TRANS-70` — ⚠ faux · *gêne une saison*
+
+**La situation.** Troisième saison du club, mois de juin : 250 matchs derrière. Au vestiaire, quelqu'un ouvre la fiche d'un joueur sur l'app.
+
+**Ce qu'on attend.** Un écran qui s'ouvre aussi vite qu'au premier lundi de septembre.
+
+**Où ça en est.** `loadFinishedMatches` recharge TOUS les matchs terminés de la portée, participants et événements compris, à chaque appel (stats.ts:48-71) — il n'y a ni pagination ni agrégat stocké. Or `getPlayerDetail` boucle sur les saisons EN SÉRIE : `for (const s of seasons) { await getLeaderboard({ clubId, seasonId: s.id }) }` (stats.ts:430-431). La route de la fiche mobile enchaîne en plus `getGardiens` (toutes saisons), `getTropheesJoueur` et un `getLeaderboard` de la saison (joueurs/[playerId]/route.ts:27-53) : à la troisième saison, une fiche joueur = sept relectures complètes de l'histoire du club, aller-retour après aller-retour vers la base. Même mécanique sur « Toutes saisons » : `Promise.all(closedSeasons.map((s) => getSeasonHonours(clubId, s.id)))` (stats/page.tsx:151-153) refait un classement complet par saison clôturée. L'app ne casse pas — elle ralentit tous les mois, exactement là où le réseau est le plus mauvais.
+
+> `five-scorer/lib/stats.ts:48-71 et 428-434, five-scorer/app/api/clubs/[clubId]/joueurs/[playerId]/route.ts:27-53, five-scorer/app/c/[slug]/stats/page.tsx:148-155`
+
+### `REG-70` — ✗ absent · *gêne une saison*
+
+**La situation.** Le capitaine joue, il ne peut pas tenir la feuille en même temps. Il veut que Momo la tienne tous les lundis — sans que Momo puisse supprimer une soirée, changer le barème ou toucher à la caisse.
+
+**Ce qu'on attend.** Donner à une personne le droit de tenir la feuille, et rien d'autre.
+
+**Où ça en est.** Il n'y a que deux positions : `canScore = canManage || club.membersCanScore` (guard.ts:66). Soit le club ouvre la saisie à TOUS les membres (`membersCanScore`, schema.prisma:163), soit le capitaine nomme Momo admin — et `canManage` ouvre d'un coup les réglages, le roster, les saisons, la caisse, la suppression d'une soirée et le retrait des membres (guard.ts:17-19 le dit noir sur blanc). Les rôles sont figés à owner/admin/member, validés à l'exécution (club.ts:99-101). Sur une saison, le capitaine choisit entre déléguer trop et ne pas déléguer.
+
+> `five-scorer/lib/guard.ts:52-68, five-scorer/app/actions/club.ts:83-115, five-scorer/prisma/schema.prisma:162-163 ; côté app five-scorer-mobile/app/club/[id]/reglages.tsx (section « Membres »)`
+
+### `REG-71` — ✗ absent · *gêne une saison*
+
+**La situation.** En janvier, le créneau change pour le reste de l'année : 20 h devient 19 h 30, ou le club passe du terrain 2 au terrain 4, ou déménage à Urban Vélizy. Il reste 22 lundis au calendrier.
+
+**Ce qu'on attend.** Corriger l'heure et le lieu des lundis qui restent d'un seul geste.
+
+**Où ça en est.** Aucune action ne modifie une soirée existante : `grep matchDay.update` ne rend que la compo (app/actions/compo.ts:76,134) et l'annulation (app/actions/calendrier.ts:52,72). Et reposer le calendrier ne rattrapera rien, par construction : les journées déjà occupées sont sautées, « une compo préparée ne doit jamais être écrasée par une régénération » (calendrier-serveur.ts:115-131) — donc ni l'heure ni le lieu ne sont repassés. Les 22 lundis restants gardent l'ancien créneau, l'agenda iCal de quinze téléphones aussi (app/api/cal/[token]/route.ts:110-133), et la seule sortie est de supprimer les soirées une par une — ce qui emporte leurs réponses.
+
+> `aucun — five-scorer/lib/calendrier-serveur.ts:115-141, five-scorer/app/actions/matchday.ts (create / delete / rsvp seulement), five-scorer/app/actions/calendrier.ts ; côté app five-scorer-mobile/app/club/[id]/saison.tsx, five-scorer-mobile/app/soiree/nouvelle.tsx`
+
+### `SOIREE-71` — ✗ absent · *gêne une saison*
+
+**La situation.** Début septembre, le capitaine pose les 44 lundis à 20 h à Urban Guyancourt. Le terrain coûte 48 € toutes les semaines, comme l'an dernier.
+
+**Ce qu'on attend.** Le prix se pose une fois, avec le lieu et l'heure — quitte à le corriger la semaine où on prend deux terrains.
+
+**Où ça en est.** `poserCalendrier` n'écrit que `clubId, seasonId, date, title, location` (lib/calendrier-serveur.ts:133-141). Le `Club` n'a aucun champ de prix par défaut (schema.prisma:151-201). `setFieldCost` écrit `fieldCostCents` sur UNE soirée (app/actions/payments.ts:12-44). Résultat : 44 saisies du même montant à la main — et une soirée dont personne n'a saisi le prix disparaît de la caisse, du « réglé / à encaisser » de la liste (sessions/page.tsx:118-125) et du bilan de la saison (saison/route.ts:270-271).
+
+> `five-scorer/lib/calendrier-serveur.ts:132-141, five-scorer/prisma/schema.prisma:151-201 (Club), five-scorer/app/actions/payments.ts:12-44 ; côté app five-scorer-mobile/app/club/[id]/reglages.tsx (section « La soirée »)`
+
+### `STATS-71` — ✗ absent · *gêne une saison*
+
+**La situation.** Fin juillet. Le capitaine veut poster le bilan de l'année dans le groupe : tant de soirées, tant de buts, Blanc contre Noir sur la saison, le meilleur buteur, l'homme de l'année.
+
+**Ce qu'on attend.** Un mot de fin de saison prêt à coller, comme le mot du mardi soir.
+
+**Où ça en est.** `motDeLaSoiree` (lib/soiree.ts:39) compose le mot d'UNE soirée, et son en-tête dit pourquoi il existe : « ce qu'on tape à la main dans le groupe WhatsApp le mardi matin, et qu'on ne tape jamais ». Le même geste au niveau de l'année n'a rien : ni bouton de partage, ni copie, ni carte image sur les écrans Stats et Saison, des deux côtés. Le bilan et le palmarès existent à l'écran (saison/route.ts:255-290, stats/route.ts:325-331) — ils ne sortent pas de l'app.
+
+> `aucun — five-scorer/lib/soiree.ts:39-85 (le seul texte prêt à coller), five-scorer/components/PartageFeuille.tsx (un match), five-scorer/app/c/[slug]/stats/page.tsx, five-scorer/app/c/[slug]/saison/page.tsx ; côté app five-scorer-mobile/app/club/[id]/stats.tsx, five-scorer-mobile/app/club/[id]/saison.tsx`
+
+### `VEST-70` — ✗ absent · *gêne une saison*
+
+**La situation.** Karim a une fiche « Karim » créée en septembre, avec 15 matchs et 9 buts. En janvier il rejoint par le lien WhatsApp sous « Karim Benzema » : une seconde fiche naît à côté. Le capitaine veut recoller les deux.
+
+**Ce qu'on attend.** Fusionner les deux fiches : les matchs, les buts, les votes et les trophées se rejoignent sous une seule, l'autre disparaît.
+
+**Où ça en est.** Aucune fusion nulle part dans les deux dépôts (grep `fusionn|merge` ne rend que `tailwind-merge`). `rattacherJoueur` lie un COMPTE à une fiche, il ne réunit pas deux fiches. Les participations, les buts, les passes, les votes MVP et les trophées sont accrochés à `playerId` (schema.prisma:234-240) : deux fiches, c'est deux carrières qui ne se rejoindront jamais, et un classement où le même homme apparaît deux fois. Le seul recours est d'archiver la mauvaise — l'historique reste coupé en deux. Même problème pour un invité d'un soir créé deux fois sous deux orthographes.
+
+> `aucun — five-scorer/app/actions/roster.ts (add / update / archive / link seulement), five-scorer/lib/rattachement.ts ; côté app five-scorer-mobile/app/club/[id]/effectif.tsx`
+
+### `VEST-72` — ✗ absent · *gêne une saison*
+
+**La situation.** En janvier, le capitaine se demande qui vient vraiment : qui répond, qui se décommande le dimanche soir, qui a dit présent quatre fois et n'est venu qu'une. En juin, il refait la liste de ceux qu'il relance en septembre.
+
+**Ce qu'on attend.** Par joueur, sur la saison : combien de soirées il a dit présent, combien il en a jouées.
+
+**Où ça en est.** `lib/stats.ts` ne lit jamais la table `rsvp` : la fiche joueur compte des MATCHS (`matchesPlayed`, via `matchParticipant`), pas des soirées, et ignore totalement les réponses. `Rsvp.respondedAt` (schema.prisma:463) existe mais n'est agrégé nulle part au-delà de l'ordre d'engagement d'UNE soirée (lib/presences.ts:93). Le rapprochement « il a dit oui / il était sur la feuille » n'existe donc à aucune échelle — ni pour la caisse, ni pour la saison. Le capitaine n'a que sa mémoire et le fil WhatsApp.
+
+> `aucun — five-scorer/lib/stats.ts (aucune occurrence de `rsvp`), five-scorer/app/c/[slug]/players/[id]/page.tsx, five-scorer/app/api/clubs/[clubId]/joueurs/[playerId]/route.ts`
+
+### `VEST-71` — ✗ absent · *confort*
+
+**La situation.** Le capitaine crée une fiche par erreur : un doublon vide, un « azerty » de test, un invité tapé deux fois. Zéro match, zéro but.
+
+**Ce qu'on attend.** Effacer une fiche qui n'a jamais rien vécu.
+
+**Où ça en est.** Le seul geste est `setPlayerArchived` (roster.ts:87) — aucune suppression de joueur n'existe côté serveur, ni sur le site ni dans l'API mobile. La doctrine est juste pour un joueur qui a joué ; pour une fiche vide elle laisse une scorie définitive sous le repli des archivés, réactivable par erreur et revendicable (« C'est moi »). Sur une saison, le repli se remplit de fiches qui n'ont jamais existé.
+
+> `five-scorer/app/actions/roster.ts:87-107, five-scorer/app/api/clubs/[clubId]/joueurs/[playerId]/route.ts ; côté app five-scorer-mobile/app/joueur/fiche.tsx`
+
+## Regard : le téléphone
+
+*5 cas — 0 faits, 1 partiels, 1 absents, **3 faux**.*
+
+### `COMPTE-51` — ✗ absent · *bloque un lundi*
+
+**La situation.** Un joueur change de téléphone le dimanche, ou arrive au club avec un Android, ou son iPhone n'a jamais été enregistré dans l'équipe Apple. Il veut l'app pour lundi.
+
+**Ce qu'on attend.** Un chemin pour qu'un téléphone neuf ait l'app avant le coup d'envoi — ou une réponse claire : « sur Android, c'est le site ».
+
+**Où ça en est.** Les trois profils de build ne déclarent que `ios`. `lundi`, celui du terrain, est en distribution interne : elle n'installe que sur les iPhones dont l'UDID est enregistré (`eas-cli device:create`), et ajouter un appareil impose de REFAIRE un build et de rediffuser le lien. Pas de canal OTA non plus (expo-updates n'est pas installé, EAS.md l'écrit). Donc : nouveau téléphone = une manipulation du capitaine plus un build de vingt minutes ; téléphone Android = rien du tout, alors que app.json le configure et que le code n'a aucune branche iOS. Le club n'a nulle part la phrase qui dit qui peut installer l'app et comment.
+
+> `app: five-scorer-mobile/eas.json (aucun profil android) ; five-scorer-mobile/EAS.md (« La distribution interne n'installe que sur les iPhones enregistrés dans l'équipe ») ; five-scorer-mobile/app.json (android.versionCode 1, jamais bâti)`
+
+### `TRANS-65` — ◐ partiel · *bloque un lundi*
+
+**La situation.** La base locale ne s'ouvre pas : fichier abîmé par une coupure en pleine écriture, stockage du téléphone plein, ou une instruction du schéma qui passe mal sur une vieille version d'iOS.
+
+**Ce qu'on attend.** On comprend ce qui se passe, on peut réessayer, et on n'est pas coupé de ce qui est déjà dans le téléphone.
+
+**Où ça en est.** Le fournisseur ne rend ses enfants qu'une fois la base ouverte — décision assumée et bonne — mais l'échec, lui, remplace TOUTE l'app par « Ça n'a pas marché » suivi de `e.message`, c'est-à-dire la phrase anglaise brute de SQLite. Pas de bouton « Réessayer », pas de retour, pas de « ferme et rouvre l'app » : l'écran est un cul-de-sac, et la soirée déjà saisie dans le fichier devient inatteignable au moment précis où on voudrait la sauver. Aucun `PRAGMA integrity_check`, aucune reprise, aucune trace envoyée nulle part.
+
+> `app: five-scorer-mobile/composants/Noyau.tsx:64-90 et 137-152 (Attente) ; five-scorer-mobile/lib/outbox/baseExpo.ts:66-71`
+
+### `TRANS-64` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Le marqueur remet le téléphone dans sa poche en quittant le gymnase, écran verrouillé, pendant que la file finit de se vider ; ou le téléphone vient de redémarrer et n'a pas encore été déverrouillé une fois.
+
+**Ce qu'on attend.** Un cookie qu'on n'a pas pu LIRE n'est pas un cookie REFUSÉ : on réessaie plus tard, sans réclamer une reconnexion à quelqu'un dont la session est parfaitement valable.
+
+**Où ça en est.** `lireCookie()` fait `(await authClient.getCookie()) || null` : trousseau verrouillé, trousseau vidé, valeur découpée incomplète — tout se réduit à `null`. Et le drain le dit noir sur blanc en commentaire (sync.ts:62-68) : « Rendu null quand il n'y en a pas : le rejeu partira quand même et se fera répondre 401, ce qui lève reconnexionRequise ». La requête part donc anonyme, le serveur répond 401, `encaisserEchec` pose `reconnexionRequise = true` et ARRÊTE le passage. La pastille réclame une reconnexion, la soirée reste dans le téléphone, et l'écran de lecture (appel.ts) fait la même confusion en levant `SessionExpiree`. Le trousseau d'expo-secure-store est en accessibilité « quand déverrouillé » par défaut, et rien dans le code ne demande autre chose ni ne distingue les deux cas.
+
+> `app: five-scorer-mobile/lib/api.ts:826-829 (lireCookie) ; five-scorer-mobile/lib/outbox/sync.ts:62-68 et 316-331 (encaisserEchec) ; five-scorer-mobile/lib/appel.ts:19-27 (SessionExpiree)`
+
+### `TRANS-66` — ⚠ faux · *gêne un lundi*
+
+**La situation.** L'horloge du téléphone est fausse : batterie à plat toute la nuit et redémarrage avant la resynchronisation, heure réglée à la main, téléphone acheté à l'étranger. Le marqueur lance le match à 20 h ; le téléphone croit qu'il est 21 h 40, ou qu'on est dimanche.
+
+**Ce qu'on attend.** Le match tombe le bon jour, à la bonne heure, et le chrono part de zéro.
+
+**Où ça en est.** C'est le téléphone qui décide de l'heure du match : `playedAt` est pris sur son horloge, et le serveur le recopie tel quel (`body.playedAt ? new Date(body.playedAt) : undefined`) sans aucune borne — ni « pas dans le futur », ni « pas à plus de N heures de maintenant ». Un téléphone d'un jour en avance range le match sous le mauvais lundi dans les listes triées par `playedAt`. Pire à l'ouverture : quand la feuille a été créée ailleurs (site, autre téléphone), le chrono est amorcé sur `Date.now() − Date.parse(match.playedAt)` — une horloge en avance ouvre donc la feuille au-delà du temps réglementaire, sirène comprise. La garde qui existe ne couvre que le mode rétro. Distinct de TRANS-33/35 (fuseau) et de RETRO-06 (date choisie à la main dans le formulaire) : ici personne ne choisit rien, c'est le téléphone qui ment.
+
+> `app: five-scorer-mobile/lib/match/local.ts:272 et 342 (playedAt = maintenant()) ; five-scorer-mobile/app/match/[id].tsx:196-201 (amorce du chrono) ; site: five-scorer/app/api/clubs/[clubId]/matches/route.ts:150`
+
+### `TRANS-67` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Les données cellulaires ont été coupées pour Five Scorer (iOS le propose quand le forfait chauffe, ou le propriétaire l'a fait sans y penser). Au gymnase, le téléphone affiche quatre barres de 4G.
+
+**Ce qu'on attend.** Le marqueur sait que rien ne part, et pourquoi — pas une pastille verte au-dessus d'une file qui ne bouge pas.
+
+**Où ça en est.** L'état « en ligne » vient de `Network.useNetworkState().isInternetReachable`, qui décrit le TÉLÉPHONE, pas le droit de l'app à sortir. Données coupées pour l'app : `isInternetReachable` reste vrai, le drain se croit en ligne, chaque opération part, attend huit secondes, échoue, et la relance exponentielle réessaie jusqu'à une minute d'écart. La pastille annonce « en ligne » et « n à envoyer » toute la soirée, sans jamais dire que c'est un réglage du téléphone, pas le Wi-Fi du gymnase. Le même aveuglement vaut pour un portail captif : le Wi-Fi d'Urban Soccer se connecte, `isInternetReachable` dit oui, rien ne passe.
+
+> `app: five-scorer-mobile/composants/Noyau.tsx:120-134 (Reseau / Network.useNetworkState) ; five-scorer-mobile/lib/outbox/sync.ts:80 (DELAI_REJEU_MS), 234-241`
+
+## Regard : les données
+
+*19 cas — 0 faits, 0 partiels, 4 absents, **15 faux**.*
+
+### `SAISON-D5` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Le club a joué contre Urban FC et gagné 5-2. On ouvre l'écran Saison, onglet calendrier. La ligne dit : « Urban FC — Renault Five Urban Guy · domicile · 5 – 2 · Victoire ».
+
+**Ce qu'on attend.** Le score se lit dans l'ordre des noms affichés.
+
+**Où ça en est.** Le titre met l'adversaire en premier (`${m.opponent?.name} — ${ctx.org.name}`) et le sous-titre met NOTRE score en premier (`${m.scoreA} – ${m.scoreB}`), puisque lib/stats.ts pose que « le club est toujours l'équipe A d'un match EXTERNAL » (stats.ts:497). L'étiquette « Victoire » est calculée de notre point de vue (scoreA > scoreB). La même ligne annonce donc une victoire sous un score qui se lit comme une défaite. L'export CSV, lui, met bien le club en colonne ÉquipeA (export/route.ts:112-114) : les deux surfaces se contredisent. Le champ `isHome` est purement décoratif — rien n'échange jamais les colonnes.
+
+> `app/c/[slug]/saison/page.tsx:170-171 ; app/api/clubs/[clubId]/saison/route.ts:188-191 (identique dans l'app)`
+
+### `SOIREE-D1` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Terrain à 48 €, sept joueurs. L'app annonce « 6,86 € chacun ». Les sept paient, et la caisse affiche « 48 € / 48 € ».
+
+**Ce qu'on attend.** Ce qui est demandé à chacun, multiplié par le nombre de joueurs, fait le prix du terrain — ni plus ni moins.
+
+**Où ça en est.** La part est arrondie au centime SUPÉRIEUR (`Math.ceil(cost / nbIn)`, MoneyPanel.tsx:55). Sept parts de 686 centimes font 48,02 € pour une note de 48 €. L'encaissé n'est d'ailleurs pas une caisse mais un produit : `paidCount * shareCents` (ligne 57), donc un nombre qui se recalcule tout seul chaque fois que quelqu'un change de réponse — et qui est ensuite masqué par un `Math.min(collectedCents, cost)` à l'affichage (ligne 188). Le club ne peut jamais savoir combien il a réellement reçu, ni qui a versé combien : rien n'enregistre un montant, seulement une case cochée (Rsvp.hasPaid).
+
+> `app/c/[slug]/sessions/[id]/MoneyPanel.tsx:54-60 et 186-190 ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts (partCents, encaisseCents)`
+
+### `SOIREE-D2` — ⚠ faux · *gêne un lundi*
+
+**La situation.** Momo a payé lundi. Mardi, on corrige les présences : il n'était finalement pas là, on le passe « absent ». La caisse passe de 48 € encaissés à 43,20 €, et la case « Payé » de Momo a disparu de l'écran.
+
+**Ce qu'on attend.** Ce que le club a encaissé ne bouge pas parce qu'on corrige une présence — et si la personne revient dans la liste, on sait qu'elle avait payé.
+
+**Où ça en est.** `hasPaid` vit sur la ligne Rsvp (prisma/schema.prisma, model Rsvp) et `setRsvp` ne met à jour que `status` (matchday.ts:95) : la case cochée reste en base, invisible. La liste des payeurs est reconstruite à chaque affichage à partir de `presences.titulaires` (page.tsx:101-102), donc quelqu'un qui passe OUT, ou qui bascule en liste d'attente parce qu'un onzième a répondu, sort de la caisse en emportant son paiement. Il y revient plus tard, toujours coché, sans que personne n'ait rien fait. Symétriquement, `setRsvpPaid` accepte de cocher n'importe qui ayant une réponse — y compris un remplaçant en attente qui ne figure pas dans la caisse (payments.ts:66-73, aucun contrôle de titularité).
+
+> `app/actions/matchday.ts:88-96 (setRsvp) ; app/c/[slug]/sessions/[id]/page.tsx:100-107 (payers = titulaires) ; app/actions/payments.ts:66-73 (setRsvpPaid)`
+
+### `APRES-D1` — ⚠ faux · *gêne une saison*
+
+**La situation.** Karim commence chez les Blancs, marque deux buts, puis passe chez les Noirs à la 8e pour rééquilibrer. Mardi, on ouvre le récap du match : il est dans la colonne des Noirs. On ouvre Stats : sa victoire, son Élo et sa chasuble habituelle sont comptés chez les Blancs.
+
+**Ce qu'on attend.** Le même joueur du même côté partout — ou, si les deux lectures ont chacune leur raison, que l'écran le dise (« a commencé chez les Blancs »).
+
+**Où ça en est.** Le champ `MatchParticipant` porte les deux valeurs, et le schéma explique pourquoi (prisma/schema.prisma, commentaire d'initialTeam). Les statistiques lisent `initialTeam` ; les deux récaps lisent `team`. Le même serveur, sur la même ligne de base, répond donc « Noir » à la feuille et « Blanc » au classement. Le vote de l'homme du match et la carte des gardiens ajoutent une troisième lecture : les candidats au vote viennent de `participants` sans camp (matchs/[matchId]/route.ts:238) et `getGardiens` lit `initialTeam` (stats.ts:1131) pour attribuer les buts encaissés — un gardien qui change de camp encaisse donc les buts du camp qu'il a quitté.
+
+> `Récap app : app/api/clubs/[clubId]/matchs/[matchId]/route.ts:171 (`filter(p => p.team === camp)`). Récap site : app/c/[slug]/matches/[id]/page.tsx:183-192. Stats : lib/stats.ts:206, 750, 988, 1131 (initialTeam)`
+
+### `APRES-D2` — ⚠ faux · *gêne une saison*
+
+**La situation.** Un admin corrige un match après coup et attribue par erreur l'homme du match à quelqu'un qui n'a pas joué ce soir-là (ou, plus tard, ajoute un but à la mauvaise personne depuis le récap corrigeable de la spec 0001). On ouvre le tableau de la saison.
+
+**Ce qu'on attend.** Un but et un titre se créditent à quelqu'un qui était sur la feuille — sinon aucune ligne du tableau ne veut plus rien dire.
+
+**Où ça en est.** Les trois portes d'écriture (ajout d'un but, PATCH du match, formulaire d'édition) ne vérifient qu'une chose : que le joueur appartient au CLUB. Aucune ne vérifie qu'il est inscrit au match. Dans lib/stats.ts, `ensure(playerId)` cherche le joueur dans TOUT l'effectif (ligne 162, `byId`) et crée une ligne d'accumulateur au premier but ou au premier titre : le tableau affiche alors une rangée « MJ 0 · 3 buts · 0 V · 0 % », aucun écran ne filtre `matchesPlayed > 0` (vérifié : app/c/[slug]/stats/page.tsx, app/api/clubs/[clubId]/stats/route.ts, l'accueil, la vitrine publique et l'export CSV ne filtrent pas ; seule la fiche de la soirée le fait, sessions/[id]/page.tsx:127). Ce joueur peut être « Meilleur buteur » de la saison (getSeasonHonours, stats.ts:315) et « Homme du match » du palmarès.
+
+> `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:105-114 ; app/actions/matches.ts:56-61 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:139-146 ; conséquence dans lib/stats.ts:160-215`
+
+### `APRES-D3` — ⚠ faux · *gêne une saison*
+
+**La situation.** Un admin corrige la date d'un match saisi le mardi pour la soirée de lundi et la met au 15 janvier, alors que le match reste rattaché à la soirée du 12. Puis quelqu'un ouvre la soirée du 12.
+
+**Ce qu'on attend.** Un match ne peut pas être daté d'un autre jour que la soirée à laquelle il appartient — ou alors on le détache.
+
+**Où ça en est.** `updateMatchDetails` écrit `playedAt` sans jamais toucher `matchDayId` ni vérifier la date de la soirée (ligne 79). Le match reste donc listé dans la soirée du 12 (qui trie ses matchs par `playedAt asc`, sessions/[id]/page.tsx:41) tout en portant une autre date, il apparaît une seconde fois dans le calendrier au 15, la « soirée la plus prolifique » se date sur lui, et le bilan de la soirée continue de le compter. Aucun garde-fou ne compare `Match.playedAt` à `MatchDay.date` nulle part dans le dépôt. Le même écran laisse aussi déplacer un match vers une autre saison sans rien dire de sa soirée (ligne 83), ce qui produit exactement SAISON-D1 à la main.
+
+> `app/actions/matches.ts:66-84 (updateMatchDetails) ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx ; conséquences dans app/c/[slug]/sessions/[id]/page.tsx:41-50 et lib/stats.ts:696-707`
+
+### `SAISON-D1` — ⚠ faux · *gêne une saison*
+
+**La situation.** Mi-septembre. Le capitaine a ouvert « Saison 2026-2027 ». On rattrape la dernière soirée de juin (qui appartient encore à « Saison 2025-2026 ») : on ouvre le lundi de juin dans le calendrier, on tape « Saisir », on entre les quatre matchs. Puis on regarde l'onglet Bilan de la saison de juin.
+
+**Ce qu'on attend.** Un match rattaché à la soirée du 22 juin appartient à la saison du 22 juin. Le bilan de cette saison compte la soirée ET ses matchs et ses buts.
+
+**Où ça en est.** L'écran de saisie passe `seasonId={activeSeason?.id ?? null}` (matches/new/page.tsx:103) SANS jamais regarder la saison de la soirée qu'il rattrape ; l'app n'envoie pas de seasonId du tout et le serveur retombe sur la saison active (matches/route.ts:167-175). Le match part donc dans 2026-2027, la soirée reste dans 2025-2026. Or le Bilan compte les soirées par leurs matchs, SANS filtre de saison (`soirees.filter(md => md.matches.some(FINISHED))`, saison/page.tsx:214) et les matchs par leur seasonId (ligne 212). Résultat lisible à l'écran : « 1 soirée jouée · 0 matchs · 0 buts » sur juin, et « 0 soirée · 4 matchs » sur septembre. Le même trou apparaît dès qu'une soirée est créée avant l'ouverture d'une saison, ou qu'une saison est ouverte un mardi entre deux lundis.
+
+> `Site : app/c/[slug]/matches/new/page.tsx:103, app/api/clubs/[clubId]/matches/route.ts:159-175, app/c/[slug]/saison/page.tsx:212-215. App : five-scorer-mobile/app/compo.tsx:233-245, app/api/clubs/[clubId]/saison/route.ts:257-260`
+
+### `SAISON-D3` — ⚠ faux · *gêne une saison*
+
+**La situation.** Octobre. Le capitaine s'aperçoit qu'il a clôturé 2025-2026 trop tôt et « réactive » cette saison depuis les réglages pour vérifier un chiffre. Il oublie de rouvrir 2026-2027. Le lundi, on joue quatre matchs.
+
+**Ce qu'on attend.** Les matchs de lundi comptent dans la saison de lundi.
+
+**Où ça en est.** `reopenSeason` remet `isActive: true` sur l'ancienne saison et ferme l'autre. À partir de là, tout match créé prend `seasonId` = la saison ACTIVE (matches/route.ts:167-175) : les quatre matchs de lundi entrent dans le tableau de 2025-2026, à côté de ceux de mars. `Season.startsAt`/`endsAt` existent mais ne servent qu'à trier le sélecteur — aucune requête ne les compare jamais à `playedAt`. Personne n'est prévenu, et rien ne permet de déplacer un lot de matchs d'une saison à l'autre (l'édition ne corrige qu'un match à la fois, app/actions/matches.ts:83).
+
+> `app/actions/seasons.ts:53-79 ; app/api/clubs/[clubId]/saisons/[saisonId]/route.ts:44-54 ; app/api/clubs/[clubId]/matches/route.ts:167-175`
+
+### `SAISON-D4` — ⚠ faux · *gêne une saison*
+
+**La situation.** Un joueur regarde son Élo sur sa fiche : 1043. Le capitaine ouvre le palmarès de la saison : « Élo le plus haut — Karim, 1088 ». Le même exporte le classement en CSV : la colonne Élo dit encore autre chose.
+
+**Ce qu'on attend.** Un mot, un nombre. Ou trois mots pour trois nombres.
+
+**Où ça en est.** `computeElo` rejoue les matchs DU SCOPE en repartant de 1000 (stats.ts:139-160). La fiche appelle `getLeaderboard({clubId})` — donc toutes saisons ; le palmarès et le CSV appellent `getLeaderboard({clubId, seasonId})` — donc la saison seule, avec une base remise à 1000 le 1er septembre. Les trois nombres portent la même étiquette « Élo » et aucun écran ne dit sa portée. Le classement d'une soirée (`getLeaderboard({matchDayId})`, sessions/[id]/page.tsx:126) rejoue même l'Élo sur les quatre matchs du soir seulement.
+
+> `app/c/[slug]/players/[id]/page.tsx:203-210 et app/api/clubs/[clubId]/joueurs/[playerId]/route.ts:130-131 (allTime) ; lib/stats.ts:139-160 et 328-330 (topElo, saison) ; app/api/clubs/[clubId]/export/route.ts:59, 85 (saison demandée)`
+
+### `SAISON-D6` — ⚠ faux · *gêne une saison*
+
+**La situation.** Sur Stats, « La soirée la plus prolifique — 31 buts · 5 matchs · Lundi 12 janvier ». On ouvre la fiche de cette soirée : elle affiche 34 buts, et elle est datée du 15 janvier.
+
+**Ce qu'on attend.** Le même nombre de buts et la même date pour la même soirée.
+
+**Où ça en est.** Deux écarts dans le même record. (1) La date : `parSoiree` prend `date: m.playedAt` du PREMIER match rencontré (stats.ts:698), pas `MatchDay.date` — une soirée saisie après coup, ou dont un admin a corrigé la date d'un match (app/actions/matches.ts:79, qui ne recalcule ni ne revérifie le rattachement à la soirée), est datée du mauvais jour. (2) Les buts : les records ne comptent que les matchs INTERNAL (stats.ts:670) alors que la fiche de la soirée additionne tous les matchs terminés, match contre un club extérieur compris (sessions/[id]/page.tsx:122). L'API de la soirée, elle, ne compte que les internes (soirees/[matchDayId]/route.ts:156) — donc le site et l'app donnent déjà deux totaux différents pour la même soirée, et les records un troisième.
+
+> `lib/stats.ts:670, 696-707 (getClubRecords) ; app/c/[slug]/sessions/[id]/page.tsx:111-122 ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:156, 167`
+
+### `SOIREE-D3` — ⚠ faux · *gêne une saison*
+
+**La situation.** Un admin supprime une soirée créée en double, où trois matchs avaient déjà été joués et où huit personnes avaient payé.
+
+**Ce qu'on attend.** Soit c'est refusé, soit on dit exactement ce qui part — et rien ne doit continuer à compter en orphelin.
+
+**Où ça en est.** La suppression est un `prisma.matchDay.delete(...).catch(() => null)` sans le moindre contrôle du contenu (lignes 49-52), et elle rend `{ ok: true }` même quand rien n'a été supprimé. La cascade détruit définitivement les réponses ET les paiements (Rsvp) ET la compo préparée (MatchDayLineup), pendant que les trois matchs survivent avec `matchDayId: null` : ils continuent de compter au classement, à l'Élo, au derby et aux records, mais n'apparaissent plus sur aucun lundi, ne sont plus dans « soirées jouées », et les records « de soirée » les ignorent (lib/stats.ts:697). Le bilan de saison perd une soirée et garde ses matchs — l'inverse exact de SAISON-D1, et le même écran s'en trouve faux dans les deux sens.
+
+> `app/actions/matchday.ts:37-54 (deleteMatchDay) ; prisma/schema.prisma : Rsvp.matchDay onDelete Cascade, MatchDayLineup onDelete Cascade, Match.matchDay onDelete SetNull`
+
+### `VEST-D1` — ⚠ faux · *gêne une saison*
+
+**La situation.** Sur la fiche d'un joueur, on lit « 12 Buts » dans les quatre chiffres du haut, et juste en dessous « Buts — 11, encore 14 pour 25 ».
+
+**Ce qu'on attend.** Deux fois le même nombre de buts sur le même écran.
+
+**Où ça en est.** `getTropheesJoueur` commence par restreindre les matchs à ceux où le joueur est PARTICIPANT (`matches.filter(m => m.participants.some(...))`, ligne 951) puis compte ses buts dedans ; `getLeaderboard` compte ses buts dans TOUS les matchs du scope, participant ou non (ligne 196). Dès qu'un but est crédité à quelqu'un hors feuille (cf. APRES-D2), le chiffre du haut et le palier du bas divergent définitivement, et le trophée « 25 buts » ne se déclenche jamais. Même chose pour les matchs joués et les victoires, comptés dans deux boucles différentes.
+
+> `lib/stats.ts:951-953 (getTropheesJoueur) contre lib/stats.ts:196-200 (getLeaderboard) ; affiché ensemble par app/c/[slug]/players/[id]/page.tsx:98-110 et 230+, et par app/api/clubs/[clubId]/joueurs/[playerId]/route.ts`
+
+### `VEST-D2` — ⚠ faux · *gêne une saison*
+
+**La situation.** Un joueur ouvre sa fiche en octobre. En haut : « 63 matchs, 41 buts ». Plus bas, la liste saison par saison : 2024-2025 = 22 matchs, 2025-2026 = 30 matchs. Il additionne, il trouve 52.
+
+**Ce qu'on attend.** Les saisons additionnées font la carrière — ou l'écran dit ce qui manque (« 11 matchs hors saison »).
+
+**Où ça en est.** `bySeason` boucle sur les saisons existantes et n'ajoute une ligne que si `getLeaderboard({seasonId})` connaît le joueur ; `allTime` vient de `getLeaderboard({clubId})`, sans saison. Tout match dont `seasonId` est null — et il y en a par construction : joué entre la clôture de juillet et l'ouverture de septembre, ou dans un club qui n'a jamais ouvert de saison (cf. DATA-01 du balayage « match en direct ») — compte dans la carrière et dans AUCUNE ligne de saison. Rien ne nomme ces matchs orphelins nulle part, et aucun écran n'offre de les rattacher.
+
+> `lib/stats.ts:393-399 (bySeason) et 400-401 (allTime) ; app/c/[slug]/players/[id]/page.tsx:265-280 ; app/api/clubs/[clubId]/joueurs/[playerId]/route.ts:160-170`
+
+### `VEST-D3` — ⚠ faux · *gêne une saison*
+
+**La situation.** Le gardien attitré est absent ; Momo, joueur de champ, prend les gants ce soir. Trois matchs, six buts encaissés. Le lendemain, on ouvre la carte « Les gardiens » et la fiche de Momo.
+
+**Ce qu'on attend.** La carte compte les matchs où il a réellement gardé — c'est ce qu'elle annonce.
+
+**Où ça en est.** `MatchParticipant.isGk` n'est jamais choisi pour un soir : au coup d'envoi il recopie `Player.isGk`, c'est-à-dire la case cochée sur la FICHE (NewMatchForm.tsx:200 `isGk: p.isGk ?? false`, compo.tsx:239 idem). La compo préparée de la soirée porte pourtant bien un `isGk` par joueur (MatchDayLineup.isGk, écrit par app/actions/compo.ts:71) — mais l'écran de saisie du site le jette (matches/new/page.tsx:104-107 ne remonte que playerId et team) et l'app ne lit jamais la compo préparée. Et un joueur qui entre en cours de match est toujours inscrit `isGk: false` (local.ts:638, lineup/route.ts:176). Donc : le gardien de fiche absent ce soir-là garde quand même ses buts encaissés sur la carte, Momo n'y apparaît jamais, et « moyenne par match » est fausse pour les deux, pour toujours.
+
+> `lib/stats.ts:1120-1145 (getGardiens lit MatchParticipant.isGk) ; app/c/[slug]/matches/new/NewMatchForm.tsx:200, 272-275 ; app/c/[slug]/matches/new/page.tsx:104-107 ; five-scorer-mobile/app/compo.tsx:239-240 ; five-scorer-mobile/lib/match/local.ts:634-640`
+
+### `DIRECT-D1` — ✗ absent · *gêne une saison*
+
+**La situation.** Deux téléphones saisissent le même match programmé. Sur le premier, on envoie Karim en face ; sur le second, resté hors réseau, on envoie Momo en face. Chacun voit bien qu'il reste du monde des deux côtés. Les deux files partent.
+
+**Ce qu'on attend.** Un match interne garde deux camps non vides — sinon le classement inscrit un résultat à des gens qui n'ont pas joué ce match-là.
+
+**Où ça en est.** La règle « il faut au moins un joueur de chaque côté » est écrite deux fois — dans la couche locale du site et dans celle de l'app — et zéro fois côté serveur. Le PATCH lineup fait un `updateMany` sans compter ce qui reste dans le camp de départ (lignes 76-81) ; le POST /matches ne refuse que `all.length === 0`, jamais un `teamB: []` (lignes 137-139). Un camp vidé passe donc par la file, et lib/stats.ts distribue ensuite un nul 0-0 (ou une défaite) à tous les joueurs restants — exactement le bug que le commentaire de local.ts:594-597 dit vouloir empêcher. Le commentaire décrit une garde qui n'existe que dans le téléphone.
+
+> `Serveur : app/api/clubs/[clubId]/matches/[matchId]/lineup/route.ts:76-81 et app/api/clubs/[clubId]/matches/route.ts:137-146. Garde locale seulement : lib/localMatch.ts:509-515 et five-scorer-mobile/lib/match/local.ts:598-601`
+
+### `DIRECT-D2` — ✗ absent · *gêne une saison*
+
+**La situation.** Le téléphone du marqueur meurt à la mi-temps ; ou l'app est réinstallée ; ou quelqu'un rouvre une feuille laissée ouverte la semaine dernière. On redescend la feuille du serveur pour continuer. Deux joueurs avaient changé de camp en première période.
+
+**Ce qu'on attend.** La feuille redescendue est celle du serveur, équipes de départ comprises : ce qui repart au serveur ne doit pas réécrire l'histoire.
+
+**Où ça en est.** `initialTeam` — le champ dont lib/stats.ts dit qu'il porte TOUS les agrégats — n'a de colonne ni dans le miroir Dexie du site (lib/db.ts:48-55) ni dans le SQLite de l'app (db/schema.ts : `participants(key, match_id, player_id, team, is_gk)`). GET /matches/[matchId] rend bien `initialTeam` (route.ts:86) mais il n'y a nulle part où l'écrire. Conséquence : sur le téléphone, l'équipe de départ n'existe pas ; un `movePlayer` local écrase simplement `team` (local.ts:597) et le camp d'origine est perdu pour toujours côté appareil. Toute reprise, tout récap local, tout écran de feuille repart de l'équipe de fin.
+
+> `lib/db.ts:48-55 (LocalParticipant, site) ; five-scorer-mobile/db/schema.ts, table `participants` ; five-scorer-mobile/lib/outbox/types.ts:60-67 ; l'API l'envoie pourtant : app/api/clubs/[clubId]/matches/[matchId]/route.ts:86`
+
+### `SAISON-D2` — ✗ absent · *gêne une saison*
+
+**La situation.** Deux admins ouvrent la saison au même moment (ou le capitaine double-clique « Créer »). Il y a maintenant deux lignes `isActive: true`. Le lundi suivant, l'un ouvre Stats sur le site, l'autre l'accueil de l'app.
+
+**Ce qu'on attend.** Tout le monde parle de la même « saison en cours », et les matchs de ce soir tombent dedans.
+
+**Où ça en est.** Rien n'interdit deux saisons actives : le schéma porte `@@index([clubId, isActive])`, pas un unique, et la fermeture de l'ancienne (app/actions/seasons.ts:18-22) se fait dans une transaction qui ne verrouille rien. Et surtout, « la saison active » se lit de deux façons dans le dépôt : avec `orderBy: { startsAt: "desc" }` (matches/route.ts:171, matchday.ts:23, schedule.ts:58, players/[id]/page.tsx:36…) et SANS aucun ordre — donc au hasard du plan de requête — dans l'accueil de l'app (accueil/route.ts:33), la fiche joueur de l'app (joueurs/[playerId]/route.ts:30) et la pose du calendrier (calendrier-serveur.ts:84). Trois écrans peuvent donc afficher les chiffres d'une saison pendant que les matchs se rangent dans l'autre.
+
+> `prisma/schema.prisma (model Season) ; app/api/clubs/[clubId]/accueil/route.ts:33-36 ; app/api/clubs/[clubId]/joueurs/[playerId]/route.ts:30-33 ; lib/calendrier-serveur.ts:84-87 ; app/api/clubs/[clubId]/matches/route.ts:169-175`
+
+### `VEST-D4` — ✗ absent · *gêne une saison*
+
+**La situation.** Karim s'inscrit en novembre, tape « C'est moi » sur la fiche de son frère par erreur, s'en aperçoit, puis tape « C'est moi » sur la sienne. Le club a maintenant une personne, deux fiches, et quinze matchs d'un côté, trois de l'autre.
+
+**Ce qu'on attend.** Un joueur, une fiche, un historique. Et quand il y en a deux, un geste pour les recoller.
+
+**Où ça en est.** `rattacherJoueur` délie l'ancien profil en silence (`updateMany({where:{clubId,userId}, data:{userId:null}})`, ligne 116) avant d'écrire le nouveau : aucun refus, aucun avertissement, et la fiche abandonnée garde tous ses matchs, ses buts, ses trophées. `assurerProfilJoueur` (rejoindre.ts:88) crée par ailleurs une fiche neuve à chaque nouveau membre dont le nom ne correspond à rien. Rien dans le dépôt ne recolle deux fiches : les stats de la personne restent coupées en deux, dans deux rangées du tableau, deux Élo, deux séries — définitivement. Même situation dès qu'un invité d'un soir devient membre (VEST-40) ou qu'un ancien archivé revient (REG-24).
+
+> `lib/rattachement.ts:113-121 ; lib/rejoindre.ts:88-113 (assurerProfilJoueur) ; aucune fonction de fusion dans app/ ni lib/ (grep « fusion|merge » : rien)`
+
+### `TRANS-D1` — ⚠ faux · *confort*
+
+**La situation.** Le club ajoute une soirée de rattrapage un dimanche à 00 h 30 (heure de Paris), ou une soirée tombe le 1er du mois juste après minuit. On ouvre l'écran Saison.
+
+**Ce qu'on attend.** Une soirée du 1er octobre est dans le groupe « octobre 2026 ».
+
+**Où ça en est.** La clé de regroupement est `${d.getFullYear()}-${d.getMonth()}` — le fuseau du PROCESSUS, c'est-à-dire UTC sur Vercel — pendant que le titre du groupe est rendu par `D.moisAnnee(d)`, en heure de Paris, et le quantième par `D.quantieme` idem. Une soirée du 1er octobre à 00 h 30 tombe donc dans le groupe de septembre tout en s'affichant « mer. 1 ». C'est la même faute que celle déjà corrigée dans lib/dates.ts (le commentaire d'en-tête la raconte) et que celle qui reste dans l'anti-doublon du calendrier (lib/calendrier-serveur.ts:152-156, `jourCle`) et dans l'export CSV (export/route.ts:110, `toISOString().slice(0,10)`) : trois endroits jugent encore « quel jour c'est » hors du fuseau du club.
+
+> `app/c/[slug]/saison/page.tsx:181-184 ; app/api/clubs/[clubId]/saison/route.ts:209-216 ; à comparer à lib/dates.ts:17 et 60-79 (quantieme, minuit) qui, eux, passent par Europe/Paris`

@@ -1,11 +1,13 @@
 # 0000 — Les règles du club, telles que le code les tient
 
-*Annexe de la spec produit. 298 règles relevées dans le code le 10 septembre 2026.*
+*Annexe de la spec produit. **298 règles** relevées dans le code le 10 septembre 2026.*
 
 La colonne **qui la tient** est la plus importante du document. Une règle tenue par
-« l'affichage » n'est pas une règle : c'est un bouton qu'on cache. Elle tombe dès que
-quelqu'un appelle l'endpoint directement, ou dès qu'un deuxième écran oublie de la
-recopier. Une règle tenue par « personne » est une règle qu'on croit avoir.
+« l'affichage » n'est pas une règle : c'est un bouton qu'on cache. Elle tombe dès qu'on
+appelle l'endpoint directement, ou dès qu'un deuxième écran oublie de la recopier. Une règle
+tenue par « personne » est une règle qu'on croit avoir.
+
+**39 sont tenues par l'affichage seul · 33 ne sont tenues par personne.**
 
 ---
 
@@ -948,3 +950,279 @@ recopier. Une règle tenue par « personne » est une règle qu'on croit avoir.
 - **L'app n'annonce pas sa version au serveur, et le serveur n'annonce aucune version minimale acceptée.**
   <br>*Qui la tient :* personne
   <br>`nulle part`
+
+## Regard : le nouveau venu
+
+- **Qui ouvre le lien d'invitation devient membre du club à la seconde, sans validation de personne — le code EST l'autorisation.**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/rejoindre.ts:150-158 ; app/api/rejoindre/route.ts:26-38`
+
+- **Un code d'invitation, c'est le lien entier ou le code seul, en minuscules, sans les espaces ni ce qui suit — mais seulement quand il passe par le champ « Rejoindre » : la page du lien, elle, exige le code exact.**
+  <br>*Qui la tient :* le serveur pour le champ, personne pour le lien
+  <br>`lib/rejoindre.ts:56-71 (normaliserCode) ; app/join/[code]/page.tsx:20-21 (findUnique sur le segment brut)`
+
+- **Rejoindre donne toujours une fiche joueur : on adopte une fiche libre qui porte le même nom, sinon on en crée une neuve.**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/rejoindre.ts:89-121`
+
+- **« Le même nom » se juge sans casse ni accents, mais exactement : « Karim » et « Karim Benzema » sont deux personnes, et deux « Sofiane » libres se départagent par l'ordre de la base.**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/rejoindre.ts:74-80, 101-110`
+
+- **Une fiche archivée ou une fiche invitée n'est jamais adoptée par quelqu'un qui rejoint.**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/rejoindre.ts:97-100`
+
+- **Un invité ne se revendique pas : il n'a pas de compte à lui.**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/rattachement.ts:98-103`
+
+- **Un compte n'a qu'une fiche par club : lier une fiche délie automatiquement la précédente.**
+  <br>*Qui la tient :* la base et le serveur
+  <br>`prisma/schema.prisma:242 (@@unique([clubId, userId])) ; lib/rattachement.ts:126-131`
+
+- **« C'est moi » ne s'offre qu'à un membre qui n'a AUCUNE fiche — donc jamais à quelqu'un qui vient d'entrer par le lien, puisque rejoindre lui en a donné une.**
+  <br>*Qui la tient :* l'affichage seulement (le serveur, lui, accepte le déplacement de fiche)
+  <br>`app/c/[slug]/players/RosterClient.tsx:317 ; five-scorer-mobile/app/club/[id]/effectif.tsx:136,202`
+
+- **Un nouveau entre avec le rôle « member », et un membre peut saisir un match tant que le club n'a pas fermé « les membres peuvent scorer ».**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/rejoindre.ts:155 ; lib/guard.ts:60-65 ; prisma/schema.prisma:163`
+
+- **Une fiche neuve naît au niveau 3, sans gants, non abonnée — et rien ne distingue ce 3-là d'un niveau que quelqu'un aurait réglé.**
+  <br>*Qui la tient :* la base
+  <br>`prisma/schema.prisma:219-231 ; lib/rejoindre.ts:114-116`
+
+- **Le nom d'une fiche remplie par un admin est coupé à 60 caractères ; celui d'une fiche née en rejoignant n'est borné nulle part.**
+  <br>*Qui la tient :* le serveur pour l'un, personne pour l'autre
+  <br>`lib/joueur.ts:44 ; lib/rejoindre.ts:114-116`
+
+- **Un joueur non abonné n'est compté présent que s'il répond ; le silence ne vaut rien.**
+  <br>*Qui la tient :* le serveur (calcul partagé site et app)
+  <br>`lib/presences.ts:76-84`
+
+- **La place dans la liste d'attente suit l'ordre d'engagement : l'abonné s'est engagé à la création de la soirée, celui qui répond s'engage à sa réponse.**
+  <br>*Qui la tient :* le serveur — mais `@updatedAt` remet le compteur à zéro à CHAQUE écriture sur la ligne, y compris une case « a payé »
+  <br>`lib/presences.ts:97-100 ; prisma/schema.prisma:463 (respondedAt @updatedAt)`
+
+- **Le classement ne contient que ceux qui ont joué : un membre qui vient d'arriver n'y figure pas encore.**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/stats.ts:170-197, 227-245`
+
+- **Aucun courrier n'est jamais envoyé : ni vérification d'adresse à l'inscription, ni réinitialisation de mot de passe, ni invitation nominative.**
+  <br>*Qui la tient :* personne
+  <br>`lib/auth.ts:76-79 (emailAndPassword sans sendVerificationEmail ni sendResetPassword)`
+
+- **Une session dure 90 jours, renouvelés à chaque visite, avec un cache de cinq minutes dans un cookie signé.**
+  <br>*Qui la tient :* le serveur
+  <br>`lib/auth.ts:92-100`
+
+- **L'appartenance au club se revérifie à chaque page et à chaque appel : le middleware ne fait qu'un contrôle optimiste sur la présence du cookie.**
+  <br>*Qui la tient :* le serveur
+  <br>`middleware.ts:11-22 ; lib/guard.ts:70-90 (requireClub), 93-108 (getClubApiContext)`
+
+## Regard : le capitaine sur une saison
+
+- **Le prix du terrain se pose soirée par soirée, jamais d'avance ni pour la saison ; vide = plus de suivi, borné à 100 000 €.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/actions/payments.ts:9-44 ; five-scorer/lib/calendrier-serveur.ts:132-141 (le calendrier n'écrit ni prix ni défaut)`
+
+- **La part se calcule sur les TITULAIRES seulement — un remplaçant ne paie pas la place qu'il n'a pas eue — et s'arrondit au centime supérieur.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/c/[slug]/sessions/[id]/page.tsx:99-107 ; five-scorer/app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:138-148`
+
+- **« A payé » ne s'écrit que par-dessus une réponse existante : un abonné qui n'a rien répondu n'a pas de ligne, donc ne peut pas être coché.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/actions/payments.ts:68-74 (« Pas de réponse de ce joueur. »)`
+
+- **L'argent ne se règle que depuis le site : l'app sait l'afficher, pas l'écrire.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:27 (GET seul) ; five-scorer-mobile/app/soiree/[id].tsx:302-306`
+
+- **Poser le calendrier ne crée JAMAIS une deuxième saison : s'il en existe une active, on la complète et on l'étire aux nouvelles dates — le nom tapé est alors ignoré.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/calendrier-serveur.ts:74-113`
+
+- **Une soirée déjà présente le même jour civil n'est jamais retouchée : ni son heure, ni son lieu, ni sa compo. La comparaison se fait sur la journée entière, dans le fuseau du SERVEUR.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/calendrier-serveur.ts:115-141 et 153-170`
+
+- **Une seule saison active : en ouvrir une (ou en réactiver une) clôt l'autre avec `endsAt = maintenant`.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/actions/seasons.ts:17-29 et 64-73`
+
+- **Un match prend la saison demandée si elle appartient au club, sinon la saison ACTIVE au moment où l'envoi arrive — jamais celle que sa date désigne.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/api/clubs/[clubId]/matches/route.ts:157-176 ; five-scorer/app/actions/matchday.ts:21-28 (même règle pour une soirée créée à la main)`
+
+- **Une soirée s'annule avec un motif de 120 caractères et se rétablit sans rien perdre ; l'annulation est lue partout (calendrier, app, iCal, moteur de présences).**
+  <br>*Qui la tient :* le serveur — mais aucun écran ne l'appelle
+  <br>`five-scorer/app/actions/calendrier.ts:43-79 ; five-scorer/app/api/cal/[token]/route.ts:112-131 ; five-scorer/lib/presences.ts:117-118`
+
+- **Une soirée se SUPPRIME depuis l'écran, réponses et paiements compris ; les matchs déjà joués survivent, détachés de toute soirée.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/actions/matchday.ts:38-55 ; five-scorer/app/c/[slug]/sessions/[id]/DeleteSessionButton.tsx:29-36 ; five-scorer/prisma/schema.prisma:359 (onDelete: SetNull)`
+
+- **Une fiche joueur ne s'efface jamais : elle s'archive, et se réactive telle quelle.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/actions/roster.ts:87-107 (aucune suppression n'existe nulle part)`
+
+- **Deux fiches d'un même joueur restent deux carrières : rien ne les réunit.**
+  <br>*Qui la tient :* personne
+  <br>`nulle part (aucune fusion dans les deux dépôts)`
+
+- **Le nom d'une équipe se déduit de la couleur de chasuble réglée AUJOURD'HUI ; mais chaque match garde figé le nom écrit le jour où il s'est joué.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/color.ts:137-183 ; five-scorer/prisma/schema.prisma:369`
+
+- **Le derby de la saison prend son titre du DERNIER match joué, quels que soient les noms des quarante précédents.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/stats.ts:849-855`
+
+- **Le palmarès complet d'une saison (%V, Élo, l'inoxydable) n'existe que si la saison est clôturée ; sinon la carte porte le même titre avec trois lauréats seulement.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/app/api/clubs/[clubId]/stats/route.ts:97-101 et 325-331 ; five-scorer/app/c/[slug]/stats/page.tsx:144-155`
+
+- **Un trophée n'est décerné que s'il veut dire quelque chose : « Meilleur %V » exige 5 matchs, « la paire » 4 matchs ensemble et 60 % de victoires, l'Élo est masqué si personne n'a bougé de 1000.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/stats.ts:337-341, 650-655`
+
+- **Une soirée passée sans feuille se réclame pendant six semaines, puis se tait — mais rien n'interdit de la saisir après.**
+  <br>*Qui la tient :* l'affichage seulement
+  <br>`five-scorer/app/api/clubs/[clubId]/saison/route.ts:122-131`
+
+- **Un abonné est compté présent tant qu'il n'a rien dit, et son engagement date de la création de la soirée — donc, pour un calendrier posé d'un bloc, du même instant pour tous les lundis de l'année.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/presences.ts:75-103 ; five-scorer/lib/calendrier-serveur.ts:132-141`
+
+- **Qui peut saisir : les admins toujours, les membres seulement si le club a laissé « les membres peuvent scorer » — il n'existe aucun droit individuel.**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/guard.ts:52-68`
+
+- **L'argent, le calendrier, les saisons, le vestiaire, les réglages, les membres et la suppression sont un seul et même droit : `canManage` (capitaine + admins).**
+  <br>*Qui la tient :* le serveur
+  <br>`five-scorer/lib/guard.ts:17-19 et 59 ; five-scorer/app/actions/club.ts:83-147`
+
+## Regard : le téléphone
+
+- **Le téléphone n'a qu'une base locale, partagée par tous les clubs et par tous les comptes qui s'y connectent : le club est une colonne, pas une base.**
+  <br>*Qui la tient :* la base
+  <br>`five-scorer-mobile/lib/outbox/baseExpo.ts:19 (NOM_BASE = "five-scorer.db"), 66`
+
+- **La session vit dans le trousseau du téléphone, découpée en morceaux de 1800 caractères ; elle survit à la fermeture de l'app, et sur iOS à sa désinstallation.**
+  <br>*Qui la tient :* le téléphone
+  <br>`five-scorer-mobile/lib/auth-client.ts:26-35`
+
+- **Un cookie qu'on n'arrive pas à lire est traité comme une session refusée : la file s'arrête et réclame une reconnexion.**
+  <br>*Qui la tient :* personne (c'est le défaut, pas une décision)
+  <br>`five-scorer-mobile/lib/api.ts:826-829 ; five-scorer-mobile/lib/outbox/sync.ts:62-68, 322-331`
+
+- **L'ordre d'envoi se prend sur la clé auto-incrémentée de l'outbox, jamais sur l'horloge du téléphone, qui peut reculer.**
+  <br>*Qui la tient :* la base
+  <br>`five-scorer-mobile/db/schema.ts (outbox.id AUTOINCREMENT) ; five-scorer-mobile/lib/outbox/outbox.ts`
+
+- **Le chrono ne se ticke pas : il se dérive de `clock_elapsed_ms` et `clock_running_since`. Il compte donc l'heure murale, y compris pendant que l'app est fermée ou le téléphone éteint.**
+  <br>*Qui la tient :* la base
+  <br>`five-scorer-mobile/lib/noyau/clock.ts:11-16 ; five-scorer-mobile/db/schema.ts (commentaire de matches.clock_*)`
+
+- **C'est le téléphone qui date le match : le serveur recopie `playedAt` tel quel, sans borne haute ni basse.**
+  <br>*Qui la tient :* personne
+  <br>`five-scorer/app/api/clubs/[clubId]/matches/route.ts:150 ; five-scorer-mobile/lib/match/local.ts:272, 342`
+
+- **Aucun rejeu de la file n'attend plus de huit secondes ; les écrans de LECTURE, eux, n'ont aucun délai et peuvent pendre indéfiniment.**
+  <br>*Qui la tient :* le téléphone pour la file, personne pour la lecture
+  <br>`five-scorer-mobile/lib/outbox/sync.ts:80 (DELAI_REJEU_MS) ; five-scorer-mobile/lib/appel.ts:60-70 (joindre, sans AbortController)`
+
+- **L'état « en ligne » est celui que le système déclare pour le téléphone, pas la capacité réelle de l'app à joindre le serveur.**
+  <br>*Qui la tient :* le téléphone
+  <br>`five-scorer-mobile/composants/Noyau.tsx:120-134`
+
+- **À la déconnexion par le menu du club, la base locale est vidée avant de signer la sortie, et on prévient si la file n'est pas vide.**
+  <br>*Qui la tient :* l'affichage seulement (five-scorer-mobile/app/clubs.tsx:128 se déconnecte sans purger)
+  <br>`five-scorer-mobile/composants/MenuClub.tsx:67-90`
+
+- **L'écran reste allumé tant que la feuille de match est ouverte, et seulement là.**
+  <br>*Qui la tient :* le téléphone
+  <br>`five-scorer-mobile/app/match/[id].tsx:166`
+
+- **Le but est joué à l'oreille avant d'être écrit : le son part avant l'appel à la base, parce que « rien ici ne peut le refuser ».**
+  <br>*Qui la tient :* personne (aucune reprise si l'écriture échoue)
+  <br>`five-scorer-mobile/app/match/[id].tsx:270-277`
+
+- **Rien ne se met à jour à distance : le bundle JS est embarqué dans l'app, il n'y a pas de canal OTA, et l'app ne dit jamais sa version au serveur.**
+  <br>*Qui la tient :* personne
+  <br>`five-scorer-mobile/EAS.md (« Pas de channel pour l'instant ») ; five-scorer-mobile/eas.json`
+
+- **L'app ne s'installe que sur les iPhones enregistrés dans l'équipe Apple ; aucun profil de build Android n'existe.**
+  <br>*Qui la tient :* le magasin / Apple
+  <br>`five-scorer-mobile/eas.json ; five-scorer-mobile/EAS.md (« Les appareils »)`
+
+- **Le miroir local n'a aucune version de schéma : tout est en CREATE ... IF NOT EXISTS, donc une colonne ajoutée plus tard ne sera jamais créée sur un téléphone déjà installé.**
+  <br>*Qui la tient :* personne
+  <br>`five-scorer-mobile/db/schema.ts ; five-scorer-mobile/lib/outbox/base.ts (appliquerSchema)`
+
+- **Les photos du vestiaire sont stockées en data-URL dans la base du téléphone et ne doivent pas être relues par la requête d'affichage du match.**
+  <br>*Qui la tient :* personne (five-scorer-mobile/lib/match/tables.ts:182 fait SELECT *)
+  <br>`five-scorer-mobile/db/schema.ts (commentaire de roster.photo)`
+
+## Regard : les données
+
+- **Le score d'un match est la somme de ses buts — jamais un nombre tapé. Chaque écriture d'événement recompte scoreA/scoreB depuis les GOAL et OWN_GOAL du match.**
+  <br>*Qui la tient :* le serveur
+  <br>`app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:17-30 (recomputeScore), appelé aux lignes 89, 122, 232`
+
+- **Un contre son camp compte pour le camp qui en profite, et n'entre jamais dans les buts de son auteur (il a sa propre colonne « ownGoals »).**
+  <br>*Qui la tient :* le serveur
+  <br>`prisma/schema.prisma (MatchEvent.team, « Équipe créditée… y compris sur csc ») ; lib/stats.ts:196-201`
+
+- **Tous les agrégats lisent l'équipe de DÉPART (initialTeam), pas celle de la fin : un joueur qui change de camp n'emporte pas rétroactivement le résultat, l'Élo et ses buts dans l'autre équipe.**
+  <br>*Qui la tient :* le serveur pour les statistiques ; PERSONNE pour la feuille du récap (app/api/clubs/[clubId]/matchs/[matchId]/route.ts:171 et app/c/[slug]/matches/[id]/page.tsx:187 lisent « team ») ni pour le miroir local, qui n'a pas la colonne (lib/db.ts:48-55, five-scorer-mobile/db/schema.ts, table participants)
+  <br>`lib/stats.ts:30-37, 206, 447, 750, 988, 1131`
+
+- **Un joueur ne peut pas être dans les deux équipes d'un même match.**
+  <br>*Qui la tient :* la base
+  <br>`app/api/clubs/[clubId]/matches/route.ts:141-146 ; clé primaire (matchId, playerId) de match_participant, prisma/schema.prisma`
+
+- **Un match interne a au moins un joueur de chaque côté — sinon lib/stats.ts inscrit une défaite (ou un nul) à des gens qui n'ont rien joué.**
+  <br>*Qui la tient :* l'affichage seulement (donc contournable) — le serveur ne vérifie que « au moins un joueur en tout » (app/api/clubs/[clubId]/matches/route.ts:138-139) et la route lineup ne compte jamais les restants (…/lineup/route.ts:76-81)
+  <br>`lib/localMatch.ts:509-515 et five-scorer-mobile/lib/match/local.ts:598-601 ; côté écran, app/c/[slug]/matches/new/NewMatchForm.tsx:236-241 et five-scorer-mobile/app/compo.tsx:227-229`
+
+- **Un but se crédite à quelqu'un qui a joué CE match.**
+  <br>*Qui la tient :* personne
+  <br>`nulle part — app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:105-114 ne vérifie que l'appartenance au club, jamais la présence sur la feuille`
+
+- **L'homme du match est un joueur de la feuille.**
+  <br>*Qui la tient :* le serveur pour le vote, personne pour la désignation
+  <br>`app/actions/motm.ts:36-40 pour le vote ; rien pour la désignation (app/actions/matches.ts:56-61 et app/api/clubs/[clubId]/matches/[matchId]/route.ts:139-146 ne vérifient que le club)`
+
+- **Un match appartient à la saison qui était ACTIVE à la seconde de sa création — jamais à la saison de sa date, ni à celle de sa soirée.**
+  <br>*Qui la tient :* le serveur (mais ce n'est pas la règle que le club croit)
+  <br>`app/api/clubs/[clubId]/matches/route.ts:159-175 ; app/actions/schedule.ts:56-60 ; app/actions/matchday.ts:21-24`
+
+- **Une seule soirée par lundi : la clé de comparaison est le jour civil, pas l'horodatage.**
+  <br>*Qui la tient :* le serveur, mais dans le fuseau du PROCESSUS (getFullYear/getMonth/getDate) — donc UTC en production, pas Europe/Paris
+  <br>`lib/calendrier-serveur.ts:120-135, clé calculée par jourCle() lignes 152-156`
+
+- **Une seule saison active à la fois par club.**
+  <br>*Qui la tient :* le serveur au moment de la création seulement ; aucune contrainte en base (prisma/schema.prisma, model Season : @@index([clubId, isActive]) et non @@unique)
+  <br>`app/actions/seasons.ts:18-22 et app/api/clubs/[clubId]/saisons/route.ts:31-35 (on ferme l'active avant d'en créer une)`
+
+- **Un compte = un seul profil joueur par club.**
+  <br>*Qui la tient :* la base
+  <br>`lib/rattachement.ts:113-121 (déliement de l'ancien profil dans la même transaction) ; Player @@unique([clubId, userId])`
+
+- **Toute valeur venue du client et destinée à un `where` Prisma passe par estId/idsValides.**
+  <br>*Qui la tient :* le serveur presque partout, sauf app/actions/matches.ts:56-66 (mvpId et seasonId partent dans un `count` sans contrôle) et app/api/clubs/[clubId]/matches/route.ts:229-233 (body.id dans un upsert sans estId)
+  <br>`lib/ids.ts:23-43`
+
+- **Les buteurs d'un camp se comptent sur les buts, camp par camp.**
+  <br>*Qui la tient :* les appelants, pas la fonction qui porte la règle — un carton ou la mi-temps y passeraient pour un but
+  <br>`lib/soiree.ts:16-29 — la fonction ne filtre PAS le type d'événement ; ce sont ses deux appelants qui filtrent en amont (app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:63 et app/c/[slug]/sessions/[id]/page.tsx:45)`
+
+- **La part du terrain se répartit entre ceux qui JOUENT : un remplaçant en liste d'attente ne paie pas la place qu'il n'a pas eue.**
+  <br>*Qui la tient :* l'affichage seulement — app/actions/payments.ts:66-73 coche « a payé » sur n'importe quelle réponse existante, titulaire ou non
+  <br>`app/c/[slug]/sessions/[id]/page.tsx:100-107 ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts (payeurs)`
+
+- **Le jour et l'heure se lisent dans le fuseau du club, Europe/Paris.**
+  <br>*Qui la tient :* le serveur pour l'affichage ; personne pour le regroupement par mois du calendrier (app/c/[slug]/saison/page.tsx:181-184, app/api/clubs/[clubId]/saison/route.ts:209-216), l'anti-doublon du calendrier (lib/calendrier-serveur.ts:152-156) et l'export CSV (app/api/clubs/[clubId]/export/route.ts:110)
+  <br>`lib/dates.ts:17 (FUSEAU) et toutes ses fonctions`

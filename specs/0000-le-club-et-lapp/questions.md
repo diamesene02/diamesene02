@@ -1,10 +1,10 @@
 # 0000 — Ce que seul le club peut trancher
 
-*Annexe de la spec produit. 184 questions sorties du balayage du 10 septembre 2026.*
+*Annexe de la spec produit. **184 questions** sorties du balayage du 10 septembre 2026.*
 
-Aucune ne se tranche dans le code : ce sont des choix de club. Elles sont posées avec
-ce que le code fait AUJOURD'HUI entre parenthèses, parce qu'un défaut qui dure depuis
-un an est déjà une réponse — il faut juste savoir si c'est celle qu'on voulait.
+Aucune ne se tranche dans le code : ce sont des choix de club. Elles sont posées avec ce que
+le code fait AUJOURD'HUI entre parenthèses, parce qu'un défaut qui dure depuis un an est déjà
+une réponse — il faut juste savoir si c'est celle qu'on voulait.
 
 ---
 
@@ -305,3 +305,97 @@ un an est déjà une réponse — il faut juste savoir si c'est celle qu'on voul
 13. Q13. Le lien d'invitation dans WhatsApp doit-il ouvrir l'app quand elle est installée (liens universels) ? Ça change le premier soir de quelqu'un qui rejoint le club, et c'est la seule porte d'entrée du club.
 
 14. Q14. Accessibilité : le club a-t-il un joueur qui utilise VoiceOver ou une grande taille de texte ? Si oui, la feuille de match est déjà étiquetée mais le score ne s'annonce pas, et rien n'a jamais été essayé à 200 %. Si non, on l'écrit et on n'y revient pas cette saison.
+
+## Regard : le nouveau venu
+
+1. Le lien d'invitation vaut-il autorisation d'entrer, ou seulement demande d'entrer ? Aujourd'hui, qui ouvre le lien EST membre à la seconde (lib/rejoindre.ts:150-158), sans que personne au club ne l'apprenne ni ne le valide. Le club veut-il un accord du capitaine, un signalement (« Karim vient d'entrer »), ou rien du tout ?
+
+2. Que doit-il se passer quand le nom du compte ne correspond à aucune fiche libre ? Aujourd'hui on crée silencieusement une deuxième fiche (lib/rejoindre.ts:113-117). Faut-il DEMANDER au nouveau « laquelle est la tienne ? » à l'entrée — le seul moment où il est là et où la question a du sens — plutôt que d'attendre qu'un admin s'en aperçoive trois mois plus tard ?
+
+3. Une fiche invitée doit-elle pouvoir devenir la fiche d'un membre ? C'est la moitié du vestiaire de ce club : les gens jouent d'abord, s'inscrivent après. Si oui, qui décide, et que devient l'historique ? Si non, on assume que les trois premiers lundis de chaque nouveau sont perdus pour ses stats.
+
+4. Combien de fiches un club a-t-il le droit d'avoir pour une seule personne ? Et si la réponse est « une », par quel geste on fusionne — sachant que la doctrine du dépôt est « rien ne supprime » et qu'aucune suppression de joueur n'existe (app/actions/roster.ts) ?
+
+5. « Niveau 3 » veut-il dire « moyen » ou « on ne sait pas encore » ? Si les deux, faut-il un état « non noté » que l'équilibrage traite à part, et une relance au capitaine avant le premier lundi d'un nouveau ?
+
+6. Le niveau et les étoiles doivent-ils être visibles par tout le monde, y compris par le nouveau qui arrive et lit sa propre note avant d'avoir touché un ballon ? (Le balayage Vestiaire pose déjà la question ; l'arrivée d'un nouveau la rend concrète.)
+
+7. Un joueur qui répond « je viens » sur une soirée pleine : quel mot lui dit-on ? « Présent » (aujourd'hui, partout sur l'accueil), « 13e — en attente », ou « on te prévient si une place se libère » ? Et qui le prévient quand la place se libère, sachant qu'aucune notification n'existe ?
+
+8. La liste des présences d'une soirée passée doit-elle être figée le soir même, ou recalculée avec l'effectif du jour ? Aujourd'hui c'est le second, ce qui fait apparaître des gens qui n'étaient pas au club et disparaître ceux qui l'ont quitté.
+
+9. Un compte sans e-mail vérifié et sans réinitialisation de mot de passe (lib/auth.ts:76-79, aucun envoi de courrier nulle part) : le club accepte-t-il qu'un nouveau qui se trompe d'adresse ait perdu son compte pour toujours, ou le capitaine doit-il pouvoir le débloquer ?
+
+10. L'app doit-elle pouvoir faire entrer quelqu'un toute seule — inscription, CGU, lien d'invitation qui ouvre l'app — ou le site reste-t-il la porte d'entrée officielle et l'app un outil pour ceux qui sont déjà dedans ? La réponse décide s'il faut des universal links, des CGU dans l'app, et un choix de club sur la vitrine.
+
+## Regard : le capitaine sur une saison
+
+1. L'argent : le club veut-il une ardoise nominative (qui doit combien depuis septembre, et un solde), ou se contente-t-il de « réglé / pas réglé » soirée par soirée ? Sans réponse, le capitaine restera la seule mémoire de la caisse.
+
+2. Le prix du terrain : se pose-t-il une fois pour la saison (avec le lieu et l'heure), ou reste-t-il une saisie hebdomadaire ? Et quand il augmente en janvier, la hausse vaut-elle pour les soirées déjà passées et payées ?
+
+3. Une soirée annulée après que le prix a été saisi : le club a-t-il payé quand même (Urban ne rembourse pas toujours) ou pas du tout ? Le bilan de la saison doit compter l'un ou l'autre — il ne peut pas ignorer la question.
+
+4. L'argent se coche-t-il au gymnase, sur le téléphone, au moment où les billets circulent ? Si oui, cette écriture-là passe-t-elle par la file d'attente hors-ligne comme un but, ou exige-t-elle le réseau comme un réglage ?
+
+5. La liste d'attente : à égalité d'engagement (tous les abonnés le sont, toute l'année), qui saute ? Rotation d'une semaine sur l'autre, ancienneté au club, tirage — ou le club assume-t-il que ce soit toujours les mêmes ?
+
+6. Fusionner deux fiches d'un même joueur : qui en a le droit, et que devient la fiche absorbée — ses buts, ses votes d'homme du match, ses trophées, sa photo ? Et si les deux fiches ont un compte lié ?
+
+7. À partir de quand une fiche joueur est-elle effaçable plutôt qu'archivable ? Zéro match ? Zéro match ET zéro réponse ? Ou jamais, et on assume un repli d'archivés qui garde les erreurs de frappe ?
+
+8. Le palmarès de l'année : doit-il vivre toute la saison (et bouger chaque lundi), ou n'a-t-il de sens qu'une fois la saison clôturée ? Si c'est la clôture qui l'ouvre, l'écran doit le dire — et il faut rendre la clôture facile à faire en juillet.
+
+9. Quand les chasubles changent en cours de saison : l'histoire se relit-elle avec les nouvelles couleurs, ou chaque match garde-t-il celles du jour ? Et le derby de l'année s'appelle-t-il alors comment ?
+
+10. Tenir la feuille est-il un droit à part (« marqueur »), attribuable à une personne, ou le club accepte-t-il de nommer admin celui qui saisit — avec la caisse, les réglages et la suppression qui viennent avec ?
+
+11. Changer l'heure ou le lieu de toutes les soirées à venir : est-ce un geste d'un coup, ou faut-il pouvoir modifier une soirée à la fois (heure, lieu, titre, mot du capitaine) et laisser le capitaine répéter ?
+
+12. La suppression d'une soirée doit-elle disparaître comme la spec 0001 le propose pour les matchs (« rien dans l'app ne supprime ») une fois que l'annulation aura son bouton ? Aujourd'hui c'est le seul geste offert, et c'est le pire.
+
+13. Les présences sur la saison : le club veut-il savoir qui répond, qui vient, et qui dit oui sans venir ? Si oui, la source de vérité est-elle la réponse (Rsvp) ou la feuille de match — et que fait-on quand les deux se contredisent ?
+
+## Regard : le téléphone
+
+1. Un téléphone réinstallé (ou restauré depuis une sauvegarde) doit-il rouvrir l'app DÉCONNECTÉ, ou retrouver la session rangée dans le trousseau ? Aujourd'hui c'est le trousseau qui décide, et il décide « connecté ».
+
+2. Combien de temps une soirée non envoyée peut-elle rester dans un seul téléphone avant qu'on la considère perdue — et le club veut-il en être averti (« le téléphone d'Ibrahima garde 12 buts depuis lundi dernier ») ?
+
+3. Qui a le droit d'installer l'app, et que fait-on d'un joueur sous Android ou d'un iPhone non enregistré dans l'équipe Apple : on l'enregistre et on refait un build, ou on lui dit « toi, c'est le site » ?
+
+4. Quand le téléphone du marqueur meurt ou passe de main en main en cours de match, qui reprend la feuille et avec quoi ? Faut-il un mode « saisie seule » (la feuille, rien d'autre) pour un téléphone prêté ?
+
+5. Le chrono doit-il compter le temps où le téléphone était éteint ou l'app fermée ? Et la durée envoyée au serveur à la fin : temps de jeu, ou temps entre le coup d'envoi et le coup de sifflet ?
+
+6. Quand l'horloge du téléphone est manifestement fausse, qui a raison : le téléphone ou le serveur ? Le serveur doit-il poser lui-même l'heure d'un match lancé en direct, et ne laisser le téléphone la choisir qu'en mode rétro ?
+
+7. Le téléphone est en ligne mais l'app ne passe pas (données coupées pour l'app, portail captif) : que doit dire la pastille, et faut-il une vraie sonde vers le serveur plutôt que l'avis du système ?
+
+8. Que fait l'app quand elle n'arrive pas à écrire dans sa propre base (téléphone plein, fichier abîmé) : on arrête tout, on prévient, on bascule sur quoi ? Aujourd'hui la question n'est posée nulle part.
+
+## Regard : les données
+
+1. À quelle saison appartient un match : celle qui était active quand on l'a saisi, ou celle qui contient sa DATE ? Aujourd'hui c'est la première, et personne ne l'a décidé. Si c'est la seconde, il faut que Season.startsAt/endsAt veuillent dire quelque chose, et il faut un geste pour rattraper les matchs déjà mal rangés.
+
+2. Un match rattaché à une soirée doit-il forcément être dans la saison de sa soirée ? Si oui, c'est une contrainte à poser (et à réparer sur l'existant) ; si non, il faut cesser de compter les soirées et les matchs avec deux filtres différents sur le même écran.
+
+3. Un joueur qui change de camp en cours de match : de quel côté le récap doit-il le montrer ? Du côté où il a commencé (comme le classement), du côté où il a fini (comme la feuille aujourd'hui), ou des deux avec une mention ? La réponse décide aussi de ce que le miroir hors-ligne doit stocker.
+
+4. Un but peut-il être crédité à quelqu'un qui n'est pas sur la feuille ? Si non — et c'est ce que dit le bon sens — que fait-on des lignes « MJ 0 » déjà présentes au classement, et faut-il refuser aussi l'homme du match hors feuille ?
+
+5. « Élo » veut dire quoi : une cote de carrière ou une cote de saison ? Tant que les deux existent sous le même mot, aucun des deux nombres n'est croyable.
+
+6. Qui garde les buts un soir donné : la case de la fiche, ou une désignation par soirée ? Tant que c'est la fiche, la carte « Les gardiens » mesure autre chose que ce qu'elle annonce.
+
+7. Que doit-on faire quand une personne se retrouve avec deux fiches ? Faut-il un geste « c'est la même personne » qui recolle les matchs, les buts et les trophées — et qui gagne en cas de conflit (photo, niveau, abonnement) ?
+
+8. Qu'est-ce que « l'encaissé » d'une soirée : un montant reçu, ou un calcul (part × cochés) qui bouge dès qu'une présence change ? Si le club veut une caisse, il faut enregistrer un montant, pas une case.
+
+9. Peut-on supprimer une soirée qui a des matchs joués ou des paiements ? Si oui, que deviennent les matchs — détachés, annulés, ou refusés ? Aujourd'hui ils survivent orphelins et continuent de compter.
+
+10. Un chiffre déjà lu par le club peut-il changer sans que personne ne l'apprenne (changement de barème, correction d'un match, vote tardif, réactivation d'une saison) ? Faut-il une trace « ce tableau a bougé le … » quelque part, ou geler les saisons closes ?
+
+11. Le fuseau du club est une constante (Europe/Paris). Est-ce qu'on l'assume partout — y compris pour l'anti-doublon du calendrier, le regroupement par mois et l'export CSV, qui jugent encore le jour dans le fuseau du serveur ?
+
+12. Les règles qui n'existent que dans les téléphones (« au moins un joueur de chaque côté », « pas deux équipes vides ») doivent-elles descendre dans le serveur ? Tant qu'elles sont à l'écran seulement, deux téléphones hors ligne peuvent produire un match que personne n'a joué.
