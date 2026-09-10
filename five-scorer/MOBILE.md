@@ -539,7 +539,8 @@ Un agent ne peut trancher aucune de ces lignes.
   est donc devenue inapplicable : une pull request fusionnée ne suit plus rien.
   Le travail de ce soir repart de `458e265` sur la branche `mobile` — donc
   au-dessus de `main`, sans rien empiler sur de l'histoire déjà fusionnée — et
-  une **nouvelle** pull request le porte. À corriger dans le message de la
+  une **nouvelle** pull request le porte : **#4**
+  (https://github.com/diamesene02/diamesene02/pull/4), en brouillon. À corriger dans le message de la
   routine : c'est le numéro de PR qui y est écrit en dur, et il vieillira à
   chaque fusion.
 - **Ce que ça règle** : l'app savait montrer le vestiaire et la fiche d'un
