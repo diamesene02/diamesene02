@@ -17,18 +17,21 @@ export const dynamic = "force-dynamic";
 /// personnelle — la même séparation que pour l'abonnement, et pour la même
 /// raison. Les mélanger obligerait à être admin pour dire qui on est.
 ///
-/// **On ne revendique que POUR SOI.** Le site laisse un admin rattacher un
-/// compte tiers à une fiche, et `rattacherJoueur` porte cette règle ; cette
-/// route ne l'expose pas. L'écran n'offre qu'un bouton, « c'est moi », et il
-/// n'envoie jamais d'identifiant de compte — accepter un `userId` dans le
-/// corps ouvrirait, à qui gère, la prise du profil d'un coéquipier : la
-/// transaction délie d'abord la fiche du demandeur, puis pose son compte sur
-/// celle qu'il désigne. Le coéquipier perdrait la sienne sans un mot.
+/// Le corps est facultatif : sans `userId`, c'est le compte connecté qui
+/// revendique. Un gérant peut lier quelqu'un d'autre en l'envoyant, comme sur
+/// le site.
 ///
-/// `canManage: false` est passé exprès. Avec un `userId` qui vaut toujours le
-/// compte connecté, il ne retire aucun droit légitime : il n'autorise que la
-/// revendication d'une fiche libre ou déjà sienne, et c'est tout ce que le
-/// bouton promet.
+/// **Ce pouvoir du gérant a été retiré une fois, puis rendu.** Retiré parce
+/// qu'il permet de poser son compte sur la fiche d'un coéquipier : la
+/// transaction délie d'abord la sienne, et l'autre perd la sienne sans un mot.
+/// Rendu parce qu'il est le SEUL recours quand quelqu'un s'est trompé de
+/// fiche : rien, nulle part, ne délie un profil — les deux seuls `userId:
+/// null` du dépôt (`app/actions/club.ts`, `membres/[memberId]`) sont des
+/// exclusions du club. Sans l'arbitrage du gérant, une revendication ratée le
+/// premier soir ne se répare qu'en expulsant la personne.
+///
+/// Ce qui manque n'est donc pas une garde de plus, c'est une TRACE : qui a
+/// rattaché quoi, et quand. Question ouverte de la spec produit.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ clubId: string; playerId: string }> },
@@ -37,12 +40,22 @@ export async function POST(
   const ctx = await getClubApiContext(clubId);
   if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
 
+  const corps = (await req.json().catch(() => null)) as { userId?: unknown } | null;
+  // Un `userId` d'un autre type que chaîne n'est PAS remplacé en douce par
+  // celui du compte connecté : il serait alors possible d'obtenir un
+  // rattachement à soi-même en croyant en demander un autre, et le refus est
+  // justement ce qui protège `idsValides` en aval.
+  if (corps?.userId !== undefined && typeof corps.userId !== "string") {
+    return NextResponse.json({ error: "Identifiant invalide." }, { status: 400 });
+  }
+  const userId = corps?.userId ?? ctx.user.id;
+
   const res = await rattacherJoueur({
     clubId,
     playerId,
-    userId: ctx.user.id,
+    userId,
     acteurId: ctx.user.id,
-    canManage: false,
+    canManage: ctx.canManage,
   });
   if (!res.ok) {
     return NextResponse.json(
