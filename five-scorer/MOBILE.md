@@ -311,10 +311,12 @@ Briques de dessin, toutes vérifiées dans Expo Go : `expo-linear-gradient` (lin
 Aucune enquête ne les avait mis dans son bilan ; ils pèsent **432 lignes** (compté : 141 + 291).
 
 - **`lib/audio.ts` (141 lignes) est synthétisé, pas joué.** `playGoalSound("A")` fait glisser un triangle de 440 → 880 Hz, `("B")` fait l'inverse, avec un commentaire qui dit pourquoi : « le marqueur regarde le jeu, pas l'écran — l'oreille est le seul canal qui reste ». Il n'y a **aucun fichier audio dans le dépôt**. La seule implémentation Web Audio en React Native, `react-native-audio-api` (Software Mansion), est explicitement **hors Expo Go** (« contains native custom code and isn't part of the Expo Go application »). **Décision : pré-rendre 4 fichiers courts (but A, but B, annulation, coup de sifflet) depuis les fréquences exactes du fichier, et les jouer avec `expo-audio` (~57.0.4, dans Expo Go).** `lib/audio.ts` devient la **spécification**, pas du code porté. `playsInSilentMode` vaut `true` par défaut : le son sort téléphone en silencieux, ce qu'on veut. Et `unlockAudio()` disparaît — c'était une cicatrice de navigateur.
+  **Fait le 10 septembre (étape 16)**, en `.wav` PCM et non en `.m4a` : il n'y a ni `ffmpeg` ni `afconvert` dans le nuage, et le PCM ne réveille aucun décodeur au premier but. 108 ko pour les quatre. `scripts/faire-sons.mjs` les fabrique, `lib/son/sons.test.ts` les refabrique et compare octet pour octet — la spécification ne peut plus diverger en silence. Vérifié dans le code installé, pas seulement dans la doc : `playsInSilentMode` est bien `true` par défaut et `interruptionMode` vaut `mixWithOthers` (`node_modules/expo-audio/build/Audio.types.d.ts`). Les deux sont quand même écrits explicitement — ce sont eux qui décident si l'app sert à quelque chose au gymnase.
 - **`lib/shareCard.ts` (291 lignes) est du Canvas 2D** (`getContext("2d")`, `fillText`, `measureText`, `toBlob`, `navigator.share`). **Décision : redessiner la carte en composants React Native et la capturer avec `react-native-view-shot`** (« Included in Expo Go »), puis `expo-sharing`. Plus simple à maintenir que 291 lignes de dessin impératif. (`@shopify/react-native-skia` serait le portage le plus fidèle mais coûte le development build.)
 - **Retour haptique : 6 sites d'appel** de `navigator.vibrate` (LiveMatch 448/465/535, PlayerTile 69/74/90 — une contre-enquête annonce 12, ce sont les **occurrences du mot**, garde `typeof` comprise). `expo-haptics` n'accepte **aucune durée en ms** : 12 → `impactAsync(Light)`, 18 → `selectionAsync()`, 30 → `impactAsync(Medium)`, `[12,40,12]` → `notificationAsync(Warning)`. On perd la nuance de durée, on gagne le Taptic Engine.
+  **Fait le 10 septembre (étape 16)** : `lib/vibrer.ts`, et les 8 `Vibration.vibrate(ms)` de `app/match/[id].tsx` remplacés (compté sur le commit `d8822c3`). Ce que le tableau ne disait pas et qui est la vraie raison de le faire : **iOS ignore la durée** de `Vibration.vibrate`, donc les trois nuances y produisaient le même buzz de vibreur, vingt-sept fois par soirée. `[12,40,12]` n'a aucun site d'appel dans le portage — la ligne reste pour mémoire.
 - **Autres API navigateur à recâbler**, absentes des inventaires : `navigator.clipboard` (5 usages) → `expo-clipboard` ; `navigator.share` (4) → `expo-sharing` ; `localStorage` (6) → `expo-sqlite/kv-store` ou AsyncStorage.
-- **Un gain gratuit** : `useKeepAwake()` (`expo-keep-awake`, dans Expo Go). Il n'y a **aucun Wake Lock dans le dépôt** aujourd'hui : l'écran s'éteint à la 20ᵉ minute pendant qu'on regarde le jeu. Une ligne, visible dès la première démo au club.
+- **Un gain gratuit** : `useKeepAwake()` (`expo-keep-awake`, dans Expo Go). Il n'y a **aucun Wake Lock dans le dépôt** aujourd'hui : l'écran s'éteint à la 20ᵉ minute pendant qu'on regarde le jeu. Une ligne, visible dès la première démo au club. **Posé le 10 septembre (étape 16)**, sur `app/match/[id].tsx` et là seulement : l'écran reste allumé pendant la feuille, pas dans les listes.
 - **Notifications push : le seul vrai mur, et il tombe tôt.** `expo-notifications` (~57.0.17) est dans Expo Go, mais le push distant y est indisponible sur Android depuis le SDK 53, et sur iOS le jeton serait rattaché au bundle d'Expo Go — inexploitable en production. Les notifications **locales** marchent (« match dans 1 h »). « Qui vient lundi ? » envoyé le jeudi = **development build obligatoire** (étape 17).
 
 ---
@@ -356,11 +358,11 @@ Règles de lecture pour l'agent :
 | **12** | **Serveur : les 3 GET restants de la V1** — `matches?status=`, `matches/[matchId]` (feuille complète : participants avec `team` et `initialTeam`, événements ordonnés, mvp, votes, rsvps), `matchdays/[id]/lineup`. | `NEXT_DIST_DIR=.next-verif npx next build` en 0 ; puis, serveur `next dev` lancé sur une base locale : `node scripts/jeu-dessai.mjs && node scripts/parcours-lecture.mjs` (depuis `five-scorer-mobile/`) → **TOUT VERT**, 39 vérifications. **`pnpm test:api` n'existe pas** — le plan l'inventait ; il n'y a aucun harnais Vitest côté web, et l'étape 9 avait déjà dû s'en passer. | **fait** — les trois GET, plus le jeu d'essai qui les rend vérifiables dans le nuage. La forme des réponses est celle de `LocalMatch` / `LocalParticipant` / `LocalEvent` (`lib/outbox/types.ts`) : chaque bloc se recopie tel quel dans sa table SQLite, sans couche de traduction. **Écarts assumés** : (a) les votes MOTM sont rendus **comptés**, jamais nominatifs — `{ total, byPlayer, mine }` — là où le plan disait « votes » ; (b) `?status=` refuse un statut inconnu par un **400** au lieu de l'ignorer ; (c) chaque participant porte déjà sa clé composée `matchId::playerId`, pour que la règle de `pKey` n'existe pas en deux exemplaires. |
 | **13** | **Écran « nouveau match »** : compo, équilibrage (`lib/balance.ts`), invités, coup d'envoi → écriture locale + `createMatch` en outbox. | `npx tsc --noEmit` vert, et surtout : la boucle rejouée à la main sur le simulateur, avec vérification en base. | **fait** — `app/compo.tsx`. **Écart assumé au site** : les abonnés arrivent présélectionnés et un bouton « Tous / Personne » double la liste, parce que taper quatorze joueurs un par un debout au bord du terrain est le geste le plus coûteux de la soirée. |
 | **14** | **Écran « jouer », partie 1** : la tuile joueur et l'horloge. | `npx tsc --noEmit` vert ; `grep -rc "suppressTapUntil" five-scorer-mobile/` → `0` ; geste vérifié sur simulateur. | **fait** — `app/match/[id].tsx`. Tap = but, appui long 500 ms = retirer son dernier but ; le garde `suppressTapUntil` du web a bien disparu, React Native n'émet pas `onPress` après `onLongPress`. Horloge dérivée du coup d'envoi, tic de 500 ms. Pas de `useKeepAwake` ni de son : `expo-keep-awake` et les fichiers audio restent à faire. |
-| **15** | **Écran « jouer », partie 2** : le score, la barre d'invite 15 s, les chemins d'annulation, la confirmation de fin. | `npx tsc --noEmit` vert ; parcours rejoué sur simulateur avec contrôle en base après chaque geste. | **en cours** — faits : le tableau de marque (le camp qui perd s'efface), l'invite 15 s pour la passe décisive ET pour l'auteur d'un csc, deux chemins d'annulation (appui long sur la tuile, bouton « Annuler » pour le dernier événement), la confirmation de fin. **Restent** : la chronologie, les cartons, l'élection du MVP, la correction de composition en cours de match, et `gestureEnabled: false` sur la route. |
-| **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. | `ls -l mobile/assets/audio/*.m4a \| wc -l` → `4` ; `npx expo export --platform ios` en 0 ; `grep -rc "react-native-audio-api" mobile/package.json` → `0` (interdit en Expo Go). | à faire |
+| **15** | **Écran « jouer », partie 2** : le score, la barre d'invite 15 s, les chemins d'annulation, la confirmation de fin. | `npx tsc --noEmit` vert ; parcours rejoué sur simulateur avec contrôle en base après chaque geste. | **en cours** — faits : le tableau de marque (le camp qui perd s'efface), l'invite 15 s pour la passe décisive ET pour l'auteur d'un csc, deux chemins d'annulation (appui long sur la tuile, bouton « Annuler » pour le dernier événement), la confirmation de fin ; **et, le 9 septembre 22:1x** : la chronologie (feuille du bas, le plus récent en haut, « Annuler » par ligne), les cartons (jaune/rouge par carte d'équipe, si `trackCards`, avec le compteur sur la tuile), l'élection du MVP (feuille du bas, seulement en `motmMode === "ADMIN"`, facultative), et `gestureEnabled: false` sur la route. **Et, le 10 septembre 00:1x** : la correction de composition en cours de match — bandeau « Corriger la composition », tap sur une tuile pour envoyer un joueur dans l'autre camp, « + Faire entrer un joueur » pour le retardataire, éclair de 400 ms sur la tuile déplacée, refus du garde anti-équipe-vide affiché en clair. **Tout le code de l'étape est écrit.** Ce qui la sépare de `fait` n'est plus du code : c'est la **vérification visuelle que le nuage ne peut pas faire** — ces écrans n'ont été VUS par personne (§6, ligne 12). |
+| **16** | **Son et retour haptique** : produire 4 fichiers audio courts depuis les fréquences exactes de `lib/audio.ts` (but A montant 440→880, but B descendant 880→440, annulation, double sifflet 1760 Hz), les jouer avec `expo-audio`. Plus `expo-haptics` à la place de `Vibration` (iOS ignore la durée) et `useKeepAwake()`. | `ls -1 five-scorer-mobile/assets/audio/*.wav \| wc -l` → `4` (**`.wav` et non `.m4a`** : il n'y a ni `ffmpeg` ni `afconvert` dans le nuage — voir le journal du 10 septembre) ; `npx vitest run sons` vert ; `npx expo export --platform ios` en 0 **et les 4 `wav` présents dans `dist/metadata.json`** ; `grep -c "react-native-audio-api" five-scorer-mobile/package.json` → `0` (interdit en Expo Go). | **fait** — 4 `.wav` mono 16 bits 44,1 kHz (108 ko en tout), fabriqués par `scripts/faire-sons.mjs` depuis les fréquences du web, et 21 tests dans `lib/son/sons.test.ts` qui refabriquent les fichiers et les comparent octet pour octet. **Écarts assumés** : (a) `.wav` PCM au lieu de `.m4a` — pas d'encodeur AAC ici, et le PCM ne réveille aucun décodeur au premier but ; (b) le bouton « Son / Muet » du site est repris, même clé de réglage (`fs-sound-enabled`), stockage `expo-sqlite/kv-store` ; (c) `unlockAudio()` (12 l.) disparaît sans remplacement — il n'y a rien à déverrouiller en natif. **Jamais entendu par une oreille** : voir le journal. |
 | **17** | **Build installable sur l'iPhone.** Le projet natif est prêt : `expo prebuild` passe, 102 pods installés, `ios/FiveScorer.xcworkspace` existe, `DEVELOPMENT_TEAM = M283R456KQ` (équipe **payante**, pas l'identifiant gratuit — voir le journal). | `npx expo prebuild --platform ios --no-install` en 0 et `ls ios/*.xcworkspace` existe : **atteint**. La compilation, elle, échoue. | **fait** — par EAS, pas en local. Build `9727ecbd`, profil `lundi`, terminé. Vérifié en téléchargeant l'`.ipa` : bundle `com.ibc.fivescorer`, signé par l'équipe payante (`M283R456KQ.com.ibc.fivescorer`), profil ad hoc n'autorisant **que** l'iPhone de Diame, `main.jsbundle` de 2,6 Mo embarqué (donc démarre sans Metro), schéma `fivescorer` enregistré, ATS `NSAllowsArbitraryLoads=false`. Le build local reste impossible sur cette machine — voir le journal. |
 | **18** | **Maestro sur simulateur** : 3 parcours (connexion, créer un match, marquer 3 buts et terminer). | `maestro test mobile/.maestro/` → 3 flows `PASSED` sur le simulateur iOS 26.2. | à faire |
-| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `NEXT_DIST_DIR=.next-verif npx next build` en 0, `node scripts/parcours-lecture.mjs` vert (étendu au lot), `npx expo export --platform ios` en 0. (`pnpm test:api` n'existe pas — voir l'étape 12.) | **en cours** — faits : l'accueil, la liste des matchs, le récap, les soirées et leur calendrier, la soirée (avec la réponse de présence), **le vestiaire et la fiche joueur**. Chacun a son GET serveur d'abord ; `scripts/parcours-lecture.mjs` a grossi d'autant (l'effectif, la fiche, la bascule « je viens tous les lundis » et ses refus) et reste **TOUT VERT**. La fiche joueur a corrigé deux choses **des deux côtés** : le rang du sous-titre se lit maintenant au TABLEAU (aux points, `trierParPoints`) et non dans l'ordre des buteurs — le site annonçait « 1er » à qui son propre classement mettait deuxième ; et « Tu peut toujours se déclarer absent » est devenu « Tu peux toujours te déclarer absent ». Le menu de la pilule (`composants/MenuClub.tsx`) porte ce que la barre du bas ne porte pas : mon profil, l'effectif, le partage de la vitrine, mes clubs, la déconnexion. **Les stats** ensuite, en un seul `GET .../stats` — le tableau, les buteurs, la forme, le palmarès, le derby, les gardiens, les records, le bilan contre les adversaires, et le choix de la saison. Elles ont corrigé un défaut de lisibilité **du site** : une chasuble servant de COULEUR (la barre d'un buteur, la jauge du derby) était peinte en brut, si bien qu'un club en noir et blanc n'avait qu'une moitié visible — on passe partout par les variantes redressées `taR`/`tbR`, comme l'anneau des avatars le faisait déjà. Et la forme se lit désormais dans le même sens sur les deux écrans (la plus récente à droite) : la fiche joueur la peignait à l'envers de la page des stats. **La saison et les réglages** ensuite, avec ce qu'ils entraînent : « Poser toute la saison » (le générateur de calendrier, `lib/calendrier.ts` recopié dans le mobile et vérifié octet pour octet par 18 tests), « Ajouter une soirée », et le câblage du menu de la pilule — l'écran Saison existait sans que rien n'y mène. Trois défauts livrés corrigés au passage : la feuille « Créer » ouvrait la compo sur « Maintenant » alors qu'on avait tapé « Saisir un match déjà joué » (le paramètre `quand` n'était pas lu), un match saisi ne se rattachait à AUCUNE soirée (`matchDayId` jamais passé), et la déconnexion laissait la base locale derrière elle — sur un téléphone prêté, la personne suivante ouvrait l'app sur le vestiaire du club précédent, et une soirée non synchronisée disparaissait sans un mot. Une faille du SITE aussi : `setMemberRole` ne validait `role` qu'au type, si bien qu'un admin pouvait s'envoyer « owner » — un rôle que rien ne permet ensuite de retirer. **Restent** : programmer un match contre un club extérieur (il demande tout le carnet d'adversaires ; ce club joue contre lui-même), rejoindre/créer un club, et le formulaire d'ajout/édition d'un joueur. **Laissé de côté sciemment** : « Exporter en CSV » sous le tableau — un fichier téléchargé n'a nulle part où aller sur un téléphone ; il faudra le partager (`expo-sharing`), ce qui relève du chantier Y. |
+| **19+** | **Le reste, par lots** : accueil (847 l.) → liste des matchs + récap + effectif → soirées + calendrier + argent → stats + fiche joueur → réglages. Chaque lot a son GET serveur d'abord, son écran ensuite. `p/[slug]`, `r/[id]`, `privacy`, `terms` **restent sur le web** (669 l. retirées du périmètre) : elles sont faites pour être ouvertes par quelqu'un qui n'a pas l'app. | Par lot : `NEXT_DIST_DIR=.next-verif npx next build` en 0, `node scripts/parcours-lecture.mjs` vert (étendu au lot), `npx expo export --platform ios` en 0. (`pnpm test:api` n'existe pas — voir l'étape 12.) | **en cours** — faits : l'accueil, la liste des matchs, le récap, les soirées et leur calendrier, la soirée (avec la réponse de présence), **le vestiaire et la fiche joueur**. Chacun a son GET serveur d'abord ; `scripts/parcours-lecture.mjs` a grossi d'autant (l'effectif, la fiche, la bascule « je viens tous les lundis » et ses refus) et reste **TOUT VERT**. La fiche joueur a corrigé deux choses **des deux côtés** : le rang du sous-titre se lit maintenant au TABLEAU (aux points, `trierParPoints`) et non dans l'ordre des buteurs — le site annonçait « 1er » à qui son propre classement mettait deuxième ; et « Tu peut toujours se déclarer absent » est devenu « Tu peux toujours te déclarer absent ». Le menu de la pilule (`composants/MenuClub.tsx`) porte ce que la barre du bas ne porte pas : mon profil, l'effectif, le partage de la vitrine, mes clubs, la déconnexion. **Les stats** ensuite, en un seul `GET .../stats` — le tableau, les buteurs, la forme, le palmarès, le derby, les gardiens, les records, le bilan contre les adversaires, et le choix de la saison. Elles ont corrigé un défaut de lisibilité **du site** : une chasuble servant de COULEUR (la barre d'un buteur, la jauge du derby) était peinte en brut, si bien qu'un club en noir et blanc n'avait qu'une moitié visible — on passe partout par les variantes redressées `taR`/`tbR`, comme l'anneau des avatars le faisait déjà. Et la forme se lit désormais dans le même sens sur les deux écrans (la plus récente à droite) : la fiche joueur la peignait à l'envers de la page des stats. **La saison et les réglages** ensuite, avec ce qu'ils entraînent : « Poser toute la saison » (le générateur de calendrier, `lib/calendrier.ts` recopié dans le mobile et vérifié octet pour octet par 18 tests), « Ajouter une soirée », et le câblage du menu de la pilule — l'écran Saison existait sans que rien n'y mène. Trois défauts livrés corrigés au passage : la feuille « Créer » ouvrait la compo sur « Maintenant » alors qu'on avait tapé « Saisir un match déjà joué » (le paramètre `quand` n'était pas lu), un match saisi ne se rattachait à AUCUNE soirée (`matchDayId` jamais passé), et la déconnexion laissait la base locale derrière elle — sur un téléphone prêté, la personne suivante ouvrait l'app sur le vestiaire du club précédent, et une soirée non synchronisée disparaissait sans un mot. Une faille du SITE aussi : `setMemberRole` ne validait `role` qu'au type, si bien qu'un admin pouvait s'envoyer « owner » — un rôle que rien ne permet ensuite de retirer. **Restent** : programmer un match contre un club extérieur (il demande tout le carnet d'adversaires ; ce club joue contre lui-même), rejoindre/créer un club, et le formulaire d'ajout/édition d'un joueur. **Laissé de côté sciemment** : « Exporter en CSV » sous le tableau — un fichier téléchargé n'a nulle part où aller sur un téléphone ; il faudra le partager (`expo-sharing`), ce qui relève du chantier Y. **Remarque du 9 septembre, gardée parce qu'elle a servi** : ce tableau a longtemps été en retard sur le dépôt — trois lots livrés sans entrée au journal. Ce qu'un commit fait se lit dans son diff ; ce qu'il a ÉCARTÉ ne se lit nulle part ailleurs qu'ici. |
 | **3 bis** | **Le premier écran, sans authentification** — pour voir quelque chose de vrai dans Expo Go avant d'avoir porté la connexion. A demandé un endpoint public côté serveur (`GET /api/public/[slug]`, déployé sur `main`) qui rend la vitrine du club ET ses jetons de thème calculés par `lib/theme.ts` : la règle des couleurs ne doit exister qu'à un seul endroit. | `cd five-scorer-mobile && npx tsc --noEmit` en 0 ; `curl -s https://five-scorer.vercel.app/api/public/renault-five-urban-guy \| python3 -c "import sys,json;d=json.load(sys.stdin);print(d['club']['nom'], len(d['classement']))"` → le nom du club et le nombre de joueurs. | **fait** — commits `36ce034`, `9944e84` sur `main` et `2b4ba1b` sur `mobile`. Rendu vérifié avec la cible web d'Expo : le club, les photos et le 18-9 du 7 septembre s'affichent. |
 | **X** | **Chantier séparé, sans urgence, jamais sur la prod en premier** : `ALTER TABLE "account" ALTER COLUMN "issuer" DROP NOT NULL;`, retrait du champ dans `schema.prisma`, essai d'inscription réelle sur une preview, **puis seulement** `better-auth@1.7.3` + `@better-auth/expo@1.7.3`. Aucun index unique à retirer au préalable (vérifié dans le SQL de la migration). | Sur une base de preview : `prisma migrate deploy` en 0, puis une inscription réelle qui renvoie 200, puis `node -p "require('./node_modules/better-auth/package.json').version"` → `1.7.3`. | à faire |
 | **Y** | **Chantier séparé** : porter `lib/shareCard.ts` (291 l.) en vues RN + `react-native-view-shot` + `expo-sharing`. | `npx expo export --platform ios` en 0 ; `grep -rc "getContext(\"2d\")" mobile/` → `0`. | à faire |
@@ -379,9 +381,10 @@ Règles de lecture pour l'agent :
 - **La non-divergence du noyau** : `copie-conforme.test.ts` compare octet pour octet les 6 fichiers de `lib/noyau/` à ceux de `five-scorer/lib/`, et vérifie qu'aucun n'a acquis de `document.`/`window.`/`navigator.`/`localStorage`. C'est le test qui empêche la réécriture de partir en deux versions de la même règle.
 - **Le drain de l'outbox contre un faux serveur** : c'est le test qui valide tout le reste, et il ne demande aucune interface. 50 opérations, serveur en panne, processus tué, relancé : rien de perdu, rien de dupliqué, ordre conservé. Plus le cas 403 → blocage en cascade sans suppression, et le cas 401 → `needsAuth`. **Fait à l'étape 7 : 13 tests dans `five-scorer-mobile/lib/outbox/sync.test.ts`.** « Processus tué » y est deux instances de drain sur le même fichier SQLite, la première abandonnée en pleine panne réseau.
 - **Le SQL lui-même**, avec `node:sqlite` — **il n'y a pas de binaire `sqlite3` dans le conteneur du nuage**, et c'est sans importance : `node:sqlite` embarque le même moteur (SQLite 3.51.2, relevé le 9 septembre), celui d'expo-sqlite sur le téléphone. **Fait à l'étape 6 : 19 tests dans `five-scorer-mobile/db/schema.test.ts`.** La réutilisation d'identifiant sans `AUTOINCREMENT` y est un test **et** son contre-exemple : une table témoin sans le mot redonne l'identifiant supprimé. Ce n'est pas une croyance.
-- **Les actions de match contre un vrai SQLite**. **Fait à l'étape 11 : 54 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`.** Le test qui compte n'est pas « un but est bien écrit », c'est **l'annulation** : une `BaseCapricieuse` refuse tout `INSERT INTO outbox`, et on vérifie qu'il ne reste NI événement NI opération NI point au score. Les deux règles gardées par les tests exigés ont été retirées du code une par une pour voir les tests tomber (journal du 9 septembre 18:1x) — sans cette contre-épreuve, un test vert ne dit rien.
+- **Les actions de match contre un vrai SQLite**. **Fait à l'étape 11 : 59 tests dans `five-scorer-mobile/lib/match/localMatch.test.ts`** (54 à l'étape 11, +5 pour le coup de sifflet le 9 septembre au soir). Le test qui compte n'est pas « un but est bien écrit », c'est **l'annulation** : une `BaseCapricieuse` refuse tout `INSERT INTO outbox`, et on vérifie qu'il ne reste NI événement NI opération NI point au score. Les deux règles gardées par les tests exigés ont été retirées du code une par une pour voir les tests tomber (journal du 9 septembre 18:1x) — sans cette contre-épreuve, un test vert ne dit rien.
 - **La fonction d'appel authentifié** avec `fetch` moqué : `credentials: "omit"` et en-tête `cookie` présents. **Fait à l'étape 8 : 17 tests dans `five-scorer-mobile/lib/appel.test.ts`.** Le test qui compte n'est pas « le cookie est là », c'est « le cookie est une **chaîne**, pas une promesse » : le `await` oublié sur `getCookie()` produit un 401 parfaitement trompeur, et rien à l'écran ne le distingue d'une session réellement expirée.
 
+- **Les quatre sons du match, contre leur spécification.** **Fait à l'étape 16 : 21 tests dans `five-scorer-mobile/lib/son/sons.test.ts`.** Un fichier audio pré-rendu ne dit pas d'où il vient : le test refabrique les quatre `.wav` avec `scripts/faire-sons.mjs` et les compare **octet pour octet** à ceux du dépôt, puis vérifie que chaque fréquence citée existe encore dans `five-scorer/lib/audio.ts`. Le test qui compte n'est pas « le fichier existe », c'est **« le but de A monte et celui de B descend »** — mesuré aux passages par zéro sur les 85 premières millisecondes, avant l'entrée du second ton. C'est la seule raison d'avoir deux fichiers plutôt qu'un, et personne ne s'apercevrait en relisant le code qu'ils glissent dans le même sens. Un dernier garde, structurel : autant de couches ici que d'appels à `playTone` sur le site.
 - **Les endpoints de lecture, contre un vrai serveur et une vraie base.** **Fait à l'étape 12 : 39 vérifications dans `five-scorer-mobile/scripts/parcours-lecture.mjs`.** La découverte de l'étape est ailleurs : **il y a un PostgreSQL 16 complet dans le conteneur du nuage** (`/usr/lib/postgresql/16/bin/postgres`, à lancer sous l'utilisateur `postgres`). Le serveur n'est donc plus une boîte noire ici — on migre, on peuple avec `scripts/jeu-dessai.mjs`, on lance `next dev`, et on lit pour de vrai. Le jeu d'essai refuse toute `DATABASE_URL` qui ne soit pas locale : il écrit, et il ne doit jamais écrire ailleurs.
 
 **Compilation et bundle** — deux commandes qui attrapent 80 % des régressions sans téléphone :
@@ -468,6 +471,7 @@ Ce n'est pas du travail de l'exécution.
 
 - **Ouvrir l'app déjà sans réseau, au bord du terrain.** Impossible en Expo Go (Metro sert le bundle par le réseau). Ce test n'existe qu'à partir de l'étape 17.
 - La connexion Google en Expo Go (voir §6).
+- **Les quatre sons, et les trois retours haptiques : aucun n'a jamais été entendu ni senti.** Ce qui est prouvé sans appareil, c'est que les `.wav` sortent bien des fréquences du site et qu'ils sont embarqués dans le bundle (4 entrées `wav` dans `dist/metadata.json`). Ce qui ne l'est pas : le volume au gymnase, et surtout **le rejeu d'un son déjà en cours** — `seekTo(0)` puis `play()` sur deux buts à deux secondes d'intervalle. C'est le seul point du portage audio qui pourrait ne pas marcher du premier coup, et il se voit en dix secondes sur un appareil.
 - La taille réelle du cookie `session_data` dans SecureStore.
 - Le rendu du dégradé radial de `crest()` par `experimental_backgroundImage`.
 - La latence du cycle « but → `useLiveQuery` → re-rendu » avec 14 photos data-URI.
@@ -503,12 +507,378 @@ Un agent ne peut trancher aucune de ces lignes.
 9. ~~**`mobile/` dans le dépôt, ou dossier frère ?**~~ **Tranché le 9 septembre : dossier frère `five-scorer-mobile/`**, dans le même dépôt git (donc une seule histoire, pas deux). Voir §3.1. Rien à décider.
 10. **Les jetons de thème : calculés par le serveur, ou recalculés sur le téléphone ?** Les deux existent aujourd'hui dans l'app et ne se contredisent pas encore. Le serveur les envoie déjà tout faits (`/api/public/[slug]`, et l'endpoint 2 du §3.4 les enverra pour un club authentifié) ; `lib/noyau/theme.ts` sait aussi les calculer localement depuis les deux chasubles. **Ma recommandation : le serveur reste la source, on met les jetons en cache SQLite au premier bootstrap connecté, et `lib/noyau/theme.ts` ne sert que de repli hors ligne.** On garde une seule règle vivante, et l'app se peint quand même au bord du terrain sans réseau. Ton avis ? Ça se tranche avant l'étape 13.
 11. **`iron-session`, `SESSION_SECRET`, `SCORING_PIN_HASH`** sont du **code mort** : zéro import dans tout le dépôt, il n'y a pas de second mécanisme d'authentification à porter. On les supprime du dépôt web au passage ? (Trois lignes, mais c'est ta décision.)
+12. **La règle « un écran n'est *fait* que s'il a été VU dans le simulateur » (§4) est aujourd'hui inapplicable dans le nuage — et déjà enfreinte.** Il n'y a ni macOS ni Xcode ici. Cinq écrans sont dans le dépôt sans que personne les ait regardés : `compo` et `match/[id]` (étapes 13-14, marquées *fait*), et les lots `matchs`, `soirées`, `récap` (poussés sans journal). Deux sorties possibles, et c'est toi qui choisis : (a) **la règle tient** — une exécution depuis le Mac fait la revue visuelle de ces cinq écrans côte à côte avec le site, avant qu'on en ajoute un sixième ; (b) **la règle change** — elle dit alors ce que le nuage doit faire à sa place (`tsc`, `expo export`, tests des couches appelées) et réserve le mot *fait* à ce qui a été vu. Ma recommandation : (a) une fois, maintenant, tant qu'il n'y a que cinq écrans — puis (b) pour la suite. Ce qu'il ne faut pas, c'est laisser une règle écrite que personne ne tient : c'est ce qui rend tout le reste du document négociable.
+
 
 ---
 
 ## 7. Journal
 
 *Une entrée par exécution d'agent, la plus récente en haut.*
+
+### 2026-09-10 02:1x — Étape 16 : le son du but, et l'écran qui reste allumé
+
+- **État** : étape 16 `à faire` → `fait`.
+- **Rien n'était cassé au départ**, vérifié avant d'ajouter quoi que ce soit,
+  sur un `node_modules` réinstallé de zéro (le conteneur arrive vide) :
+  `npx tsc --noEmit` en 0, **189 tests verts en 12 fichiers**.
+- **Ce que ça règle** : c'est la première chose qui s'entendra au club. Un but
+  ne faisait aucun bruit dans l'app native, alors que le site fait glisser un
+  triangle de 440 à 880 Hz pour le camp A et l'inverse pour le camp B —
+  précisément parce que « le marqueur regarde le jeu, pas l'écran ». Et
+  l'écran s'éteignait à la 20ᵉ minute : `useKeepAwake()`, une ligne, un défaut
+  que même le site a.
+- **Le web synthétise, on ne peut pas.** `lib/audio.ts` n'a aucun fichier
+  audio : il fabrique ses sons au vol en Web Audio. La seule implémentation
+  Web Audio en React Native, `react-native-audio-api`, est hors Expo Go. Donc
+  on pré-rend — et un fichier pré-rendu ne dit pas d'où il vient. C'est le
+  vrai travail de l'étape : `scripts/faire-sons.mjs` transcrit les 5 appels à
+  `playTone` du site (formes d'onde, glissandos exponentiels, enveloppes de
+  gain, décalages) et les rend en PCM ; `lib/son/sons.test.ts` les refabrique
+  et les compare octet pour octet, et refuse que les fréquences citées
+  disparaissent de `lib/audio.ts`. Même intention que
+  `copie-conforme.test.ts` : la règle vit à deux endroits, donc quelque chose
+  doit crier quand l'un des deux bouge.
+- **Écart assumé au plan : `.wav` et non `.m4a`.** Le critère de l'étape
+  demandait `assets/audio/*.m4a`. Il n'y a **ni `ffmpeg` ni `afconvert` dans
+  le conteneur**, et `apt-get install ffmpeg` échoue ici (404 sur deux paquets
+  de `security.ubuntu.com`). Trois sorties possibles : renoncer, encoder de
+  l'AAC à la main, ou changer de format. Le `.wav` PCM est le bon choix
+  indépendamment de la contrainte — 108 ko pour les quatre sons, et aucun
+  décodeur à réveiller au premier but, ce qui est exactement ce qu'on veut
+  d'un son qui doit partir dans la milliseconde. `wav` est dans les
+  `assetExts` de Metro par défaut (vérifié), et les quatre fichiers ressortent
+  bien dans `dist/metadata.json`. Le critère de l'étape a été corrigé au §4
+  dans ce commit.
+- **La synthèse n'est pas une approximation.** Les formes d'onde sont
+  limitées en bande (somme d'harmoniques jusqu'à Nyquist, table normalisée à
+  1) comme le fait Web Audio, et non échantillonnées naïvement : un carré à
+  1760 Hz replié s'entend. Contrôlé sur le signal produit — crête 0,274 pour
+  un gain déclaré à 0,28, et la fréquence relevée aux passages par zéro à
+  25 ms vaut 500 Hz là où la rampe exponentielle 440→880 sur 140 ms en prédit
+  498.
+- **Ce que j'ai ajouté et qui n'était pas au plan** : le retour haptique.
+  Il était dans la même ligne du §4 mais aurait pu attendre ; il ne devait
+  pas. `Vibration.vibrate(ms)` de React Native était la traduction littérale
+  de `navigator.vibrate`, et **iOS ignore la durée** : les trois nuances du
+  site (12, 18, 30 ms) y produisaient le même buzz de vibreur, sur le geste
+  qu'on fait vingt-sept fois dans une soirée. `expo-haptics` donne trois
+  retours distincts par le Taptic Engine.
+- **Où le son ne va PAS, et c'est délibéré** : pas de son sur un carton, pas
+  de son à la mi-temps, pas de son en fin de match. Le site n'en a pas — il ne
+  siffle qu'au **franchissement du temps réglementaire**, une seule fois, avec
+  une garde `null` au premier passage pour ne pas siffler à chaque réouverture
+  d'un match déjà dépassé. C'est repris tel quel. Le seul endroit où j'ai
+  ajouté une ligne : le son de but part **avant** l'écriture (la tuile répond
+  au doigt, et le but est de toute façon compté), tandis que le son
+  d'annulation part **après** — `undoLastGoalOf` peut ne rien trouver à
+  annuler, et un bruit de retrait sur un score inchangé ferait croire à un but
+  effacé.
+- **Vérifié par** :
+
+  ```
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  TSC=0
+
+  $ node scripts/faire-sons.mjs
+  but-a.wav  20330 octets  230 ms
+  but-b.wav  20330 octets  230 ms
+  annulation.wav  15920 octets  180 ms
+  sifflet.wav  51202 octets  580 ms
+
+  $ ls -1 assets/audio/*.wav | wc -l
+  4
+
+  $ npm run tester
+   Test Files  13 passed (13)
+        Tests  210 passed (210)
+
+  $ npx expo export --platform ios
+  › ios bundles (1):
+  _expo/static/js/ios/entry-076e7c7eb26b3497c461ef70d78d50fe.hbc (3.4MB)
+  Exported: dist
+  EXPORT=0
+
+  $ python3 -c "import json;print([a for a in json.load(open('dist/metadata.json'))['fileMetadata']['ios']['assets'] if a['ext']=='wav'])"
+  [{'path': 'assets/a11b9f8543f625ad56552cac3afa1eb8', 'ext': 'wav'},
+   {'path': 'assets/5649005998d7de1986be216a6fcc8b0c', 'ext': 'wav'},
+   {'path': 'assets/92039551a55f7a5fb164fc9ab9dead08', 'ext': 'wav'},
+   {'path': 'assets/f1793b1abc13a282804e57ba7bb87676', 'ext': 'wav'}]
+  (tailles sur disque : 20330, 20330, 15920, 51202 — les nôtres, en-tête RIFF)
+
+  $ grep -c "react-native-audio-api" package.json
+  0
+
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  BUILD EXIT=0
+
+  $ git checkout -- five-scorer/next-env.d.ts && git diff --stat -- five-scorer/next-env.d.ts
+  (zéro ligne)
+  ```
+
+- **Ce qui a surpris** :
+  - **`npx expo install` ne marche pas dans ce conteneur.** Il interroge
+    `api.expo.dev` pour connaître la version compatible avec le SDK, et le
+    proxy répond `Forbidden`. Le repli est propre et vaut d'être écrit ici
+    pour les prochaines fois : `node -p "require('expo/bundledNativeModules.json')['expo-audio']"`
+    donne exactement la version qu'`expo install` aurait posée
+    (`~57.0.4`, `~57.0.2`, `~57.0.1`), et `npm install --save` la pose. Trois
+    dépendances ajoutées, toutes prévues au §3.6.
+  - **`playTone({` apparaît 6 fois dans `lib/audio.ts`, pas 5** : la
+    déclaration de la fonction compte. Le test structurel est tombé
+    là-dessus au premier passage. Corrigé en retirant la déclaration du
+    compte — un test qui se corrige en changeant le chiffre attendu n'aurait
+    rien gardé.
+  - **`find dist -name "*.wav"` ne trouve rien, et ce n'est pas une panne** :
+    Metro stocke les assets sous un nom de hachage **sans extension**, et
+    c'est `dist/metadata.json` qui porte le `ext`. J'ai failli conclure que
+    les sons n'étaient pas embarqués. La bonne vérification est celle collée
+    ci-dessus.
+- **Fichiers touchés** :
+  `/home/user/diamesene02/five-scorer-mobile/scripts/faire-sons.mjs` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/but-a.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/but-b.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/annulation.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/assets/audio/sifflet.wav` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/lib/son/son.ts` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/lib/son/sons.test.ts` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/lib/vibrer.ts` (nouveau)
+  `/home/user/diamesene02/five-scorer-mobile/app/match/[id].tsx`
+  `/home/user/diamesene02/five-scorer-mobile/package.json`
+  `/home/user/diamesene02/five-scorer-mobile/package-lock.json`
+  `/home/user/diamesene02/five-scorer/MOBILE.md`
+- **Ce que je n'ai PAS pu vérifier, et qu'il ne faut pas se raconter** :
+  **aucun de ces quatre sons n'a jamais été entendu, aucun de ces trois
+  retours haptiques n'a jamais été senti.** Ce qui est prouvé : les fichiers
+  sortent des bonnes fréquences, ils sont dans le bundle, et le bon appel part
+  au bon endroit. Ce qui ne l'est pas, et qui est le seul vrai risque du
+  portage audio : **le rejeu d'un son déjà en cours** — deux buts à deux
+  secondes d'intervalle. `seekTo(0)` puis `play()` est le recours documenté,
+  mais `seekTo` rend une promesse et je n'ai pas pu observer ce qui se passe
+  si `play()` part avant qu'elle se résolve. Dix secondes sur un appareil le
+  trancheraient. Ajouté au §5.
+- **Reste ouvert** :
+  - **l'ordre de dépendance du §4 dit « à l'issue de l'étape 16 l'app sert un
+    lundi soir ». En code, on y est. En vérité, non** : rien de tout ça n'a
+    été VU ni entendu. La question du §6 ligne 12, posée le 9 septembre au
+    soir, attend toujours — et elle vient de gagner un septième écran et
+    quatre sons ;
+  - l'étape 18 (Maestro) et l'étape 19+ (effectif, réglages) ;
+  - `lib/soiree.ts` n'a toujours pas de test ;
+  - `movePlayer`, `addParticipant` et `HALF_TIME` n'ont **jamais été rejoués
+    contre un vrai serveur depuis cet écran**.
+
+### 2026-09-10 00:1x — Étape 15 : le retardataire et le mauvais camp
+
+- **État** : étape 15 `en cours` → `en cours`. **Tout le code de l'étape est
+  écrit** ; ce qui reste n'est pas du code, c'est la revue visuelle que le nuage
+  ne peut pas faire (§6, ligne 12, toujours sans réponse). La prochaine
+  exécution peut passer à l'étape 16 sans rien laisser derrière elle.
+- **Rien n'était cassé au départ**, vérifié avant d'ajouter quoi que ce soit :
+  `npx tsc --noEmit` en 0 et 189 tests verts sur un `node_modules` réinstallé
+  de zéro (le conteneur arrive vide : `npm install` dans `five-scorer-mobile/`
+  et `pnpm install --frozen-lockfile` dans `five-scorer/` font partie de
+  l'exécution, pas de la mise en route).
+- **Ce que ça règle, et c'est le dernier trou du lundi soir** : deux copains
+  dans la même équipe qu'on ne voit qu'au coup d'envoi, et le type qui arrive à
+  la 10ᵉ minute. Les deux se terminaient de la même façon — terminer le match
+  et tout ressaisir — parce que `addEvent` refuse les buts d'un joueur non
+  inscrit. La couche locale savait déjà le faire (`movePlayerTeam`,
+  `ajouterJoueurAuMatch`, `joueursAbsentsDuMatch`, testés à l'étape 11) ;
+  il n'y avait aucun geste pour l'atteindre.
+- **Un mode, pas un geste de plus sur la tuile.** C'est le choix du site et il
+  se défend seul : la rangée d'un joueur porte le tap le plus fait de la
+  soirée. Lui donner un second sens — même sous un appui long, déjà pris par
+  l'annulation — c'est un but non compté un lundi sur trois. Donc un bandeau
+  qui dit ce qui est en cours (« Aucun but ne se compte tant que ce bandeau est
+  là »), des tuiles qui ne montrent plus que la flèche du camp d'arrivée, ni
+  csc ni cartons pendant ce temps, et un bouton « Terminé » pour en sortir.
+- **Ce que j'ai ajouté et que le site n'a pas** : le message de refus, affiché
+  sous le bandeau. Le garde anti-équipe-vide (« Il faut au moins un joueur de
+  chaque côté ») se déclenche par un geste parfaitement ordinaire — le dernier
+  joueur d'une colonne — et le site le range dans son `setError` général. Ici,
+  muet, le tap passerait pour une tuile mal visée : on retape, et on ne
+  comprend pas. Les deux actions attrapent l'exception et l'écrivent en rouge.
+- **L'éclair de la tuile déplacée** est un fond clair tenu 400 ms puis retiré,
+  là où le site fait un fondu `@keyframes liveArrive`. Sans Reanimated : une
+  animation de 400 ms ne justifie pas de brancher la bibliothèque sur cet
+  écran, et un fond qui s'éteint d'un coup se voit aussi bien qu'un fondu. En
+  correction, les deux colonnes se ressemblent — sans cette trace, on ne sait
+  pas si le tap a déplacé le joueur ou manqué la tuile.
+- **Le mode n'existe pas sur un match contre un adversaire extérieur.** Sur un
+  `EXTERNAL`, l'équipe B n'est pas une équipe du club : `movePlayerTeam` refuse
+  déjà d'y envoyer quelqu'un (« Pas d'équipe B à composer sur ce match »).
+  Afficher une entrée qui ne mène qu'à un refus, c'est pire que ne rien
+  afficher. Même règle que le site, écrite ici à partir du garde plutôt que
+  recopiée.
+- **Vérifié par** :
+
+  ```
+  $ cd five-scorer-mobile && npx tsc --noEmit
+  TSC=0
+
+  $ npm run tester
+   Test Files  12 passed (12)
+        Tests  189 passed (189)
+
+  $ npx expo export --platform ios
+  › ios bundles (1):
+  _expo/static/js/ios/entry-92a6761d6397167d7e080e58b1f1874b.hbc (3.3MB)
+  Exported: dist
+  EXPORT=0
+
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  BUILD EXIT=0
+
+  $ git checkout -- five-scorer/next-env.d.ts && git status --short
+   M five-scorer-mobile/app/match/[id].tsx
+  ```
+
+- **Ce qui a surpris** : le journal du 9 septembre 22:1x annonçait
+  `app/match/[id].tsx` à **843 lignes**. Recompté sur le commit `0997c2b` :
+  **962**. Le chiffre avait dû être pris en cours de travail, pas à la fin.
+  Corrigé dans l'entrée elle-même, dans ce commit. Ce n'est pas anodin : ce
+  fichier est la seule mémoire, et un chiffre faux y est indiscernable d'un
+  chiffre vrai. **Recompter à la fin, jamais pendant.** (Le fichier fait
+  1 200 lignes après cette exécution — compté après.)
+- **Ce que je n'ai PAS pu vérifier, et qu'il ne faut pas se raconter** : aucun
+  de ces gestes n'a été fait par un doigt. `tsc`, les 189 tests des couches
+  appelées et le bundle Metro disent que le code tient debout ; ils ne disent
+  pas que le bandeau ne recouvre pas le score, ni que la flèche se voit sur une
+  chasuble blanche. Deux défauts que dix secondes de simulateur trancheraient.
+- **Fichiers touchés** :
+  `/home/user/diamesene02/five-scorer-mobile/app/match/[id].tsx`
+  `/home/user/diamesene02/five-scorer/MOBILE.md`
+- **Reste ouvert** :
+  - **le son (étape 16), et c'est maintenant le premier de la liste** : les
+    quatre fichiers audio n'existent toujours pas, `useKeepAwake` n'est pas
+    posé. Ce sont les deux choses qui se verraient — s'entendraient — au club
+    dès la première soirée ;
+  - la revue visuelle des six écrans jamais vus (§6, ligne 12) : `compo`,
+    `match/[id]`, `matchs`, `soirées`, `récap`, et maintenant le mode
+    correction. La question posée le 9 septembre au soir attend toujours ;
+  - `lib/soiree.ts` n'a toujours pas de test ;
+  - l'opération `movePlayer` et `addParticipant` ont bien un destinataire côté
+    serveur (elles sont dans les 8 `kind` du drain, testées à l'étape 7) —
+    **jamais rejouées contre un vrai serveur depuis cet écran**, comme
+    `HALF_TIME`.
+
+### 2026-09-09 22:1x — Étape 15 : la chronologie, les cartons, le MVP — et un coup de sifflet qui ne partait nulle part
+
+- **État** : étape 15 `en cours` → `en cours` (il reste la correction de
+  composition, et la vérification visuelle que le nuage ne peut pas faire).
+- **Ce que j'ai trouvé cassé avant d'ajouter quoi que ce soit**, et c'est le
+  vrai gain de l'exécution : **`siffletMiTemps` n'inscrivait aucun événement.**
+  Il figeait le chrono et passait en seconde période, rien de plus. Côté web,
+  `onHalftime` appelle `addEvent({ type: "HALF_TIME" })` juste après. Deux
+  conséquences, aucune visible en relisant le code de l'écran : la mi-temps ne
+  quittait jamais le téléphone (rien dans la file, donc rien au serveur, donc
+  rien dans le récap), et la chronologie que j'allais écrire n'aurait jamais eu
+  de ligne « — Mi-temps — » à afficher. Corrigé : le sifflet écrit chrono,
+  période, événement et opération **dans une seule transaction**.
+- **Et sa réciproque** : annuler une mi-temps ramène en première période.
+  Sans ça, un sifflet donné par erreur restait donné — le bouton refuse une
+  seconde mi-temps, donc la vraie n'aurait plus pu être sifflée du match. La
+  remise à 1 vit dans `removeEvent` (couche locale), pas dans l'écran comme
+  côté web : les deux chemins d'annulation (la chronologie et le bouton
+  « Annuler ») en héritent sans que la règle existe en deux exemplaires.
+- **Ajouté à l'écran** (`app/match/[id].tsx`, 612 → 962 lignes ; *le « 843 » écrit
+  ici le 9 septembre était faux — recompté sur le commit `0997c2b` le 10 septembre*) :
+  - **la chronologie** — feuille qui monte du bas, ouverte par le bouton rond
+    de la barre du haut, le plus récent en haut (c'est celui qu'on vient de se
+    tromper), minute, pastille de chasuble ou carton, nom (« csc de Rouges »
+    quand personne n'est nommé), passeur en dessous, et « Annuler » par ligne ;
+  - **les cartons** — deux cibles sous chaque carte d'équipe, seulement si
+    `club.trackCards` ; le choix du joueur se fait dans la même feuille du bas ;
+    le compteur apparaît sur la tuile du joueur, parce que « qui est déjà
+    averti » se lit en jouant, pas en ouvrant un panneau ;
+  - **l'élection du MVP** — seulement en `motmMode === "ADMIN"` (en `VOTE` les
+    joueurs votent après coup, en `OFF` personne), facultative comme sur le
+    site : on peut terminer sans MVP ;
+  - **`gestureEnabled: false`** sur la route `match/[id]`, dans `_layout.tsx` :
+    le geste de retour d'iOS part du bord gauche, exactement là où se trouve la
+    première tuile de joueur.
+- **Un défaut évité par construction, faute de pouvoir le voir** : la feuille
+  du bas garde son contenu pendant qu'elle redescend (`derniereFeuille`).
+  Sans cette mémoire, fermer le choix d'un carton ferait clignoter
+  « Événements » le temps de l'animation. Je ne peux pas regarder un écran ;
+  je peux écrire le code qui rend le clignotement impossible.
+- **Vérifié par** :
+
+  ```
+  $ cd five-scorer-mobile && npx vitest run localMatch
+   Test Files  1 passed (1)
+        Tests  59 passed (59)
+
+  $ npx tsc --noEmit
+  TSC=0
+
+  $ npm run tester
+   Test Files  12 passed (12)
+        Tests  189 passed (189)
+
+  $ npx expo export --platform ios
+  › ios bundles (1):
+  _expo/static/js/ios/entry-234c180bc6e05d6b3c0069920ae33a4d.hbc (3.3MB)
+  Exported: dist
+  EXPORT=0
+
+  $ cd five-scorer && npx prisma generate && NEXT_DIST_DIR=.next-verif npx next build
+  BUILD EXIT=0
+  ```
+
+- **La contre-épreuve, parce qu'un test vert ne dit rien tout seul.** Les deux
+  règles neuves ont été retirées du code une par une :
+
+  ```
+  # majPeriode(b, matchId, 1) neutralisé dans removeEvent :
+  × annuler la mi-temps ramène en première période 12ms
+        Tests  1 failed | 58 passed (59)
+
+  # base.transaction() retirée de siffletMiTemps :
+  × l'événement et la période tombent ensemble, ou pas du tout 12ms
+        Tests  1 failed | 58 passed (59)
+  ```
+
+  Deux contre-épreuves intermédiaires n'ont **rien** fait tomber, et c'est
+  instructif : écrire le chrono par la poignée `base` au lieu de la poignée
+  `b` de la transaction ne change rien, parce que `BaseNode` n'a qu'une
+  connexion — SQLite met tout ce qui passe par cette connexion dans la
+  transaction ouverte. Seule la disparition complète du `BEGIN` se voit. Le
+  test garde donc la bonne propriété (« rien ne survit à l'échec »), pas celle
+  que son nom laisse croire (« ces écritures-ci sont dans la transaction »).
+- **Une règle que le nuage ne peut pas tenir, et qu'il faut trancher.** Le §4
+  dit : « Un écran n'est *fait* que s'il a été VU dans le simulateur ». Il n'y
+  a pas de simulateur dans le nuage — pas de macOS, pas de Xcode. Les étapes 13
+  et 14 sont pourtant marquées **fait**, et les trois lots de l'étape 19+
+  (`matchs`, `soirées`, `récap`) ont été poussés sans entrée de journal du tout.
+  Autrement dit : **cinq écrans de cette app n'ont été vus par personne.** Ils
+  compilent, le bundle Metro se construit, les couches qu'ils appellent sont
+  testées — ce n'est pas la même chose que d'avoir regardé. Je ne coche donc
+  pas l'étape 15, et j'ouvre la ligne 12 du §6 : soit la règle vaut pour tout
+  le monde et une exécution du Mac doit rattraper la revue visuelle des cinq
+  écrans, soit elle est réécrite pour dire ce qu'un agent du nuage doit faire
+  à la place. Ce que je ne veux pas, c'est qu'elle reste écrite et ignorée.
+- **Fichiers touchés** :
+  `/home/user/diamesene02/five-scorer-mobile/lib/match/local.ts`
+  `/home/user/diamesene02/five-scorer-mobile/lib/match/localMatch.test.ts`
+  `/home/user/diamesene02/five-scorer-mobile/app/match/[id].tsx`
+  `/home/user/diamesene02/five-scorer-mobile/app/_layout.tsx`
+  `/home/user/diamesene02/five-scorer/MOBILE.md`
+- **Reste ouvert** :
+  - la correction de composition en cours de match — dernier morceau de
+    l'étape 15 ; `movePlayerTeam`, `ajouterJoueurAuMatch` et
+    `joueursAbsentsDuMatch` existent et sont testés, il manque l'écran ;
+  - le son (étape 16) : les quatre fichiers audio n'existent toujours pas, et
+    `useKeepAwake` n'est pas posé — deux lignes qui se verraient au club ;
+  - `lib/soiree.ts` n'a toujours pas de test (ouvert par l'exécution de 20:4x) ;
+  - le tableau du §4 a menti sur l'étape 19+ jusqu'à cette exécution ; il est
+    corrigé, mais la cause reste : **trois commits poussés sans journal**. Ce
+    fichier ne se met pas à jour tout seul.
+  - à ne pas oublier au premier lancement réel : le serveur accepte bien
+    `HALF_TIME` (`app/api/clubs/[clubId]/matches/[matchId]/events/route.ts`,
+    ligne 14), donc l'opération neuve a un destinataire — **vérifié dans le
+    code, jamais rejoué contre un vrai serveur.**
 
 ### 2026-09-09 20:4x — `next-env.d.ts` remis, et une conséquence corrigée
 

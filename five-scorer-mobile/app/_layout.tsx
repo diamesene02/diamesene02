@@ -18,7 +18,14 @@ export default function Disposition() {
             contentStyle: { backgroundColor: "#0b0b0e" },
             animation: "slide_from_right",
           }}
-        />
+        >
+          {/* La feuille de match ne se quitte pas d'un balayage.
+              Le geste de retour d'iOS part du bord gauche — exactement là où
+              se trouve la première tuile de joueur, celle qu'on tape à chaque
+              but. Un pouce qui glisse un peu, et l'écran de saisie s'en va au
+              milieu du match. On sort par le bouton « ‹ », ou en terminant. */}
+          <Stack.Screen name="match/[id]" options={{ gestureEnabled: false }} />
+        </Stack>
       </FournisseurNoyau>
     </SafeAreaProvider>
   );
