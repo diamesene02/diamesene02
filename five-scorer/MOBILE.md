@@ -367,6 +367,22 @@ Règles de lecture pour l'agent :
 | **X** | **Chantier séparé, sans urgence, jamais sur la prod en premier** : `ALTER TABLE "account" ALTER COLUMN "issuer" DROP NOT NULL;`, retrait du champ dans `schema.prisma`, essai d'inscription réelle sur une preview, **puis seulement** `better-auth@1.7.3` + `@better-auth/expo@1.7.3`. Aucun index unique à retirer au préalable (vérifié dans le SQL de la migration). | Sur une base de preview : `prisma migrate deploy` en 0, puis une inscription réelle qui renvoie 200, puis `node -p "require('./node_modules/better-auth/package.json').version"` → `1.7.3`. | à faire |
 | **Y** | **Chantier séparé** : porter `lib/shareCard.ts` (291 l.) en vues RN + `react-native-view-shot` + `expo-sharing`. | `npx expo export --platform ios` en 0 ; `grep -rc "getContext(\"2d\")" mobile/` → `0`. | à faire |
 
+## 4 bis. À partir d'ici, la spec d'abord
+
+Le 10 septembre, on est passé au développement piloté par la spec. Une
+fonctionnalité s'écrit désormais en quatre temps — `spec.md`, `plan.md`,
+`taches.md`, `journal.md` — sous `specs/NNNN-nom-court/`. La méthode est dans
+`specs/COMMENT-ON-TRAVAILLE.md`.
+
+Ce tableau reste la carte du chantier : les étapes, leur état, leurs
+vérifications. Les specs sont le détail d'une étape ; elles ne le répètent pas.
+
+| Spec | Sujet | État |
+|---|---|---|
+| [0001](../specs/0001-corriger-un-match/spec.md) | Corriger un match après coup | spec à valider |
+
+---
+
 **Ordre de dépendance en une phrase :** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16, et **à l'issue de l'étape 16 l'app sert un lundi soir**. 17 et 18 la rendent recettable ; 19+ la rendent complète.
 
 ---
