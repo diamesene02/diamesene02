@@ -1,6 +1,6 @@
 # 0004 — Le miroir sait vieillir
 
-*État : à valider · Écrite le 11 septembre 2026. Chaque affirmation a été
+*État : **questions tranchées, prête pour le plan** · Écrite le 11 septembre 2026. Chaque affirmation a été
 rouverte dans le code le jour même, et chaque citation est qualifiée par son
 dépôt — la règle posée après trois erreurs de `fichier:ligne` la veille.*
 
@@ -102,6 +102,62 @@ déjà dans un téléphone qui ne sait pas la rendre.
   Le refus n'a de sens que sur une écriture qui part au serveur.
 - **Se contenter du sens « app trop vieille ».** Une app trop RÉCENTE contre un
   serveur en cours de déploiement produit le même silence (`TRANS-38`).
+
+## Questions tranchées
+
+*Cette spec n'avait pas de section « Questions ouvertes ». La garde `/clarifier`
+en a trouvé **six implicites** le 11 septembre 2026 — dans un attendu qui admet
+deux lectures, ou un critère qu'on ne savait pas vérifier. Quatre sont tranchées
+par le code ou par la recherche, deux par Ibrahima. Aucune ne reste ouverte.*
+
+- **Q1. Est-ce que la mise à jour à chaud coûte de l'argent ? → non, et de
+  loin.** *Tranchée par la recherche.* Le palier gratuit d'EAS Update porte
+  **1 000 utilisateurs actifs par mois**. Le club en a quinze : soixante-six
+  fois sous le plafond. Le compte EAS existe déjà
+  (`five-scorer-mobile/app.json`, `extra.eas.projectId`). La question du coût ne
+  se pose pas à cette échelle, et il faut le réécrire ici le jour où le produit
+  aurait mille utilisateurs.
+
+- **Q2. Est-ce configuré quelque part ? → nulle part.** *Tranchée par le code.*
+  Pas seulement `expo-updates` absent de `package.json` : **aucun
+  `runtimeVersion`**, **aucun bloc `updates`** dans `five-scorer-mobile/app.json`,
+  et **aucun `channel`** dans `five-scorer-mobile/eas.json`. Ce lot pose les
+  trois, pas seulement la dépendance.
+
+- **Q3. Quelle version le serveur compare-t-il ? → une version de PROTOCOLE,
+  pas celle de l'app.** *Tranchée ici.* `version` vaut `1.0.0` et
+  `ios.buildNumber` vaut `3` — mais ces deux-là bougent pour des raisons
+  d'affichage, pas de contrat. Comparer le contrat sur un numéro qui change
+  quand on corrige une couleur, c'est prévenir pour rien. Un entier qui
+  n'augmente **que** quand le contrat change, et qui voyage dans un en-tête à
+  chaque appel.
+
+- **Q4. Que fait le serveur d'une app dépassée ? → il PRÉVIENT, il ne bloque
+  jamais.** *Ibrahima, le 11 septembre 2026.* Un bandeau « mets à jour », et
+  rien n'est refusé. **Au gymnase sans réseau, un blocage transformerait une
+  incompatibilité en soirée perdue** — et une file bloquée est déjà le
+  cul-de-sac que décrit `TRANS-13`. On ne bloque pas ce qui se tape à une main.
+  *Le cas symétrique — une app trop RÉCENTE contre un serveur en cours de
+  déploiement — dit autre chose, et ne bloque pas non plus.*
+
+- **Q5. Que fait-on d'un plantage ? → un écran, et rien ne sort du club.**
+  *Ibrahima, le 11 septembre 2026.* Un `ErrorBoundary` qui dit quoi faire et
+  garde la feuille en cours ; le rapport reste **sur le téléphone**, lisible
+  depuis les réglages. Aucune donnée ne part chez un tiers (constitution,
+  article VI). Conséquence assumée : Ibrahima apprend les plantages par les
+  joueurs, comme aujourd'hui — mais avec une trace exploitable au lieu d'un
+  récit.
+  *Vérifié : il n'existe **aucun** `ErrorBoundary` dans
+  `five-scorer-mobile/app/` ni `composants/`, et l'écran d'échec du noyau
+  (`five-scorer-mobile/composants/Noyau.tsx:137-154`) ne couvre que l'ouverture
+  de la base.*
+
+- **Q6. Où va l'`ErrorBoundary` ? → sur la feuille de match d'abord.**
+  *Tranchée ici.* Expo Router en accepte un par route ; les poser tous est un
+  travail de ratissage qui n'appartient pas à ce lot. La feuille est le seul
+  écran qu'on tient à une main pendant qu'on joue, et le seul dont le plantage
+  coûte une soirée. Les autres suivront, et c'est écrit là plutôt que découvert
+  dans le diff (article X).
 
 ## Les cas de la base que ce lot referme
 
