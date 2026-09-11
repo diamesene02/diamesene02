@@ -160,3 +160,80 @@ JavaScript poussé le dimanche soir est sur les quinze téléphones » ne peut p
 Ce n'est pas un oubli, c'est la nature du critère — la spec le rangeait déjà
 parmi « ce qu'aucune commande ne peut vérifier ». Il se constatera le jour du
 prochain build, et c'est à ce moment-là qu'il faudra le cocher.
+
+---
+
+## 11 septembre, le soir — la seconde passe `/analyser`, et ce qu'elle a démonté
+
+*Ibrahima a demandé « tu respectes toujours le SDD ? ». Non : `/analyser`
+n'avait tourné qu'une fois, alors que la méthode en demande deux — « avant la
+première ligne de code, **puis avant de livrer** ». La seconde passe, lancée
+après coup sur le code livré, a trouvé six défauts. Voici ceux qui corrigent ce
+journal lui-même.*
+
+### Le test de convergence ne peut PAS tomber aujourd'hui
+
+Je l'ai présenté comme « le plus important du lot », et le plan le désignait
+comme la preuve de l'invariant « deux chemins, un seul schéma ».
+
+**Il compare le même DDL à lui-même.** `db/paliers/001-schema.sql` est une copie
+littérale de `db/schema.sql` — `diff` rend le vide — et `sqlite_master` ne porte
+pas `user_version`. Les deux bases qu'il compare sont donc bâties du même texte.
+
+Ce n'est pas inutile : c'est le garde-fou qui parlera au **premier palier non
+trivial**, celui qui renommera ou reconstruira une table. Mais présenté comme
+une preuve déjà acquise, c'était faux. **C'est un filet tendu pour plus tard,
+pas un résultat d'aujourd'hui.**
+
+### Ma description de la contre-épreuve était fausse sur deux noms
+
+J'avais écrit que trois tests tombaient : « la convergence, la version, et
+l'égalité octet pour octet des paliers ». Rejoué : trois tombent bien, mais ce
+sont *« …et la même version »*, *« rejouer l'ouverture ne remonte rien »* et
+*« laisse la base sur le palier précédent »*. **La convergence et l'égalité
+octet pour octet passent** — pour la raison ci-dessus. Le compte était juste par
+coïncidence.
+
+### Le test d'interruption était faux une SECONDE fois
+
+Je m'étais félicité de l'avoir corrigé. La correction avait déplacé le défaut,
+pas supprimé : mon décorateur levait **avant** de déléguer, et
+`appliquerPaliers` exécute un palier entier en **un seul** `script()`. La
+coupure tombait donc avant que rien ne s'exécute — **le test passait à
+l'identique sans aucune transaction.**
+
+Réécrit avec un palier dont la **seconde instruction est invalide**, plus une
+contre-épreuve qui montre que sans transaction, la table créée par la première
+**reste**. Vérifié en retirant `base.transaction` : le test tombe.
+
+*La leçon, et elle vaut pour la méthode : un test qu'on n'a pas vu échouer ne
+prouve rien — et l'avoir vu échouer UNE fois ne suffit pas si on a changé le
+test depuis.*
+
+### Ce que j'avais marqué `fait` à tort dans la base
+
+`TRANS-38`, une heure après l'avoir coché — en réparant justement le manquement
+à la méthode. `lib/appel.ts` posait bien l'en-tête, mais **le drain de l'outbox
+a son propre `fetch`** et ne passait pas par là. Or c'est par le drain que
+passent les huit écritures : le seul chemin que ce cas décrit vraiment.
+
+Et `scripts/verif-version.mjs` ne pouvait pas le voir : il envoie des littéraux
+avec un `fetch` nu, sans jamais importer l'app. **Il éprouvait le serveur, et
+seulement lui.** Cinq tests ajoutés qui touchent vraiment l'app.
+
+### Ce qui reste ouvert, et que je n'ai pas corrigé
+
+- **L'ordre « schéma cible d'abord, échelle ensuite »** (`lib/outbox/base.ts`)
+  casse dès qu'un palier renomme une table : le schéma cible la recrée vide
+  avant que le palier n'ait renommé l'ancienne, et l'`ALTER TABLE … RENAME TO`
+  tombe. Rien ne casse aujourd'hui (un palier, un `PRAGMA`), mais **le premier
+  palier non trivial le découvrira**. À trancher avant la spec 0002.
+- **Le bandeau n'a jamais été vu à l'écran** — ni test, ni simulateur — et son
+  message principal (`trop-vieux`) reste inatteignable tant que
+  `PROTOCOLE_MINIMUM` vaut 1.
+- **`lirePlantages` n'est branchée à aucun écran** (assumé dans `taches.md`,
+  mais absent du plan § 7).
+- **`expo-updates` n'est importé nulle part** : le comportement est celui par
+  défaut — sonde au lancement, application au démarrage **suivant**. Le critère
+  « un correctif du dimanche soir est sur les quinze téléphones » signifie donc,
+  tel que câblé, « au deuxième lancement, et seulement avec du réseau ».
