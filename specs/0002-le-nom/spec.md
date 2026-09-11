@@ -103,8 +103,40 @@ répertoires du dépôt si on veut aller jusque-là.
   jour de la semaine ce qu'on veut libérer d'un sport, et il est introuvable
   dans un moteur de recherche.*
 
-**Rien n'a été vérifié** : ni les domaines, ni l'INPI, ni l'App Store. À faire
-avant d'annoncer — dix minutes.
+### Vérifié le 11 septembre 2026
+
+*Domaines par RDAP (le whois moderne, en HTTPS), App Store français par l'API de
+recherche iTunes. Ce sont deux sources faisant autorité, pas des recherches web.*
+
+| | `.app` | `.fr` | `.com` | App Store FR |
+|---|---|---|---|---|
+| **Ardoise** | pris (garé) | pris — *couvreur* | pris — *Ardoise Design Inc.* | **six apps**, dont une nommée exactement « Ardoise » |
+| **Chasuble** | **LIBRE** | pris — *vêtements liturgiques* | pris (garé) | **aucune** |
+| **Lundi** | pris (garé) | pris (garé) | pris (garé) | « Enfin Lundi » |
+
+**Ce que ça déplace, et c'est net :**
+
+- **Ardoise est le plus faible des trois, alors que c'était le plus beau.** Six
+  applications portent déjà ce mot sur l'App Store français, dont une qui
+  s'appelle « Ardoise » tout court. Surtout : **« L'Ardoise — dépenses
+  partagées »** occupe exactement le sens que ce document invoquait pour le
+  défendre (« ce qu'on doit, qui est le sujet de la caisse »). L'argument est
+  retourné — ce n'est plus une image disponible, c'est le positionnement d'un
+  concurrent. Les trois domaines utiles sont pris, dont deux par des sociétés
+  actives. Seul `ardoise.io` reste libre.
+- **Chasuble est le seul dont le `.app` est libre et qui ne heurte aucune app.**
+  Son `.fr` est une boutique de vêtements liturgiques : autre secteur, collision
+  faible pour un logiciel, mais c'est bien ce que le mot rend en premier dans un
+  moteur de recherche. **L'objection de fond reste entière** et elle vient de
+  nous, pas du marché : au badminton du jeudi, on ne met pas de chasuble. Ce nom
+  trace la frontière que l'article IX veut effacer.
+- **Lundi** : les trois domaines sont pris, tous garés. Mot trop courant pour
+  être trouvé, ce que ce document disait déjà.
+
+**Ce qui n'a PAS été vérifié : l'INPI.** La recherche TMview demande une session
+que je n'ai pas obtenue, et je ne devine pas un dépôt de marque. C'est cinq
+minutes sur `data.inpi.fr`, et c'est le seul contrôle qui reste — à faire avant
+d'annoncer, pas avant de choisir.
 
 ## Les cas de la base que ce lot referme
 
