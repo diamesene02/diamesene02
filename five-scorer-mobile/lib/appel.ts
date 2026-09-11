@@ -19,6 +19,9 @@
 /// doive ramener à l'écran de connexion. Les autres se retentent — renvoyer
 /// quelqu'un vers un formulaire de connexion parce que le Wi-Fi du gymnase a
 /// hoqueté serait le pire des conseils.
+import { ENTETE_PROTOCOLE, ENTETE_VERDICT, PROTOCOLE_COURANT, type VerdictProtocole } from "./protocole";
+import { definirVerdict } from "./protocoleClient";
+
 export class SessionExpiree extends Error {
   constructor() {
     super("Session expirée");
@@ -122,7 +125,12 @@ export function creerAppel(deps: DependancesAppel) {
     // serveur voyait une requête anonyme, donc un 401 incompréhensible.
     const cookie = await deps.cookie();
 
-    const entetes: Record<string, string> = { accept: "application/json" };
+    const entetes: Record<string, string> = {
+      accept: "application/json",
+      // La version du CONTRAT, pas celle de l'app. Le serveur s'en sert pour
+      // rendre un avis, jamais pour refuser (spec 0004, Q4).
+      [ENTETE_PROTOCOLE]: String(PROTOCOLE_COURANT),
+    };
     if (options.body) entetes["content-type"] = "application/json";
     if (cookie) entetes.cookie = cookie;
     // L'appelant a le dernier mot : il peut viser un autre `accept` (le CSV de
@@ -134,6 +142,13 @@ export function creerAppel(deps: DependancesAppel) {
       { ...options, credentials: "omit", headers: entetes },
       appeler,
     );
+
+    // Le verdict arrive sur TOUTES les réponses, y compris un 401 : c'est une
+    // métadonnée de transport, et la lire avant de lever nous évite de rater
+    // l'avis le jour où la session expire en même temps qu'une divergence de
+    // version.
+    const verdict = res.headers.get(ENTETE_VERDICT);
+    if (verdict) definirVerdict(verdict as VerdictProtocole);
 
     if (res.status === 401) throw new SessionExpiree();
     if (!res.ok) throw new ErreurServeur(res.status, await detailDeLErreur(res));

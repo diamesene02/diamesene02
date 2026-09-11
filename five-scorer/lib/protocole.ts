@@ -14,6 +14,14 @@
 export const PROTOCOLE_COURANT = 1;
 export const PROTOCOLE_MINIMUM = 1;
 
+/// Le nom des deux en-têtes, écrit une seule fois de ce côté-ci. L'app porte
+/// les mêmes dans `five-scorer-mobile/lib/protocole.ts` — recopiés, pas
+/// importés : les deux dépôts ne se connaissent pas. C'est
+/// `five-scorer-mobile/scripts/verif-version.mjs` qui vérifie qu'ils tombent
+/// d'accord, en interrogeant le vrai serveur.
+export const ENTETE_PROTOCOLE = "x-protocole";
+export const ENTETE_VERDICT = "x-protocole-verdict";
+
 export type VerdictProtocole = "ok" | "trop-vieux" | "trop-recent";
 
 /// Le verdict sur l'en-tête `x-protocole` d'une requête.

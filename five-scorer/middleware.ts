@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
-import { verdictProtocole } from "@/lib/protocole";
+import { ENTETE_PROTOCOLE, ENTETE_VERDICT, verdictProtocole } from "@/lib/protocole";
 
 // Vérification optimiste : la présence du cookie de session suffit pour
 // laisser passer, chaque page/API refait la vraie vérification (session +
@@ -53,7 +53,7 @@ export function middleware(req: NextRequest) {
     // Jamais un refus : l'app est PRÉVENUE, elle n'est pas bloquée. Au gymnase
     // sans réseau, un blocage transformerait une incompatibilité en soirée
     // perdue (spec 0004, Q4).
-    res.headers.set("x-protocole-verdict", verdictProtocole(req.headers.get("x-protocole")));
+    res.headers.set(ENTETE_VERDICT, verdictProtocole(req.headers.get(ENTETE_PROTOCOLE)));
     return res;
   }
 

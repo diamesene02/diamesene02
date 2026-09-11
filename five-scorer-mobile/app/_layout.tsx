@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { FournisseurNoyau } from "../composants/Noyau";
+import BandeauVersion from "../composants/BandeauVersion";
 
 // La pile de navigation. Pas d'en-tête natif : chaque écran dessine le sien,
 // comme sur le web — la barre du club et le bouton de retour font partie du
@@ -8,6 +9,11 @@ import { FournisseurNoyau } from "../composants/Noyau";
 export default function Disposition() {
   return (
     <SafeAreaProvider>
+      {/* Au-dessus du noyau, volontairement : le bandeau ne dépend d'aucune
+          donnée locale, et doit pouvoir s'afficher même si la base refuse de
+          s'ouvrir — c'est-à-dire précisément quand on a besoin de savoir si
+          l'app est à jour. */}
+      <BandeauVersion />
       {/* La base locale s'ouvre ici, une fois, avant le premier écran : c'est
           elle qui rend la saisie possible sans réseau, et la file qui pousse
           la soirée vers le serveur quand il revient. */}
