@@ -1,11 +1,12 @@
 # 0000 — Les cas, tous les cas
 
 *Annexe de la spec produit. **549 cas** relevés le 10 septembre 2026 par un balayage
-en huit domaines puis six regards. Chaque cas a été vérifié dans le code — la ligne `>` porte
+en huit domaines puis six regards, **tenu à jour à chaque lot livré** (la spec
+0004 a refermé cinq cas le 11 septembre). Chaque cas a été vérifié dans le code — la ligne `>` porte
 le fichier et la ligne. Les identifiants sont ceux du balayage ; c'est par eux que les specs
 numérotées citeront les cas.*
 
-**160 faits · 159 partiels · 96 absents · 134 faux.**
+**164 faits · 159 partiels · 92 absents · 134 faux.**
 **49 bloquent un lundi · 140 en gênent un · 152 gênent une saison · 208 relèvent du confort.**
 
 **État** — `✔ fait` : ça marche des deux côtés · `◐ partiel` : d'un seul côté, ou à moitié ·
@@ -4473,7 +4474,7 @@ numérotées citeront les cas.*
 
 > `five-scorer/app/actions/calendrier.ts:44-60 (annulation) ; app/api/cal/[token]/route.ts:88-90 (canceledAt dans le flux) ; aucun envoi`
 
-### `TRANS-37` — ✗ absent · *bloque un lundi*
+### `TRANS-37` — ✔ fait · *bloque un lundi*
 
 **La situation.** Une version de l'app part avec un bug qui casse la saisie, un dimanche.
 
@@ -4481,9 +4482,11 @@ numérotées citeront les cas.*
 
 **Où ça en est.** Aucun mécanisme de mise à jour à chaud. Un correctif passe par un build EAS puis TestFlight ou la revue App Store : au mieux quelques heures, au pire plusieurs jours. Le site, lui, se répare par un déploiement Vercel en trois minutes. La moitié de l'app qui compte les buts est celle qu'on ne peut pas réparer vite.
 
+**Refermé par la spec 0004** (11 septembre 2026). `expo-updates` est installé et configuré — `runtimeVersion`, bloc `updates`, un canal par profil de build — et la règle qui empêche une mise à jour à chaud d'atteindre un binaire incapable de la supporter est écrite dans `five-scorer-mobile/EAS.md`. *Reste à constater sur un vrai build : voir le journal de 0004.*
+
 > `five-scorer-mobile/package.json (pas d'expo-updates) ; app.json (pas de runtimeVersion, pas de canal) ; eas.json:1-30`
 
-### `TRANS-38` — ✗ absent · *bloque un lundi*
+### `TRANS-38` — ✔ fait · *bloque un lundi*
 
 **La situation.** Le serveur évolue (un champ obligatoire de plus, une route renommée) pendant qu'un téléphone tourne encore sur la version d'il y a trois mois.
 
@@ -4491,9 +4494,11 @@ numérotées citeront les cas.*
 
 **Où ça en est.** L'app n'annonce pas sa version au serveur et le serveur n'annonce aucune version minimale. Une divergence se solde par des 400 en série sur des opérations que la file MET DE CÔTÉ (sync.ts:328-344) — la soirée reste dans le téléphone, et l'écran qui l'expliquerait n'existe pas (TRANS-13). Symétriquement, une app trop RÉCENTE contre un serveur en cours de déploiement produit le même silence.
 
+**Refermé par la spec 0004** (11 septembre 2026). L'app envoie `x-protocole` à chaque appel, le serveur rend un verdict en en-tête de réponse — et **ne bloque jamais** : un bandeau, jamais un refus. Le troisième cas est traité aussi, celui qu'on oublie : une app qui n'envoie AUCUN en-tête est servie sans un mot, ce qui est l'état des quinze téléphones installés. Vérifié par `five-scorer-mobile/scripts/verif-version.mjs`.
+
 > `aucun — ni /api/version côté site, ni en-tête de version dans five-scorer-mobile/lib/appel.ts:115-141, ni contrôle au lancement`
 
-### `TRANS-39` — ✗ absent · *bloque un lundi*
+### `TRANS-39` — ✔ fait · *bloque un lundi*
 
 **La situation.** Une future version de l'app ajoute une colonne au miroir local. Quelqu'un met à jour sans désinstaller.
 
@@ -4501,15 +4506,19 @@ numérotées citeront les cas.*
 
 **Où ça en est.** `appliquerSchema` fait `base.script(schema)` et rien d'autre. Le schéma est tout entier en `CREATE TABLE IF NOT EXISTS` : sur une base existante, une table modifiée n'est PAS modifiée. Pas de `PRAGMA user_version`, pas de migration, pas de détection. La première évolution du schéma casse silencieusement les installations existantes — et c'est la base qui contient la soirée non synchronisée.
 
+**Refermé par la spec 0004** (11 septembre 2026). `PRAGMA user_version` et une échelle de paliers, chacun dans sa transaction. Vérifié sur une VRAIE base du simulateur, créée deux jours avant le lot : migrée sur place, 10 joueurs et 2 matchs intacts. Le test de convergence prouve qu'une base neuve et une base montée ont exactement le même `sqlite_master`.
+
 > `five-scorer-mobile/lib/outbox/base.ts:62-64 ; lib/outbox/baseExpo.ts:60-71 ; db/schema.ts`
 
-### `TRANS-40` — ✗ absent · *bloque un lundi*
+### `TRANS-40` — ◐ partiel · *bloque un lundi*
 
 **La situation.** L'app plante (erreur JavaScript non rattrapée) pendant un match.
 
 **Ce qu'on attend.** Un écran qui dit quoi faire, et on sait le lendemain que ça a planté.
 
 **Où ça en est.** Expo Router accepte un `export function ErrorBoundary` par route ; aucun n'est déclaré. Aucun Sentry, aucun journal distant. En production, un plantage rend l'app inutilisable sans un mot, et personne ne l'apprend jamais — sauf si quelqu'un le raconte. Le noyau, lui, a bien son écran d'échec (composants/Noyau.tsx:137-154), mais uniquement pour l'ouverture de la base.
+
+**Partiellement refermé par la spec 0004** (11 septembre 2026). Un `ErrorBoundary` est posé sur la feuille de match et le rapport reste sur le téléphone (`lib/plantages/`) — vérifié en injectant un vrai plantage de rendu. **Mais un `ErrorBoundary` React n'attrape PAS le rejet d'une fonction asynchrone**, et `marquer`, `contreSonCamp`, `donnerCarton`, `terminer` sont asynchrones et sans `try/catch`. Un but refusé par la couche locale ne déclenche donc toujours rien. Le reste appartient au lot de la feuille.
 
 > `five-scorer-mobile/app/_layout.tsx:8-32 (aucun `ErrorBoundary` exporté) ; package.json (aucun outil de rapport d'incident)`
 
@@ -5315,13 +5324,15 @@ numérotées citeront les cas.*
 
 > `app: five-scorer-mobile/eas.json (aucun profil android) ; five-scorer-mobile/EAS.md (« La distribution interne n'installe que sur les iPhones enregistrés dans l'équipe ») ; five-scorer-mobile/app.json (android.versionCode 1, jamais bâti)`
 
-### `TRANS-65` — ◐ partiel · *bloque un lundi*
+### `TRANS-65` — ✔ fait · *bloque un lundi*
 
 **La situation.** La base locale ne s'ouvre pas : fichier abîmé par une coupure en pleine écriture, stockage du téléphone plein, ou une instruction du schéma qui passe mal sur une vieille version d'iOS.
 
 **Ce qu'on attend.** On comprend ce qui se passe, on peut réessayer, et on n'est pas coupé de ce qui est déjà dans le téléphone.
 
 **Où ça en est.** Le fournisseur ne rend ses enfants qu'une fois la base ouverte — décision assumée et bonne — mais l'échec, lui, remplace TOUTE l'app par « Ça n'a pas marché » suivi de `e.message`, c'est-à-dire la phrase anglaise brute de SQLite. Pas de bouton « Réessayer », pas de retour, pas de « ferme et rouvre l'app » : l'écran est un cul-de-sac, et la soirée déjà saisie dans le fichier devient inatteignable au moment précis où on voudrait la sauver. Aucun `PRAGMA integrity_check`, aucune reprise, aucune trace envoyée nulle part.
+
+**Refermé par la spec 0004** (11 septembre 2026). L'écran n'affiche plus `e.message` brut : une phrase française, un bouton **Réessayer** qui relance vraiment l'ouverture, et le message technique rangé en petit. Le cas de la rétrogradation a son propre message — vérifié au simulateur en posant `user_version = 99` sur la vraie base.
 
 > `app: five-scorer-mobile/composants/Noyau.tsx:64-90 et 137-152 (Attente) ; five-scorer-mobile/lib/outbox/baseExpo.ts:66-71`
 

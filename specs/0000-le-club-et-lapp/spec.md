@@ -53,7 +53,7 @@ trancher quand deux choses se disputent le même après-midi de travail.
 
 | | fait | partiel | absent | **faux** |
 |---|---|---|---|---|
-| **549 cas** | 160 | 159 | 96 | **134** |
+| **549 cas** | 164 | 159 | 92 | **134** |
 
 - **fait** — ça marche, des deux côtés.
 - **partiel** — ça marche d'un seul côté, ou à moitié.
@@ -63,6 +63,10 @@ trancher quand deux choses se disputent le même après-midi de travail.
 
 Par gravité : **49 cas bloquent un lundi**, 140 en gênent un, 152 gênent une
 saison, 208 relèvent du confort.
+
+*Tenu à jour à chaque lot. Au 11 septembre 2026, la spec 0004 a refermé cinq
+cas — dont quatre des 49 qui bloquent un lundi : il en reste **24 cassés** sur
+les 49.*
 
 ## 4. La découverte du balayage
 

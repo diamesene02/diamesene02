@@ -75,6 +75,28 @@ Elles s'ouvrent avec une commande, et elles ne sont pas facultatives.
 | **`/clarifier NNNN`** | Après la spec, **avant** le plan | Qu'un plan invente en silence les réponses aux questions ouvertes. La spec 0001 en a porté sept pendant des semaines. |
 | **`/analyser NNNN`** | Avant la première ligne de code, puis avant de livrer | Qu'un chiffre recopié d'un document à l'autre ne soit jamais recompté. Deux erreurs sont passées le 10 septembre 2026 exactement comme ça — un comptage faux de 51 cas, et un arrondi lu à l'euro au lieu du centime. |
 
+## Livrer : les deux gestes qu'on oublie
+
+*Ajouté le 11 septembre 2026, après les avoir oubliés tous les deux sur le lot
+0004. Ils étaient écrits — au-dessus et en dessous — mais rien ne les rappelait
+au moment où l'on coche la dernière tâche, et c'est ce moment-là qui compte.*
+
+Un lot n'est pas livré quand les tâches sont cochées. Il l'est quand :
+
+1. **`/analyser NNNN` a tourné une SECONDE fois**, sur le code livré cette
+   fois — pas sur la spec. La première passe relit une intention ; celle-ci
+   relit ce qui est parti. Elles ne trouvent pas les mêmes choses.
+2. **La base est à jour.** Chaque cas que la spec disait refermer a son état
+   changé dans `specs/0000-le-club-et-lapp/cas.md`, avec une phrase qui dit par
+   quel lot et à quelle date — et **l'état réel**, pas celui qu'on espérait : un
+   cas à moitié refermé reste `◐ partiel`, et le dit.
+3. **Les compteurs de la base sont RECOMPTÉS**, jamais ajustés de tête. Les
+   en-têtes de `cas.md` et le tableau de `spec.md` portent les mêmes nombres, et
+   ils se comptent depuis le fichier.
+
+Sans le 2, la base vieillit en silence et on répare deux fois la même chose.
+Sans le 3, elle ment — et c'est pire qu'une base périmée, parce qu'on la croit.
+
 `/analyser` relit la spec **contre la constitution**, **contre le code**
 (chaque `fichier:ligne` est rouvert), **contre elle-même**, et **contre la
 base**. C'est la relecture adverse, rendue systématique au lieu d'être un coup
