@@ -11,7 +11,29 @@
 import * as SQLite from "expo-sqlite";
 import type { Base, Ligne, Resultat, Valeur } from "./base";
 import { appliquerSchema } from "./base";
+import { cible, versionDe } from "./migrations";
 import { SCHEMA } from "../../db/schema";
+import { PALIERS } from "../../db/paliers";
+
+/// La base du téléphone vient d'une version de l'app PLUS RÉCENTE que celle
+/// qui l'ouvre.
+///
+/// Le cas arrive pour de vrai dans ce club : on vit sur des builds internes,
+/// et réinstaller un build antérieur depuis TestFlight est un geste ordinaire.
+/// On ne migre PAS vers le bas — ça perdrait ce que la version supérieure a
+/// écrit — et on ne touche à rien : la soirée qui dort dans ce fichier doit
+/// pouvoir être sauvée par la bonne version de l'app.
+export class BaseTropRecente extends Error {
+  constructor(
+    readonly trouvee: number,
+    readonly attendue: number,
+  ) {
+    super(
+      `La base du téléphone est en version ${trouvee}, cette app ne connaît que la ${attendue}.`,
+    );
+    this.name = "BaseTropRecente";
+  }
+}
 
 /// Le nom du fichier sur le téléphone. Un seul pour toute l'app, tous clubs
 /// confondus : le club est une colonne, pas une base — comme dans Dexie, où
@@ -66,6 +88,15 @@ export class BaseExpo implements Base {
 export async function ouvrirBase(nom = NOM_BASE): Promise<BaseExpo> {
   const db = await SQLite.openDatabaseAsync(nom);
   const base = new BaseExpo(db);
+
+  // La rétrogradation se détecte AVANT d'appliquer quoi que ce soit : le
+  // schéma est en `CREATE ... IF NOT EXISTS`, il ne casserait rien, mais on ne
+  // veut pas non plus qu'une version ancienne commence à écrire dans une base
+  // dont elle ignore la moitié des colonnes.
+  const trouvee = await versionDe(base);
+  const attendue = cible(PALIERS);
+  if (trouvee > attendue) throw new BaseTropRecente(trouvee, attendue);
+
   await appliquerSchema(base, SCHEMA);
   return base;
 }

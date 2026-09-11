@@ -7,12 +7,13 @@ import {
   View,
 } from "react-native";
 import * as Network from "expo-network";
-import { ouvrirBase } from "../lib/outbox/baseExpo";
+import { ouvrirBase, BaseTropRecente } from "../lib/outbox/baseExpo";
 import { compteurs } from "../lib/outbox/outbox";
 import { creerMatchLocal, type MatchLocal } from "../lib/match/local";
 import { creerDrain, type Drain } from "../lib/outbox/sync";
 import { API, lireCookie } from "../lib/api";
 import { JETONS_NEUTRES } from "../lib/couleurs";
+import { BoutonPlein } from "./base";
 
 /// Le noyau local : la base SQLite du téléphone, la saisie du match, et la
 /// file qui pousse tout ça vers le serveur.
@@ -54,7 +55,12 @@ export function useNoyau(): Noyau {
 
 export function FournisseurNoyau({ children }: { children: React.ReactNode }) {
   const [noyau, setNoyau] = useState<Noyau | null>(null);
-  const [erreur, setErreur] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<Panne | null>(null);
+  /// Incrémenté par « Réessayer ». C'est lui qui relance l'effet — une base
+  /// abîmée par une coupure d'écriture peut très bien s'ouvrir au second essai,
+  /// et sans ce bouton l'écran était un cul-de-sac au moment précis où l'on
+  /// voulait sauver la soirée qui dort dedans.
+  const [essai, setEssai] = useState(0);
   const drainRef = useRef<Drain | null>(null);
 
   useEffect(() => {
@@ -82,7 +88,7 @@ export function FournisseurNoyau({ children }: { children: React.ReactNode }) {
         // être fermée au milieu d'une soirée, hors réseau.
         void drain.relancer();
       } catch (e) {
-        if (vivant) setErreur(e instanceof Error ? e.message : String(e));
+        if (vivant) setErreur(lirePanne(e));
       }
     })();
     return () => {
@@ -91,7 +97,7 @@ export function FournisseurNoyau({ children }: { children: React.ReactNode }) {
       // minuteur dans le vide à chaque rechargement à chaud.
       drainRef.current?.arreter();
     };
-  }, []);
+  }, [essai]);
 
   // Le retour au premier plan est le moment le plus utile pour vider la file :
   // on sort de sa poche, on a repris du réseau, et l'écran va se relire.
@@ -111,7 +117,7 @@ export function FournisseurNoyau({ children }: { children: React.ReactNode }) {
           {children}
         </>
       ) : (
-        <Attente message={erreur} />
+        <Attente panne={erreur} surReessai={() => setEssai((n) => n + 1)} />
       )}
     </Contexte.Provider>
   );
@@ -134,14 +140,70 @@ function Reseau({ drain }: { drain: Drain }) {
   return null;
 }
 
-function Attente({ message }: { message: string | null }) {
+/// Ce qu'on montre quand la base ne s'ouvre pas.
+///
+/// Avant, cet écran affichait `e.message` — la phrase ANGLAISE brute de SQLite
+/// — sans bouton, sans retour, sans rien. Un cul-de-sac, au moment précis où
+/// l'on voudrait récupérer la soirée déjà saisie dans le fichier (spec 0000,
+/// `TRANS-65`). La constitution, article V : un refus se dit en français et
+/// propose une suite.
+type Panne = {
+  titre: string;
+  aide: string;
+  /// Le message d'origine. On ne le cache pas — il est juste rangé plus bas et
+  /// plus petit, pour qui sait le lire.
+  technique: string | null;
+  peutReessayer: boolean;
+};
+
+function lirePanne(e: unknown): Panne {
+  const technique = e instanceof Error ? e.message : String(e);
+
+  if (e instanceof BaseTropRecente) {
+    return {
+      titre: "Cette version de l'app est trop ancienne",
+      aide:
+        "Les données de ce téléphone ont été écrites par une version plus " +
+        "récente. Rien n'a été touché : installe la dernière version de l'app " +
+        "pour les retrouver.",
+      technique,
+      // Réessayer ne changerait rien : c'est le binaire qui est en retard, pas
+      // la base. Proposer le bouton serait promettre une réparation qui ne
+      // peut pas venir.
+      peutReessayer: false,
+    };
+  }
+
+  return {
+    titre: "La base du téléphone n'a pas pu s'ouvrir",
+    aide:
+      "Rien n'est perdu : ce qui a été saisi est dans le fichier. Réessaie — " +
+      "et si ça recommence, ferme l'app complètement et rouvre-la.",
+    technique,
+    peutReessayer: true,
+  };
+}
+
+function Attente({
+  panne,
+  surReessai,
+}: {
+  panne: Panne | null;
+  surReessai: () => void;
+}) {
   const t = JETONS_NEUTRES;
   return (
     <View style={[s.attente, { backgroundColor: t.bgSolid }]}>
-      {message ? (
+      {panne ? (
         <>
-          <Text style={[s.titre, { color: t.ink }]}>Ça n'a pas marché</Text>
-          <Text style={[s.aide, { color: t.i2 }]}>{message}</Text>
+          <Text style={[s.titre, { color: t.ink }]}>{panne.titre}</Text>
+          <Text style={[s.aide, { color: t.i2 }]}>{panne.aide}</Text>
+          {panne.peutReessayer && (
+            <BoutonPlein titre="Réessayer" onPress={surReessai} t={t} />
+          )}
+          {panne.technique && (
+            <Text style={[s.technique, { color: t.i3 }]}>{panne.technique}</Text>
+          )}
         </>
       ) : (
         <>
@@ -163,4 +225,7 @@ const s = StyleSheet.create({
   },
   titre: { fontSize: 20, fontWeight: "600", textAlign: "center" },
   aide: { fontSize: 15, textAlign: "center" },
+  // Le message d'origine, rangé et discret : on ne le cache pas — c'est lui
+  // qu'on lira au téléphone si ça recommence — mais il ne parle pas au club.
+  technique: { fontSize: 12, textAlign: "center", marginTop: 8 },
 });
