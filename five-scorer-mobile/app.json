@@ -3,6 +3,10 @@
     "name": "Five Scorer",
     "slug": "five-scorer",
     "version": "1.0.0",
+    "runtimeVersion": "1",
+    "updates": {
+      "url": "https://u.expo.dev/b5f82f4d-1f26-4401-8908-1fa15d2430a7"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

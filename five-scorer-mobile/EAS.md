@@ -89,3 +89,45 @@ Le projet exige **Node 22** (`.nvmrc`, `engines` dans package.json). Les tests
 du schéma local utilisent `node:sqlite`, module intégré depuis Node 22 : sur
 Node 20 le fichier n'échoue pas, il explose à l'import sur « No such built-in
 module », ce qui n'accuse rien. `nvm use` dans ce dossier suffit.
+
+## `runtimeVersion` : la règle qui ne se devine pas
+
+`expo-updates` envoie du **JavaScript**, jamais du natif. Un correctif poussé à
+chaud atteint les téléphones en quelques minutes — mais il ne porte ni un module
+natif, ni une permission, ni une clé d'`app.json`. S'il atteignait un binaire
+incapable de l'exécuter, l'app planterait au démarrage sur tous les téléphones
+à la fois, et il n'y aurait plus de chemin pour la réparer.
+
+C'est `runtimeVersion` qui l'empêche : un binaire ne reçoit que les mises à jour
+publiées sous **son** `runtimeVersion`.
+
+**La règle, et elle est manuelle :**
+
+> Toute touche à `plugins`, à une permission de l'`infoPlist`, ou à une
+> dépendance **native** incrémente `runtimeVersion` dans `app.json`.
+> Un correctif JavaScript pur n'y touche **jamais** — c'est ce qui le rend
+> éligible à la mise à jour à chaud.
+
+**Pourquoi un entier à la main plutôt qu'une politique automatique.** Les deux
+politiques d'Expo ne conviennent pas ici :
+
+- `"policy": "appVersion"` lirait `version` (`"1.0.0"`), qui est figée et que
+  `eas.json` ne fait pas monter (`"appVersionSource": "local"`) : elle ne
+  bougerait **jamais**, et laisserait donc passer une mise à jour JS sur un
+  binaire aux modules natifs changés — exactement ce qu'on veut éviter.
+- `"policy": "fingerprint"` calcule une empreinte du projet natif. Plus sûr,
+  mais il faudrait comprendre pourquoi l'empreinte a changé chaque fois qu'elle
+  change, et on n'en est pas là.
+
+Un entier posé à la main est le seul des trois qu'on relit sans outil.
+
+## Les canaux
+
+| Profil | Canal | Pourquoi |
+|---|---|---|
+| `lundi` | `production` | Le build interne que le club a sur ses téléphones. |
+| `magasin` | `production` | **Le même canal que `lundi`, volontairement** : un correctif poussé pendant que le club joue doit atteindre les deux. |
+| `atelier` | `atelier` | Il vise le Mac (`EXPO_PUBLIC_API`), il ne doit jamais recevoir une mise à jour destinée au club. |
+
+Le palier gratuit d'EAS Update porte **1 000 utilisateurs actifs par mois**. Le
+club en a quinze. Ce paragraphe est à relire le jour où ce ne sera plus vrai.
