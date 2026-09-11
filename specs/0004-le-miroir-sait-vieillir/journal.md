@@ -309,3 +309,60 @@ le geste EST la suite.**
 *Ce que ça confirme sur la méthode : « vu dans le simulateur » n'est pas une
 formalité. Ce composant passait `tsc`, passait les tests, et avait deux défauts
 que seule une capture d'écran pouvait montrer.*
+
+---
+
+## 11 septembre, dernier point — `expo-updates` était configuré, jamais appelé
+
+Le dernier reproche de la seconde passe était le plus sérieux du lot, parce
+qu'il ne portait sur aucune ligne fausse : **tout le code était juste, et le
+critère d'acceptation restait faux.**
+
+Le critère disait : *« un correctif publié le dimanche soir est sur les quinze
+téléphones le lundi »*. `expo-updates` était installé, configuré, et **importé
+nulle part**. Sans appel, il applique son comportement par défaut : il sonde au
+lancement, télécharge en arrière-plan, et **applique au démarrage SUIVANT**.
+Tel que câblé, le critère se lisait donc *« au deuxième lancement »* — celui qui
+ouvre l'app à 19 h 55 en arrivant au gymnase joue toute la soirée avec l'ancien
+code, et le correctif du dimanche n'arrive que le lundi d'après.
+
+*Un module configuré n'est pas un module branché.* Rien dans `tsc`, dans les
+tests ou dans `expo export` ne pouvait le dire : il n'y avait aucune erreur, il
+n'y avait qu'un silence.
+
+**Ce qui a été ajouté** — `lib/misesAJour/`, et une seule décision dedans :
+**jamais pendant qu'une feuille est ouverte.** Recharger au milieu d'un match,
+ce serait perdre le fil de la soirée pour livrer un correctif que personne n'a
+demandé maintenant (article I). On interroge la BASE et non l'écran : une
+feuille peut être en cours sans que l'écran du match soit affiché — l'app mise
+en arrière-plan entre deux matchs, quelqu'un qui regarde le classement pendant
+que ça joue.
+
+**Le contrôle est fait DEUX fois**, avant la sonde et à nouveau après le
+téléchargement : `fetchUpdateAsync()` prend le temps qu'il prend sur la 4G du
+gymnase, et un match peut très bien démarrer pendant. Ne vérifier qu'une fois,
+c'était accepter de recharger l'app sur un match commencé entre-temps.
+
+**Découpé comme `lib/plantages/`, et pas par goût de la symétrie.** Le premier
+jet mettait tout dans un fichier ; le test est mort dessus :
+
+```
+RolldownError: Flow is not supported
+At file: node_modules/react-native/index.js:1:0
+```
+
+Importer `expo-updates` tire `react-native` en entier, que vitest ne sait pas
+lire. **La découpe n'est pas une préférence d'architecture, c'est la condition
+pour que la règle soit éprouvée** : `regle.ts` ne connaît ni `expo-updates` ni
+React Native et se teste dans un conteneur ; `appliquer.ts` ne contient aucune
+décision, seulement des appels.
+
+**Contre-épreuve faite** : le filtre `status = 'LIVE'` retiré de la requête, un
+test tombe. Deux tests de ce dépôt s'étaient déjà révélés infalsifiables, on ne
+signe plus un test sans l'avoir vu tomber.
+
+*Et une erreur au passage, petite mais instructive : mon `INSERT` du test
+inventait un `updated_at` sur `matches` et oubliait `team_a_name` /
+`team_b_name`, qui sont NOT NULL sans défaut. Trois tests sont tombés. J'avais
+écrit les colonnes de mémoire au lieu d'ouvrir `db/schema.ts` — le même geste
+que la citation `fichier:ligne` non rouverte de la spec 0001.*

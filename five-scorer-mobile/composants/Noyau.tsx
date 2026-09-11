@@ -13,6 +13,7 @@ import { creerMatchLocal, type MatchLocal } from "../lib/match/local";
 import { creerDrain, type Drain } from "../lib/outbox/sync";
 import { API, lireCookie } from "../lib/api";
 import { JETONS_NEUTRES } from "../lib/couleurs";
+import { appliquerMiseAJour } from "../lib/misesAJour/appliquer";
 import { BoutonPlein } from "./base";
 
 /// Le noyau local : la base SQLite du téléphone, la saisie du match, et la
@@ -87,6 +88,11 @@ export function FournisseurNoyau({ children }: { children: React.ReactNode }) {
         // Ce qui restait de la dernière fois part tout de suite : l'app a pu
         // être fermée au milieu d'une soirée, hors réseau.
         void drain.relancer();
+        // Et on regarde s'il y a un correctif à prendre — au démarrage, jamais
+        // pendant un match. Sans cet appel, `expo-updates` appliquerait au
+        // démarrage SUIVANT, et le joueur qui ouvre l'app à 19 h 55 jouerait
+        // toute la soirée avec l'ancien code.
+        void appliquerMiseAJour(base);
       } catch (e) {
         if (vivant) setErreur(lirePanne(e));
       }

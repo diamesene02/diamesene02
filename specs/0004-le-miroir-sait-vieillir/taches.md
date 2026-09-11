@@ -419,3 +419,34 @@ node scripts/verif-version.mjs         # TOUT VERT — T1, T2, T18, T19
 
 Puis le tour dans le simulateur (T13, T24) — les deux seuls critères
 qu'aucune commande ne referme.
+
+---
+
+## Phase 7 — Ce que les six premières phases avaient manqué
+
+*Ajoutée après la seconde passe `/analyser` sur le code livré. Les phases 1-6
+branchaient `expo-updates` (T14-T17) sans jamais l'APPELER : configuré, donc
+silencieux, donc appliqué au démarrage suivant. Aucune vérification des six
+phases ne pouvait le voir — il n'y avait pas d'erreur, il y avait un silence.*
+
+- [x] **T25. `lib/misesAJour/regle.ts`** — la seule décision du lot :
+  `matchEnCours(base)`, qui interroge `matches` et non l'écran. Ne connaît ni
+  `expo-updates` ni React Native, donc testable dans un conteneur.
+
+  **Vérification** : `npx vitest run lib/misesAJour/regle.test.ts` → 4 verts.
+  **Contre-épreuve** : retirer `WHERE status = 'LIVE'` de la requête fait
+  tomber « est permis quand le match est terminé ». Vérifiée, pas supposée.
+
+- [x] **T26. `lib/misesAJour/appliquer.ts`** — sonde, télécharge, recharge.
+  Trois refus : `!Updates.isEnabled` (développement et Expo Go), **une feuille
+  ouverte**, rien de neuf. Le contrôle de la feuille est fait deux fois,
+  avant la sonde ET après le téléchargement : un match peut démarrer pendant
+  que la 4G du gymnase finit de télécharger. Aucune décision dans ce fichier,
+  seulement des appels — même découpe que `lib/plantages/`.
+
+- [x] **T27. Le branchement** — `void appliquerMiseAJour(base)` dans
+  `five-scorer-mobile/composants/Noyau.tsx:95`, juste après `void drain.relancer()`.
+
+  **Vérification** : `grep -n appliquerMiseAJour composants/Noyau.tsx` rend
+  l'import **et** l'appel. `npx tsc --noEmit` propre,
+  `npx expo export --platform ios` propre, 279 tests verts (275 + 4).
