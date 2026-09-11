@@ -136,8 +136,18 @@ Le point de passage existe et est unique : `five-scorer-mobile/lib/appel.ts`.
 
 `five-scorer/lib/guard.ts` connaît deux nombres : le protocole **minimum** qu'il
 sert encore, et le protocole **courant**. Il compare, et rend le verdict **dans
-le corps de la réponse** — jamais par un code d'erreur, jamais par un refus
+un en-tête de la réponse** — jamais par un code d'erreur, jamais par un refus
 (Q4).
+
+*Vérifié avant d'écrire les tâches : **28 routes** appellent
+`getClubApiContext()` directement (`five-scorer/lib/guard.ts:94-108`), sans
+passage commun. Ajouter un champ au corps toucherait 28 fichiers pour une
+métadonnée qui n'est pas de la donnée métier — exactement ce que l'article III
+déconseille. Le point de passage unique existe déjà côté transport :
+`five-scorer/middleware.ts`, qui enveloppe `/api/clubs/**`
+(`five-scorer/middleware.ts:39-41`, le matcher `:47-48`) et pose déjà un refus
+nu pour ce même préfixe. Le verdict de version s'y pose en un seul endroit, sans toucher une
+route métier.*
 
 Trois cas, et le troisième est celui qu'on oublie :
 
