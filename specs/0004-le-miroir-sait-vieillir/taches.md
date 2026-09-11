@@ -1,5 +1,9 @@
 # 0004 — Tâches
 
+*TOUTES FAITES le 11 septembre 2026. Les écarts sont dans
+[`journal.md`](journal.md) — et il y en a eu quatre, dont deux qui ont
+corrigé ces tâches plutôt que le code.*
+
 *Écrites le 11 septembre 2026, contre le code réel — chaque fichier cité a été
 lu avant d'écrire la tâche qui le touche. Ordre du plan §8. Chaque tâche porte
 sa commande de vérification ; aucune ne se coche sans l'avoir vue passer.*
@@ -10,7 +14,7 @@ sa commande de vérification ; aucune ne se coche sans l'avoir vue passer.*
 
 *Déployable seule, sans effet : personne n'envoie encore cet en-tête.*
 
-- [ ] **T1. `five-scorer/lib/protocole.ts` (neuf).** Le contrat, minimal :
+- [x] **T1. `five-scorer/lib/protocole.ts` (neuf).** Le contrat, minimal :
 
   ```ts
   export const PROTOCOLE_COURANT = 1;
@@ -40,7 +44,7 @@ sa commande de vérification ; aucune ne se coche sans l'avoir vue passer.*
   l'exerce à travers de vraies requêtes HTTP — la même discipline que
   `parcours-lecture.mjs`.
 
-- [ ] **T2. Brancher dans `five-scorer/middleware.ts`.** Après le bloc existant
+- [x] **T2. Brancher dans `five-scorer/middleware.ts`.** Après le bloc existant
   (`:38-41`, le 401 nu de sync), et **avant** `return NextResponse.next()`
   (`:43`) :
 
@@ -81,14 +85,14 @@ sa commande de vérification ; aucune ne se coche sans l'avoir vue passer.*
 *La pièce maîtresse (plan §8). Un seul palier, qui ne change rien : on éprouve
 le mécanisme avant qu'il porte un vrai risque.*
 
-- [ ] **T3. Geler `five-scorer-mobile/db/paliers/001-schema.sql` (neuf).**
+- [x] **T3. Geler `five-scorer-mobile/db/paliers/001-schema.sql` (neuf).**
   Copie **littérale** de `db/schema.sql` tel qu'il est aujourd'hui —
   `cp db/schema.sql db/paliers/001-schema.sql`. C'est l'instantané : « le
   schéma tel que TOUTES les bases installées avant ce lot le portent déjà ».
   **Jamais retouché ensuite** — un futur palier en gèlera un nouveau, celui-ci
   reste l'archive du jour 1.
 
-- [ ] **T4. `five-scorer-mobile/db/paliers/001-versionner.sql` (neuf).**
+- [x] **T4. `five-scorer-mobile/db/paliers/001-versionner.sql` (neuf).**
   ```sql
   -- Palier 1 : adopter la version de schéma elle-même.
   --
@@ -99,7 +103,7 @@ le mécanisme avant qu'il porte un vrai risque.*
   PRAGMA user_version = 1;
   ```
 
-- [ ] **T5. Généraliser la chaîne de génération.** `db/schema.ts` a déjà son
+- [x] **T5. Généraliser la chaîne de génération.** `db/schema.ts` a déjà son
   script (`scripts/schema-vers-ts.mjs`) et son test d'égalité
   (`five-scorer-mobile/db/schema.test.ts:41-48`). Même geste pour les paliers :
   - `scripts/paliers-vers-ts.mjs` (neuf, sur le modèle de
@@ -114,7 +118,7 @@ le mécanisme avant qu'il porte un vrai risque.*
   node scripts/paliers-vers-ts.mjs && npm run tester -- db/paliers.test.ts
   ```
 
-- [ ] **T6. `five-scorer-mobile/lib/outbox/migrations.ts` (neuf).** Le
+- [x] **T6. `five-scorer-mobile/lib/outbox/migrations.ts` (neuf).** Le
   moteur de l'échelle, contre l'interface `Base` — donc valable pour
   `BaseExpo` et `BaseNode` sans rien savoir de l'un ni de l'autre :
 
@@ -141,7 +145,7 @@ le mécanisme avant qu'il porte un vrai risque.*
   main sans y toucher — c'est le comportement demandé par le plan §1, obtenu
   sans code dédié.
 
-- [ ] **T7. Étendre `appliquerSchema`** (`five-scorer-mobile/lib/outbox/base.ts:62-64`) :
+- [x] **T7. Étendre `appliquerSchema`** (`five-scorer-mobile/lib/outbox/base.ts:62-64`) :
 
   ```ts
   export async function appliquerSchema(
@@ -164,7 +168,7 @@ le mécanisme avant qu'il porte un vrai risque.*
   cible, comme le plan le prescrit (§1, « l'ambiguïté à lever »). `cible` sort
   de `paliers`, pas d'une constante à part : une seule source, l'article III.
 
-- [ ] **T8. Le test de convergence — `lib/outbox/migrations.test.ts` (neuf),
+- [x] **T8. Le test de convergence — `lib/outbox/migrations.test.ts` (neuf),
   le plus important du lot.**
   ```ts
   it("une base MONTÉE et une base NEUVE ont le même schéma", async () => {
@@ -183,13 +187,13 @@ le mécanisme avant qu'il porte un vrai risque.*
   ```
   **Vérification** : `npm run tester -- lib/outbox/migrations.test.ts`
 
-- [ ] **T9. Le test de la file — même fichier.** Base à l'ancien schéma,
+- [x] **T9. Le test de la file — même fichier.** Base à l'ancien schéma,
   une opération enfilée (le motif de `enfiler()` dans
   `five-scorer-mobile/db/schema.test.ts:30-38`, à reprendre ici pour `BaseNode`), migration,
   l'opération **encore là** ensuite : `SELECT COUNT(*) FROM outbox` inchangé
   avant/après.
 
-- [ ] **T10. La contre-épreuve — geste ponctuel, pas un test permanent.**
+- [x] **T10. La contre-épreuve — geste ponctuel, pas un test permanent.**
   Casser `001-versionner.sql` à la main (vider son contenu), relancer T8 et
   T9 : **les deux doivent échouer**. Puis restaurer le fichier
   (`git checkout -- db/paliers/001-versionner.sql`). Un test qu'on ne peut
@@ -198,7 +202,7 @@ le mécanisme avant qu'il porte un vrai risque.*
   l'implémentation, et noté dans `journal.md`** : pas de trace permanente
   dans le code.
 
-- [ ] **T11. Le test d'interruption — même fichier.** Fournir à
+- [x] **T11. Le test d'interruption — même fichier.** Fournir à
   `appliquerPaliers` une `Base` qui enveloppe une `BaseNode` réelle et fait
   échouer `script()` après la première instruction d'un palier à deux
   instructions (un décorateur simple, dans le fichier de test). Vérifier
@@ -219,7 +223,7 @@ le mécanisme avant qu'il porte un vrai risque.*
 *Avant la première vraie migration — c'est lui qu'on verra si une migration
 tourne mal.*
 
-- [ ] **T12. `composants/Noyau.tsx` : un message qui dit quoi faire.**
+- [x] **T12. `composants/Noyau.tsx` : un message qui dit quoi faire.**
   Le `catch` (`:82-84`) pose aujourd'hui `e.message` tel quel dans `erreur`
   (phrase anglaise brute de SQLite). Distinguer trois cas dans ce `catch`,
   posés dans un état structuré `{ titre: string; aide: string; peutReessayer:
@@ -236,7 +240,7 @@ tourne mal.*
   relance l'effet du fournisseur (compteur de tentatives dans une `ref`,
   incrémenté pour redéclencher l'`useEffect`).
 
-- [ ] **T13. Le cas de rétrogradation, détecté avant `appliquerSchema`.**
+- [x] **T13. Le cas de rétrogradation, détecté avant `appliquerSchema`.**
   Dans `ouvrirBase()` (`five-scorer-mobile/lib/outbox/baseExpo.ts:66-71`), lire
   `PRAGMA user_version` juste après l'ouverture, **avant** d'appeler
   `appliquerSchema`. Si elle dépasse le plus haut palier connu du binaire
@@ -257,11 +261,11 @@ tourne mal.*
 
 *Indépendante des phases 1-3 : peut être faite en parallèle.*
 
-- [ ] **T14.** `npx expo install expo-updates` dans `five-scorer-mobile`.
+- [x] **T14.** `npx expo install expo-updates` dans `five-scorer-mobile`.
   **Vérification** : `expo-updates` apparaît dans `package.json` **et**
   `package-lock.json` (les deux étaient à zéro occurrence avant ce lot).
 
-- [ ] **T15. `app.json`** — un bloc `updates` et un `runtimeVersion` explicite
+- [x] **T15. `app.json`** — un bloc `updates` et un `runtimeVersion` explicite
   (pas `"policy": "appVersion"` : `five-scorer-mobile/eas.json:4` fixe
   `"appVersionSource": "local"` et `five-scorer-mobile/app.json:5` fige `"version": "1.0.0"`,
   cette politique ne bougerait jamais). Un entier posé à la main :
@@ -271,12 +275,12 @@ tourne mal.*
   ```
   `extra.eas.projectId` existe déjà (`app.json`, vérifié).
 
-- [ ] **T16. `eas.json`** — un `channel` par profil de build (`:7-28`) :
+- [x] **T16. `eas.json`** — un `channel` par profil de build (`:7-28`) :
   `"lundi"` → canal `production`, `"atelier"` → canal `atelier`, `"magasin"`
   → canal `production`. Deux profils sur le même canal, volontairement : un
   correctif poussé pendant que le club joue doit atteindre les deux.
 
-- [ ] **T17. La règle dans `EAS.md`.** Une section neuve : *« Toute touche à
+- [x] **T17. La règle dans `EAS.md`.** Une section neuve : *« Toute touche à
   `plugins` (`five-scorer-mobile/app.json:36-52`), à une permission, ou à une dépendance native
   incrémente `runtimeVersion`. Un correctif JavaScript pur ne le touche
   jamais — c'est ce qui le rend éligible à `expo-updates`. »*
@@ -289,7 +293,7 @@ tourne mal.*
 
 ## Phase 5 — L'en-tête côté app, et le bandeau
 
-- [ ] **T18. `lib/appel.ts` : poser l'en-tête.** Dans `creerAppel`
+- [x] **T18. `lib/appel.ts` : poser l'en-tête.** Dans `creerAppel`
   (`:111-142`), à côté de `accept` et `cookie` (`:125,127`) :
   ```ts
   entetes["x-protocole"] = String(PROTOCOLE_COURANT);
@@ -302,7 +306,7 @@ tourne mal.*
   une recopie y serait une fausse promesse. La convergence des DEUX entiers
   est vérifiée par T24, qui interroge le vrai serveur.
 
-- [ ] **T19. Lire le verdict de la réponse.** Toujours dans `creerAppel`,
+- [x] **T19. Lire le verdict de la réponse.** Toujours dans `creerAppel`,
   après le `fetch` (`:132-136`), avant de retourner :
   ```ts
   const verdict = res.headers.get("x-protocole-verdict") as VerdictProtocole | null;
@@ -313,18 +317,18 @@ tourne mal.*
   fonctionne sans dépendance neuve (pas de bibliothèque d'état ajoutée pour
   ça).
 
-- [ ] **T20. `composants/BandeauVersion.tsx` (neuf).** S'abonne à
+- [x] **T20. `composants/BandeauVersion.tsx` (neuf).** S'abonne à
   `protocoleClient`, ne rend rien quand le verdict est `"ok"`. Sinon, une
   bande fine, en haut, avec le message (« Une mise à jour est disponible » /
   « Le serveur se met à jour, réessaie dans un instant ») — **jamais un
   écran, jamais un blocage** (Q4).
 
-- [ ] **T21. Brancher dans `app/_layout.tsx`.** À l'intérieur de
+- [x] **T21. Brancher dans `app/_layout.tsx`.** À l'intérieur de
   `SafeAreaProvider` (`:10`), au-dessus de `FournisseurNoyau` — le bandeau ne
   dépend d'aucune donnée du noyau, il doit pouvoir s'afficher même si le
   noyau échoue à s'ouvrir (T12).
 
-- [ ] **T22. `five-scorer-mobile/scripts/verif-version.mjs` (neuf), sur le
+- [x] **T22. `five-scorer-mobile/scripts/verif-version.mjs` (neuf), sur le
   modèle de `parcours-lecture.mjs`.** Les trois cas de T1, contre un vrai
   `next dev` :
   ```js
@@ -353,7 +357,7 @@ tourne mal.*
 
 ## Phase 6 — L'`ErrorBoundary` de la feuille
 
-- [ ] **T23. `lib/plantages.ts` (neuf).** Deux fonctions, sur `expo-file-system`
+- [x] **T23. `lib/plantages.ts` (neuf).** Deux fonctions, sur `expo-file-system`
   (déjà une dépendance — `lib/photo/choisir.ts` l'utilise) :
   - `enregistrerPlantage(erreur: Error): Promise<void>` — ajoute une ligne
     JSON à `FileSystem.documentDirectory + "plantages.jsonl"`, borné aux 20
@@ -370,7 +374,7 @@ tourne mal.*
   pure, extractible et testable sans `expo-file-system` — `lib/plantages.test.ts`
   (neuf), sur le modèle de `db/schema.test.ts`.
 
-- [ ] **T24. `app/match/[id].tsx` : exporter `ErrorBoundary`.** Expo Router
+- [x] **T24. `app/match/[id].tsx` : exporter `ErrorBoundary`.** Expo Router
   reconnaît un export nommé `ErrorBoundary` par fichier de route, sans
   câblage dans `_layout.tsx`. Contrat minimal :
   ```tsx
