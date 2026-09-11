@@ -1,8 +1,17 @@
 # 0004 — Le miroir sait vieillir
 
-*État : **questions tranchées, prête pour le plan** · Écrite le 11 septembre 2026. Chaque affirmation a été
-rouverte dans le code le jour même, et chaque citation est qualifiée par son
-dépôt — la règle posée après trois erreurs de `fichier:ligne` la veille.*
+*État : **corrigée après `/analyser`, prête pour le plan** · Écrite le
+11 septembre 2026, corrigée le même jour.*
+
+> **Ce que la garde `/analyser` a trouvé dans ce document.** Trois violations de
+> l'article VIII — dans la spec qui s'en réclamait en ouverture. Une citation
+> fausse (`five-scorer-mobile/db/schema.sql:114-116`, qui désigne la table `participants` ; le `CHECK`
+> est en `133-135`). Un recompte faux (« quatre par le code ou la recherche,
+> deux par Ibrahima » ; c'est 2 / 2 / 2). Et un chiffre inventé : l'en-tête
+> parlait de « trois erreurs de `fichier:ligne` la veille » quand la
+> constitution et `COMMENT-ON-TRAVAILLE.md` en comptent **deux**, qui n'étaient
+> pas des erreurs de citation. Corrigés. Et deux affirmations de fond étaient
+> fausses : voir Q7 et Q8.
 
 ## Le problème
 
@@ -46,27 +55,51 @@ l'écran qui l'expliquerait n'existe pas non plus (`TRANS-13`).
 Ce n'est pas une crainte : les contraintes du miroir sont **fermées**, et deux
 specs déjà écrites se cassent dessus.
 
-- **La spec 0001 ne peut pas être livrée.** Sa décision Q8 remplace la
-  suppression d'un match par une **annulation**. Or le miroir déclare
-  `status TEXT NOT NULL CHECK (status IN ('LIVE', 'FINISHED'))`
-  (`five-scorer-mobile/db/schema.sql:96`) : **un match annulé ne peut pas être
-  écrit localement.** Il faut modifier cette contrainte, donc migrer, donc
-  savoir migrer.
+- **La spec 0001 ne peut pas être livrée** — mais pas pour la raison que
+  j'avais écrite, et la nuance change où il faut travailler. J'affirmais que le
+  `CHECK` refuserait un match annulé. En réalité **la couche locale n'écrit
+  JAMAIS un statut venu du serveur** : `ecrireMatch`
+  (`five-scorer-mobile/lib/match/tables.ts:247`) n'est appelée que deux fois
+  (`five-scorer-mobile/lib/match/local.ts:275,348`), chaque fois avec
+  `status: "LIVE"` **en dur** (`:287,360`), et le seul autre chemin
+  (`majFinDeMatch`, `five-scorer-mobile/lib/match/tables.ts:342`) écrit `'FINISHED'` en dur. Un `CANCELED` du
+  serveur n'atteint jamais SQLite : le moteur ne refuse rien, **il n'est pas
+  sollicité**.
+
+  Le plafond est donc en **trois** endroits, pas un : l'union TypeScript
+  `status: "LIVE" | "FINISHED"`
+  (`five-scorer-mobile/lib/outbox/types.ts:51`), le `CHECK`
+  (`five-scorer-mobile/db/schema.sql:96`), et **l'absence de chemin
+  d'écriture**. Le `CHECK` ne mordra qu'au moment où 0001 ouvrira ce chemin — et
+  il mordra par une exception dans la transaction, pas par une perte
+  silencieuse. C'est toujours bloquant. Ce n'est pas le même travail.
 - **La spec 0003 ne peut pas commencer.** Son étape 1 ajoute une valeur à un
   événement, et ses étapes suivantes ajoutent des types. Le miroir déclare
   `type TEXT NOT NULL CHECK (type IN ('GOAL', 'OWN_GOAL', 'YELLOW_CARD',
-  'RED_CARD', 'HALF_TIME'))` (`five-scorer-mobile/db/schema.sql:114-116`).
+  'RED_CARD', 'HALF_TIME'))` (`five-scorer-mobile/db/schema.sql:133-135`).
   **Fermé, lui aussi.**
 
-## La doctrine existe déjà dans ce dépôt — elle n'a simplement pas été portée
+## Le site a un précédent — mais on ne le porte PAS, et c'est important
 
-Le site fait tout ça, et depuis longtemps. `five-scorer/lib/db.ts` déclare
-`this.version(1)`, `this.version(2)` et `this.version(3)` (`:210`, `:221`,
-`:240`), **en gardant la déclaration v1** pour que Dexie sache faire monter une
-base ancienne.
+J'avais écrit « on ne conçoit rien, on porte une pratique qui tourne en
+production ». **`/analyser` a montré que c'était faux deux fois.**
 
-On ne conçoit donc rien. On **porte** une pratique qui tourne en production, du
-navigateur vers le téléphone.
+Le site déclare bien `this.version(1)`, `(2)` et `(3)`
+(`five-scorer/lib/db.ts:210,221,240`), en gardant la déclaration v1. Mais :
+
+1. **Sa seule vraie migration de données EFFACE la file d'attente.**
+   `version(2).upgrade()` (`five-scorer/lib/db.ts:231-236`) fait
+   `tx.table("roster").clear()`, `tx.table("matches").clear()` et
+   `tx.table("outbox").clear()`. C'est **mot pour mot** ce que cette spec
+   interdit deux paragraphes plus bas, et ce que l'article I interdit. Le modèle
+   que j'invoquais est l'exemple à ne pas suivre.
+2. **La doctrine ne se transpose pas.** Dexie ne déclare que des **index** : y
+   ouvrir `status` à `CANCELED` ne demandera même pas de `version(4)`. SQLite a
+   un schéma rigide et des `CHECK` : la même ouverture y impose une
+   **reconstruction de table**. Les deux moteurs n'ont pas le même problème.
+
+Ce lot n'est donc pas un portage, **c'est une conception** — et le dire change
+l'estimation du plan.
 
 ## Pour qui, et quand
 
@@ -99,7 +132,8 @@ déjà dans un téléphone qui ne sait pas la rendre.
   l'on croit avoir corrigé.
 - **Faire de la version un mur.** Un serveur qui refuse une app trop ancienne au
   gymnase, sans réseau, transforme un défaut de compatibilité en soirée perdue.
-  Le refus n'a de sens que sur une écriture qui part au serveur.
+  **Aucun refus, nulle part** — c'est la réponse Q4, et elle ne souffre pas
+  d'exception « sauf sur les écritures ».
 - **Se contenter du sens « app trop vieille ».** Une app trop RÉCENTE contre un
   serveur en cours de déploiement produit le même silence (`TRANS-38`).
 
@@ -107,8 +141,10 @@ déjà dans un téléphone qui ne sait pas la rendre.
 
 *Cette spec n'avait pas de section « Questions ouvertes ». La garde `/clarifier`
 en a trouvé **six implicites** le 11 septembre 2026 — dans un attendu qui admet
-deux lectures, ou un critère qu'on ne savait pas vérifier. Quatre sont tranchées
-par le code ou par la recherche, deux par Ibrahima. Aucune ne reste ouverte.*
+deux lectures, ou un critère qu'on ne savait pas vérifier. **Une** tranchée par
+le code (Q2), **une** par la recherche (Q1), **deux** par Ibrahima (Q4, Q5),
+**deux** ici (Q3, Q6). La garde `/analyser` en a ajouté deux de plus (Q7, Q8),
+nées de ses propres trouvailles. Aucune ne reste ouverte.*
 
 - **Q1. Est-ce que la mise à jour à chaud coûte de l'argent ? → non, et de
   loin.** *Tranchée par la recherche.* Le palier gratuit d'EAS Update porte
@@ -133,8 +169,11 @@ par le code ou par la recherche, deux par Ibrahima. Aucune ne reste ouverte.*
   chaque appel.
 
 - **Q4. Que fait le serveur d'une app dépassée ? → il PRÉVIENT, il ne bloque
-  jamais.** *Ibrahima, le 11 septembre 2026.* Un bandeau « mets à jour », et
-  rien n'est refusé. **Au gymnase sans réseau, un blocage transformerait une
+  jamais.** *Ibrahima, le 11 septembre 2026.* **Un bandeau, jamais un écran, et
+  rien n'est refusé — nulle part, ni en lecture ni en écriture.** *(La spec
+  portait trois formulations incompatibles de cette réponse : un bandeau, un
+  écran, et un refus « sur les écritures ». `/analyser` les a relevées. Celle-ci
+  est la seule ; les deux autres sont supprimées.)* **Au gymnase sans réseau, un blocage transformerait une
   incompatibilité en soirée perdue** — et une file bloquée est déjà le
   cul-de-sac que décrit `TRANS-13`. On ne bloque pas ce qui se tape à une main.
   *Le cas symétrique — une app trop RÉCENTE contre un serveur en cours de
@@ -159,6 +198,46 @@ par le code ou par la recherche, deux par Ibrahima. Aucune ne reste ouverte.*
   coûte une soirée. Les autres suivront, et c'est écrit là plutôt que découvert
   dans le diff (article X).
 
+- **Q7. Une migration interrompue ? → une transaction, et le `PRAGMA` hors
+  d'elle.** *Tranchée par `/analyser`, le 11 septembre 2026.* `appliquerSchema`
+  passe par `db.execAsync()` (`five-scorer-mobile/lib/outbox/baseExpo.ts:31-33`),
+  **sans transaction**. Une reconstruction de table coupée entre le
+  `INSERT … SELECT` et le `DROP` laisse deux tables et une base à moitié migrée
+  — sur le téléphone qui contient la soirée. La voie existe et n'est pas
+  utilisée sur ce chemin : `withExclusiveTransactionAsync`
+  (`five-scorer-mobile/lib/outbox/baseExpo.ts:48-57`). **Et `PRAGMA
+  journal_mode` ne peut pas s'exécuter dans une transaction** : la migration ne
+  peut donc pas être simplement collée dans `appliquerSchema`. Trois décisions,
+  que le plan doit rendre explicites.
+
+- **Q8. Où vit le schéma d'avant, et que fait-on d'un saut ou d'un retour en
+  arrière ? → le plan répond, la spec pose les trois cas.** *Ouverte par
+  `/analyser`.* Le critère central exige « une base à l'ancien schéma » : aucun
+  fichier ne la conserve. C'est ce que les `version(1).stores({…})` de Dexie
+  donnent gratuitement et que SQLite ne donne pas. Trois cas à traiter, et aucun
+  n'a de réponse par défaut :
+  **le saut** (six mois sans ouvrir l'app = deux ou trois paliers : on enchaîne
+  ou on saute à la cible ?) · **le retour en arrière** (un TestFlight qui
+  réinstalle un build antérieur sur une base déjà migrée — le cas le PLUS
+  probable pour un club qui vit sur des builds internes, et rien ne dit ce qu'un
+  `user_version` supérieur à la cible doit provoquer) · **le schéma historique**
+  (un fichier par palier, ou une constante ?).
+
+  *Et le schéma vit dans **deux** fichiers, pas un : `db/schema.sql` est la
+  source, mais l'app charge `db/schema.ts` — Metro ne sait pas lire un `.sql` —
+  généré par `five-scorer-mobile/scripts/schema-vers-ts.mjs`, avec un test
+  d'égalité octet pour octet (`five-scorer-mobile/db/schema.test.ts:41-48`). Toute migration touche
+  quatre artefacts.*
+
+- **Q9. Quelle politique de `runtimeVersion` ? → un entier posé à la main.**
+  *Tranchée ici, après `/analyser`.* C'est la seule chose qui empêche une mise à
+  jour à chaud d'atteindre un binaire incapable de la supporter. Une politique
+  `appVersion` ne marcherait PAS : `five-scorer-mobile/eas.json` est en
+  `"appVersionSource": "local"` et `app.json` fige `version: "1.0.0"` — elle ne
+  bougerait jamais. Et Q3 vient de décider que `version` ne dit rien du contrat.
+  Donc : **un entier, incrémenté à la main dès qu'on touche à `plugins`, à une
+  permission, ou à une dépendance native.** La règle s'écrit dans `EAS.md`.
+
 ## Les cas de la base que ce lot referme
 
 *Quatre cas, tous `✗ absent`, tous **bloque un lundi** — vérifiés dans
@@ -169,38 +248,95 @@ par le code ou par la recherche, deux par Ibrahima. Aucune ne reste ouverte.*
 app qui divergent, en silence) · `TRANS-40` (l'app plante en plein match, et
 personne ne l'apprend jamais).
 
-**Explicitement PAS dans ce lot** (constitution, article X) : `TRANS-13`, la
-pastille « n refusées » qui ne s'ouvre pas. Elle est cousine — c'est l'écran qui
-dirait *pourquoi* la file est bloquée — mais elle appartient au lot de la
-soirée, où elle a sa place avec les autres écrans.
+**Ajouté après `/analyser` : `TRANS-65`** (◐ partiel · bloque un lundi). La base
+locale qui ne s'ouvre pas — fichier abîmé, stockage plein, **ou une instruction
+du schéma qui passe mal sur une vieille version d'iOS**. C'est littéralement le
+résultat d'une migration ratée, et ce lot rend ce cas plus probable. Aujourd'hui
+l'écran affiche `e.message`, la phrase anglaise brute de SQLite, sans bouton :
+un cul-de-sac qui viole l'article V pendant qu'on voudrait sauver la soirée. Il
+ne peut pas rester hors du périmètre d'un lot qui touche au schéma.
+
+**Explicitement PAS dans ce lot** (constitution, article X) :
+- `TRANS-13`, la pastille « n refusées » qui ne s'ouvre pas. Cousine — c'est
+  l'écran qui dirait *pourquoi* la file est bloquée — mais elle appartient au
+  lot de la soirée.
+- `COMPTE-51` (un téléphone neuf, un Android, un UDID non enregistré) : il cite
+  l'absence de canal OTA que ce lot pose, mais il porte surtout sur la
+  distribution Apple. **Touché, pas refermé** — et c'est dit ici pour que
+  personne ne le coche.
 
 ## À quoi on saura que c'est fait
 
 - [ ] Un test crée une base **à l'ancien schéma**, y enfile une opération en
       attente, applique la migration, et retrouve **l'opération ET la colonne
       neuve**. Il tourne dans `five-scorer-mobile/db/schema.test.ts`, qui
-      exécute déjà le vrai DDL sur `node:sqlite` — le même moteur
-      qu'`expo-sqlite`, donc ce n'est pas une relecture, c'est une exécution.
+      exécute déjà le vrai DDL sur `node:sqlite` : le même moteur SQLite, dans
+      un **autre build**. Donc ce n'est pas une relecture, c'est une exécution —
+      mais elle ne dit rien de la version embarquée par iOS, d'où le simulateur
+      (article VII) et le cas `TRANS-65`.
 - [ ] La contre-épreuve : on retire la migration, le test **échoue**. Une
       migration qu'aucun test ne peut faire tomber n'est pas vérifiée.
-- [ ] `status` accepte `CANCELED` et `type` accepte une valeur neuve — les deux
-      contraintes qui bloquent les specs 0001 et 0003 sont **ouvertes par
-      migration**, pas par recréation.
+- [ ] `status` accepte `CANCELED` et `type` accepte une valeur neuve — **sans
+      perte**. Formulation corrigée après `/analyser` : j'avais écrit « ouvertes
+      par migration, pas par recréation », or **SQLite ne sait pas modifier un
+      `CHECK`** — il n'existe aucun `ALTER TABLE … ALTER CONSTRAINT`. La seule
+      voie est la reconstruction : table neuve, `INSERT INTO … SELECT`, `DROP`,
+      `RENAME`, puis **recréation des index** (`matches_club`,
+      `matches_club_statut`, `matches_joue_le` ; `events_match`,
+      `events_cree_le`, `events_match_cree_le`). Ce qui ne doit pas se perdre,
+      ce sont les **lignes**, pas la table.
+- [ ] **Les deux chemins sont distingués**, parce qu'ils ne coûtent pas pareil :
+      `ALTER TABLE ADD COLUMN` suffit pour `TRANS-39` et pour la colonne
+      `points` de la spec 0003 ; seule l'ouverture d'un `CHECK` impose la
+      reconstruction. Les présenter comme un seul chantier, comme je l'avais
+      fait, fausse l'estimation.
 - [ ] Un correctif JavaScript poussé le dimanche soir est sur les quinze
-      téléphones **sans passer par TestFlight**.
+      téléphones **sans passer par TestFlight** — et une modification NATIVE ne
+      passe pas, bloquée par `runtimeVersion` (Q9).
 - [ ] L'app envoie sa version à chaque appel ; le serveur peut en exiger une
-      minimale, et l'app affiche alors un écran qui dit quoi faire — en
-      français, avec un bouton.
+      minimale ; l'app affiche alors un **bandeau** qui dit quoi faire — en
+      français, avec un geste possible — et **rien n'est refusé** (Q4).
 - [ ] Une app trop RÉCENTE contre un serveur plus ancien est traitée aussi, et
       dit autre chose.
 - [ ] Un plantage JavaScript pendant un match affiche un écran qui dit quoi
       faire, et la feuille en cours est toujours là après réouverture.
-- [ ] `npm run tester` vert dans `five-scorer-mobile`, `tsc --noEmit` vert des
-      deux côtés, `npx expo export --platform ios` en 0.
+- [ ] La migration s'exécute **dans une transaction**, et un test le prouve en
+      la coupant au milieu : la base reste sur l'ancien palier, entière, avec sa
+      file (Q7).
+- [ ] `TRANS-65` : quand la base refuse de s'ouvrir, l'écran dit quoi faire **en
+      français** et porte un bouton « Réessayer » — plus de `e.message` brut
+      (constitution, article V).
+- [ ] **Les trois réponses de version sont vérifiées par une commande** — app
+      trop ancienne, app trop récente, **app sans en-tête** : un script rejoue
+      les trois appels et contrôle les trois réponses. Sans le troisième cas,
+      les quinze téléphones installés aujourd'hui seraient tous déclarés « trop
+      anciens » le jour du déploiement.
+- [ ] `npm run tester` et `npm run verifier` verts dans `five-scorer-mobile`,
+      `npx expo export --platform ios` en 0. **Côté site, `npx tsc --noEmit` et
+      `npx next build`** — il n'y a là-bas ni script de types ni script de test
+      (`five-scorer/package.json`), et ce lot n'en installe pas : il ne touche
+      au site que pour lire un en-tête.
+- [ ] Ce qu'**aucune commande ne peut vérifier** est dit ici plutôt que promis :
+      le correctif JavaScript arrivé sur quinze téléphones, et le plantage
+      rattrapé en plein match. Les deux se constatent sur un appareil, et la
+      capture va au journal (article VII).
 - [ ] `node scripts/parcours-lecture.mjs` **TOUT VERT sur trois passages
       d'affilée**, sans qu'une seule vérification existante ait été modifiée :
       ce lot ne change aucun comportement visible.
 - [ ] Le tour rejoué dans le simulateur (constitution, article VII).
+
+## Le site n'a presque rien à faire, et il faut le dire
+
+Dexie couvre le mécanisme : **aucune `version(4)` n'est nécessaire** pour ouvrir
+`status` à `CANCELED`, parce que Dexie ne déclare que des index, pas des champs.
+En ouvrir une pour rien serait du travail inventé. Ce qui devra changer côté
+site pour la spec 0001, c'est l'union TypeScript
+`status: "LIVE" | "FINISHED"` (`five-scorer/lib/db.ts:37`) — aussi fermée que le
+`CHECK` de l'app, et tout aussi invisible.
+
+Le service worker, lui, porte déjà le numéro de build dans le nom de son cache
+(`five-scorer/public/sw.js:27-30`) : il se renouvelle tout seul à chaque
+déploiement. Rien à faire.
 
 ## Ce que ça débloque
 
