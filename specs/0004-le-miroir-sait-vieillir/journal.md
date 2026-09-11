@@ -79,3 +79,38 @@ octet pour octet des paliers). Restauré, régénéré, `git diff` vide, neuf te
 verts à nouveau.
 
 L'échelle est donc vérifiée par des tests qui peuvent tomber — et on l'a vu.
+
+---
+
+## 11 septembre — la preuve sur une vraie base, pas sur un test
+
+**Phases 2 et 3, vérification au simulateur (article VII).**
+
+La base du simulateur a été **créée le 9 septembre à 20 h 49** — deux jours
+avant ce lot, par une version de l'app qui ne connaissait aucune version de
+schéma. Après une seule ouverture par le nouveau code :
+
+```
+PRAGMA user_version → 1
+clubs 1 · roster 10 · matches 2 · events 0 · outbox 0
+```
+
+Une base d'avant, migrée sur place, sans rien perdre. C'est `TRANS-39`
+démontré sur un vrai fichier, pas sur un `:memory:`.
+
+**Puis le cas de la rétrogradation**, en posant `PRAGMA user_version = 99` à la
+main sur ce même fichier : l'app affiche
+
+> **Cette version de l'app est trop ancienne**
+> Les données de ce téléphone ont été écrites par une version plus récente.
+> Rien n'a été touché : installe la dernière version de l'app pour les
+> retrouver.
+> *La base du téléphone est en version 99, cette app ne connaît que la 1.*
+
+En français, sans bouton « Réessayer » — il ne réparerait rien, c'est le
+binaire qui est en retard — et le message technique rangé en petit dessous.
+Version remise à 1 : l'app repart sur ses deux clubs, 10 joueurs et 2 matchs
+intacts.
+
+**Ce que ça vaut :** les tests de la phase 2 prouvaient le mécanisme sur des
+bases fabriquées. Celle-ci avait deux jours de vraie saisie dedans.
