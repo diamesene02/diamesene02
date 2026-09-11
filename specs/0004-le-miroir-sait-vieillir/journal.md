@@ -223,11 +223,8 @@ seulement lui.** Cinq tests ajoutés qui touchent vraiment l'app.
 
 ### Ce qui reste ouvert, et que je n'ai pas corrigé
 
-- **L'ordre « schéma cible d'abord, échelle ensuite »** (`lib/outbox/base.ts`)
-  casse dès qu'un palier renomme une table : le schéma cible la recrée vide
-  avant que le palier n'ait renommé l'ancienne, et l'`ALTER TABLE … RENAME TO`
-  tombe. Rien ne casse aujourd'hui (un palier, un `PRAGMA`), mais **le premier
-  palier non trivial le découvrira**. À trancher avant la spec 0002.
+- ~~**L'ordre « schéma cible d'abord, échelle ensuite »**~~ — **corrigé le
+  11 septembre au soir**, voir plus bas.
 - **Le bandeau n'a jamais été vu à l'écran** — ni test, ni simulateur — et son
   message principal (`trop-vieux`) reste inatteignable tant que
   `PROTOCOLE_MINIMUM` vaut 1.
@@ -237,3 +234,39 @@ seulement lui.** Cinq tests ajoutés qui touchent vraiment l'app.
   défaut — sonde au lancement, application au démarrage **suivant**. Le critère
   « un correctif du dimanche soir est sur les quinze téléphones » signifie donc,
   tel que câblé, « au deuxième lancement, et seulement avec du réseau ».
+
+---
+
+## 11 septembre, tard — l'ordre schéma/échelle, reproduit puis inversé
+
+C'était le défaut le plus lourd que la seconde passe avait laissé ouvert, et le
+journal disait « à trancher avant la spec 0002 ». Tranché.
+
+**Reproduit d'abord**, parce qu'une intuition ne se corrige pas. Un test avec un
+palier qui renomme `joueurs` en `vestiaire` — le geste exact que la spec 0002
+rendra probable — et l'ancien ordre rend l'erreur à la lettre :
+
+```
+Error: there is already another table or index with this name: vestiaire
+```
+
+Le schéma cible crée la table d'arrivée **vide** avant que le palier n'ait
+renommé l'ancienne ; l'`ALTER TABLE … RENAME TO` tombe ; la transaction
+s'annule ; `ouvrirBase` lève. Et « Réessayer » rejoue la même séquence : la
+soirée qui dort dans ce fichier devient inatteignable — **l'article I violé par
+le mécanisme censé le protéger.**
+
+**Corrigé en inversant : l'échelle d'abord, le schéma ensuite.** L'échelle amène
+l'ancien schéma à la forme courante ; le script qui suit ne fait plus que
+reposer les `PRAGMA` de tête et créer ce qui est vraiment neuf.
+
+**Ce que ça coûte, et c'est assumé :** les paliers s'exécutent avec
+`synchronous = FULL`, puisque le `PRAGMA` de tête n'a pas encore été reposé sur
+cette connexion. Une migration un peu plus lente, une fois, à l'ouverture qui
+suit une mise à jour. `journal_mode = WAL` est persistant, lui — vérifié sur la
+vraie base du simulateur après la correction : toujours `wal`, 10 joueurs,
+2 matchs, version 1.
+
+*Le plan justifiait l'ancien ordre par les `PRAGMA` de tête. La justification
+était vraie et la conclusion fausse : les PRAGMA doivent être hors transaction,
+mais rien n'obligeait à les poser AVANT l'échelle.*

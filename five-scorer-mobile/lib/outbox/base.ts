@@ -95,13 +95,37 @@ export async function appliquerSchema(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'outbox'",
   ));
 
-  await base.script(schema);
-
   if (neuve) {
+    // Rien à monter : elle naît à la forme d'aujourd'hui, et on l'y pose.
+    await base.script(schema);
     const v = cible(paliers);
     if (v > 0) await base.script(`PRAGMA user_version = ${v};`);
     return;
   }
 
+  // **L'ÉCHELLE D'ABORD, LE SCHÉMA ENSUITE.** L'ordre inverse — celui de la
+  // première version de ce lot — cassait dès qu'un palier touchait à
+  // l'IDENTITÉ d'un objet, et pas seulement à son contenu.
+  //
+  // Le cas, reproduit dans `migrations.test.ts` : un palier renomme `joueurs`
+  // en `vestiaire`. Si le schéma cible passe en premier, son
+  // `CREATE TABLE IF NOT EXISTS vestiaire` crée la table d'arrivée VIDE, puis
+  // l'`ALTER TABLE joueurs RENAME TO vestiaire` du palier tombe sur « there is
+  // already another table with this name ». La transaction s'annule,
+  // `ouvrirBase` lève, et « Réessayer » rejoue la même séquence : la soirée qui
+  // dort dans ce fichier devient inatteignable — l'article I violé par le
+  // mécanisme censé le protéger.
+  //
+  // Dans cet ordre-ci, l'échelle amène l'ancien schéma à la forme courante, et
+  // le script qui suit ne fait plus que deux choses : reposer les PRAGMA de
+  // tête, et créer ce qui est VRAIMENT neuf. Il est idempotent pour tout le
+  // reste.
+  //
+  // Ce que ça coûte, et c'est assumé : les paliers s'exécutent avec
+  // `synchronous = FULL`, puisque le `PRAGMA` de tête n'a pas encore été
+  // reposé sur cette connexion. Une migration un peu plus lente, une fois, à
+  // l'ouverture qui suit une mise à jour. `journal_mode = WAL`, lui, est
+  // persistant : il a été posé à la première ouverture et n'a pas bougé.
   await appliquerPaliers(base, paliers);
+  await base.script(schema);
 }

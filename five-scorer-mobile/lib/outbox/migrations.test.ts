@@ -193,3 +193,60 @@ describe("un palier coupé au milieu", () => {
     expect(await versionDe(b)).toBe(2);
   });
 });
+
+describe("un palier qui RENOMME une table", () => {
+  /// Le cas que le premier palier non trivial rencontrera — et la spec 0002,
+  /// « le nom », le rendra probable.
+  ///
+  /// Il n'est pas théorique : il dépend entièrement de l'ORDRE dans lequel
+  /// `appliquerSchema` pose le schéma cible et fait monter l'échelle. Si le
+  /// schéma cible passe en PREMIER, il crée la table d'arrivée VIDE, et
+  /// l'`ALTER TABLE … RENAME TO` du palier tombe sur « there is already
+  /// another table with this name ». La transaction s'annule, l'ouverture
+  /// lève, et « Réessayer » rejoue exactement la même séquence : la soirée qui
+  /// dort dans ce fichier devient inatteignable.
+  const ANCIEN = `
+    CREATE TABLE IF NOT EXISTS outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL,
+      club_id TEXT,
+      match_id TEXT,
+      op TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS joueurs (id TEXT PRIMARY KEY, nom TEXT);
+  `;
+  const CIBLE = `
+    CREATE TABLE IF NOT EXISTS outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL,
+      club_id TEXT,
+      match_id TEXT,
+      op TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS vestiaire (id TEXT PRIMARY KEY, nom TEXT);
+  `;
+  const RENOMME: Palier[] = [
+    { version: 1, migration: "PRAGMA user_version = 1;" },
+    { version: 2, migration: "ALTER TABLE joueurs RENAME TO vestiaire;\nPRAGMA user_version = 2;" },
+  ];
+
+  it("monte sans perdre ses lignes, et sans buter sur la table d'arrivée", async () => {
+    const b = BaseNode.ouvrir();
+    await b.script(ANCIEN);
+    await b.executer("INSERT INTO joueurs (id, nom) VALUES (?, ?)", ["j1", "Sofiane"]);
+    await enfiler(b);
+
+    await appliquerSchema(b, CIBLE, RENOMME);
+
+    expect(await versionDe(b)).toBe(2);
+    // La ligne a suivi le renommage : c'est tout l'enjeu.
+    const l = await b.premier<{ nom: string }>("SELECT nom FROM vestiaire WHERE id = 'j1'");
+    expect(l?.nom).toBe("Sofiane");
+    // Et l'ancienne table n'est plus là.
+    expect(
+      await b.premier("SELECT name FROM sqlite_master WHERE type='table' AND name='joueurs'"),
+    ).toBeNull();
+    const f = await b.premier<{ n: number }>("SELECT COUNT(*) AS n FROM outbox");
+    expect(f?.n).toBe(1);
+  });
+});
