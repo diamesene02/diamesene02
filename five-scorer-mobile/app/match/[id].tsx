@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type ErrorBoundaryProps } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
 import Ecran from "../../composants/Ecran";
 import {
@@ -20,6 +20,7 @@ import {
   Poignee,
 } from "../../composants/base";
 import { useNoyau } from "../../composants/Noyau";
+import { enregistrerPlantage } from "../../lib/plantages/fichier";
 import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { themeTokens } from "../../lib/noyau/theme";
 import { fmt, nowElapsed } from "../../lib/noyau/clock";
@@ -1267,4 +1268,48 @@ const s = StyleSheet.create({
   nomEvenement: { fontSize: 16, fontWeight: "500" },
   passeur: { fontSize: 12 },
   annuler: { fontSize: 15, fontWeight: "600" },
+});
+
+/// Ce qu'on montre quand la feuille plante en plein match.
+///
+/// Expo Router reconnaît un export nommé `ErrorBoundary` par fichier de route :
+/// il n'y a rien à câbler dans `_layout.tsx`. Il n'y en a qu'UN dans toute
+/// l'app, ici, et c'est délibéré (spec 0004, Q6) : la feuille est le seul écran
+/// qu'on tient à une main pendant qu'on joue, et le seul dont le plantage coûte
+/// une soirée. Les autres écrans suivront dans leur propre lot.
+///
+/// **Rien n'est perdu, et c'est le message principal.** La feuille ne vit pas
+/// dans l'état de React : elle est dans SQLite, écrite à chaque but. « Reprendre
+/// la feuille » relit la base, et les buts déjà saisis sont là.
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const t = JETONS_NEUTRES;
+
+  useEffect(() => {
+    // Le rapport reste sur le téléphone. Rien ne part chez un tiers
+    // (constitution, article VI). `enregistrerPlantage` n'échoue jamais : une
+    // exception ici remplacerait cet écran par un écran blanc, c'est-à-dire
+    // qu'elle transformerait un plantage rattrapé en plantage définitif.
+    void enregistrerPlantage(error, "la feuille de match");
+  }, [error]);
+
+  return (
+    <Ecran>
+      <View style={sPanne.contenu}>
+        <Text style={[sPanne.titre, { color: t.ink }]}>La feuille s'est arrêtée</Text>
+        <Text style={[sPanne.aide, { color: t.i2 }]}>
+          Rien n'est perdu : les buts déjà saisis sont dans le téléphone.
+          Reprends la feuille — elle se relit depuis la base.
+        </Text>
+        <BoutonPlein t={t} titre="Reprendre la feuille" onPress={retry} />
+        <Text style={[sPanne.technique, { color: t.i3 }]}>{error.message}</Text>
+      </View>
+    </Ecran>
+  );
+}
+
+const sPanne = StyleSheet.create({
+  contenu: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 },
+  titre: { fontSize: 22, fontWeight: "700", textAlign: "center" },
+  aide: { fontSize: 16, textAlign: "center", lineHeight: 22 },
+  technique: { fontSize: 12, textAlign: "center", marginTop: 6 },
 });

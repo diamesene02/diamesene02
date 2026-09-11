@@ -114,3 +114,49 @@ intacts.
 
 **Ce que ça vaut :** les tests de la phase 2 prouvaient le mécanisme sur des
 bases fabriquées. Celle-ci avait deux jours de vraie saisie dedans.
+
+---
+
+## 11 septembre — l'`ErrorBoundary` n'attrape PAS ce que la spec 0000 décrivait
+
+**Phase 6.** L'`ErrorBoundary` est posé sur la feuille et il marche : vérifié en
+injectant un `throw` dans le rendu de `app/match/[id].tsx`, puis en lisant le
+fichier qu'il a écrit sur le simulateur —
+
+```
+quand   : 2026-09-11T09:00:29.936Z
+où      : la feuille de match
+message : plantage simulé — vérification de l'ErrorBoundary
+```
+
+Le rapport est sur le téléphone, avec le bon écran, le message et la pile
+coupée. (La capture d'écran, elle, n'a pas été possible : en mode développement
+la LogBox rouge d'Expo se superpose à l'`ErrorBoundary` et ne se ferme pas. Le
+fichier écrit est une meilleure preuve qu'une image — il prouve que le composant
+s'est **monté**, pas seulement qu'il existe.)
+
+**Mais il faut dire ce qu'il ne couvre PAS**, et c'est important pour la suite :
+
+Un `ErrorBoundary` React attrape les plantages **de rendu**. Il n'attrape **pas**
+le rejet d'une fonction asynchrone. Or `marquer`, `contreSonCamp`,
+`donnerCarton` et `terminer` (`five-scorer-mobile/app/match/[id].tsx`) sont
+asynchrones et **sans `try/catch`** — c'est ce que la garde `/analyser` avait
+relevé sur la spec 0001. Un but refusé par la couche locale ne déclenchera donc
+**pas** cet écran : le son partira, la vibration aussi, et rien ne s'écrira.
+
+`TRANS-40` est donc **partiellement** refermé par ce lot, pas entièrement. Le
+reste — envelopper les quatre gestes de saisie — appartient au lot de la feuille
+(spec 0001), où `/analyser` l'a déjà inscrit. C'est écrit ici plutôt que coché à
+tort (constitution, article X).
+
+## 11 septembre — ce que la phase 4 ne peut pas prouver toute seule
+
+`expo-updates` est installé et configuré, et `npx expo config` rend bien
+`runtimeVersion: 1` et l'URL d'`updates`. Mais **le critère « un correctif
+JavaScript poussé le dimanche soir est sur les quinze téléphones » ne peut pas
+être vérifié depuis ce Mac** : il demande un build EAS signé, distribué, puis un
+`eas update` réel.
+
+Ce n'est pas un oubli, c'est la nature du critère — la spec le rangeait déjà
+parmi « ce qu'aucune commande ne peut vérifier ». Il se constatera le jour du
+prochain build, et c'est à ce moment-là qu'il faudra le cocher.
