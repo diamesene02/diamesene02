@@ -31,6 +31,9 @@ export type Resultat = {
   modifiees: number;
 };
 
+import { PALIERS } from "../../db/paliers";
+import { appliquerPaliers, cible, type Palier } from "./migrations";
+
 export interface Base {
   /// Un script entier, plusieurs instructions, sans paramètre : le schéma et
   /// ses PRAGMA. Une méthode à part parce que `runAsync` d'expo-sqlite refuse
@@ -53,12 +56,44 @@ export interface Base {
   transaction<T>(fn: (base: Base) => Promise<T>): Promise<T>;
 }
 
-/// Applique le schéma à une base, neuve ou déjà remplie.
+/// Applique le schéma à une base, neuve ou déjà remplie, puis la fait monter.
 ///
 /// À appeler à CHAQUE ouverture, pas seulement à la première : le DDL est tout
 /// entier en `CREATE ... IF NOT EXISTS`, et les PRAGMA de tête doivent être
 /// reposés. `journal_mode = WAL` est persistant, `synchronous = NORMAL` ne
 /// l'est pas — il retombe à FULL à chaque nouvelle connexion.
-export async function appliquerSchema(base: Base, schema: string): Promise<void> {
+///
+/// **L'ordre n'est pas négociable.** Les PRAGMA d'abord, HORS transaction :
+/// `journal_mode = WAL` ne peut pas s'exécuter dans une transaction, SQLite le
+/// refuse. Ils sont en tête du script, donc ils passent avec lui. L'échelle des
+/// paliers vient après, chaque palier dans sa propre transaction.
+///
+/// **Deux chemins, un seul schéma.** Une base NEUVE naît du script et se pose
+/// directement à la cible : elle n'a aucun palier à monter, elle est déjà à
+/// jour par construction. Une base EXISTANTE — toutes celles installées avant
+/// ce lot, à la version 0 — traverse l'échelle. Les deux doivent arriver au
+/// même schéma, sinon les téléphones du club divergent selon leur date
+/// d'installation, et le défaut ne se verrait qu'à la première requête qui
+/// touche la différence. C'est ce que vérifie le test de convergence de
+/// `lib/outbox/migrations.test.ts`.
+export async function appliquerSchema(
+  base: Base,
+  schema: string,
+  paliers: Palier[] = PALIERS,
+): Promise<void> {
+  // Lu AVANT de poser le schéma : après, la base n'est plus vide et la
+  // question ne se pose plus.
+  const neuve = !(await base.premier(
+    "SELECT name FROM sqlite_master WHERE type = 'table' LIMIT 1",
+  ));
+
   await base.script(schema);
+
+  if (neuve) {
+    const v = cible(paliers);
+    if (v > 0) await base.script(`PRAGMA user_version = ${v};`);
+    return;
+  }
+
+  await appliquerPaliers(base, paliers);
 }

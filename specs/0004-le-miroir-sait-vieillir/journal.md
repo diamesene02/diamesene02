@@ -47,3 +47,35 @@ production sans qu'aucune commande ne l'ait exercée. C'est un écart à
 l'article VIII, écrit ici plutôt que découvert plus tard — et il se referme
 tout seul à la première montée de `MINIMUM`, qui est précisément le moment où
 cette branche cesse d'être décorative.
+
+---
+
+## 11 septembre — le test d'interruption passait pour de mauvaises raisons
+
+**Phase 2, T11.** Première version du décorateur `quiEchoue` : il enveloppait la
+base et remplaçait `script()` par une version qui lève au n-ième appel. Le test
+échouait — `appliquerPaliers` ne rejetait pas.
+
+**Et c'est le test qui avait tort**, pour une raison que `base.ts` documente
+depuis le début : *« le rappel reçoit la base à utiliser — sur expo-sqlite c'est
+un objet DISTINCT, et écrire par-dessus l'ancien sortirait silencieusement de la
+transaction »*. Mon décorateur passait `fn` à la vraie `transaction()`, qui
+appelait le rappel avec la **vraie** base : le `script` qui devait échouer
+n'était jamais celui exécuté dans la transaction.
+
+Corrigé en réappliquant l'enveloppe à la base que `transaction()` rend, avec un
+compteur **partagé** entre les deux.
+
+**Ce que ça vaut la peine de noter :** si je n'avais pas écrit la contre-épreuve
+(T10), ce test serait parti vert en croyant couvrir quelque chose. Il n'aurait
+rien coupé du tout. C'est exactement le défaut que l'article VIII vise, attrapé
+par le geste que la spec exigeait.
+
+## 11 septembre — la contre-épreuve, faite
+
+**T10.** Migration du palier 1 vidée à la main, `db/paliers.ts` régénéré :
+**trois tests tombent** sur les neuf (la convergence, la version, et l'égalité
+octet pour octet des paliers). Restauré, régénéré, `git diff` vide, neuf tests
+verts à nouveau.
+
+L'échelle est donc vérifiée par des tests qui peuvent tomber — et on l'a vu.

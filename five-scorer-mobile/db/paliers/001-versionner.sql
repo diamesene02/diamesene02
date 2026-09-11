@@ -1,0 +1,12 @@
+-- Palier 1 : adopter la version de schéma elle-même.
+--
+-- Aucune table ne change. Ce palier EST le passage d'une base SANS version
+-- — l'état de toutes les bases installées avant ce lot — à une base versionnée.
+-- Le schéma qu'il cible est « 001-schema.sql », qui est déjà celui de toute
+-- base existante : il n'y a donc rien à convertir, rien à reconstruire, et
+-- surtout rien à effacer.
+--
+-- C'est voulu que le premier palier ne change rien : on éprouve l'échelle sur
+-- un cas où l'on ne risque rien, pas le jour où elle porte la colonne dont
+-- dépend la spec 0001.
+PRAGMA user_version = 1;
