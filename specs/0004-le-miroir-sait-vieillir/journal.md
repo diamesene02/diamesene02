@@ -225,9 +225,9 @@ seulement lui.** Cinq tests ajoutés qui touchent vraiment l'app.
 
 - ~~**L'ordre « schéma cible d'abord, échelle ensuite »**~~ — **corrigé le
   11 septembre au soir**, voir plus bas.
-- **Le bandeau n'a jamais été vu à l'écran** — ni test, ni simulateur — et son
-  message principal (`trop-vieux`) reste inatteignable tant que
-  `PROTOCOLE_MINIMUM` vaut 1.
+- ~~**Le bandeau n'a jamais été vu à l'écran**~~ — **vu et corrigé le
+  11 septembre au soir**, voir plus bas. (Son message `trop-vieux` reste
+  inatteignable tant que `PROTOCOLE_MINIMUM` vaut 1.)
 - **`lirePlantages` n'est branchée à aucun écran** (assumé dans `taches.md`,
   mais absent du plan § 7).
 - **`expo-updates` n'est importé nulle part** : le comportement est celui par
@@ -270,3 +270,42 @@ vraie base du simulateur après la correction : toujours `wal`, 10 joueurs,
 *Le plan justifiait l'ancien ordre par les `PRAGMA` de tête. La justification
 était vraie et la conclusion fausse : les PRAGMA doivent être hors transaction,
 mais rien n'obligeait à les poser AVANT l'échelle.*
+
+---
+
+## 11 septembre, tard — le bandeau, enfin regardé
+
+La seconde passe reprochait qu'il n'ait **jamais été affiché**, ni en test ni au
+simulateur. C'était vrai, et le regarder a coûté deux défauts.
+
+**Pour le voir**, il a fallu abaisser `PROTOCOLE_COURANT` du serveur à `0` : le
+seul verdict atteignable aujourd'hui est `trop-recent`, puisque `trop-vieux`
+demande un entier `≥ 1` et `< MINIMUM = 1`.
+
+**Premier défaut, immédiat : il ne s'affichait pas du tout sur le premier
+écran.** « Mes clubs » appelle `/api/me`, qui n'est **pas** sous `/api/clubs/` —
+le middleware ne lui pose donc aucun verdict. Il a fallu ouvrir un club pour
+que le bandeau apparaisse. C'est exactement ce que la seconde passe avait
+relevé, et le voir à l'écran l'a rendu concret : **le premier appel d'un
+démarrage à froid ne porte jamais d'avis.**
+
+**Second défaut, visible dès qu'il s'est affiché : il RECOUVRAIT le titre du
+club.** Il était en `position: absolute`. Sur la feuille de match il aurait
+recouvert le bouton « ‹ » et le menu. J'avais posé `pointerEvents="none"` pour
+qu'il n'absorbe plus les taps — **ce n'était qu'une demi-correction** : ne pas
+manger le geste ne suffit pas si l'on cache la cible.
+
+Remis **dans le flux** : il pousse l'app vers le bas au lieu de se poser dessus.
+Les écrans gardent leur propre marge haute, donc il y a un peu d'air en trop
+quand il s'affiche — c'est le bon échange : de l'espace de temps en temps,
+jamais rien de caché.
+
+**Et le texte était coupé.** Raccourci et mis à l'impératif : « Mets à jour
+l'app. » et « Le serveur se met à jour. » C'est aussi la réponse au reproche sur
+l'article V : un bandeau ne peut pas porter de bouton — l'app ne se met pas à
+jour elle-même, et un bouton qui ne ferait rien serait pire que la phrase. **Dire
+le geste EST la suite.**
+
+*Ce que ça confirme sur la méthode : « vu dans le simulateur » n'est pas une
+formalité. Ce composant passait `tsc`, passait les tests, et avait deux défauts
+que seule une capture d'écran pouvait montrer.*

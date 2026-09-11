@@ -1,3 +1,4 @@
+import { View } from "react-native";
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { FournisseurNoyau } from "../composants/Noyau";
@@ -13,12 +14,13 @@ export default function Disposition() {
           donnée locale, et doit pouvoir s'afficher même si la base refuse de
           s'ouvrir — c'est-à-dire précisément quand on a besoin de savoir si
           l'app est à jour. */}
-      <BandeauVersion />
-      {/* La base locale s'ouvre ici, une fois, avant le premier écran : c'est
+      <View style={{ flex: 1, backgroundColor: "#0b0b0e" }}>
+        <BandeauVersion />
+        {/* La base locale s'ouvre ici, une fois, avant le premier écran : c'est
           elle qui rend la saisie possible sans réseau, et la file qui pousse
           la soirée vers le serveur quand il revient. */}
-      <FournisseurNoyau>
-        <Stack
+        <FournisseurNoyau>
+          <Stack
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: "#0b0b0e" },
@@ -32,7 +34,8 @@ export default function Disposition() {
               milieu du match. On sort par le bouton « ‹ », ou en terminant. */}
           <Stack.Screen name="match/[id]" options={{ gestureEnabled: false }} />
         </Stack>
-      </FournisseurNoyau>
+        </FournisseurNoyau>
+      </View>
     </SafeAreaProvider>
   );
 }
