@@ -27,6 +27,8 @@
 //     attendrait vraiment cinq secondes.
 
 import type { Base } from "./base";
+import { ENTETE_PROTOCOLE, ENTETE_VERDICT, PROTOCOLE_COURANT, type VerdictProtocole } from "../protocole";
+import { definirVerdict } from "../protocoleClient";
 import type { OutboxEntry, OutboxOp } from "./types";
 import {
   bloquerChaine,
@@ -129,11 +131,18 @@ export function creerDrain(deps: Dependances) {
     const jeton = await cookie();
     const entetes: Record<string, string> = {
       accept: "application/json",
+      // La version du contrat, comme `lib/appel.ts`. Le drain a son PROPRE
+      // fetch — il ne passe pas par `creerAppel` — et c'est par lui que
+      // passent les huit ÉCRITURES. Les oublier ici, c'est laisser hors du
+      // filet le seul chemin que `TRANS-38` décrit vraiment : « une divergence
+      // se solde par des 400 en série sur des opérations que la file MET DE
+      // CÔTÉ ».
+      [ENTETE_PROTOCOLE]: String(PROTOCOLE_COURANT),
       ...((init.headers ?? {}) as Record<string, string>),
     };
     if (jeton) entetes.cookie = jeton;
     try {
-      return await appeler(url, {
+      const res = await appeler(url, {
         ...init,
         // React Native n'a pas de bocal à cookies : `credentials: "include"` ne
         // fait rien, et le cookie posé à la main suffit. « omit » pour que
@@ -142,6 +151,13 @@ export function creerDrain(deps: Dependances) {
         headers: entetes,
         signal: ctrl.signal,
       });
+      // Et on LIT le verdict : un serveur qui crie « trop vieux » sur les
+      // écritures doit réveiller le bandeau, pas seulement sur les lectures.
+      const v = res.headers.get(ENTETE_VERDICT);
+      if (v === "ok" || v === "trop-vieux" || v === "trop-recent") {
+        definirVerdict(v as VerdictProtocole);
+      }
+      return res;
     } finally {
       clearTimeout(t);
     }

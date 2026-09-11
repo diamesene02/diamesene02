@@ -147,8 +147,14 @@ export function creerAppel(deps: DependancesAppel) {
     // métadonnée de transport, et la lire avant de lever nous évite de rater
     // l'avis le jour où la session expire en même temps qu'une divergence de
     // version.
-    const verdict = res.headers.get(ENTETE_VERDICT);
-    if (verdict) definirVerdict(verdict as VerdictProtocole);
+    // Une GARDE, pas un « as » : la valeur traverse la frontière HTTP, et un
+    // `as` laisserait n'importe quoi devenir le verdict courant — le bandeau
+    // afficherait alors une bande d'or SANS TEXTE, posée en permanence sur le
+    // haut de tous les écrans, sans moyen de la faire partir.
+    const v = res.headers.get(ENTETE_VERDICT);
+    if (v === "ok" || v === "trop-vieux" || v === "trop-recent") {
+      definirVerdict(v as VerdictProtocole);
+    }
 
     if (res.status === 401) throw new SessionExpiree();
     if (!res.ok) throw new ErreurServeur(res.status, await detailDeLErreur(res));

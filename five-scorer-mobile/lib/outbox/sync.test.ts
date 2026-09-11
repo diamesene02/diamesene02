@@ -11,6 +11,8 @@
 // marqueur quand on lui dit « saisis, ça partira tout seul ».
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { ENTETE_PROTOCOLE, ENTETE_VERDICT, PROTOCOLE_COURANT } from "../protocole";
+import { definirVerdict, verdictActuel } from "../protocoleClient";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -463,5 +465,44 @@ describe("cinquante opérations, serveur en panne, processus relancé", () => {
     expect(recus).toEqual(attendus); // ordre conservé
     expect(new Set(recus).size).toBe(50); // aucune duplication
     expect(await compteurs(b2)).toEqual({ enAttente: 0, bloquees: 0 }); // aucune perte
+  });
+});
+
+describe("la version du contrat, dans la file", () => {
+  it("part sur les HUIT rejeux — pas seulement sur les lectures", async () => {
+    // Le défaut que ce test existe pour attraper : `lib/appel.ts` posait bien
+    // l'en-tête, mais le drain a son PROPRE `fetch` (`fetchAvecDelai`) et ne
+    // passait pas par là. Or c'est par le drain que passent les ÉCRITURES —
+    // c'est-à-dire exactement le chemin que `TRANS-38` décrit : « une
+    // divergence se solde par des 400 en série sur des opérations que la file
+    // MET DE CÔTÉ ».
+    const b = await base();
+    for (const op of TOUTES) await enfiler(b, op, QUAND);
+
+    const a = atelier(b);
+    await a.drain.vider();
+
+    expect(a.recus).toHaveLength(8);
+    for (const r of a.recus) {
+      const e = (r.init.headers ?? {}) as Record<string, string>;
+      expect(e[ENTETE_PROTOCOLE]).toBe(String(PROTOCOLE_COURANT));
+    }
+  });
+
+  it("lit le verdict que le serveur pose sur une écriture", async () => {
+    definirVerdict("ok");
+    const b = await base();
+    await enfiler(b, TOUTES[0], QUAND);
+
+    const a = atelier(b, () =>
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { [ENTETE_VERDICT]: "trop-vieux" },
+      }),
+    );
+    await a.drain.vider();
+
+    expect(verdictActuel()).toBe("trop-vieux");
+    definirVerdict("ok");
   });
 });

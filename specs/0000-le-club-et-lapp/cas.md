@@ -4494,7 +4494,9 @@ numérotées citeront les cas.*
 
 **Où ça en est.** L'app n'annonce pas sa version au serveur et le serveur n'annonce aucune version minimale. Une divergence se solde par des 400 en série sur des opérations que la file MET DE CÔTÉ (sync.ts:328-344) — la soirée reste dans le téléphone, et l'écran qui l'expliquerait n'existe pas (TRANS-13). Symétriquement, une app trop RÉCENTE contre un serveur en cours de déploiement produit le même silence.
 
-**Refermé par la spec 0004** (11 septembre 2026). L'app envoie `x-protocole` à chaque appel, le serveur rend un verdict en en-tête de réponse — et **ne bloque jamais** : un bandeau, jamais un refus. Le troisième cas est traité aussi, celui qu'on oublie : une app qui n'envoie AUCUN en-tête est servie sans un mot, ce qui est l'état des quinze téléphones installés. Vérifié par `five-scorer-mobile/scripts/verif-version.mjs`.
+**Refermé par la spec 0004** (11 septembre 2026), **après une correction de la seconde passe `/analyser`.** L'app envoie `x-protocole` à chaque appel et le serveur rend un verdict en en-tête — sans jamais bloquer. Le troisième cas est traité aussi, celui qu'on oublie : une app qui n'envoie AUCUN en-tête est servie sans un mot, ce qui est l'état des quinze téléphones installés.
+
+> **Ce cas a été marqué `fait` à tort pendant une heure.** `lib/appel.ts` posait bien l'en-tête, mais le drain de l'outbox a son PROPRE `fetch` (`fetchAvecDelai`) et ne passait pas par là — or c'est par le drain que passent les huit ÉCRITURES, c'est-à-dire exactement le chemin que ce cas décrit. Corrigé, et couvert par deux tests dans `lib/outbox/sync.test.ts` plus trois dans `lib/appel.test.ts` : le script `verif-version.mjs` n'éprouvait que le serveur, jamais l'app.
 
 > `aucun — ni /api/version côté site, ni en-tête de version dans five-scorer-mobile/lib/appel.ts:115-141, ni contrôle au lancement`
 

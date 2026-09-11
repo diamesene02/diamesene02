@@ -51,6 +51,23 @@ export async function appliquerPaliers(base: Base, paliers: Palier[]): Promise<v
     .sort((a, b) => a.version - b.version);
 
   for (const p of aMonter) {
-    await base.transaction((b) => b.script(p.migration));
+    await base.transaction(async (b) => {
+      // La version est RELUE dans la transaction, et pas seulement avant la
+      // boucle. Deux ouvertures concurrentes — le bouton « Réessayer » de
+      // `composants/Noyau.tsx` pendant qu'une première ouverture est encore en
+      // vol — liraient toutes deux 0 hors transaction, puis appliqueraient le
+      // même palier. Aujourd'hui c'est un PRAGMA idempotent ; demain, avec un
+      // `ALTER TABLE … ADD COLUMN`, c'est « duplicate column name » et une app
+      // qui ne s'ouvre plus.
+      //
+      // Et c'est ici, pas dans le banc d'essai, que ça se joue :
+      // `withExclusiveTransactionAsync` d'expo-sqlite ouvre un simple `BEGIN`
+      // sur une CONNEXION DISTINCTE (node_modules/expo-sqlite), là où
+      // `lib/outbox/baseNode.ts` prend un `BEGIN IMMEDIATE`. Le verrou
+      // d'écriture n'est donc pas pris au même moment sur le téléphone et dans
+      // les tests.
+      if ((await versionDe(b)) >= p.version) return;
+      await b.script(p.migration);
+    });
   }
 }

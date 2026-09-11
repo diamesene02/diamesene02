@@ -83,8 +83,16 @@ export async function appliquerSchema(
 ): Promise<void> {
   // Lu AVANT de poser le schéma : après, la base n'est plus vide et la
   // question ne se pose plus.
+  //
+  // On cherche une table DU SCHÉMA, pas « une table, n'importe laquelle ».
+  // `outbox.id` est un INTEGER PRIMARY KEY AUTOINCREMENT — le mot est
+  // indispensable, l'en-tête de `db/schema.sql` explique pourquoi — et
+  // AUTOINCREMENT crée `sqlite_sequence`, une table interne qui SURVIT au DROP
+  // de toutes les autres. Une sonde générique déclarait donc « existante » une
+  // base entièrement vidée, et la faisait entrer dans l'échelle au palier 0
+  // sur un schéma qu'on venait de recréer à la cible.
   const neuve = !(await base.premier(
-    "SELECT name FROM sqlite_master WHERE type = 'table' LIMIT 1",
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'outbox'",
   ));
 
   await base.script(schema);

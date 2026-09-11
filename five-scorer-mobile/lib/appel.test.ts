@@ -18,6 +18,8 @@
 // Aucune n'est visible à l'écran au moment où on la commet.
 
 import { describe, it, expect } from "vitest";
+import { ENTETE_PROTOCOLE, ENTETE_VERDICT, PROTOCOLE_COURANT } from "./protocole";
+import { definirVerdict, verdictActuel } from "./protocoleClient";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -52,6 +54,43 @@ function serveur(
 function entetes(recu: Recu): Record<string, string> {
   return (recu.init?.headers ?? {}) as Record<string, string>;
 }
+
+describe("la version du contrat", () => {
+  it("part à CHAQUE appel, dans x-protocole", async () => {
+    // Ce test manquait, et son absence avait laissé passer le vrai défaut :
+    // `scripts/verif-version.mjs` éprouve le SERVEUR avec des littéraux, sans
+    // jamais toucher à ce fichier. Il serait resté vert si l'app n'avait
+    // envoyé aucun en-tête — et c'était le cas du drain de l'outbox.
+    const s = serveur();
+    const appel = creerAppel({ api: API, cookie: async () => "s=1", fetch: s.faux });
+    await appel("/api/clubs/x/effectif");
+    expect(entetes(s.recus[0])[ENTETE_PROTOCOLE]).toBe(String(PROTOCOLE_COURANT));
+  });
+
+  it("lit le verdict de la réponse et le donne au bandeau", async () => {
+    const s = serveur(() => new Response("{}", {
+      status: 200,
+      headers: { [ENTETE_VERDICT]: "trop-recent" },
+    }));
+    const appel = creerAppel({ api: API, cookie: async () => "s=1", fetch: s.faux });
+    await appel("/api/clubs/x/effectif");
+    expect(verdictActuel()).toBe("trop-recent");
+  });
+
+  it("IGNORE un verdict que le serveur n'aurait pas dû envoyer", async () => {
+    // Sans garde, un `as` laisserait n'importe quoi devenir le verdict courant
+    // — et le bandeau afficherait une bande d'or SANS TEXTE, en permanence, sur
+    // le haut de tous les écrans.
+    definirVerdict("ok");
+    const s = serveur(() => new Response("{}", {
+      status: 200,
+      headers: { [ENTETE_VERDICT]: "n'importe quoi" },
+    }));
+    const appel = creerAppel({ api: API, cookie: async () => "s=1", fetch: s.faux });
+    await appel("/api/clubs/x/effectif");
+    expect(verdictActuel()).toBe("ok");
+  });
+});
 
 describe("l'appel authentifié", () => {
   it("pose credentials « omit » — jamais « include »", async () => {

@@ -97,6 +97,29 @@ describe("la file survit à la migration", () => {
   });
 });
 
+describe("une base vidée de toutes ses tables", () => {
+  it("est traitée comme NEUVE, malgré sqlite_sequence", async () => {
+    // `outbox.id` est AUTOINCREMENT, ce qui crée `sqlite_sequence` — une table
+    // interne qui survit au DROP de toutes les autres. Une sonde générique
+    // (« une table, n'importe laquelle ») déclarait donc cette base
+    // « existante » et la faisait entrer dans l'échelle au palier 0.
+    const b = BaseNode.ouvrir();
+    await appliquerSchema(b, SCHEMA);
+    for (const t of ["events", "participants", "matches", "outbox", "roster", "clubs"]) {
+      await b.executer(`DROP TABLE ${t}`);
+    }
+    await b.script("PRAGMA user_version = 0;");
+
+    const restantes = await b.lire<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table'",
+    );
+    expect(restantes.map((r) => r.name)).toContain("sqlite_sequence");
+
+    await appliquerSchema(b, SCHEMA);
+    expect(await versionDe(b)).toBe(cible(PALIERS));
+  });
+});
+
 describe("une base plus haute que la cible", () => {
   it("n'est pas touchée — aucune migration descendante", async () => {
     const b = await baseDAvant();
@@ -112,57 +135,61 @@ describe("une base plus haute que la cible", () => {
 });
 
 describe("un palier coupé au milieu", () => {
-  /// Un palier FACTICE à deux instructions. Le vrai palier 1 ne pose qu'un
-  /// PRAGMA : par construction, il ne peut rien laisser à moitié fait, donc
-  /// il ne prouverait rien ici. Ce palier-ci crée une table PUIS pose la
-  /// version — et on coupe entre les deux.
+  /// Un palier FACTICE à DEUX instructions, dont la seconde est INVALIDE.
+  ///
+  /// C'est la seule façon de couper au milieu, et il a fallu deux essais pour
+  /// le comprendre. Un décorateur qui fait échouer le n-ième appel à `script()`
+  /// ne coupe rien : `appliquerPaliers` exécute un palier entier en UN SEUL
+  /// `script()`, donc la coupure tombe forcément AVANT ou APRÈS, jamais au
+  /// milieu — et le test passait à l'identique sans aucune transaction.
+  ///
+  /// Ici c'est SQLite lui-même qui échoue, à la deuxième instruction, après
+  /// que la première a créé sa table. Sans transaction, cette table reste.
+  /// Avec, elle disparaît. C'est ça qu'on veut prouver.
   const FACTICE: Palier[] = [
     {
       version: 2,
       migration:
-        "CREATE TABLE IF NOT EXISTS essai_migration (id TEXT PRIMARY KEY);\nPRAGMA user_version = 2;",
+        "CREATE TABLE essai_migration (id TEXT PRIMARY KEY);\n" +
+        "PRAGMA user_version = 2;\n" +
+        "CETTE INSTRUCTION N'EST PAS DU SQL;",
     },
   ];
-
-  /// Enveloppe une base et fait échouer le `script` choisi.
-  ///
-  /// Le compteur est PARTAGÉ par l'enveloppe et par la base que
-  /// `transaction()` rend : sur expo-sqlite, le rappel d'une transaction reçoit
-  /// un objet DISTINCT (c'est écrit dans `base.ts`, et c'est ce qui empêche
-  /// d'écrire hors de la transaction sans s'en apercevoir). Une enveloppe qui
-  /// ne se réapplique pas au passage laisserait passer le vrai `script`, et le
-  /// test ne couperait rien du tout — c'est la première version de ce test, et
-  /// elle passait pour de mauvaises raisons.
-  function quiEchoue(base: Base, surAppelNumero: number, compteur = { n: 0 }): Base {
-    return {
-      script: async (sql: string) => {
-        compteur.n += 1;
-        if (compteur.n === surAppelNumero) throw new Error("coupure simulée");
-        return base.script(sql);
-      },
-      transaction: (fn) => base.transaction((b) => fn(quiEchoue(b, surAppelNumero, compteur))),
-      executer: (sql, params) => base.executer(sql, params),
-      lire: (sql, params) => base.lire(sql, params),
-      premier: (sql, params) => base.premier(sql, params),
-    };
-  }
 
   it("laisse la base sur le palier précédent, entière, avec sa file", async () => {
     const b = await baseDAvant();
     await enfiler(b);
-    await appliquerSchema(b, SCHEMA); // on part d'une base saine au palier 1
+    await appliquerSchema(b, SCHEMA);
     expect(await versionDe(b)).toBe(1);
 
-    // La transaction du palier 2 échoue à sa première (et seule) instruction
-    // de script : tout ce qu'elle contenait doit être annulé.
-    await expect(appliquerPaliers(quiEchoue(b, 1), FACTICE)).rejects.toThrow("coupure simulée");
+    await expect(appliquerPaliers(b, FACTICE)).rejects.toThrow();
 
+    // Tout ce que le palier avait commencé doit avoir disparu.
     expect(await versionDe(b)).toBe(1);
-    const table = await b.premier(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'essai_migration'",
-    );
-    expect(table).toBeNull();
+    expect(
+      await b.premier(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'essai_migration'",
+      ),
+    ).toBeNull();
     const l = await b.premier<{ n: number }>("SELECT COUNT(*) AS n FROM outbox");
     expect(l?.n).toBe(1);
+  });
+
+  it("…et SANS transaction, la moitié du palier resterait — c'est la contre-épreuve", async () => {
+    // Si ce test échoue, c'est que la transaction ne sert à rien : le test
+    // au-dessus passerait alors pour de mauvaises raisons, et il l'a déjà fait
+    // deux fois. On rejoue le même palier SANS transaction et on montre que la
+    // base reste à moitié migrée.
+    const b = await baseDAvant();
+    await appliquerSchema(b, SCHEMA);
+
+    await expect(b.script(FACTICE[0].migration)).rejects.toThrow();
+
+    expect(
+      await b.premier(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'essai_migration'",
+      ),
+    ).not.toBeNull();
+    expect(await versionDe(b)).toBe(2);
   });
 });

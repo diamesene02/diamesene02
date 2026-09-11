@@ -32,7 +32,14 @@ export default function BandeauVersion() {
   const t = JETONS_NEUTRES;
 
   return (
-    <View style={[s.bandeau, { paddingTop: haut + 8, backgroundColor: t.or }]}>
+    // `pointerEvents="none"` : le bandeau se pose SUR la feuille de match, et
+    // sans ça sa bande absorbait les taps du bouton « ‹ » et du menu, dont la
+    // surface tapable tombait de 44 à 29 px — sur l'écran qu'on tient à une
+    // main en jouant. Il se voit, il ne se touche pas.
+    <View
+      pointerEvents="none"
+      style={[s.bandeau, { paddingTop: haut + 8, backgroundColor: t.or }]}
+    >
       <Text style={s.texte}>{MOTS[verdict]}</Text>
     </View>
   );
