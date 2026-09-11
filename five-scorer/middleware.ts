@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
+import { verdictProtocole } from "@/lib/protocole";
 
 // Vérification optimiste : la présence du cookie de session suffit pour
 // laisser passer, chaque page/API refait la vraie vérification (session +
@@ -35,9 +36,25 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // API de sync (outbox offline) : 401 propre plutôt qu'une redirection HTML.
-  if (pathname.startsWith("/api/clubs/") && !hasSession) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // Les routes que l'app mobile appelle. Deux choses s'y jouent :
+  //
+  //   1. un 401 propre plutôt qu'une redirection HTML — la file d'attente de
+  //      l'app doit pouvoir distinguer « reconnecte-toi » d'une page de login ;
+  //   2. le verdict de version, posé en en-tête de réponse.
+  //
+  // Le verdict est posé QUE LA SESSION SOIT VALIDE OU NON : c'est une
+  // métadonnée de transport, pas un droit d'accès. Le poser seulement sur les
+  // réponses authentifiées obligerait le script de vérification à tenir un
+  // vrai cookie pour éprouver trois comparaisons d'entiers.
+  if (pathname.startsWith("/api/clubs/")) {
+    const res = hasSession
+      ? NextResponse.next()
+      : NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    // Jamais un refus : l'app est PRÉVENUE, elle n'est pas bloquée. Au gymnase
+    // sans réseau, un blocage transformerait une incompatibilité en soirée
+    // perdue (spec 0004, Q4).
+    res.headers.set("x-protocole-verdict", verdictProtocole(req.headers.get("x-protocole")));
+    return res;
   }
 
   return NextResponse.next();

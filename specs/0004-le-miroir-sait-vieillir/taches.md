@@ -330,9 +330,14 @@ tourne mal.*
   ```js
   const cas = [
     ["999", "trop-recent"],
-    ["0", "trop-vieux"],
-    [null, "ok"],
+    ["1", "ok"],
+    ["abc", "ok"],   // illisible : on ne pénalise pas ce qu'on ne comprend pas
+    [null, "ok"],    // absent : les quinze téléphones d'aujourd'hui
   ];
+  // « trop-vieux » n'y est PAS, et c'est voulu : il est inatteignable tant que
+  // PROTOCOLE_MINIMUM vaut 1, puisqu'une version de protocole commence à 1.
+  // Le jour où MINIMUM monte à 2, ce script gagne la ligne ["1", "trop-vieux"]
+  // — et c'est ce jour-là qu'elle voudra dire quelque chose. Voir journal.md.
   for (const [entete, attendu] of cas) {
     const r = await fetch(`${BASE}/api/clubs/x/effectif`, {
       headers: entete ? { "x-protocole": entete } : {},
