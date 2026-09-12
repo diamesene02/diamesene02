@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
+import { ecrireCompo, type JoueurCompo } from "@/lib/compo";
 import { idsValides } from "@/lib/ids";
+
+// Réexporté : les composants du site l'importaient déjà d'ici.
+export type { JoueurCompo };
 
 // La composition préparée d'une soirée.
 //
@@ -12,8 +16,6 @@ import { idsValides } from "@/lib/ids";
 // d'envoi et composer au bord du terrain. Elles vivent sur la SOIRÉE, pas sur
 // un match — une soirée enchaîne quatre à huit matchs avec les deux mêmes
 // équipes, et chacun en hérite.
-
-export type JoueurCompo = { playerId: string; team: "A" | "B"; isGk?: boolean };
 
 export async function enregistrerCompo(
   slug: string,
@@ -24,63 +26,13 @@ export async function enregistrerCompo(
     teamBName?: string;
   },
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!idsValides(matchDayId)) {
-    return { ok: false, error: "Identifiant invalide." };
-  }
   const ctx = await requireClub(slug);
   if (!ctx.canScore) return { ok: false, error: "Droits insuffisants." };
 
-  const joueurs = input.joueurs ?? [];
-  if (!idsValides(...joueurs.map((j) => j.playerId))) {
-    return { ok: false, error: "Identifiant de joueur invalide." };
-  }
-  if (joueurs.some((j) => j.team !== "A" && j.team !== "B")) {
-    return { ok: false, error: "Équipe invalide." };
-  }
-  const ids = joueurs.map((j) => j.playerId);
-  if (new Set(ids).size !== ids.length) {
-    return { ok: false, error: "Un joueur ne peut pas être dans les deux équipes." };
-  }
-
-  const soiree = await prisma.matchDay.findFirst({
-    where: { id: matchDayId, clubId: ctx.club.id },
-    select: { id: true },
-  });
-  if (!soiree) return { ok: false, error: "Soirée introuvable." };
-
-  // Tous les joueurs doivent appartenir au club — l'identifiant vient du client.
-  if (ids.length > 0) {
-    const aNous = await prisma.player.count({
-      where: { id: { in: ids }, clubId: ctx.club.id },
-    });
-    if (aNous !== ids.length) {
-      return { ok: false, error: "Joueur hors du club." };
-    }
-  }
-
-  const nom = (v: string | undefined) => {
-    const t = v?.trim();
-    return t && t.length > 0 ? t.slice(0, 40) : null;
-  };
-
-  await prisma.$transaction([
-    prisma.matchDayLineup.deleteMany({ where: { matchDayId } }),
-    prisma.matchDayLineup.createMany({
-      data: joueurs.map((j) => ({
-        matchDayId,
-        playerId: j.playerId,
-        team: j.team,
-        isGk: Boolean(j.isGk),
-      })),
-    }),
-    prisma.matchDay.update({
-      where: { id: matchDayId },
-      data: {
-        teamAName: nom(input.teamAName),
-        teamBName: nom(input.teamBName),
-      },
-    }),
-  ]);
+  // Les RÈGLES vivent dans lib/compo.ts, partagées avec la route que l'app
+  // appelle. Ici il ne reste que la garde du site et la revalidation.
+  const r = await ecrireCompo(ctx.club.id, matchDayId, input);
+  if (!r.ok) return r;
 
   revalidatePath(`/c/${slug}`, "layout");
   return { ok: true };

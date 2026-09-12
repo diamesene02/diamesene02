@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
 import { estId } from "@/lib/ids";
+import { ecrireCompo, type JoueurCompo } from "@/lib/compo";
 
 type Ctx = { params: Promise<{ clubId: string; matchDayId: string }> };
 
@@ -66,4 +67,59 @@ export async function GET(_req: Request, { params }: Ctx) {
       isGk: l.isGk,
     })),
   });
+}
+
+/// Poser la composition depuis le téléphone.
+///
+/// Elle n'existait que comme action serveur Next (`app/actions/compo.ts`),
+/// donc hors de portée d'un client React Native : la décision se prend sur
+/// WhatsApp, sur le téléphone, et il fallait changer d'appareil pour l'écrire
+/// (spec 0005).
+///
+/// **Remplace l'ensemble.** Le corps porte la liste entière, pas un delta —
+/// c'est ce qui rend le rejeu sûr et le dernier-arrivé-gagne honnête quand
+/// deux téléphones composent hors ligne. Rejouer deux fois la même opération
+/// donne le même résultat qu'une fois : la file d'attente compte là-dessus.
+///
+/// Les règles sont dans `lib/compo.ts`, partagées avec le site. Ici : la
+/// garde, la lecture du corps, et la traduction en codes HTTP.
+export async function PUT(req: Request, { params }: Ctx) {
+  const { clubId, matchDayId } = await params;
+  if (!estId(matchDayId)) {
+    return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  }
+  const ctx = await getClubApiContext(clubId);
+  if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
+
+  // `canScore`, pas `canManage` : qui peut marquer peut composer. C'est la
+  // règle du site (app/actions/compo.ts), et être plus sévère ici créerait
+  // deux droits pour un même geste selon l'appareil.
+  if (!ctx.canScore) {
+    return NextResponse.json({ error: "droits insuffisants" }, { status: 403 });
+  }
+
+  let corps: unknown;
+  try {
+    corps = await req.json();
+  } catch {
+    return NextResponse.json({ error: "corps illisible" }, { status: 400 });
+  }
+  if (typeof corps !== "object" || corps === null) {
+    return NextResponse.json({ error: "corps illisible" }, { status: 400 });
+  }
+  const c = corps as Record<string, unknown>;
+  if (!Array.isArray(c.joueurs)) {
+    return NextResponse.json({ error: "joueurs manquant" }, { status: 400 });
+  }
+
+  const r = await ecrireCompo(ctx.club.id, matchDayId, {
+    joueurs: c.joueurs as JoueurCompo[],
+    teamAName: typeof c.teamAName === "string" ? c.teamAName : undefined,
+    teamBName: typeof c.teamBName === "string" ? c.teamBName : undefined,
+  });
+  // 400 et pas 500 : ce sont des refus de données, et la file d'attente doit
+  // pouvoir les distinguer d'une panne (un 5xx se retente, un 4xx se bloque).
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+
+  return NextResponse.json({ ok: true });
 }
