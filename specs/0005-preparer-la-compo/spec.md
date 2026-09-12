@@ -45,10 +45,25 @@ donc hors de portée d'un client React Native.
 de s'accorder : « Karim passe en blanc, Momo au but ». Il bascule sur l'app,
 ouvre la soirée, déplace deux joueurs, c'est écrit. Dix secondes.
 
-**Et au gymnase, lundi 19 h 55** — le cas qui décide de l'architecture. Deux
-absents de dernière minute, un invité qui arrive. La compo se retouche debout,
-sur un réseau qui n'existe pas. **Si l'écran refuse, le lot n'a servi à rien** :
-c'est précisément le moment qu'on voulait supprimer.
+**Et dans le métro, où le réseau tombe entre deux stations.** C'est le cas qui
+décide de l'architecture : ce qui a été tapé ne doit pas se perdre parce que le
+tunnel est arrivé au mauvais moment (article I).
+
+> **Corrigé pendant l'écriture du code, le 12 septembre.** Cette section
+> invoquait d'abord « le gymnase à 19 h 55, sans réseau ». **C'était faux, et
+> c'était l'argument porteur.** L'écran soirée ne s'ouvre PAS hors ligne :
+> `chargerSoiree` lève, `app/soiree/[id].tsx:57-60` attrape et affiche une
+> erreur — aucun repli local. On ne peut donc pas y retoucher la compo au
+> gymnase, avec ou sans ce lot.
+>
+> Le gymnase est déjà servi **par un autre chemin** : `/compo` au coup d'envoi,
+> qui a un repli local (`cas.md:27`), et `movePlayer` pendant le match pour
+> changer un joueur de camp. Le manque réel — ouvrir une soirée hors ligne —
+> existe, mais il est plus large que ce lot et n'est pas refermé ici.
+>
+> *Vérifié en ouvrant le fichier, pas supposé. C'est la deuxième fois dans ce
+> dépôt qu'un argument de spec tombe à la lecture du code ; c'est pour ça que
+> le plan se fait après un relevé.*
 
 ---
 
@@ -91,9 +106,11 @@ gagne **entièrement** — il n'existe aucun état bâtard où la moitié d'une 
 se mélange à la moitié d'une autre. Or c'est exactement ce que fait le groupe
 WhatsApp aujourd'hui : le dernier message fait foi.
 
-Refuser hors ligne coûterait le cas du gymnase, qui est la moitié de la valeur
-du lot. L'article I (rien de ce qui est saisi ne disparaît) tranche dans le même
-sens.
+La décision tient toujours après la correction ci-dessus, mais pour une raison
+plus modeste : **le réseau peut tomber entre le moment où on compose et celui où
+on enregistre.** Ce qui a été tapé ne doit pas se perdre (article I). Ça ne vaut
+pas le gymnase — l'écran ne s'y ouvre pas — ça vaut le métro, l'ascenseur, et le
+Wi-Fi qui lâche.
 
 *Ce qui reste vrai et doit être dit : il n'y a toujours aucun arbitrage de
 conflit dans ce dépôt. Ici on ne le contourne pas, on constate qu'il n'est pas
