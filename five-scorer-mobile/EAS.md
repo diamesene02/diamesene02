@@ -131,3 +131,32 @@ Un entier posé à la main est le seul des trois qu'on relit sans outil.
 
 Le palier gratuit d'EAS Update porte **1 000 utilisateurs actifs par mois**. Le
 club en a quinze. Ce paragraphe est à relire le jour où ce ne sera plus vrai.
+
+## Publier une mise à jour à chaud : `--platform ios`, toujours
+
+```bash
+npx eas update --channel production --environment production --platform ios \
+  --message "ce que ça corrige" --non-interactive
+```
+
+**Les trois drapeaux ne sont pas décoratifs**, chacun vient d'un échec réel :
+
+- `--environment production` — sans lui, `--non-interactive` refuse de partir.
+- `--platform ios` — sans lui, `eas update` exporte **toutes** les plateformes,
+  y compris le web, et l'export web **échoue** sur le `.wasm` d'`expo-sqlite`
+  (`expo-sqlite/web/wa-sqlite.wasm`, tiré par `lib/outbox/baseExpo.ts` →
+  `composants/Noyau.tsx`). Rien ne se publie, et le message d'erreur parle d'un
+  fichier WebAssembly alors qu'on voulait livrer une correction iOS.
+  `npx expo export --platform ios` passe, lui : c'est la porte de vérification
+  du dépôt, elle ne voit pas ce défaut.
+- `--channel production` — les profils `lundi` et `magasin` visent ce canal.
+
+**Ce qui exige un BUILD et pas une mise à jour** : toute touche à `plugins`, à
+une permission, à une dépendance native — donc un changement de
+`runtimeVersion`. Le reste est du JavaScript et part en quelques secondes.
+
+*Leçon du 12 septembre 2026 : le build 3 avait été fait AVANT l'arrivée
+d'`expo-updates`. Un binaire qui ne contient pas le module natif est hors de
+portée de toute mise à jour à chaud, définitivement — `eas channel:list` rendait
+vide et rien ne l'aurait signalé. Vérifier `Channel` et `Runtime Version` dans
+`eas build:view` : s'ils manquent, ce build ne recevra jamais d'OTA.*
