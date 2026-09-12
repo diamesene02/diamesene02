@@ -142,7 +142,15 @@ export default function ClubAccueil() {
             faire, et l'accueil doit le dire. */}
         {soiree && !soiree.compoFaite && !soiree.annulee && club?.peutGerer && (
           <Pressable
-            onPress={() => router.push({ pathname: "/compo", params: { clubId: id } })}
+            // Vers la SOIRÉE, pas vers « /compo ».
+            //
+            // Ce rappel poussait vers l'écran « Maintenant », qui lance un
+            // match sur-le-champ : il promettait « préparer la compo » et
+            // ouvrait « coup d'envoi ». Le site, lui, a toujours mené à la
+            // soirée. La compo préparée s'y lit désormais.
+            onPress={() =>
+              router.push({ pathname: "/soiree/[id]", params: { id: soiree.id, clubId: id } })
+            }
             style={s.rappel}
           >
             <View style={{ flex: 1 }}>
@@ -153,7 +161,7 @@ export default function ClubAccueil() {
               </Text>
               <Text style={[s.rappelAide, { color: t.i2 }]}>
                 {dateLongue(soiree.date)}
-                {soiree.libelle ? ` · ${soiree.libelle}` : ""} — préparer la compo maintenant
+                {soiree.libelle ? ` · ${soiree.libelle}` : ""} — ouvrir la soirée
               </Text>
             </View>
             <Text style={[s.chevron, { color: t.i3 }]}>›</Text>

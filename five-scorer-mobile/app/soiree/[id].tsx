@@ -184,6 +184,83 @@ export default function Soiree() {
     </View>
   );
 
+  // Les équipes décidées trois ou quatre jours avant, sur WhatsApp.
+  //
+  // Elles arrivaient DÉJÀ dans la charge utile de la soirée (`compo`) — la
+  // route serveur a été écrite exprès pour l'app — et elles n'étaient
+  // affichées nulle part. C'était la seule chose que cet écran promettait dans
+  // sa propre description (« Avant : qui vient, quelles équipes, qui a payé »)
+  // sans jamais la tenir.
+  //
+  // Lecture seule pour l'instant, et c'est dit : l'app ne sait pas encore
+  // composer à l'avance (constitution, article X — on dit ce qu'on ne fait
+  // pas), le sélecteur de `/compo` interdisant les dates futures.
+  const composition = fiche && !fiche.annulee && (
+    <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
+      <Text style={[s.carteTitre, { color: t.ink }]}>Composition</Text>
+
+      {fiche.compo.faite ? (
+        <>
+          <View style={s.compo}>
+            {[
+              {
+                camp: "A" as const,
+                nom: fiche.compo.nomA,
+                couleur: couleurA,
+                lettre: fiche.chasubles.a.lettre,
+              },
+              {
+                camp: "B" as const,
+                nom: fiche.compo.nomB,
+                couleur: couleurB,
+                lettre: fiche.chasubles.b.lettre,
+              },
+            ].map((cote) => {
+              const joueurs = fiche.compo.joueurs.filter((j) => j.camp === cote.camp);
+              return (
+                <View key={cote.camp} style={s.compoCote}>
+                  <EcussonChasuble couleur={cote.couleur} lettre={cote.lettre} taille={40} />
+                  <Text style={[s.compoNom, { color: t.ink }]} numberOfLines={1}>
+                    {cote.nom}
+                  </Text>
+                  {joueurs.map((j) => (
+                    <View key={j.playerId} style={s.compoJoueur}>
+                      <Avatar nom={j.nom} photo={j.photo} t={t} taille={24} />
+                      <Text style={[s.compoJoueurNom, { color: t.i2 }]} numberOfLines={1}>
+                        {j.nom}
+                        {j.gardien ? " · G" : ""}
+                      </Text>
+                    </View>
+                  ))}
+                  {joueurs.length === 0 && (
+                    <Text style={[s.phrase, { color: t.i3 }]}>personne</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+          {(() => {
+            // Ceux qui viennent et ne sont dans aucun camp. Le dire évite de
+            // croire la compo complète quand il manque deux joueurs.
+            const restants = fiche.compo.joueurs.filter((j) => j.camp === null).length;
+            return restants > 0 ? (
+              <Text style={[s.phrase, { color: t.i3, textAlign: "center", paddingTop: 8 }]}>
+                {restants} joueur{restants > 1 ? "s" : ""} pas encore placé
+                {restants > 1 ? "s" : ""}
+              </Text>
+            ) : null;
+          })()}
+        </>
+      ) : (
+        <Text style={[s.phrase, { color: t.i2, textAlign: "center" }]}>
+          Les équipes ne sont pas encore faites. Elles se préparent sur le site,
+          à la page de la soirée — l'app ne sait pas encore les composer à
+          l'avance.
+        </Text>
+      )}
+    </View>
+  );
+
   return (
     <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
       <View style={s.barre}>
@@ -226,6 +303,8 @@ export default function Soiree() {
             ) : (
               presences
             )}
+
+            {composition}
 
             {fiche.mot && (
               <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
@@ -365,6 +444,12 @@ const s = StyleSheet.create({
   nomLigne: { flex: 1, fontSize: 16 },
   statut: { fontSize: 14, fontWeight: "600" },
   chiffre: { width: 40, fontSize: 14, textAlign: "right" },
+
+  compo: { flexDirection: "row", gap: 12, paddingVertical: 4 },
+  compoCote: { flex: 1, alignItems: "center", gap: 8 },
+  compoNom: { fontSize: 15, fontWeight: "700" },
+  compoJoueur: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "stretch" },
+  compoJoueurNom: { flex: 1, fontSize: 14 },
 
   bilan: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 6 },
   bilanCote: { alignItems: "center", gap: 6 },
