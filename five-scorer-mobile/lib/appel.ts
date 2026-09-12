@@ -157,6 +157,35 @@ export function creerAppel(deps: DependancesAppel) {
     }
 
     if (res.status === 401) throw new SessionExpiree();
+
+    // Un 404 « introuvable » sur une route de club ne veut PAS dire ce qu'il
+    // dit. Il sort de `getClubApiContext`, qui rend `null` dans deux cas très
+    // différents — la session n'est plus valable, ou on n'est plus membre de
+    // ce club — et la route traduit les deux par le même mot.
+    //
+    // Or le middleware ne juge le cookie que sur sa PRÉSENCE : jamais sa
+    // signature, jamais la base. Il laisse donc passer un cookie périmé, qui
+    // échoue plus loin en 404 au lieu du 401 qui aurait renvoyé vers la
+    // connexion. Résultat vu en production le 12 septembre 2026 : « Le serveur
+    // a répondu 404 — introuvable » en travers de tous les écrans du club, sans
+    // aucune issue, pendant que la liste déjà chargée restait affichée.
+    //
+    // On ne DÉCONNECTE pas d'office : on ne sait pas lequel des deux cas c'est,
+    // et jeter la session de quelqu'un qui a des buts en attente serait pire
+    // que le message. On dit ce qu'on sait et on propose le geste
+    // (constitution, article V).
+    if (
+      res.status === 404 &&
+      chemin.includes("/api/clubs/") &&
+      (await detailDeLErreur(res.clone())) === "introuvable"
+    ) {
+      throw new ErreurServeur(
+        404,
+        "ce club n'est plus accessible avec cette session. Déconnecte-toi et reconnecte-toi ; " +
+          "si ça persiste, c'est qu'on t'a retiré du club.",
+      );
+    }
+
     if (!res.ok) throw new ErreurServeur(res.status, await detailDeLErreur(res));
     return (await res.json()) as T;
   };

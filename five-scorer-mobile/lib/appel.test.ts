@@ -352,3 +352,55 @@ describe("lib/api.ts délègue, il ne réimplémente pas", () => {
     expect(code).toContain("joindre(");
   });
 });
+
+describe("le 404 « introuvable » d'une route de club", () => {
+  // Défaut vu en production le 12 septembre 2026 : « Le serveur a répondu 404
+  // — introuvable » en travers de l'écran des soirées, sans aucune issue, alors
+  // que la vraie cause était une session que le serveur ne reconnaissait plus.
+  //
+  // Le middleware ne juge le cookie que sur sa PRÉSENCE : un cookie périmé
+  // passe, puis échoue plus loin dans getClubApiContext, qui rend `null` aussi
+  // bien pour « pas de session » que pour « pas membre ». Les deux sortent en
+  // 404 avec le même mot.
+
+  const introuvable = () =>
+    new Response(JSON.stringify({ error: "introuvable" }), { status: 404 });
+
+  it("dit quoi faire, au lieu de dire « introuvable »", async () => {
+    const s = serveur(introuvable);
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    await expect(appel("/api/clubs/abc/soirees")).rejects.toThrow(/reconnecte-toi/i);
+  });
+
+  it("garde le code 404 sur l'objet — le drain décide là-dessus", async () => {
+    const s = serveur(introuvable);
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    const e = await appel("/api/clubs/abc/soirees").catch((x) => x);
+    expect(e).toBeInstanceOf(ErreurServeur);
+    expect((e as ErreurServeur).status).toBe(404);
+  });
+
+  it("ne déconnecte PAS d'office : ce n'est pas une SessionExpiree", async () => {
+    // Jeter la session de quelqu'un qui a des buts en attente serait pire que
+    // le message. On ne sait pas lequel des deux cas c'est.
+    const s = serveur(introuvable);
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    const e = await appel("/api/clubs/abc/soirees").catch((x) => x);
+    expect(e).not.toBeInstanceOf(SessionExpiree);
+  });
+
+  it("laisse tranquille un 404 qui n'est PAS sur une route de club", async () => {
+    const s = serveur(introuvable);
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    await expect(appel("/api/me")).rejects.toThrow(/introuvable/);
+  });
+
+  it("laisse tranquille un 404 de club qui dit autre chose qu'« introuvable »", async () => {
+    // Une route qui répond 404 pour un match effacé doit garder son propre mot.
+    const s = serveur(
+      () => new Response(JSON.stringify({ error: "match effacé" }), { status: 404 }),
+    );
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    await expect(appel("/api/clubs/abc/matches/x")).rejects.toThrow(/match effacé/);
+  });
+});
