@@ -14,7 +14,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ibc.fivescorer",
       "appleTeamId": "M283R456KQ",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Pour joindre le serveur de développement sur ton ordinateur.",
         "ITSAppUsesNonExemptEncryption": false,
