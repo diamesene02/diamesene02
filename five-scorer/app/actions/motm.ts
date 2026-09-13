@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
+import { verifierMotmDeverouille } from "@/lib/motm";
 
 /// Vote MVP d'un membre. Le mvpId du match est recalculé à chaque vote
 /// (pluralité ; égalité départagée par ordre alphabétique) — pas d'étape de
@@ -26,9 +27,11 @@ export async function voteMotm(
 
   const match = await prisma.match.findFirst({
     where: { id: matchId, clubId: ctx.club.id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, motmLocked: true },
   });
   if (!match) return { ok: false, error: "Match introuvable." };
+  const verrou = verifierMotmDeverouille(match.motmLocked);
+  if (!verrou.ok) return verrou;
   if (match.status !== "FINISHED") {
     return { ok: false, error: "Le vote ouvre à la fin du match." };
   }

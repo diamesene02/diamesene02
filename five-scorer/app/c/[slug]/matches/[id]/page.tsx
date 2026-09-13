@@ -308,6 +308,7 @@ export default async function MatchRecapPage({
                 ? "FINISHED"
                 : "LIVE",
           mvpId: match.mvpId,
+          motmLocked: match.motmLocked,
         }}
         mvpName={match.mvp?.name ?? null}
         mvpHref={match.mvpId ? `/c/${slug}/players/${match.mvpId}` : undefined}

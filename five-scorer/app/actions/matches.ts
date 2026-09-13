@@ -107,6 +107,14 @@ export async function updateMatchDetails(
       ...(input.teamBName?.trim() ? { teamBName: input.teamBName.trim() } : {}),
       ...(playedAt ? { playedAt } : {}),
       ...(input.mvpId !== undefined ? { mvpId: input.mvpId } : {}),
+      // Une désignation manuelle (mvpId non nul) fige le résultat contre le
+      // recomptage de voteMotm (spec 0001, Q6). Un retrait explicite
+      // (mvpId: null) relève le verrou plutôt que de le laisser fermé sur
+      // rien : la spec ne tranche pas ce cas, mais rouvrir le vote quand
+      // plus personne n'est désigné est le seul comportement qui a du sens.
+      ...(input.mvpId !== undefined
+        ? { motmLocked: input.mvpId !== null }
+        : {}),
       ...(input.notes !== undefined
         ? { notes: input.notes?.trim() || null }
         : {}),

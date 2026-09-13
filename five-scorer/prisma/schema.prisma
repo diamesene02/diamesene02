@@ -374,6 +374,10 @@ model Match {
   durationMin Int?
   mvpId       String?
   mvp         Player?     @relation("MatchMvp", fields: [mvpId], references: [id], onDelete: SetNull)
+  /// Homme du match désigné à la main par un capitaine/admin (motmMode ADMIN
+  /// ou VOTE) : fige mvpId contre l'écrasement par le recomptage du vote
+  /// (spec 0001, Q6). Reste faux tant qu'aucune désignation manuelle n'a eu lieu.
+  motmLocked  Boolean     @default(false)
   notes       String?
   /// Posés ENSEMBLE, jamais l'un sans l'autre (spec 0006) — même précédent
   /// que MatchDay.canceledAt/cancelReason. Un match annulé le reste visible :

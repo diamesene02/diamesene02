@@ -40,6 +40,7 @@ export async function GET(
       season: { select: { id: true, name: true } },
       matchDay: { select: { id: true, date: true, title: true } },
       mvp: { select: { id: true, name: true, photo: true } },
+      motmLocked: true,
       participants: {
         select: {
           team: true,
@@ -228,6 +229,7 @@ export async function GET(
           votes: m.motmVotes.length
             ? { pour: voix.get(m.mvp.id) ?? 0, total: m.motmVotes.length }
             : null,
+          designeParCapitaine: m.motmLocked,
         }
       : null,
 

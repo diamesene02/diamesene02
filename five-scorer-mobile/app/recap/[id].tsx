@@ -313,12 +313,22 @@ export default function Recap() {
                   <View style={{ flex: 1 }}>
                     <Text style={[s.nomHomme, { color: t.ink }]}>{fiche.homme.nom}</Text>
                     <Text style={[s.aide, { color: t.i2 }]}>
-                      {fiche.homme.buts > 0
-                        ? `${fiche.homme.buts} but${fiche.homme.buts > 1 ? "s" : ""}`
-                        : "Élu par le club"}
-                      {fiche.homme.votes
-                        ? ` · ${fiche.homme.votes.pour}/${fiche.homme.votes.total} voix`
-                        : ""}
+                      {/* Q6 (spec 0001) : la désignation à la main ferme le
+                          vote et le dit — indépendant du nombre de buts, donc
+                          affiché à part plutôt qu'en remplacement. */}
+                      {[
+                        fiche.homme.buts > 0
+                          ? `${fiche.homme.buts} but${fiche.homme.buts > 1 ? "s" : ""}`
+                          : fiche.homme.designeParCapitaine
+                            ? null
+                            : "Élu par le club",
+                        fiche.homme.designeParCapitaine ? "désigné par le capitaine" : null,
+                        fiche.homme.votes
+                          ? `${fiche.homme.votes.pour}/${fiche.homme.votes.total} voix`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </Text>
                   </View>
                 </View>

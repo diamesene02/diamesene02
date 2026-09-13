@@ -456,6 +456,7 @@ export type FicheMatch = {
     camp: "A" | "B" | null;
     buts: number;
     votes: { pour: number; total: number } | null;
+    designeParCapitaine: boolean;
   } | null;
   vote: {
     monVote: string | null;

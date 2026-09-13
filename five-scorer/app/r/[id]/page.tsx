@@ -115,6 +115,7 @@ export default async function PublicRecapPage({ params }: Params) {
             scoreB: match.scoreB,
             status: "FINISHED",
             mvpId: match.mvpId,
+            motmLocked: match.motmLocked,
           }}
           mvpName={match.mvp?.name ?? null}
           teamA={teamA}

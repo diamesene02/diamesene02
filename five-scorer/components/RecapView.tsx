@@ -30,6 +30,8 @@ type Match = {
   scoreB: number;
   status: "LIVE" | "FINISHED" | "CANCELED";
   mvpId: string | null;
+  /// Une désignation à la main ferme le vote (spec 0001, Q6) : le récap le dit.
+  motmLocked: boolean;
 };
 
 const Ballon = () => (
@@ -318,6 +320,7 @@ export default function RecapView({
                   ? `${[...teamA, ...teamB].find((p) => p.id === match.mvpId)!.goals} but${[...teamA, ...teamB].find((p) => p.id === match.mvpId)!.goals > 1 ? "s" : ""}`
                   : null}
                 {votes && votes.total > 0 && <>{" · "}{votes.pour} vote{votes.pour > 1 ? "s" : ""} sur {votes.total}</>}
+                {match.motmLocked && <>{" · "}désigné par le capitaine</>}
               </span>
             </span>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffd60a" stroke="#ffd60a" strokeWidth="1.5" aria-hidden>
@@ -330,6 +333,7 @@ export default function RecapView({
             <span className="corps">
               <span className="legende">Homme du match</span>
               <span className="nom">{mvpName}</span>
+              {match.motmLocked && <span className="detail">désigné par le capitaine</span>}
             </span>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffd60a" stroke="#ffd60a" strokeWidth="1.5" aria-hidden>
               <path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.7l5.9-.9z" />
