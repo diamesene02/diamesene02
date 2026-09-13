@@ -3,6 +3,18 @@ import type { MatchKind } from "@prisma/client";
 
 export { matchVerrouille } from "./matchStatus";
 
+/// Au-delà de six semaines on se tait — le score, plus personne ne l'a en
+/// tête. Posée une seule fois ici et appelée par les deux endroits qui
+/// décident si une soirée jouée sans feuille est encore rattrapable :
+/// `app/api/clubs/[clubId]/saison/route.ts` (l'API que lit l'app) et
+/// `app/c/[slug]/saison/page.tsx` (le calendrier du site). Sans ce partage,
+/// la fenêtre se recopie et finit par diverger (article III).
+export const SIX_SEMAINES_MS = 42 * 86400_000;
+
+export function rattrapable(dateMs: number, maintenant: number): boolean {
+  return maintenant - dateMs < SIX_SEMAINES_MS;
+}
+
 // La feuille d'un match, c'est MatchParticipant — pas "être du club" (spec
 // 0001, Q6). Trois portes du serveur (buteur/passeur d'un événement, homme
 // du match) vérifiaient seulement l'appartenance au club, jamais que le

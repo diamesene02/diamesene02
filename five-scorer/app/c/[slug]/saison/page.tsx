@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { nomsChasubles } from "@/lib/color";
 import { calculerPresences, phraseEtat } from "@/lib/presences";
+import { rattrapable } from "@/lib/matches";
 import Onglets from "@/components/ios/Onglets";
 import Ecusson from "@/components/ios/Ecusson";
 import CalendrierForm from "./CalendrierForm";
@@ -111,8 +112,8 @@ export default async function SaisonPage({
       // Une soirée jouée sans feuille ne disparaît pas en silence : le
       // calendrier la réclame, et le lien mène droit à la saisie. Au-delà de
       // six semaines on se tait — le score, plus personne ne l'a en tête.
-      const rattrapable = now - md.date.getTime() < 42 * 86400_000;
-      if (!joues && rattrapable && ctx.canScore) {
+      const encoreRattrapable = rattrapable(md.date.getTime(), now);
+      if (!joues && encoreRattrapable && ctx.canScore) {
         etiquette = "Saisir";
         ton = "appel";
         href = `/c/${slug}/matches/new?md=${md.id}&joue=1`;

@@ -5,6 +5,7 @@ import { getClubApiContext } from "@/lib/guard";
 import { nomsChasubles } from "@/lib/color";
 import { calculerPresences, phraseEtat } from "@/lib/presences";
 import { ini } from "@/lib/ini";
+import { rattrapable } from "@/lib/matches";
 
 export const dynamic = "force-dynamic";
 
@@ -124,8 +125,8 @@ export async function GET(
       // calendrier la réclame, et la rangée mène droit à la saisie, datée du
       // bon lundi. Au-delà de six semaines on se tait — le score, plus
       // personne ne l'a en tête.
-      const rattrapable = now - md.date.getTime() < 42 * 86400_000;
-      if (!joues && rattrapable && ctx.canScore) {
+      const encoreRattrapable = rattrapable(md.date.getTime(), now);
+      if (!joues && encoreRattrapable && ctx.canScore) {
         etiquette = "Saisir";
         ton = "appel";
         cible = { quoi: "saisir", id: md.id, date: md.date.toISOString() };

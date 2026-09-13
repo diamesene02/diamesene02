@@ -14,6 +14,8 @@ import {
   matchDayAppartientAuClub,
   nomEquipeTronque,
   NOM_EQUIPE_MAX,
+  rattrapable,
+  SIX_SEMAINES_MS,
 } from "./matches";
 import { estIdOuVide } from "./ids";
 
@@ -369,5 +371,26 @@ describe("nomEquipeTronque (longueur d'un nom d'équipe, APRES-21)", () => {
     expect(nomEquipeTronque("   ")).toBeUndefined();
     expect(nomEquipeTronque(null)).toBeUndefined();
     expect(nomEquipeTronque(undefined)).toBeUndefined();
+  });
+});
+
+describe("rattrapable — la fenêtre de six semaines", () => {
+  it("vaut bien six semaines", () => {
+    expect(SIX_SEMAINES_MS).toBe(42 * 86400_000);
+  });
+
+  it("une soirée d'hier est rattrapable", () => {
+    const maintenant = Date.now();
+    expect(rattrapable(maintenant - 24 * 3600_000, maintenant)).toBe(true);
+  });
+
+  it("une soirée de sept semaines n'est plus rattrapable", () => {
+    const maintenant = Date.now();
+    expect(rattrapable(maintenant - 49 * 86400_000, maintenant)).toBe(false);
+  });
+
+  it("à six semaines pile, plus rattrapable — c'est un « strictement inférieur »", () => {
+    const maintenant = Date.now();
+    expect(rattrapable(maintenant - SIX_SEMAINES_MS, maintenant)).toBe(false);
   });
 });
