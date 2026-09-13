@@ -20,6 +20,7 @@ const FICHIERS = [
   "color.ts",
   "balance.ts",
   "retro.ts",
+  "matchStatus.ts",
 ] as const;
 
 describe("copie conforme du noyau", () => {

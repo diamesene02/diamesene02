@@ -1,14 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import type { MatchStatus } from "@prisma/client";
 
-// FINISHED et CANCELED sont tous deux une histoire close : rejouer un but
-// dessus (file hors-ligne en retard, requête rejouée) romprait l'invariant
-// qu'on vient de garantir à l'écran — un match « Annulé » qui regagnerait un
-// score. Prérequis identifié par la spec 0001 AVANT la spec 0006 qui l'a
-// introduit ; les deux specs ferment ensemble APRES-23/25/26.
-export function matchVerrouille(status: MatchStatus): boolean {
-  return status === "FINISHED" || status === "CANCELED";
-}
+export { matchVerrouille } from "./matchStatus";
 
 // Annuler ou effacer, en un seul geste — décidé par ce qu'il y a à perdre,
 // pas par le statut du match (spec 0006).

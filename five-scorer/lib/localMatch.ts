@@ -16,6 +16,7 @@ import {
 } from "./db";
 import { newId } from "./ids";
 import { RETRO_APRES_MS } from "./retro";
+import { matchVerrouille } from "./matchStatus";
 
 function pKey(matchId: string, playerId: string) {
   return `${matchId}::${playerId}`;
@@ -321,7 +322,7 @@ export async function addEvent(
     async () => {
       const match = await db.matches.get(matchId);
       if (!match) throw new Error("Match introuvable");
-      if (match.status === "FINISHED") throw new Error("Match terminé");
+      if (matchVerrouille(match.status)) throw new Error("Match terminé ou annulé");
 
       if (input.playerId) {
         const part = await db.participants.get(pKey(matchId, input.playerId));
@@ -391,10 +392,13 @@ export async function removeEvent(
   return db.transaction("rw", db.matches, db.events, db.outbox, async () => {
     const ev = await db.events.get(eventId);
     if (!ev || ev.matchId !== matchId) return false;
+    const match = await db.matches.get(matchId);
+    if (match && matchVerrouille(match.status)) {
+      throw new Error("Match terminé ou annulé");
+    }
     await db.events.delete(eventId);
 
     const d = scoreDelta(ev.type);
-    const match = await db.matches.get(matchId);
     if (d && match) {
       await db.matches.update(matchId, {
         scoreA: ev.team === "A" ? Math.max(0, match.scoreA - d) : match.scoreA,
@@ -428,6 +432,9 @@ export async function setEventAssist(
       return;
     }
     const match = await db.matches.get(matchId);
+    if (match && matchVerrouille(match.status)) {
+      throw new Error("Match terminé ou annulé");
+    }
     await db.events.update(eventId, { assistPlayerId });
     await enqueue({
       kind: "setAssist",
@@ -462,6 +469,9 @@ export async function setEventScorer(
       return;
     }
     const match = await db.matches.get(matchId);
+    if (match && matchVerrouille(match.status)) {
+      throw new Error("Match terminé ou annulé");
+    }
     await db.events.update(eventId, { playerId: scorerPlayerId });
     await enqueue({
       kind: "setScorer",
@@ -493,7 +503,7 @@ export async function movePlayerTeam(
     async () => {
       const match = await db.matches.get(matchId);
       if (!match) throw new Error("Match introuvable");
-      if (match.status === "FINISHED") throw new Error("Match terminé");
+      if (matchVerrouille(match.status)) throw new Error("Match terminé ou annulé");
       // Sur un match contre un adversaire extérieur, l'équipe B n'est pas une
       // équipe du club : y envoyer un joueur le retire de l'écran sans retour.
       if (match.kind === "EXTERNAL" && team === "B") {
@@ -545,7 +555,7 @@ export async function ajouterJoueurAuMatch(
     async () => {
       const match = await db.matches.get(matchId);
       if (!match) throw new Error("Match introuvable");
-      if (match.status === "FINISHED") throw new Error("Match terminé");
+      if (matchVerrouille(match.status)) throw new Error("Match terminé ou annulé");
       const deja = await db.participants.get(pKey(matchId, playerId));
       if (deja) return; // déjà de la partie
       const fiche = await db.roster.get(playerId);

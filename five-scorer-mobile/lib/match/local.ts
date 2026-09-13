@@ -15,8 +15,10 @@
 //     ou aucun des deux. Un événement écrit sans son opération, c'est un but
 //     qui n'arrive jamais au serveur ; une opération sans son événement, c'est
 //     un score qui saute à l'écran. Le test qui compte est celui-là.
-//   - **Rien ne s'écrit dans un match terminé.** Le serveur le refuse, et un
-//     refus bloque en cascade toute la file du match (§ « bloquerChaine »).
+//   - **Rien ne s'écrit dans un match terminé OU ANNULÉ**
+//     (`matchVerrouille`, « lib/noyau/matchStatus.ts »). Le serveur le
+//     refuse, et un refus bloque en cascade toute la file du match
+//     (§ « bloquerChaine »).
 //   - **La minute se déduit du coup d'envoi, et vaut `null` sur une feuille
 //     rétro** — sinon le premier but d'un match d'hier s'inscrit à la
 //     1 440ᵉ minute.
@@ -55,6 +57,7 @@ import type {
 } from "../outbox/types";
 import type { OutboxOp } from "../outbox/operations";
 import { newId } from "../noyau/ids";
+import { matchVerrouille } from "../noyau/matchStatus";
 import { RETRO_APRES_MS } from "../noyau/retro";
 import {
   minuteOf,
@@ -408,7 +411,7 @@ export function creerMatchLocal(deps: Dependances) {
     await base.transaction(async (b) => {
       const match = await lireMatch(b, matchId);
       if (!match) throw new Error("Match introuvable");
-      if (match.status === "FINISHED") throw new Error("Match terminé");
+      if (matchVerrouille(match.status)) throw new Error("Match terminé ou annulé");
 
       if (input.playerId) {
         const part = await lireParticipant(b, pKey(matchId, input.playerId));
@@ -475,10 +478,16 @@ export function creerMatchLocal(deps: Dependances) {
     return base.transaction(async (b) => {
       const ev = await lireEvenement(b, eventId);
       if (!ev || ev.matchId !== matchId) return false;
+      // `match` se charge AVANT la suppression : un match verrouillé entre
+      // temps doit refuser sans rien avoir retiré, et ce même `match` sert
+      // ensuite au clubId de l'enqueue plus bas — pas de second aller-retour.
+      const match = await lireMatch(b, matchId);
+      if (match && matchVerrouille(match.status)) {
+        throw new Error("Match terminé ou annulé");
+      }
       await supprimerEvenement(b, eventId);
 
       const d = scoreDelta(ev.type);
-      const match = await lireMatch(b, matchId);
       if (d && match) {
         await majScore(
           b,
@@ -523,6 +532,9 @@ export function creerMatchLocal(deps: Dependances) {
         return;
       }
       const match = await lireMatch(b, matchId);
+      if (match && matchVerrouille(match.status)) {
+        throw new Error("Match terminé ou annulé");
+      }
       await majPasseur(b, eventId, assistPlayerId);
       await enqueue(b, {
         kind: "setAssist",
@@ -557,6 +569,9 @@ export function creerMatchLocal(deps: Dependances) {
         return;
       }
       const match = await lireMatch(b, matchId);
+      if (match && matchVerrouille(match.status)) {
+        throw new Error("Match terminé ou annulé");
+      }
       await majButeur(b, eventId, scorerPlayerId);
       await enqueue(b, {
         kind: "setScorer",
@@ -582,7 +597,7 @@ export function creerMatchLocal(deps: Dependances) {
     await base.transaction(async (b) => {
       const match = await lireMatch(b, matchId);
       if (!match) throw new Error("Match introuvable");
-      if (match.status === "FINISHED") throw new Error("Match terminé");
+      if (matchVerrouille(match.status)) throw new Error("Match terminé ou annulé");
       // Sur un match contre un adversaire extérieur, l'équipe B n'est pas une
       // équipe du club : y envoyer un joueur le retire de l'écran sans retour.
       if (match.kind === "EXTERNAL" && team === "B") {
@@ -623,7 +638,7 @@ export function creerMatchLocal(deps: Dependances) {
     await base.transaction(async (b) => {
       const match = await lireMatch(b, matchId);
       if (!match) throw new Error("Match introuvable");
-      if (match.status === "FINISHED") throw new Error("Match terminé");
+      if (matchVerrouille(match.status)) throw new Error("Match terminé ou annulé");
       const deja = await lireParticipant(b, pKey(matchId, playerId));
       if (deja) return; // déjà de la partie
       const fiche = await lireJoueur(b, playerId);

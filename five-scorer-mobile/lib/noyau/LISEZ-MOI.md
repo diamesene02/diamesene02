@@ -1,6 +1,6 @@
 # lib/noyau — copies conformes du web
 
-Les six fichiers `.ts` de ce dossier sont des **copies octet pour octet** de
+Les sept fichiers `.ts` de ce dossier sont des **copies octet pour octet** de
 `five-scorer/lib/`. Ils ne contiennent aucun accès au DOM (`document`,
 `window`, `navigator`, `localStorage`) : ils tournent donc tels quels sous
 React Native, sous Node et dans un navigateur.
@@ -13,6 +13,7 @@ React Native, sous Node et dans un navigateur.
 | `theme.ts` | `five-scorer/lib/theme.ts` | Les 30 jetons du thème, dérivés des deux chasubles. |
 | `balance.ts` | `five-scorer/lib/balance.ts` | Le tirage de deux équipes équilibrées. |
 | `retro.ts` | `five-scorer/lib/retro.ts` | La bascule « match saisi après coup ». |
+| `matchStatus.ts` | `five-scorer/lib/matchStatus.ts` | FINISHED/CANCELED verrouillent un match aux écritures. |
 
 ## La règle, et pourquoi elle tient
 
@@ -21,7 +22,7 @@ React Native, sous Node et dans un navigateur.
 
 ```bash
 cd five-scorer-mobile
-for f in clock.ts ids.ts theme.ts color.ts balance.ts retro.ts; do
+for f in clock.ts ids.ts theme.ts color.ts balance.ts retro.ts matchStatus.ts; do
   cp ../five-scorer/lib/$f lib/noyau/$f
 done
 ```

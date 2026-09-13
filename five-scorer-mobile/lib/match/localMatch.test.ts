@@ -235,11 +235,23 @@ describe("un but écrit events ET outbox, ou ni l'un ni l'autre", () => {
 describe("aucune écriture dans un match terminé", () => {
   let d: Decor;
   let matchId: string;
+  let goalId: string;
+  let cscId: string;
 
   beforeEach(async () => {
     d = await decor();
     matchId = await matchDuSoir(d);
-    d.temps.avancer(50);
+    d.temps.avancer(10);
+    // Un but et un csc, saisis PENDANT que le match est encore LIVE : sans
+    // ça, rien n'existerait pour éprouver removeEvent, setEventAssist et
+    // setEventScorer une fois le match verrouillé plus bas.
+    goalId = await d.local.addEvent(matchId, {
+      type: "GOAL",
+      team: "A",
+      playerId: "j1",
+    });
+    cscId = await d.local.addEvent(matchId, { type: "OWN_GOAL", team: "B" });
+    d.temps.avancer(40);
     await d.local.finishMatch(matchId, "j1", 50);
   });
 
@@ -247,9 +259,11 @@ describe("aucune écriture dans un match terminé", () => {
     await expect(
       d.local.addEvent(matchId, { type: "GOAL", team: "A", playerId: "j1" }),
     ).rejects.toThrow("Match terminé");
-    expect(await nb(d.base, "events")).toBe(0);
+    expect(await nb(d.base, "events")).toBe(2);
     expect((await file(d.base)).map((e) => e.op.kind)).toEqual([
       "createMatch",
+      "addEvent",
+      "addEvent",
       "finishMatch",
     ]);
   });
@@ -263,7 +277,7 @@ describe("aucune écriture dans un match terminé", () => {
       [pKey(matchId, "j1")],
     );
     expect(p?.team).toBe("A");
-    expect(await nb(d.base, "outbox")).toBe(2);
+    expect(await nb(d.base, "outbox")).toBe(4);
   });
 
   it("un retardataire est refusé", async () => {
@@ -271,7 +285,54 @@ describe("aucune écriture dans un match terminé", () => {
       d.local.ajouterJoueurAuMatch(matchId, "j5", "A"),
     ).rejects.toThrow("Match terminé");
     expect(await nb(d.base, "participants")).toBe(4);
-    expect(await nb(d.base, "outbox")).toBe(2);
+    expect(await nb(d.base, "outbox")).toBe(4);
+  });
+
+  it("un but déjà saisi ne peut plus être retiré", async () => {
+    await expect(d.local.removeEvent(matchId, goalId)).rejects.toThrow(
+      "Match terminé",
+    );
+    expect(await nb(d.base, "events")).toBe(2);
+    expect((await file(d.base)).map((e) => e.op.kind)).toEqual([
+      "createMatch",
+      "addEvent",
+      "addEvent",
+      "finishMatch",
+    ]);
+  });
+
+  it("une passe ne peut plus s'attacher à un but déjà saisi", async () => {
+    await expect(
+      d.local.setEventAssist(matchId, goalId, "j3"),
+    ).rejects.toThrow("Match terminé");
+    const ev = await d.base.premier<{ assist_player_id: string | null }>(
+      "SELECT assist_player_id FROM events WHERE id = ?",
+      [goalId],
+    );
+    expect(ev?.assist_player_id ?? null).toBeNull();
+    expect((await file(d.base)).map((e) => e.op.kind)).toEqual([
+      "createMatch",
+      "addEvent",
+      "addEvent",
+      "finishMatch",
+    ]);
+  });
+
+  it("le nom d'un csc ne peut plus s'attacher après coup", async () => {
+    await expect(
+      d.local.setEventScorer(matchId, cscId, "j3"),
+    ).rejects.toThrow("Match terminé");
+    const ev = await d.base.premier<{ player_id: string | null }>(
+      "SELECT player_id FROM events WHERE id = ?",
+      [cscId],
+    );
+    expect(ev?.player_id ?? null).toBeNull();
+    expect((await file(d.base)).map((e) => e.op.kind)).toEqual([
+      "createMatch",
+      "addEvent",
+      "addEvent",
+      "finishMatch",
+    ]);
   });
 
   it("le match porte bien son MVP et sa fin dans la file", async () => {
@@ -279,9 +340,108 @@ describe("aucune écriture dans un match terminé", () => {
     expect(m?.match.status).toBe("FINISHED");
     expect(m?.match.mvpId).toBe("j1");
     const f = await file(d.base);
-    const op = f[1].op;
+    const op = f.at(-1)!.op;
     if (op.kind !== "finishMatch") throw new Error("op inattendue");
     expect(op.payload).toEqual({ mvpId: "j1", durationMin: 50 });
+  });
+});
+
+// Aucun chemin du produit ne fait aujourd'hui passer un match local à
+// CANCELED : `LocalMatch.status` ne l'admettait même pas avant cette tâche
+// (« lib/outbox/types.ts », copie conforme du web, "LIVE" | "FINISHED"
+// seulement), et rien ne synchronise ce statut depuis le serveur côté
+// mobile. Ce describe ne rejoue donc pas un scénario produit : il prouve
+// seulement que `matchVerrouille()` (« lib/noyau/matchStatus.ts ») bloque
+// bien CANCELED jusqu'au disque, en écrivant CE statut directement en base
+// par une requête SQL brute plutôt que par un chemin produit qui n'existe
+// pas.
+//
+// « matches.status » porte un CHECK (status IN ('LIVE', 'FINISHED')) —
+// délibérément pas élargi ici : ce serait un vrai changement de schéma, avec
+// son palier de migration (« lib/outbox/migrations.ts »), pour un statut
+// qu'aucun chemin produit n'écrit encore. `PRAGMA ignore_check_constraints`
+// désarme la contrainte le temps de CE test, sans toucher le schéma réel.
+describe("aucune écriture dans un match annulé", () => {
+  let d: Decor;
+  let matchId: string;
+  let goalId: string;
+  let cscId: string;
+
+  beforeEach(async () => {
+    d = await decor();
+    matchId = await matchDuSoir(d);
+    d.temps.avancer(10);
+    goalId = await d.local.addEvent(matchId, {
+      type: "GOAL",
+      team: "A",
+      playerId: "j1",
+    });
+    cscId = await d.local.addEvent(matchId, { type: "OWN_GOAL", team: "B" });
+    await d.base.script("PRAGMA ignore_check_constraints = 1;");
+    await d.base.executer("UPDATE matches SET status = 'CANCELED' WHERE id = ?", [
+      matchId,
+    ]);
+  });
+
+  it("un but est refusé", async () => {
+    await expect(
+      d.local.addEvent(matchId, { type: "GOAL", team: "A", playerId: "j1" }),
+    ).rejects.toThrow("Match terminé");
+    expect(await nb(d.base, "events")).toBe(2);
+  });
+
+  it("un retrait est refusé, et ne retire rien", async () => {
+    await expect(d.local.removeEvent(matchId, goalId)).rejects.toThrow(
+      "Match terminé",
+    );
+    expect(await nb(d.base, "events")).toBe(2);
+  });
+
+  it("undoLastGoalOf hérite de la garde de removeEvent", async () => {
+    await expect(d.local.undoLastGoalOf(matchId, "j1")).rejects.toThrow(
+      "Match terminé",
+    );
+    expect(await nb(d.base, "events")).toBe(2);
+  });
+
+  it("une passe est refusée", async () => {
+    await expect(
+      d.local.setEventAssist(matchId, goalId, "j3"),
+    ).rejects.toThrow("Match terminé");
+    const ev = await d.base.premier<{ assist_player_id: string | null }>(
+      "SELECT assist_player_id FROM events WHERE id = ?",
+      [goalId],
+    );
+    expect(ev?.assist_player_id ?? null).toBeNull();
+  });
+
+  it("un nom de csc est refusé", async () => {
+    await expect(
+      d.local.setEventScorer(matchId, cscId, "j3"),
+    ).rejects.toThrow("Match terminé");
+    const ev = await d.base.premier<{ player_id: string | null }>(
+      "SELECT player_id FROM events WHERE id = ?",
+      [cscId],
+    );
+    expect(ev?.player_id ?? null).toBeNull();
+  });
+
+  it("un changement de camp est refusé", async () => {
+    await expect(d.local.movePlayerTeam(matchId, "j1", "B")).rejects.toThrow(
+      "Match terminé",
+    );
+    const p = await d.base.premier<{ team: string }>(
+      "SELECT team FROM participants WHERE key = ?",
+      [pKey(matchId, "j1")],
+    );
+    expect(p?.team).toBe("A");
+  });
+
+  it("un retardataire est refusé", async () => {
+    await expect(
+      d.local.ajouterJoueurAuMatch(matchId, "j5", "A"),
+    ).rejects.toThrow("Match terminé");
+    expect(await nb(d.base, "participants")).toBe(4);
   });
 });
 
