@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Tabs, router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { chargerMoi } from "../../../lib/api";
 import {
   IconeAccueil,
   IconeBallon,
@@ -30,6 +31,44 @@ export default function DispositionClub() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [feuille, setFeuille] = useState(false);
   const bas = useSafeAreaInsets().bottom;
+
+  // Le club de la route peut ne plus être un club de l'utilisateur.
+  //
+  // expo-router garde sa pile de navigation entre deux lancements : un club
+  // quitté — ou recréé sous un autre identifiant par la migration — y reste, et
+  // l'app rouvre l'onglet d'un club auquel elle n'a plus accès. TOUS les écrans
+  // tombent alors en 404, y compris ceux qui affichent encore les données du
+  // chargement précédent : « Le serveur a répondu 404 » en travers d'un
+  // calendrier qui s'affiche quand même.
+  //
+  // Vu en production le 13 septembre 2026, et resté plusieurs jours parce que
+  // le message accusait la session : l'utilisateur s'est déconnecté et
+  // reconnecté plusieurs fois sans que rien ne change — la pile, elle, ne se
+  // vide pas à la déconnexion.
+  //
+  // Ici et pas dans les quinze écrans : ce layout les enveloppe tous.
+  useEffect(() => {
+    if (!id) return;
+    let vivant = true;
+    void (async () => {
+      try {
+        const moi = await chargerMoi();
+        if (!vivant) return;
+        if (!moi.clubs.some((c) => c.id === id)) {
+          // Vers la liste : elle sait dire « aucun club » et proposer d'en
+          // rejoindre un. On ne laisse personne dans un club fantôme.
+          router.replace("/clubs");
+        }
+      } catch {
+        // Hors ligne, session finie, serveur muet : on NE SORT PAS quelqu'un de
+        // son club parce que le réseau a hoqueté. Les écrans ont déjà leurs
+        // propres messages pour ces cas ; ici, on ne fait rien.
+      }
+    })();
+    return () => {
+      vivant = false;
+    };
+  }, [id]);
 
   return (
     <>
