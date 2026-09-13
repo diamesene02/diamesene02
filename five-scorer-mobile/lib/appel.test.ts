@@ -431,7 +431,7 @@ describe("le 404 d'un club : l'app tranche au lieu de décrire", () => {
       json({ clubs: [{ id: "un-autre", nom: "Les Jeudis" }] }),
     );
     const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
-    const e = await appel(chemin).catch((x) => x);
+    const e = (await appel(chemin).catch((x) => x)) as Error;
     expect(e.message).toMatch(/n'es plus membre de ce club/);
     // Et surtout : il ne demande PLUS de se reconnecter, puisque ça ne sert à rien.
     expect(e.message).not.toMatch(/reconnecte-toi/i);
@@ -442,7 +442,7 @@ describe("le 404 d'un club : l'app tranche au lieu de décrire", () => {
   it("accuse le SERVEUR, pas l'utilisateur, quand le club est bien dans la liste", async () => {
     const s = serveurQuiRefuse(() => json({ clubs: [{ id: CLUB, nom: "Le Club" }] }));
     const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
-    const e = await appel(chemin).catch((x) => x);
+    const e = (await appel(chemin).catch((x) => x)) as Error;
     expect(e.message).toMatch(/Ce n'est pas toi/);
   });
 
@@ -460,7 +460,7 @@ describe("le 404 d'un club : l'app tranche au lieu de décrire", () => {
       throw new Error("réseau coupé");
     });
     const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
-    const e = await appel(chemin).catch((x) => x);
+    const e = (await appel(chemin).catch((x) => x)) as Error;
     expect(e).toBeInstanceOf(ErreurServeur);
     expect(e.message).toMatch(/reconnecte-toi/i);
   });
@@ -468,7 +468,7 @@ describe("le 404 d'un club : l'app tranche au lieu de décrire", () => {
   it("dit « aucun club » plutôt que « plus membre de ce club » si la liste est vide", async () => {
     const s = serveurQuiRefuse(() => json({ clubs: [] }));
     const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
-    const e = await appel(chemin).catch((x) => x);
+    const e = (await appel(chemin).catch((x) => x)) as Error;
     expect(e.message).toMatch(/membre d'aucun club/);
   });
 });
