@@ -26,6 +26,8 @@ model User {
   members       Member[]
   invitations   Invitation[]
   motmVotes     MotmVote[]
+  /// Voir Match.correctedById — pas encore branché (spec 0001).
+  correctedMatches Match[]
 
   @@unique([email])
   @@map("user")
@@ -384,6 +386,13 @@ model Match {
   /// ses buts, sa compo, ses votes ne partent jamais avec (article II).
   canceledAt   DateTime?
   cancelReason String?
+  /// Qui a corrigé ce match terminé, et quand (écran `/corriger`, spec 0001)
+  /// — PAS ENCORE BRANCHÉS par ce commit : aucune route n'écrit dedans pour
+  /// l'instant, ces deux champs sont posés à l'avance pour une tâche
+  /// ultérieure du même lot (0001) qui les lira/écrira depuis `/corriger`.
+  correctedAt   DateTime?
+  correctedById String?
+  correctedBy   User?     @relation(fields: [correctedById], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

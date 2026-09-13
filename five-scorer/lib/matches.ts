@@ -48,6 +48,40 @@ export async function joueursValidesPourEvenement(
   return { ok: true };
 }
 
+/// Une soirée (MatchDay) ne se rattache qu'à un match du MÊME club — sinon un
+/// membre pourrait rattacher son match au calendrier d'un autre club (spec
+/// 0001, APRES-15/APRES-D3 : `matchDayId` ne s'écrivait qu'à la création,
+/// jamais après coup ; ce garde accompagne l'ouverture de cette écriture dans
+/// updateMatchDetails).
+export async function matchDayAppartientAuClub(
+  matchDayId: string,
+  clubId: string,
+): Promise<boolean> {
+  const count = await prisma.matchDay.count({
+    where: { id: matchDayId, clubId },
+  });
+  return count > 0;
+}
+
+/// Longueur maximale d'un nom d'équipe saisi par un membre (APRES-21) — posée
+/// une seule fois ici et appelée par les TROIS endroits qui écrivent un nom
+/// d'équipe : `scheduleMatch` (app/actions/schedule.ts, à la création),
+/// `updateMatchDetails` (app/actions/matches.ts, à la correction depuis le
+/// site) et le PATCH de `matches/[matchId]/route.ts` (à la correction depuis
+/// l'app). Sans ce partage, la limite se pose une troisième fois par
+/// copier-coller et finit par diverger — exactement le risque que
+/// plan.md avait signalé.
+export const NOM_EQUIPE_MAX = 40;
+
+/// `undefined` pour "rien à écrire" (vide/absent), sinon la valeur coupée à
+/// NOM_EQUIPE_MAX après trim.
+export function nomEquipeTronque(
+  nom: string | null | undefined,
+): string | undefined {
+  const t = nom?.trim();
+  return t ? t.slice(0, NOM_EQUIPE_MAX) : undefined;
+}
+
 /// L'homme du match est toujours l'un de nos joueurs, désigné après coup :
 /// contrairement au but/passe ci-dessus, aucune exception EXTERNAL de ce
 /// genre n'existe côté client pour lui — la feuille se vérifie dans tous les

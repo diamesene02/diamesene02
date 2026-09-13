@@ -7,6 +7,8 @@ import { requireClub } from "@/lib/guard";
 import {
   annulerOuSupprimerMatch,
   joueurSurLaFeuille,
+  matchDayAppartientAuClub,
+  nomEquipeTronque,
   type ResultatRetrait,
 } from "@/lib/matches";
 
@@ -49,6 +51,10 @@ export type EditMatchInput = {
   mvpId?: string | null;
   notes?: string | null;
   seasonId?: string | null;
+  // Rattacher après coup un match à sa vraie soirée (spec 0001,
+  // APRES-15/APRES-D3) : jusqu'ici `matchDayId` ne s'écrivait qu'à la
+  // création (scheduleMatch), jamais à la correction.
+  matchDayId?: string | null;
 };
 
 export async function updateMatchDetails(
@@ -64,7 +70,11 @@ export async function updateMatchDetails(
   // mvpId et seasonId partent eux aussi dans un `where` Prisma plus bas :
   // sans ce contrôle, un objet passé à leur place (`{ in: [...] }`) filtrerait
   // toutes les fiches libres du club d'un coup (cf. lib/ids.ts, TRANS-22).
-  if (!estIdOuVide(input.mvpId) || !estIdOuVide(input.seasonId)) {
+  if (
+    !estIdOuVide(input.mvpId) ||
+    !estIdOuVide(input.seasonId) ||
+    !estIdOuVide(input.matchDayId)
+  ) {
     return { ok: false, error: "Identifiant invalide." };
   }
 
@@ -95,16 +105,28 @@ export async function updateMatchDetails(
     });
     if (!ok) return { ok: false, error: "Saison inconnue." };
   }
+  if (input.matchDayId) {
+    // Même schéma que la vérification de saison ci-dessus : sans elle, un
+    // membre pourrait rattacher ce match au calendrier d'un autre club.
+    if (!(await matchDayAppartientAuClub(input.matchDayId, ctx.club.id))) {
+      return { ok: false, error: "Soirée inconnue." };
+    }
+  }
   const playedAt = input.playedAt ? new Date(input.playedAt) : undefined;
   if (playedAt && Number.isNaN(playedAt.getTime())) {
     return { ok: false, error: "Date invalide." };
   }
 
+  // Même limite qu'à la création (scheduleMatch, app/actions/schedule.ts) —
+  // posée une seule fois dans nomEquipeTronque (APRES-21).
+  const teamAName = nomEquipeTronque(input.teamAName);
+  const teamBName = nomEquipeTronque(input.teamBName);
+
   await prisma.match.update({
     where: { id: matchId },
     data: {
-      ...(input.teamAName?.trim() ? { teamAName: input.teamAName.trim() } : {}),
-      ...(input.teamBName?.trim() ? { teamBName: input.teamBName.trim() } : {}),
+      ...(teamAName ? { teamAName } : {}),
+      ...(teamBName ? { teamBName } : {}),
       ...(playedAt ? { playedAt } : {}),
       ...(input.mvpId !== undefined ? { mvpId: input.mvpId } : {}),
       // Une désignation manuelle (mvpId non nul) fige le résultat contre le
@@ -119,6 +141,9 @@ export async function updateMatchDetails(
         ? { notes: input.notes?.trim() || null }
         : {}),
       ...(input.seasonId !== undefined ? { seasonId: input.seasonId } : {}),
+      ...(input.matchDayId !== undefined
+        ? { matchDayId: input.matchDayId }
+        : {}),
     },
   });
   revalidatePath(`/c/${slug}/matches/${matchId}`);

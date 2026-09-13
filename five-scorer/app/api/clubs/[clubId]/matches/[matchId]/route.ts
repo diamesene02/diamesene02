@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
-import { estId } from "@/lib/ids";
-import { annulerOuSupprimerMatch, joueurSurLaFeuille } from "@/lib/matches";
+import { estId, estIdOuVide } from "@/lib/ids";
+import {
+  annulerOuSupprimerMatch,
+  joueurSurLaFeuille,
+  matchDayAppartientAuClub,
+  nomEquipeTronque,
+} from "@/lib/matches";
 
 type Ctx = { params: Promise<{ clubId: string; matchId: string }> };
 
@@ -118,6 +123,10 @@ type PatchBody = {
   teamAName?: string;
   teamBName?: string;
   notes?: string | null;
+  // Rattacher après coup un match à sa vraie soirée (spec 0001,
+  // APRES-15/APRES-D3) — même champ que EditMatchInput
+  // (app/actions/matches.ts), pour la même correction faite depuis l'app.
+  matchDayId?: string | null;
 };
 
 export async function PATCH(req: Request, { params }: Ctx) {
@@ -140,6 +149,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const body = (await req.json().catch(() => null)) as PatchBody | null;
   if (!body) {
     return NextResponse.json({ error: "Payload invalide" }, { status: 400 });
+  }
+  // Part dans un `where` Prisma plus bas (matchDayAppartientAuClub) : sans ce
+  // contrôle, un objet passé à la place d'une chaîne filtrerait toutes les
+  // soirées du club d'un coup (cf. lib/ids.ts, TRANS-22).
+  if (!estIdOuVide(body.matchDayId)) {
+    return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
   }
 
   // Terminer un match LIVE : ouvert à qui peut scorer (idempotent).
@@ -172,6 +187,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
     }
   }
 
+  if (ctx.canManage && body.matchDayId) {
+    // Même schéma que le contrôle du MVP ci-dessus : sans lui, un admin
+    // pourrait rattacher ce match au calendrier d'un autre club.
+    if (!(await matchDayAppartientAuClub(body.matchDayId, clubId))) {
+      return NextResponse.json({ error: "Soirée inconnue" }, { status: 400 });
+    }
+  }
+
   // « Terminer un match déjà terminé » est toléré pour que la file d'attente
   // hors-ligne puisse rejouer sans erreur — mais ce rejeu doit être INERTE.
   // Il ne l'était pas : mvpId et durationMin s'écrivaient sans condition de
@@ -200,14 +223,20 @@ export async function PATCH(req: Request, { params }: Ctx) {
       ...(body.durationMin !== undefined && !rejeuInerte
         ? { durationMin: body.durationMin }
         : {}),
-      ...(ctx.canManage && body.teamAName?.trim()
-        ? { teamAName: body.teamAName.trim() }
+      // Même limite qu'à la création et qu'à l'édition (nomEquipeTronque,
+      // lib/matches.ts) — un troisième endroit qui écrit un nom d'équipe
+      // sans elle se posait la question une troisième fois (APRES-21).
+      ...(ctx.canManage && nomEquipeTronque(body.teamAName) !== undefined
+        ? { teamAName: nomEquipeTronque(body.teamAName) }
         : {}),
-      ...(ctx.canManage && body.teamBName?.trim()
-        ? { teamBName: body.teamBName.trim() }
+      ...(ctx.canManage && nomEquipeTronque(body.teamBName) !== undefined
+        ? { teamBName: nomEquipeTronque(body.teamBName) }
         : {}),
       ...(ctx.canManage && body.notes !== undefined
         ? { notes: body.notes }
+        : {}),
+      ...(ctx.canManage && body.matchDayId !== undefined
+        ? { matchDayId: body.matchDayId }
         : {}),
     },
   });

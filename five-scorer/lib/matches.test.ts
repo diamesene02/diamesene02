@@ -11,6 +11,9 @@ import {
   annulerOuSupprimerMatch,
   joueursValidesPourEvenement,
   joueurSurLaFeuille,
+  matchDayAppartientAuClub,
+  nomEquipeTronque,
+  NOM_EQUIPE_MAX,
 } from "./matches";
 import { estIdOuVide } from "./ids";
 
@@ -288,5 +291,83 @@ describe("TRANS-22 : mvpId/seasonId invalides dans updateMatchDetails", () => {
 
   it("accepte un identifiant valide", () => {
     expect(estIdOuVide("abcdef123")).toBe(true);
+  });
+});
+
+// spec 0001, APRES-15/APRES-D3 : `matchDayId` ne s'écrivait qu'à la création
+// (scheduleMatch) — jamais à la correction (updateMatchDetails,
+// app/actions/matches.ts). Le garde qui rend ce rattachement sûr
+// (matchDayAppartientAuClub) est testé directement ici, pour la même raison
+// que joueursValidesPourEvenement/joueurSurLaFeuille plus haut : l'action
+// serveur elle-même exige une session Better Auth que rien dans ce dépôt ne
+// mocke (cf. note en tête de fichier), la logique neuve est donc extraite
+// dans lib/matches.ts et c'est elle qu'on éprouve contre une vraie base.
+// `updateMatchDetails` renvoie `{ ok: false, error: "Soirée inconnue." }` dès
+// que ce garde répond `false` — un refus explicite, jamais une erreur Prisma
+// brute (contrainte de clé étrangère ou autre) laissée remonter telle quelle.
+describe("matchDayAppartientAuClub (rattacher une soirée après coup)", () => {
+  it("accepte une soirée du MÊME club que le match", async () => {
+    const matchDay = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: new Date() },
+    });
+
+    expect(await matchDayAppartientAuClub(matchDay.id, ORG_ID)).toBe(true);
+  });
+
+  it("refuse une soirée d'un AUTRE club", async () => {
+    const autreOrg = `${ORG_ID}-soiree-autre-club`;
+    await prisma.organization.create({
+      data: { id: autreOrg, name: "Autre club", slug: autreOrg, createdAt: new Date() },
+    });
+    await prisma.club.create({ data: { id: autreOrg } });
+    const matchDayAilleurs = await prisma.matchDay.create({
+      data: { clubId: autreOrg, date: new Date() },
+    });
+
+    expect(await matchDayAppartientAuClub(matchDayAilleurs.id, ORG_ID)).toBe(
+      false,
+    );
+
+    await prisma.organization.delete({ where: { id: autreOrg } });
+  });
+
+  it("refuse un identifiant de soirée inexistant", async () => {
+    expect(
+      await matchDayAppartientAuClub("id-de-soiree-inexistant", ORG_ID),
+    ).toBe(false);
+  });
+});
+
+// APRES-21 : `updateMatchDetails` n'appliquait aucune limite de longueur sur
+// un nom d'équipe, alors que `scheduleMatch` (app/actions/schedule.ts)
+// coupait déjà à 40 caractères à la création. `nomEquipeTronque` pose cette
+// limite UNE fois dans lib/matches.ts et c'est la même fonction, appelée à
+// l'identique par les deux — la garantie que « les deux se comportent
+// pareil » n'est donc plus une coïncidence à surveiller entre deux fichiers,
+// c'est la même exécution de code.
+describe("nomEquipeTronque (longueur d'un nom d'équipe, APRES-21)", () => {
+  it("coupe un nom de plus de 40 caractères à 40, exactement comme scheduleMatch", () => {
+    const long = "Les Diables Rouges du Cinquième Arrondissement de Paris";
+    expect(long.length).toBeGreaterThan(NOM_EQUIPE_MAX);
+
+    const tronque = nomEquipeTronque(long);
+
+    expect(tronque).toHaveLength(NOM_EQUIPE_MAX);
+    expect(tronque).toBe(long.slice(0, NOM_EQUIPE_MAX));
+  });
+
+  it("laisse intact un nom de 40 caractères ou moins", () => {
+    expect(nomEquipeTronque("Les Bleus")).toBe("Les Bleus");
+  });
+
+  it("coupe après avoir retiré les espaces superflus (trim avant slice)", () => {
+    expect(nomEquipeTronque("  Les Bleus  ")).toBe("Les Bleus");
+  });
+
+  it("renvoie undefined pour un nom vide, blanc, nul ou absent", () => {
+    expect(nomEquipeTronque("")).toBeUndefined();
+    expect(nomEquipeTronque("   ")).toBeUndefined();
+    expect(nomEquipeTronque(null)).toBeUndefined();
+    expect(nomEquipeTronque(undefined)).toBeUndefined();
   });
 });

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
+import { nomEquipeTronque } from "@/lib/matches";
 import type { RsvpStatus } from "@prisma/client";
 
 /// Programmer un match à l'avance : le match naît SCHEDULED, les membres
@@ -74,10 +75,10 @@ export async function scheduleMatch(
       venue: input.venue?.trim().slice(0, 120) || null,
       teamAName: external
         ? "Nous"
-        : input.teamAName?.trim().slice(0, 40) || "Équipe A",
+        : nomEquipeTronque(input.teamAName) || "Équipe A",
       teamBName: external
         ? (opponentName as string)
-        : input.teamBName?.trim().slice(0, 40) || "Équipe B",
+        : nomEquipeTronque(input.teamBName) || "Équipe B",
     },
   });
 
