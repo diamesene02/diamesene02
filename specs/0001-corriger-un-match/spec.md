@@ -191,14 +191,25 @@ défendable (Q3, Q4, Q7).*
 
 ## Les cas de la base que ce lot referme
 
-*La spec 0000 est la base ; celle-ci est un delta. **23 cas**, tous
+*La spec 0000 est la base ; celle-ci est un delta. **27 cas**, tous
 vérifiés dans [`cas.md`](../0000-le-club-et-lapp/cas.md) — état et gravité
 relus un par un par la garde `/analyser`. Quand le lot est livré, leur état y
 passe à `fait`.*
 
+*Corrigé le 13 septembre 2026, par `/analyser` : `plan.md` avait déjà signalé
+le 11 septembre que quatre cas fermés mot pour mot par cette spec n'étaient
+pas cités — `APRES-09` et `APRES-10` (fonctionnalités n°1 et n°2 : ajouter/
+retirer un but) et `APRES-07`/`FIN-03` (le bouton « Rouvrir le match » qui ne
+fait rien). Trois jours plus tard ils manquaient encore. Le compte passe de
+23 à 27 ; leur tâche est `taches.md` n°13.*
+
 **Corriger un match terminé** — `APRES-11` (◐ les à-côtés, saison comprise) ·
 `APRES-02` (◐ un but rattrapé avec une minute antérieure) · `APRES-52` (✗ la
-minute d'un but existant) · `APRES-15` (◐ un match saisi le mauvais jour, à
+minute d'un but existant) · `APRES-09` (◐ ajouter un but oublié — la
+fonctionnalité n°1, mot pour mot) · `APRES-10` (◐ retirer un but ou changer
+son buteur — la fonctionnalité n°2, mot pour mot) · `APRES-07` (⚠ le bouton
+« Rouvrir le match » qui ne fait rien) · `FIN-03` (⚠ le même bouton, vu par un
+autre angle) · `APRES-15` (◐ un match saisi le mauvais jour, à
 rattacher à sa soirée) · `APRES-D3` (⚠ la date corrigée tombe au mauvais jour) ·
 `APRES-21` (◐ un nom d'équipe vide ou d'une phrase entière) · `APRES-50` (◐ le
 bilan sous l'écusson après correction d'un nom) · `APRES-30` (◐ deux admins
@@ -250,11 +261,20 @@ qui dépend de ce que devient `/edit` — voir le plan.
       vote d'homme du match et un rejeu de file. Il faut un auteur et un
       marqueur explicite de correction.
 - [ ] Un but ajouté après coup apparaît en fin de chronologie, marqué comme tel.
-- [ ] Un match terminé s'ANNULE (barré, hors des stats, avec un motif) ; le
+- [x] Un match terminé s'ANNULE (barré, hors des stats, avec un motif) ; le
       bouton « Supprimer » et la route `DELETE` ont disparu du site ET de l'app.
       L'annulation réutilise le statut `CANCELED` qui existe déjà
       (`prisma/schema.prisma:344`) : `lib/stats.ts` ne lit que `FINISHED`, donc
       un match annulé sort des chiffres sans qu'on touche aux statistiques.
+
+      *Livré différemment le 13 septembre (spec 0006), corrigé ici par
+      `/analyser` : le bouton et la route n'ont pas disparu, ils ont changé de
+      sens. `retirerMatch` décide : sans rien à perdre, il supprime pour de
+      vrai (le mot « Supprimer » reste vrai) ; avec du contenu, il annule à la
+      place, sur LE MÊME bouton, qui le dit avant de cliquer (« il reste,
+      marqué annulé »). C'est un seul bouton honnête plutôt que deux, et ça
+      ferme la même intention (plus jamais de perte silencieuse) sans ouvrir
+      un second chemin. Assumé, pas un oubli (article X).*
 - [ ] **Deux** déclencheurs distincts, et pas un : passé six semaines
       (`42 * 86400_000`), ET sur un match d'une saison **clôturée**
       (`Season.isActive` faux) — une saison peut clore à trois semaines, et un

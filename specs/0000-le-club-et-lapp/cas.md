@@ -2187,7 +2187,7 @@ numérotées citeront les cas.*
 
 **Ce qu'on attend.** Soit il peut, soit il reçoit un refus explicite — pas un écran qui ne réagit pas.
 
-**Où ça en est.** Le lien « Corriger » n'apparaît qu'aux admins ; si le membre tape l'URL /edit, il est renvoyé au récap sans un mot (redirect, edit/page.tsx:15) ; l'action serveur répond « Réservé aux admins. » et l'API « Admin requis pour modifier un match terminé ». Le refus existe côté serveur, mais l'écran, lui, se tait. App : rien à refuser, rien n'existe. La règle elle-même (admin ou canScore) n'est pas tranchée — Q1 de la spec 0001.
+**Où ça en est.** Le lien « Corriger » n'apparaît qu'aux admins ; si le membre tape l'URL /edit, il est renvoyé au récap sans un mot (redirect, edit/page.tsx:15) ; l'action serveur répond « Réservé aux admins. » et l'API « Admin requis pour modifier un match terminé ». Le refus existe côté serveur, mais l'écran, lui, se tait. App : rien à refuser, rien n'existe. La règle elle-même est tranchée depuis le 10 septembre 2026 : `canManage`, pas `canScore` (Q1 de la spec 0001, tranchée par le code — correction du 13 septembre : cette ligne disait encore « n'est pas tranchée »).
 
 > `app/c/[slug]/matches/[id]/page.tsx:361-368 ; app/c/[slug]/matches/[id]/edit/page.tsx:15 ; app/actions/matches.ts:49 ; app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:68-73 ; five-scorer-mobile/app/recap/[id].tsx`
 
@@ -2317,7 +2317,7 @@ numérotées citeront les cas.*
 
 **Ce qu'on attend.** Depuis le récap, on ajoute le but ; le score passe de 3-2 à 4-2 sur le site et l'app ; classement, Élo et forme suivent.
 
-**Où ça en est.** Le serveur sait le faire : POST events accepte un admin sur un match FINISHED et recalcule le score. Mais aucun écran ne l'appelle : le formulaire d'édition renvoie vers « la timeline » (« Pour corriger les buts, ouvre le match et utilise la timeline. »), qui n'est accessible que sur la feuille en direct — laquelle refuse de s'afficher sur un match terminé et redirige vers le récap. Impasse. App : rien. Droit serveur : admin, alors que la spec 0001 propose canScore.
+**Où ça en est.** Le serveur sait le faire : POST events accepte un admin sur un match FINISHED et recalcule le score. Mais aucun écran ne l'appelle : le formulaire d'édition renvoie vers « la timeline » (« Pour corriger les buts, ouvre le match et utilise la timeline. »), qui n'est accessible que sur la feuille en direct — laquelle refuse de s'afficher sur un match terminé et redirige vers le récap. Impasse. App : rien. Droit serveur : admin — c'est aussi ce que la spec 0001 retient (`canManage`, Q1, 10 septembre 2026 ; correction du 13 septembre : cette ligne disait à tort « canScore »).
 
 > `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:42-130 ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:180-182 ; app/c/[slug]/matches/[id]/live/LiveMatch.tsx:267-272 ; five-scorer-mobile/app/recap/[id].tsx (rien)`
 

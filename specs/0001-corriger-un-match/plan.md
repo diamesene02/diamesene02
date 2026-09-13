@@ -242,6 +242,19 @@ conflit — pas un écran.
    `cancelReason` (seul `MatchDay` les porte), aucune fonction ne rétablit un
    match annulé, et `/r/[id]` renvoie 404 pour tout ce qui n'est pas `FINISHED`.
    L'annulation d'un match terminé est un lot à elle seule.
+
+   *Rattrapé en partie depuis — daté, pas réécrit : la spec 0006 (13 septembre
+   2026) a donné à `Match` `canceledAt`/`cancelReason` et la logique
+   annuler-ou-supprimer ; le même jour, le correctif qui a suivi 0006 a élargi
+   les six gardes serveur (`matchVerrouille`, `lib/matches.ts`) pour qu'un
+   `CANCELED` soit aussi figé, pas seulement un `FINISHED` — le trou que ce
+   point décrivait comme un risque **a existé réellement**, quelques heures,
+   avant d'être refermé. Ce qui reste ouvert et que ce lot doit encore
+   fermer : aucune fonction ne rétablit un match annulé (`taches.md`), les
+   couches locales (site ET app) ne couvrent encore que `FINISHED`, et
+   `APRES-27` (une file rejouée sur un match annulé doit échouer
+   DIAGNOSTIQUEMENT sans bloquer toute la chaîne) n'est pas tranché — voir
+   `taches.md`.*
 6. **Aucun garde de saison clôturée.** Le formulaire laisse choisir une saison
    fermée, avec « (active) » sur l'autre pour tout signal. Hors lot, mais relevé.
 
