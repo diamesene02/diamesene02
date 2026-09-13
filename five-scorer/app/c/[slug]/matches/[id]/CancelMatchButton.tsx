@@ -28,7 +28,9 @@ export default function CancelMatchButton({
   }
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-[color:var(--ink-2)]">Sûr ?</span>
+      <span className="text-xs text-[color:var(--ink-2)]">
+        Il reste visible, marqué annulé — personne ne peut plus y jouer.
+      </span>
       <button
         disabled={pending}
         onClick={() =>

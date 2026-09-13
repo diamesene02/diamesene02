@@ -382,6 +382,15 @@ export default async function MatchRecapPage({
             <DeleteMatchButton slug={slug} matchId={match.id} />
           </div>
         )}
+        {/* Celui qui a saisi la feuille n'est très souvent pas admin (Q1,
+            spec 0001) : sans cette phrase, il constate une erreur et ne voit
+            aucun bouton, sans savoir pourquoi ni à qui s'adresser (APRES-12,
+            article V — un refus se dit). */}
+        {!ctx.canManage && match.status === "FINISHED" && (
+          <p className="text-sm text-[color:var(--ink-2)]">
+            Seul un administrateur peut corriger un match terminé.
+          </p>
+        )}
       </RecapView>
     </main>
   );
