@@ -491,6 +491,19 @@ export function retirerMatch(
   );
 }
 
+/// Rétablir un match annulé (spec 0001, Q8) — réservé aux admins côté
+/// serveur (403 sinon), qui efface au passage `canceledAt`/`cancelReason`.
+/// Même route ANGLAISE que `retirerMatch` ci-dessus, avec `PATCH` au lieu de
+/// `DELETE` : c'est elle qui porte déjà `{status:"FINISHED"}` pour terminer
+/// un match en direct, le serveur isole le cas d'un match CANCELED avant le
+/// reste de sa logique (route.ts, five-scorer).
+export function retablirMatch(clubId: string, matchId: string): Promise<{ ok: true }> {
+  return appelAuthentifie<{ ok: true }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matches/${encodeURIComponent(matchId)}`,
+    { method: "PATCH", body: JSON.stringify({ status: "FINISHED" }) },
+  );
+}
+
 export type EcranEffectif = {
   peutGerer: boolean;
   aDejaUnProfil: boolean;

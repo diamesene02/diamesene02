@@ -7,6 +7,7 @@ import {
   joueurSurLaFeuille,
   matchDayAppartientAuClub,
   nomEquipeTronque,
+  retablirMatch,
 } from "@/lib/matches";
 
 type Ctx = { params: Promise<{ clubId: string; matchId: string }> };
@@ -155,6 +156,26 @@ export async function PATCH(req: Request, { params }: Ctx) {
   // soirées du club d'un coup (cf. lib/ids.ts, TRANS-22).
   if (!estIdOuVide(body.matchDayId)) {
     return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
+  }
+
+  // Rétablir un match annulé — isolé AVANT le reste de la logique du PATCH,
+  // pas laissé retomber dans le flux générique (spec 0001, Q8 + critère
+  // d'acceptation « un match annulé peut être rétabli »). Sans cette
+  // isolation, `{status:"FINISHED"}` sur un match CANCELED passait déjà le
+  // garde ci-dessous (isFinishing=false, isIdempotentFinish=false, donc
+  // `!false && !false && !ctx.canManage` — faux pour un admin) et écrivait
+  // `status: "FINISHED"` sans jamais effacer `canceledAt`/`cancelReason` :
+  // un match « rétabli » par ce chemin restait marqué annulé tout en étant
+  // FINISHED. `retablirMatch` (lib/matches.ts) porte le geste complet.
+  if (body.status === "FINISHED" && match.status === "CANCELED") {
+    if (!ctx.canManage) {
+      return NextResponse.json({ error: "Admin requis" }, { status: 403 });
+    }
+    const res = await retablirMatch(clubId, matchId);
+    if (!res.ok) {
+      return NextResponse.json({ error: res.error }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true });
   }
 
   // Terminer un match LIVE : ouvert à qui peut scorer (idempotent).

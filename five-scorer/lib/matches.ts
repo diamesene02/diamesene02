@@ -175,3 +175,37 @@ export async function annulerOuSupprimerMatch(
   }
   return { ok: true, geste: "annule" };
 }
+
+// Rétablir, symétrique d'annuler (spec 0001, Q8 + critère d'acceptation :
+// « un match annulé peut être rétabli, et revient dans les stats »).
+//
+// `lib/stats.ts` ne lit que les matchs FINISHED (loadFinishedMatches) : un
+// retour à FINISHED suffit donc à remettre un match dans tous les chiffres
+// du club, sans le moindre recalcul à écrire ici — la fonction n'a qu'à
+// reposer le statut ET effacer les traces de l'annulation, sous peine de
+// laisser un match FINISHED avec un canceledAt non nul (une incohérence
+// pire que l'absence de la fonctionnalité).
+export async function retablirMatch(
+  clubId: string,
+  matchId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, clubId },
+    select: { id: true, status: true },
+  });
+  if (!match) return { ok: false, error: "Match introuvable." };
+
+  if (match.status !== "CANCELED") {
+    return { ok: false, error: "Ce match n'est pas annulé." };
+  }
+
+  try {
+    await prisma.match.update({
+      where: { id: matchId },
+      data: { status: "FINISHED", canceledAt: null, cancelReason: null },
+    });
+  } catch {
+    return { ok: false, error: "Le rétablissement a échoué. Réessaie." };
+  }
+  return { ok: true };
+}

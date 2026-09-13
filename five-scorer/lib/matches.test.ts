@@ -15,6 +15,7 @@ import {
   nomEquipeTronque,
   NOM_EQUIPE_MAX,
   rattrapable,
+  retablirMatch,
   SIX_SEMAINES_MS,
 } from "./matches";
 import { estIdOuVide } from "./ids";
@@ -107,6 +108,138 @@ describe("annulerOuSupprimerMatch", () => {
     expect(res).toEqual({ ok: false, error: "Match introuvable." });
     expect(await prisma.match.findUnique({ where: { id: match.id } })).not.toBeNull();
     await prisma.organization.delete({ where: { id: autreOrg } });
+  });
+});
+
+// spec 0001, Q8 + critère d'acceptation « un match annulé peut être
+// rétabli, et revient dans les stats » : `retablirMatch` est le symétrique
+// d'`annulerOuSupprimerMatch` ci-dessus. `lib/stats.ts` (loadFinishedMatches)
+// ne lit QUE les matchs status:"FINISHED" — vérifié par lecture de code, pas
+// modifié ici : un retour à FINISHED suffit donc à remettre un match dans
+// tous les chiffres, sans le moindre recalcul à écrire.
+describe("retablirMatch", () => {
+  it("rétablit un match CANCELED en FINISHED et efface canceledAt/cancelReason", async () => {
+    const match = await prisma.match.create({
+      data: {
+        clubId: ORG_ID,
+        status: "CANCELED",
+        canceledAt: new Date(),
+        cancelReason: "Terrain fermé",
+      },
+    });
+
+    const res = await retablirMatch(ORG_ID, match.id);
+
+    expect(res).toEqual({ ok: true });
+    const relu = await prisma.match.findUnique({ where: { id: match.id } });
+    expect(relu?.status).toBe("FINISHED");
+    expect(relu?.canceledAt).toBeNull();
+    expect(relu?.cancelReason).toBeNull();
+  });
+
+  it("refuse un match FINISHED (pas annulé), sans rien changer", async () => {
+    const match = await prisma.match.create({
+      data: { clubId: ORG_ID, status: "FINISHED" },
+    });
+
+    const res = await retablirMatch(ORG_ID, match.id);
+
+    expect(res).toEqual({ ok: false, error: "Ce match n'est pas annulé." });
+    const relu = await prisma.match.findUnique({ where: { id: match.id } });
+    expect(relu?.status).toBe("FINISHED");
+  });
+
+  it("refuse un match LIVE (pas annulé), sans rien changer", async () => {
+    const match = await prisma.match.create({
+      data: { clubId: ORG_ID, status: "LIVE" },
+    });
+
+    const res = await retablirMatch(ORG_ID, match.id);
+
+    expect(res).toEqual({ ok: false, error: "Ce match n'est pas annulé." });
+    const relu = await prisma.match.findUnique({ where: { id: match.id } });
+    expect(relu?.status).toBe("LIVE");
+  });
+
+  it("refuse un match introuvable", async () => {
+    const res = await retablirMatch(ORG_ID, "id-inexistant");
+    expect(res).toEqual({ ok: false, error: "Match introuvable." });
+  });
+
+  it("ne touche pas à un match d'un autre club", async () => {
+    const autreOrg = `${ORG_ID}-retablir-autre`;
+    await prisma.organization.create({
+      data: { id: autreOrg, name: "Autre club", slug: autreOrg, createdAt: new Date() },
+    });
+    await prisma.club.create({ data: { id: autreOrg } });
+    const match = await prisma.match.create({
+      data: { clubId: autreOrg, status: "CANCELED", canceledAt: new Date() },
+    });
+
+    const res = await retablirMatch(ORG_ID, match.id);
+
+    expect(res).toEqual({ ok: false, error: "Match introuvable." });
+    const relu = await prisma.match.findUnique({ where: { id: match.id } });
+    expect(relu?.status).toBe("CANCELED");
+    await prisma.organization.delete({ where: { id: autreOrg } });
+  });
+
+  // Non-régression bout-en-bout : annuler un match avec un but, le
+  // rétablir, et vérifier qu'il redevient FINISHED sans qu'aucun recalcul ne
+  // soit nécessaire — `getLeaderboard`/`loadFinishedMatches` (lib/stats.ts)
+  // filtrent déjà `status: "FINISHED"`, un match qui a ce statut et une
+  // compo/un événement est donc automatiquement compté, qu'il ait ou non
+  // transité par CANCELED entre-temps.
+  it("annulerOuSupprimerMatch puis retablirMatch : le match redevient FINISHED, prêt pour les stats", async () => {
+    const joueur = await prisma.player.create({
+      data: { clubId: ORG_ID, name: "But avant annulation" },
+    });
+    const match = await prisma.match.create({
+      data: {
+        clubId: ORG_ID,
+        kind: "INTERNAL",
+        status: "FINISHED",
+        scoreA: 1,
+        scoreB: 0,
+      },
+    });
+    await prisma.matchParticipant.create({
+      data: {
+        matchId: match.id,
+        playerId: joueur.id,
+        team: "A",
+        initialTeam: "A",
+      },
+    });
+    await prisma.matchEvent.create({
+      data: {
+        matchId: match.id,
+        type: "GOAL",
+        team: "A",
+        playerId: joueur.id,
+      },
+    });
+
+    const annule = await annulerOuSupprimerMatch(ORG_ID, match.id, "Erreur de saisie");
+    expect(annule).toEqual({ ok: true, geste: "annule" });
+    const apresAnnulation = await prisma.match.findUnique({ where: { id: match.id } });
+    expect(apresAnnulation?.status).toBe("CANCELED");
+
+    const retabli = await retablirMatch(ORG_ID, match.id);
+    expect(retabli).toEqual({ ok: true });
+
+    const apresRetablissement = await prisma.match.findUnique({
+      where: { id: match.id },
+    });
+    expect(apresRetablissement?.status).toBe("FINISHED");
+    expect(apresRetablissement?.canceledAt).toBeNull();
+    expect(apresRetablissement?.cancelReason).toBeNull();
+    // Le but et la compo n'ont jamais bougé : rien à recalculer, la
+    // fonction n'a fait que reposer le statut et effacer les traces de
+    // l'annulation.
+    expect(
+      await prisma.matchEvent.count({ where: { matchId: match.id, type: "GOAL" } }),
+    ).toBe(1);
   });
 });
 

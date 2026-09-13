@@ -11,6 +11,7 @@ import { estRetro } from "@/lib/retro";
 import Icon from "@/components/Icon";
 import MatchRsvpPanel from "./MatchRsvpPanel";
 import CancelMatchButton from "./CancelMatchButton";
+import RestoreMatchButton from "./RestoreMatchButton";
 
 export const dynamic = "force-dynamic";
 
@@ -390,6 +391,14 @@ export default async function MatchRecapPage({
           <p className="text-sm text-[color:var(--ink-2)]">
             Seul un administrateur peut corriger un match terminé.
           </p>
+        )}
+
+        {/* Symétrique du bloc FINISHED ci-dessus : un match annulé qui a
+            gardé du contenu (buts, compo — spec 0006, sinon il aurait été
+            supprimé) peut revenir en jeu et dans les stats (spec 0001,
+            Q8). */}
+        {ctx.canManage && match.status === "CANCELED" && (
+          <RestoreMatchButton slug={slug} matchId={match.id} />
         )}
       </RecapView>
     </main>

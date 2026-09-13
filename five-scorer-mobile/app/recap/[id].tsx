@@ -14,7 +14,13 @@ import Ecran from "../../composants/Ecran";
 import { Avatar, BoutonRond, EcussonChasuble, Poignee, Segment } from "../../composants/base";
 import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { themeTokens } from "../../lib/noyau/theme";
-import { chargerFicheMatch, retirerMatch, SessionExpiree, type FicheMatch } from "../../lib/api";
+import {
+  chargerFicheMatch,
+  retablirMatch,
+  retirerMatch,
+  SessionExpiree,
+  type FicheMatch,
+} from "../../lib/api";
 
 /// Le récap d'un match — la feuille refermée.
 ///
@@ -36,6 +42,7 @@ export default function Recap() {
   const [occupe, setOccupe] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const [retrait, setRetrait] = useState(false);
+  const [retablissement, setRetablissement] = useState(false);
 
   const charger = useCallback(async () => {
     if (!id) return;
@@ -90,6 +97,24 @@ export default function Recap() {
         },
       ],
     );
+  }
+
+  /// « Rétablir » un match annulé (spec 0001, Q8) — le geste inverse de
+  /// « Supprimer » ci-dessus, sans confirmation : rien à perdre ici, le
+  /// serveur repasse juste le match en terminé et efface la trace de
+  /// l'annulation.
+  function retablir() {
+    if (!fiche || !clubId) return;
+    setRetablissement(true);
+    void retablirMatch(clubId, fiche.id)
+      .then(() => {
+        setRetablissement(false);
+        void charger();
+      })
+      .catch((e: Error) => {
+        setRetablissement(false);
+        setErreur(e.message);
+      });
   }
 
   const couleurA = fiche?.chasubles.a ?? "#ffffff";
@@ -356,6 +381,18 @@ export default function Recap() {
               >
                 <Text style={{ color: "#ff453a", fontSize: 15, fontWeight: "600" }}>
                   {retrait ? "…" : "Supprimer"}
+                </Text>
+              </Pressable>
+            )}
+
+            {fiche.droits.peutGerer && fiche.statut === "ANNULE" && (
+              <Pressable
+                onPress={retablir}
+                disabled={retablissement}
+                style={[s.lien, { borderColor: t.cb }]}
+              >
+                <Text style={{ color: t.ink, fontSize: 15, fontWeight: "600" }}>
+                  {retablissement ? "…" : "Rétablir"}
                 </Text>
               </Pressable>
             )}

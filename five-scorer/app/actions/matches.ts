@@ -9,6 +9,7 @@ import {
   joueurSurLaFeuille,
   matchDayAppartientAuClub,
   nomEquipeTronque,
+  retablirMatch,
   type ResultatRetrait,
 } from "@/lib/matches";
 
@@ -36,6 +37,33 @@ export async function retirerMatch(
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 
   const res = await annulerOuSupprimerMatch(ctx.club.id, matchId, raison);
+  if (res.ok) {
+    revalidatePath(`/c/${slug}`);
+    revalidatePath(`/c/${slug}/matches`);
+    revalidatePath(`/c/${slug}/matches/${matchId}`);
+  }
+  return res;
+}
+
+/// Rétablir un match annulé — symétrique de `retirerMatch` ci-dessus (spec
+/// 0001, Q8 + critère d'acceptation « un match annulé peut être rétabli, et
+/// revient dans les stats »). `retablirMatch` (lib/matches.ts) refuse déjà
+/// un match qui n'est pas CANCELED : cette action n'ajoute que le contrôle
+/// d'identité/droits et la revalidation, comme `retirerMatch`.
+export async function retablirMatchAction(
+  slug: string,
+  matchId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Identifiants venus du client : refuser tout ce qui n'est pas une
+  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
+  if (!idsValides(matchId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
+  const ctx = await requireClub(slug);
+  if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
+
+  const res = await retablirMatch(ctx.club.id, matchId);
   if (res.ok) {
     revalidatePath(`/c/${slug}`);
     revalidatePath(`/c/${slug}/matches`);
