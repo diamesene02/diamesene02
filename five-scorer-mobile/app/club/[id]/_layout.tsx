@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Tabs, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { chargerMoi } from "../../../lib/api";
+import { FournisseurClub } from "../../../composants/ClubCourant";
 import {
   IconeAccueil,
   IconeBallon,
@@ -80,7 +81,7 @@ export default function DispositionClub() {
   );
 
   return (
-    <>
+    <FournisseurClub value={id}>
       <Tabs
         screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}
         tabBar={({ state, navigation }) => (
@@ -157,7 +158,7 @@ export default function DispositionClub() {
           </Pressable>
         </Pressable>
       </Modal>
-    </>
+    </FournisseurClub>
   );
 }
 

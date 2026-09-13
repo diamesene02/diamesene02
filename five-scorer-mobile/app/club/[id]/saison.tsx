@@ -9,7 +9,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useClubId } from "../../../composants/ClubCourant";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ecran from "../../../composants/Ecran";
 import { BoutonRond, BoutonVerre, Ecusson, Poignee } from "../../../composants/base";
@@ -34,7 +35,7 @@ import {
 type Vue = "calendrier" | "adversaires" | "bilan";
 
 export default function Saison() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useClubId();
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [d, setD] = useState<EcranSaison | null>(null);
   const [saison, setSaison] = useState<string | undefined>(undefined);

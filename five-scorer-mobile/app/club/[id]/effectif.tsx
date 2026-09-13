@@ -9,7 +9,8 @@ import {
   View,
 } from "react-native";
 import { Alert } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useClubId } from "../../../composants/ClubCourant";
 import Ecran from "../../../composants/Ecran";
 import { Avatar, BoutonRond, BoutonVerre } from "../../../composants/base";
 import Etoiles from "../../../composants/Etoiles";
@@ -35,7 +36,7 @@ import { toucheFranche } from "../../../lib/vibrer";
 /// encre atténuée : ce sont ceux qui ne jouent plus, ils ne doivent pas
 /// encombrer la liste de ceux qui viennent lundi.
 export default function Effectif() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useClubId();
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [donnees, setDonnees] = useState<EcranEffectif | null>(null);
   const [archivesOuverts, setArchivesOuverts] = useState(false);
