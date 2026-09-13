@@ -435,9 +435,9 @@ tenue par « personne » est une règle qu'on croit avoir.
   <br>*Qui la tient :* le serveur
   <br>`app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:68-73, 161-166, 224-229 ; app/api/clubs/[clubId]/matches/[matchId]/lineup/route.ts:45-50, 127-132 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:146-154 ; app/api/clubs/[clubId]/matches/route.ts:255-257, 315-319`
 
-- **Sur le téléphone et dans le navigateur, la feuille locale refuse toute écriture dans un match FINISHED (« Match terminé ») — c'est une garde du client, doublée côté serveur par la règle précédente.**
-  <br>*Qui la tient :* l'affichage seulement
-  <br>`lib/localMatch.ts:324, 496, 548 ; five-scorer-mobile/lib/match/local.ts:411, 585, 626`
+- **Sur le téléphone et dans le navigateur, la feuille locale refuse toute écriture dans un match FINISHED ou CANCELED (« Match terminé ou annulé ») — les sept portes, pas trois sur sept comme avant le 13 septembre 2026 ; c'est une garde du client, doublée côté serveur par la règle précédente.**
+  <br>*Qui la tient :* le client (`matchVerrouille`, `lib/matchStatus.ts`), doublé côté serveur
+  <br>`lib/matchStatus.ts ; five-scorer-mobile/lib/noyau/matchStatus.ts (copie octet pour octet) ; lib/localMatch.ts:325, 396, 435, 472, 506, 558 ; five-scorer-mobile/lib/match/local.ts:414, 485, 535, 572, 600, 641`
 
 - **Le score est la somme des buts (GOAL + OWN_GOAL par camp) et se recalcule à chaque ajout ou retrait d'événement ; personne ne pose un score à la main.**
   <br>*Qui la tient :* le serveur
