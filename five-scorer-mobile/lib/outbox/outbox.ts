@@ -15,7 +15,7 @@
 //      pas la saisie d'une soirée sans le dire.
 
 import type { Base } from "./base";
-import type { OutboxEntry, OutboxOp } from "./types";
+import type { OutboxEntry, OutboxOp } from "./operations";
 
 /// La ligne telle que SQLite la rend. Les colonnes sont en serpent_minuscule
 /// (règle 2 de l'entête de db/schema.sql) ; la conversion vers les noms

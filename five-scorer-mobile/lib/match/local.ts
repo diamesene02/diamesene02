@@ -52,8 +52,8 @@ import type {
   LocalEvent,
   LocalEventType,
   LocalMatch,
-  OutboxOp,
 } from "../outbox/types";
+import type { OutboxOp } from "../outbox/operations";
 import { newId } from "../noyau/ids";
 import { RETRO_APRES_MS } from "../noyau/retro";
 import {
@@ -900,8 +900,36 @@ export function creerMatchLocal(deps: Dependances) {
     };
   }
 
+  /// Pose la composition préparée d'une soirée : elle part dans la file, pas
+  /// sur le réseau.
+  ///
+  /// Rien n'est écrit dans le miroir local — il n'y a pas de table de compo
+  /// côté téléphone, et il n'en faut pas : la compo se relit du serveur quand
+  /// l'écran s'ouvre, et cet écran exige déjà le réseau pour s'ouvrir. Ce que
+  /// la file protège ici, c'est le réseau qui TOMBE entre la composition et
+  /// l'enregistrement — le métro, l'ascenseur, le Wi-Fi qui lâche (spec 0005).
+  ///
+  /// La liste est envoyée ENTIÈRE, jamais un delta : le serveur remplace
+  /// l'ensemble, donc rejouer l'opération est sans effet de bord.
+  async function enregistrerCompo(
+    clubId: string,
+    soireeId: string,
+    joueurs: { playerId: string; team: "A" | "B"; isGk: boolean }[],
+    noms?: { teamAName?: string; teamBName?: string },
+  ): Promise<void> {
+    await base.transaction(async (b) => {
+      await enqueue(b, {
+        kind: "setCompo",
+        clubId,
+        soireeId,
+        payload: { joueurs, ...noms },
+      });
+    });
+  }
+
   return {
     saveRoster,
+    enregistrerCompo,
     addLocalGuest,
     saveClubSettings,
     getLocalClub,

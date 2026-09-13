@@ -29,7 +29,7 @@
 import type { Base } from "./base";
 import { ENTETE_PROTOCOLE, ENTETE_VERDICT, PROTOCOLE_COURANT, type VerdictProtocole } from "../protocole";
 import { definirVerdict } from "../protocoleClient";
-import type { OutboxEntry, OutboxOp } from "./types";
+import type { OutboxEntry, OutboxOp } from "./operations";
 import {
   bloquerChaine,
   compteurs,
@@ -232,6 +232,16 @@ export function creerDrain(deps: Dependances) {
           ...json(op.payload),
         });
         await leverSiRefus(res, "movePlayer");
+        return;
+      }
+      case "setCompo": {
+        // PUT et non POST : le corps porte la compo entière, pas un ajout. La
+        // route remplace l'ensemble, donc rejouer est sans effet de bord.
+        const res = await fetchAvecDelai(
+          `${racine}/matchdays/${op.soireeId}/lineup`,
+          { method: "PUT", ...json(op.payload) },
+        );
+        await leverSiRefus(res, "setCompo");
         return;
       }
       case "finishMatch": {

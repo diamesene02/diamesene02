@@ -324,7 +324,11 @@ export type FicheSoiree = {
       nom: string;
       photo: string | null;
       niveau: number;
+      /// Gardien ATTITRÉ du club — un rôle, pas une affectation.
       gardien: boolean;
+      /// Gardien de CETTE soirée, tel que la compo le désigne. Les deux
+      /// diffèrent : on peut être gardien du club et jouer devant ce lundi-là.
+      gardienSoiree: boolean;
       camp: "A" | "B" | null;
     }[];
   };

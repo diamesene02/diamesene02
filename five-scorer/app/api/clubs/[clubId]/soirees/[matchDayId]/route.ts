@@ -46,7 +46,7 @@ export async function GET(
       teamAName: true,
       teamBName: true,
       rsvps: { select: { playerId: true, status: true, respondedAt: true, hasPaid: true } },
-      lineup: { select: { playerId: true, team: true } },
+      lineup: { select: { playerId: true, team: true, isGk: true } },
       matches: {
         orderBy: { playedAt: "asc" },
         select: {
@@ -98,6 +98,11 @@ export async function GET(
   });
 
   const campDe = new Map(md.lineup.map((l) => [l.playerId, l.team as "A" | "B"]));
+  // Le gardien DE CETTE SOIRÉE, qui n'est pas le rôle du joueur : on peut être
+  // gardien attitré du club et jouer devant ce lundi-là, ou l'inverse. Sans
+  // cette carte, l'app qui relit puis réécrit la compo effacerait à chaque fois
+  // le gardien désigné — elle n'aurait eu aucun moyen de le connaître.
+  const gardienDe = new Map(md.lineup.map((l) => [l.playerId, l.isGk]));
   const parId = new Map(joueurs.map((j) => [j.id, j]));
 
   const libelles: Record<string, { libelle: string; ton: string }> = {
@@ -243,6 +248,7 @@ export async function GET(
         photo: j.photo,
         niveau: j.skill,
         gardien: j.isGk,
+        gardienSoiree: gardienDe.get(j.id) ?? false,
         camp: campDe.get(j.id) ?? null,
       })),
     },

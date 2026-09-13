@@ -13,6 +13,8 @@ import { router, useGlobalSearchParams, useLocalSearchParams } from "expo-router
 import Ecran from "../../composants/Ecran";
 import { Avatar, BoutonRond, EcussonChasuble } from "../../composants/base";
 import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
+import { useNoyau } from "../../composants/Noyau";
+import { balanceTeams } from "../../lib/noyau/balance";
 import { themeTokens } from "../../lib/noyau/theme";
 import {
   chargerSoiree,
@@ -42,6 +44,16 @@ export default function Soiree() {
   const [occupe, setOccupe] = useState(true);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+
+  // La composition, tenue à l'écran pendant qu'on la touche. Elle part dans la
+  // file d'attente à l'enregistrement, pas à chaque tap : composer est un
+  // brouillon, et un brouillon ne doit pas produire quinze opérations.
+  const { local, drain } = useNoyau();
+  const [camps, setCamps] = useState<Record<string, "A" | "B" | null>>({});
+  const [gardiens, setGardiens] = useState<Record<string, boolean>>({});
+  const [graine, setGraine] = useState(1);
+  const [envoiCompo, setEnvoiCompo] = useState(false);
+  const [motCompo, setMotCompo] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     if (!id) return;
@@ -89,6 +101,22 @@ export default function Soiree() {
     // tous les mardis matin.
     await Share.share({ message: fiche.mot }).catch(() => {});
   }
+
+  // Quand la fiche arrive, on repart de ce que le serveur dit — y compris le
+  // gardien DE LA SOIRÉE (`gardienSoiree`), et non le rôle du joueur. Sans lui,
+  // relire puis réécrire effacerait le gardien désigné à chaque enregistrement.
+  useEffect(() => {
+    if (!fiche) return;
+    const c: Record<string, "A" | "B" | null> = {};
+    const g: Record<string, boolean> = {};
+    for (const j of fiche.compo.joueurs) {
+      c[j.playerId] = j.camp;
+      g[j.playerId] = j.gardienSoiree;
+    }
+    setCamps(c);
+    setGardiens(g);
+    setMotCompo(null);
+  }, [fiche]);
 
   const presences = fiche && (
     <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
@@ -184,79 +212,206 @@ export default function Soiree() {
     </View>
   );
 
-  // Les équipes décidées trois ou quatre jours avant, sur WhatsApp.
+  // --- La composition préparée -------------------------------------------
   //
-  // Elles arrivaient DÉJÀ dans la charge utile de la soirée (`compo`) — la
-  // route serveur a été écrite exprès pour l'app — et elles n'étaient
-  // affichées nulle part. C'était la seule chose que cet écran promettait dans
-  // sa propre description (« Avant : qui vient, quelles équipes, qui a payé »)
-  // sans jamais la tenir.
+  // Les équipes décidées trois ou quatre jours avant, sur WhatsApp. Elles
+  // vivent sur la SOIRÉE et pas sur un match : une soirée enchaîne quatre à
+  // huit matchs avec les deux mêmes équipes, et chacun en hérite.
   //
-  // Lecture seule pour l'instant, et c'est dit : l'app ne sait pas encore
-  // composer à l'avance (constitution, article X — on dit ce qu'on ne fait
-  // pas), le sélecteur de `/compo` interdisant les dates futures.
+  // Modifiable par qui peut MARQUER, pas seulement par un gérant — c'est la
+  // règle du site (app/actions/compo.ts:31 refuse sur !canScore). Deux droits
+  // pour un même geste selon l'appareil n'aurait aucun sens.
+  const tousCompo = fiche?.compo.joueurs ?? [];
+  const enA = tousCompo.filter((j) => camps[j.playerId] === "A");
+  const enB = tousCompo.filter((j) => camps[j.playerId] === "B");
+  const horsCompo = tousCompo.filter((j) => !camps[j.playerId]);
+  const modifiable = Boolean(fiche?.peutScorer) && !fiche?.annulee;
+
+  // Les trois mêmes avertissements que le site. Ils ne BLOQUENT pas : une compo
+  // à sept contre six est parfois ce qu'on veut, et un écran qui refuse
+  // d'enregistrer ce qu'on lui demande est pire qu'un écran qui prévient.
+  const alertes: string[] = [];
+  if (enA.length !== enB.length) {
+    alertes.push(`Effectif déséquilibré : ${enA.length} contre ${enB.length}.`);
+  }
+  if (enA.length === 0 || enB.length === 0) alertes.push("Une équipe est vide.");
+  const sansG = [
+    enA.length > 0 && !enA.some((j) => gardiens[j.playerId]) ? fiche?.compo.nomA : null,
+    enB.length > 0 && !enB.some((j) => gardiens[j.playerId]) ? fiche?.compo.nomB : null,
+  ].filter(Boolean);
+  if (sansG.length > 0) alertes.push(`Pas de gardien chez ${sansG.join(" et ")}.`);
+
+  /// Un tap fait tourner le joueur : hors compo → A → B → hors compo. Le même
+  /// geste que `/compo` et que le site — on ne réinvente pas un geste que le
+  /// club connaît déjà.
+  function tourner(playerId: string) {
+    setCamps((c) => {
+      const a = c[playerId];
+      return { ...c, [playerId]: a === "A" ? "B" : a === "B" ? null : "A" };
+    });
+    setMotCompo(null);
+  }
+
+  function basculerGardien(playerId: string) {
+    setGardiens((g) => ({ ...g, [playerId]: !g[playerId] }));
+    setMotCompo(null);
+  }
+
+  function equilibrer() {
+    const retenus = tousCompo.filter((j) => camps[j.playerId]);
+    // Moins de deux joueurs : le moteur rendrait une équipe vide et l'autre
+    // pleine. Mieux vaut ne rien faire que défaire ce qui a été posé.
+    if (retenus.length < 2) return;
+    const r = balanceTeams(
+      retenus.map((j) => ({
+        id: j.playerId,
+        name: j.nom,
+        skill: j.niveau,
+        isGk: gardiens[j.playerId] ?? j.gardien,
+      })),
+      { seed: graine },
+    );
+    const neuf: Record<string, "A" | "B" | null> = { ...camps };
+    for (const p of r.teamA) neuf[p.id] = "A";
+    for (const p of r.teamB) neuf[p.id] = "B";
+    setCamps(neuf);
+    setGraine((g) => g + 1);
+    setMotCompo(null);
+  }
+
+  async function enregistrerLaCompo() {
+    if (!fiche || !club) return;
+    setEnvoiCompo(true);
+    try {
+      const joueurs = tousCompo
+        .filter((j) => camps[j.playerId] === "A" || camps[j.playerId] === "B")
+        .map((j) => ({
+          playerId: j.playerId,
+          team: camps[j.playerId] as "A" | "B",
+          isGk: Boolean(gardiens[j.playerId]),
+        }));
+      await local.enregistrerCompo(club, fiche.id, joueurs);
+      // On relance tout de suite : avec du réseau c'est parti avant que le
+      // doigt ait quitté l'écran ; sans réseau, ça attend sans rien perdre.
+      void drain.relancer();
+      setMotCompo("Compo enregistrée.");
+    } catch (e) {
+      setMotCompo(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEnvoiCompo(false);
+    }
+  }
+
+  const ligneJoueur = (j: (typeof tousCompo)[number], place: boolean) => (
+    <View key={j.playerId} style={s.compoJoueur}>
+      <Pressable
+        onPress={modifiable ? () => tourner(j.playerId) : undefined}
+        disabled={!modifiable}
+        style={s.compoTape}
+        hitSlop={6}
+      >
+        <Avatar nom={j.nom} photo={j.photo} t={t} taille={24} />
+        <Text style={[s.compoJoueurNom, { color: t.i2 }]} numberOfLines={1}>
+          {j.nom}
+        </Text>
+      </Pressable>
+      {place && (
+        <Pressable
+          onPress={modifiable ? () => basculerGardien(j.playerId) : undefined}
+          disabled={!modifiable}
+          hitSlop={8}
+          style={[
+            s.compoG,
+            gardiens[j.playerId]
+              ? { backgroundColor: t.bt ?? "#fff", borderColor: "transparent" }
+              : { borderColor: t.cb },
+          ]}
+        >
+          <Text
+            style={[
+              s.compoGTexte,
+              { color: gardiens[j.playerId] ? (t.bf ?? "#111") : t.i3 },
+            ]}
+          >
+            G
+          </Text>
+        </Pressable>
+      )}
+    </View>
+  );
+
   const composition = fiche && !fiche.annulee && (
     <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
       <Text style={[s.carteTitre, { color: t.ink }]}>Composition</Text>
 
-      {fiche.compo.faite ? (
-        <>
-          <View style={s.compo}>
-            {[
-              {
-                camp: "A" as const,
-                nom: fiche.compo.nomA,
-                couleur: couleurA,
-                lettre: fiche.chasubles.a.lettre,
-              },
-              {
-                camp: "B" as const,
-                nom: fiche.compo.nomB,
-                couleur: couleurB,
-                lettre: fiche.chasubles.b.lettre,
-              },
-            ].map((cote) => {
-              const joueurs = fiche.compo.joueurs.filter((j) => j.camp === cote.camp);
-              return (
-                <View key={cote.camp} style={s.compoCote}>
-                  <EcussonChasuble couleur={cote.couleur} lettre={cote.lettre} taille={40} />
-                  <Text style={[s.compoNom, { color: t.ink }]} numberOfLines={1}>
-                    {cote.nom}
-                  </Text>
-                  {joueurs.map((j) => (
-                    <View key={j.playerId} style={s.compoJoueur}>
-                      <Avatar nom={j.nom} photo={j.photo} t={t} taille={24} />
-                      <Text style={[s.compoJoueurNom, { color: t.i2 }]} numberOfLines={1}>
-                        {j.nom}
-                        {j.gardien ? " · G" : ""}
-                      </Text>
-                    </View>
-                  ))}
-                  {joueurs.length === 0 && (
-                    <Text style={[s.phrase, { color: t.i3 }]}>personne</Text>
-                  )}
-                </View>
-              );
-            })}
+      <View style={s.compo}>
+        {[
+          { camp: "A" as const, nom: fiche.compo.nomA, couleur: couleurA, lettre: fiche.chasubles.a.lettre, gens: enA },
+          { camp: "B" as const, nom: fiche.compo.nomB, couleur: couleurB, lettre: fiche.chasubles.b.lettre, gens: enB },
+        ].map((cote) => (
+          <View key={cote.camp} style={s.compoCote}>
+            <EcussonChasuble couleur={cote.couleur} lettre={cote.lettre} taille={40} />
+            <Text style={[s.compoNom, { color: t.ink }]} numberOfLines={1}>
+              {cote.nom} · {cote.gens.length}
+            </Text>
+            {cote.gens.map((j) => ligneJoueur(j, true))}
+            {cote.gens.length === 0 && (
+              <Text style={[s.phrase, { color: t.i3 }]}>personne</Text>
+            )}
           </View>
-          {(() => {
-            // Ceux qui viennent et ne sont dans aucun camp. Le dire évite de
-            // croire la compo complète quand il manque deux joueurs.
-            const restants = fiche.compo.joueurs.filter((j) => j.camp === null).length;
-            return restants > 0 ? (
-              <Text style={[s.phrase, { color: t.i3, textAlign: "center", paddingTop: 8 }]}>
-                {restants} joueur{restants > 1 ? "s" : ""} pas encore placé
-                {restants > 1 ? "s" : ""}
+        ))}
+      </View>
+
+      {alertes.length > 0 && (
+        <Text style={[s.phrase, { color: t.i3, textAlign: "center", paddingTop: 8 }]}>
+          {alertes.join(" ")}
+        </Text>
+      )}
+
+      {modifiable ? (
+        <>
+          {horsCompo.length > 0 && (
+            <View style={s.compoBanc}>
+              <Text style={[s.kicker, { color: t.i3 }]}>
+                Hors compo · {horsCompo.length} — touche pour placer
               </Text>
-            ) : null;
-          })()}
+              {horsCompo.map((j) => ligneJoueur(j, false))}
+            </View>
+          )}
+
+          <View style={s.compoBoutons}>
+            <Pressable
+              onPress={equilibrer}
+              style={[s.compoBouton, { borderColor: t.cb, backgroundColor: t.seg }]}
+            >
+              <Text style={{ color: t.ink, fontSize: 15, fontWeight: "600" }}>Équilibrer</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void enregistrerLaCompo()}
+              disabled={envoiCompo}
+              style={[
+                s.compoBouton,
+                { backgroundColor: t.bt ?? "#fff", borderColor: "transparent" },
+              ]}
+            >
+              <Text style={{ color: t.bf ?? "#111", fontSize: 15, fontWeight: "700" }}>
+                {envoiCompo ? "…" : "Enregistrer la compo"}
+              </Text>
+            </Pressable>
+          </View>
+
+          {motCompo && (
+            <Text style={[s.phrase, { color: t.i2, textAlign: "center", paddingTop: 8 }]}>
+              {motCompo}
+            </Text>
+          )}
         </>
       ) : (
-        <Text style={[s.phrase, { color: t.i2, textAlign: "center" }]}>
-          Les équipes ne sont pas encore faites. Elles se préparent sur le site,
-          à la page de la soirée — l'app ne sait pas encore les composer à
-          l'avance.
-        </Text>
+        !fiche.compo.faite && (
+          <Text style={[s.phrase, { color: t.i2, textAlign: "center" }]}>
+            Les équipes ne sont pas encore faites.
+          </Text>
+        )
       )}
     </View>
   );
@@ -450,6 +605,27 @@ const s = StyleSheet.create({
   compoNom: { fontSize: 15, fontWeight: "700" },
   compoJoueur: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "stretch" },
   compoJoueurNom: { flex: 1, fontSize: 14 },
+  compoTape: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minHeight: 34 },
+  compoG: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compoGTexte: { fontSize: 12, fontWeight: "700" },
+  compoBanc: { paddingTop: 12, gap: 2 },
+  kicker: { fontSize: 12, fontWeight: "600", letterSpacing: 0.4, paddingBottom: 4 },
+  compoBoutons: { flexDirection: "row", gap: 8, paddingTop: 14 },
+  compoBouton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   bilan: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 6 },
   bilanCote: { alignItems: "center", gap: 6 },
