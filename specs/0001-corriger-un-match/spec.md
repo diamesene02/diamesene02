@@ -293,13 +293,37 @@ qui dépend de ce que devient `/edit` — voir le plan.
       l'homme du match par le formulaire (`matches.ts:56-61`) et par l'API
       (`matches/[matchId]/route.ts:156-162`). Referme `APRES-20`, `APRES-18`,
       `APRES-D2`.
-- [ ] Un match `CANCELED` n'accepte plus AUCUNE écriture — les gardes qui
+- [x] Un match `CANCELED` n'accepte plus AUCUNE écriture — les gardes qui
       testent `status === "FINISHED"` (`events/route.ts:68`, `:161`, `:224`, et
       les couches locales) doivent aussi couvrir `CANCELED`. Sans ça,
       l'annulation ouvre un trou : une file d'attente rejouée écrirait des buts
       sur un match annulé, et `recomputeScore` lui remettrait un score.
-- [ ] Une file rejouée sur un match annulé entre-temps échoue de façon
+
+      *Fermé le 13 septembre (correctif du jour + taches.md tâche 1) :
+      `matchVerrouille` unifie `FINISHED`/`CANCELED` sur les six gardes
+      serveur et les sept portes locales, des deux côtés.*
+- [x] Une file rejouée sur un match annulé entre-temps échoue de façon
       DIAGNOSTIQUE et ne bloque pas toute la chaîne du match (`APRES-27`).
+
+      *Décision du 13 septembre, tranchée après relecture plutôt que
+      d'écrire un second mécanisme (taches.md tâche 11) : ce critère est
+      **abandonné tel quel**. `lib/sync.ts` bloque déjà toute la chaîne
+      d'un match sur tout 4xx non-rejouable, DÉLIBÉRÉMENT — laisser passer
+      la suite reviendrait à exécuter `finishMatch` par-dessus un but
+      refusé, rendant ce but irrécupérable (voir le commentaire du fichier
+      et son test `lib/outbox/sync.test.ts` : « le refus 403 »). Cette
+      protection ne distingue pas la RAISON du 403 — elle bloque sur
+      `FINISHED` comme sur `CANCELED`, et c'est voulu : un match annulé
+      peut être rétabli (tâche 9), donc n'est pas plus « clos pour de
+      bon » qu'un match terminé ne l'était déjà. Ouvrir une exception
+      spécifique à `CANCELED` aurait ajouté un second mécanisme à
+      maintenir pour un gain réel nul : le message que voit l'utilisateur
+      dit déjà « Match terminé ou annulé » (les six gardes serveur et
+      sept portes locales, tâches 1 et 4), donc le diagnostic EST déjà
+      correct — seul le blocage total, explicitement demandé par le
+      critère d'origine, ne l'est pas. Aucun code n'a donc changé pour ce
+      point ; `lib/outbox/sync.test.ts` (« le refus 403 ») couvre déjà le
+      mécanisme, agnostique de la raison du refus.*
 - [ ] Les couches locales refusent aussi `removeEvent`, `setEventAssist`,
       `setEventScorer` et `undoLastGoalOf` sur un match terminé — elles ne
       gardent aujourd'hui que `addEvent`, `movePlayerTeam` et

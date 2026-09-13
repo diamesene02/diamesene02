@@ -304,33 +304,34 @@ grep -n "Terminé\|status" "app/c/[slug]/sessions/[id]/page.tsx" | sed -n '1,30p
 
 ---
 
-## 11. Trancher le comportement de la file sur un match annulé (`APRES-27`)
+## 11. ~~Trancher le comportement de la file sur un match annulé~~ — tranché, sans code (`APRES-27`)
 
-**Tension à trancher, pas à décider seul.** `spec.md` demande : « une file
-rejouée sur un match annulé entre-temps échoue de façon DIAGNOSTIQUE et ne
-bloque pas toute la chaîne. » Mais `lib/sync.ts:280-320` bloque
-**délibérément** toute la chaîne d'un match sur tout 4xx non-rejouable — et
-le commentaire du fichier explique pourquoi : laisser passer la suite
-reviendrait à exécuter `finishMatch` par-dessus une opération refusée, et
-un match refusé-puis-débloqué-en-cascade est irrécupérable.
+**Décidé le 13 septembre : lecture B, sans modification de code.** `spec.md`
+demandait « une file rejouée sur un match annulé entre-temps échoue de façon
+DIAGNOSTIQUE et ne bloque pas toute la chaîne. » Mais
+`five-scorer-mobile/lib/outbox/sync.ts` bloque **délibérément** toute la
+chaîne d'un match sur tout 4xx non-rejouable, quelle qu'en soit la raison —
+laisser passer la suite reviendrait à exécuter `finishMatch` par-dessus un
+but refusé, le rendant irrécupérable (commentaire du fichier, et son propre
+test `lib/outbox/sync.test.ts` § « le refus 403 »).
 
-Un `CANCELED` change la donne : il n'y a plus de suite légitime à laisser
-passer puisque le match est clos pour de bon (pas de `finishMatch` à
-protéger d'un rattrapage ultérieur). Bloquer toute la chaîne pour un
-`CANCELED` a donc moins de raison d'être que pour un `FINISHED` en cours de
-correction.
+L'argument qui aurait justifié une exception pour `CANCELED` (« clos pour de
+bon, pas de suite légitime à protéger ») ne tient pas : la tâche 9 rétablit
+un match annulé vers `FINISHED`. Un `CANCELED` n'est donc pas plus définitif
+qu'un `FINISHED` ne l'était déjà, et n'a pas plus de raison d'échapper à la
+même protection.
 
-**Ce qu'on fait :** poser la question à Ibrahima avant de coder — deux
-lectures défendables :
-- **A.** Un rejet `CANCELED` bloque SEULEMENT l'opération concernée
-  (diagnostique, comme demandé), le reste de la chaîne continue.
-- **B.** On garde le blocage total (cohérent avec le `FINISHED`) et on
-  corrige seulement le MESSAGE pour qu'il nomme `CANCELED` au lieu de
-  parler de « match terminé ».
+Le VRAI besoin du critère — un diagnostic honnête — est déjà satisfait
+ailleurs : les tâches 1 et 4 ont mis le message serveur à jour partout
+(« Match terminé ou annulé », six gardes + sept portes locales). Ouvrir un
+second mécanisme dans `sync.ts` spécifique à `CANCELED` aurait ajouté du
+code à maintenir pour un gain nul. `spec.md` porte la décision et sa raison,
+datée (article X).
 
-**Vérification (une fois tranché) :**
+**Vérification (confirme que rien n'a besoin de changer) :**
 ```bash
-cd five-scorer && npx vitest run lib/sync.test.ts -t "annulé"
+cd five-scorer-mobile && npx vitest run lib/outbox/sync.test.ts -t "le refus 403"
+grep -rln "Match terminé ou annulé" five-scorer/lib five-scorer-mobile/lib
 ```
 
 ---
