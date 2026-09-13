@@ -159,39 +159,62 @@ export function creerAppel(deps: DependancesAppel) {
     if (res.status === 401) throw new SessionExpiree();
 
     // Un 404 « introuvable » sur une route de club ne veut PAS dire ce qu'il
-    // dit. Il sort de `getClubApiContext`, qui rend `null` dans deux cas très
-    // différents — la session n'est plus valable, ou on n'est plus membre de
-    // ce club — et la route traduit les deux par le même mot.
+    // dit, et surtout il ne dit pas LEQUEL de deux cas très différents s'est
+    // produit : `getClubApiContext` rend `null` aussi bien quand la session
+    // n'est plus valable que quand on n'est plus membre du club, et la route
+    // traduit les deux par le même mot.
     //
-    // Or le middleware ne juge le cookie que sur sa PRÉSENCE : jamais sa
-    // signature, jamais la base. Il laisse donc passer un cookie périmé, qui
-    // échoue plus loin en 404 au lieu du 401 qui aurait renvoyé vers la
-    // connexion. Résultat vu en production le 12 septembre 2026 : « Le serveur
-    // a répondu 404 — introuvable » en travers de tous les écrans du club, sans
-    // aucune issue, pendant que la liste déjà chargée restait affichée.
+    // Le middleware, lui, ne juge le cookie que sur sa PRÉSENCE : ni signature,
+    // ni lecture de base. Un cookie périmé passe donc sans 401 — celui qui
+    // aurait renvoyé vers la connexion — et échoue plus loin en 404.
     //
-    // On ne DÉCONNECTE pas d'office : on ne sait pas lequel des deux cas c'est,
-    // et jeter la session de quelqu'un qui a des buts en attente serait pire
-    // que le message. On dit ce qu'on sait et on propose le geste
-    // (constitution, article V).
+    // **On tranche au lieu de décrire.** `/api/me` n'est pas sous
+    // `/api/clubs/`, donc il répond 401 si la session est morte, et sinon il
+    // rend la liste des clubs dont on est membre. Deux questions, une réponse :
+    //
+    //   - 401 → la session est finie : on lève SessionExpiree, l'app renvoie
+    //     vers la connexion comme elle l'a toujours fait.
+    //   - le club n'est PAS dans la liste → on a été retiré du club. C'est
+    //     définitif, se reconnecter n'y changera rien, et le dire évite de
+    //     faire tourner quelqu'un en rond (vu en production le 13 septembre
+    //     2026 : « je me suis déconnecté plusieurs fois »).
+    //   - le club EST dans la liste → le serveur se contredit. On le dit tel
+    //     quel plutôt que d'accuser l'utilisateur.
+    //
+    // Un aller-retour de plus, sur un chemin d'erreur seulement.
     if (
       res.status === 404 &&
       chemin.includes("/api/clubs/") &&
       (await detailDeLErreur(res.clone())) === "introuvable"
     ) {
-      // L'identifiant du club est DANS le message, et ce n'est pas une faute
-      // de goût : `getClubApiContext` rend null aussi bien pour « session
-      // morte » que pour « pas membre », et sans savoir QUEL club est refusé
-      // on ne peut pas trancher entre les deux. Vu en production le
-      // 13 septembre 2026 : le message restait après plusieurs reconnexions,
-      // donc ce n'était pas la session — et rien ne disait sur quoi ça portait.
-      const club = chemin.match(/\/api\/clubs\/([^/?]+)/)?.[1] ?? "?";
-      throw new ErreurServeur(
-        404,
-        "ce club n'est plus accessible avec cette session. Déconnecte-toi et reconnecte-toi ; " +
-          "si ça persiste, c'est qu'on t'a retiré du club. " +
-          `(club ${club.slice(-8)} · ${chemin.split("?")[0]})`,
-      );
+      const club = chemin.match(/\/api\/clubs\/([^/?]+)/)?.[1] ?? "";
+      let verdict =
+        "ce club n'est plus accessible. Déconnecte-toi et reconnecte-toi.";
+      try {
+        const moi = await appeler(`${deps.api}/api/me`, {
+          credentials: "omit",
+          headers: { accept: "application/json", ...(cookie ? { cookie } : {}) },
+        });
+        if (moi.status === 401) throw new SessionExpiree();
+        if (moi.ok) {
+          const corps = (await moi.json()) as { clubs?: { id: string; nom?: string }[] };
+          const liste = corps.clubs ?? [];
+          verdict = liste.some((c) => c.id === club)
+            ? "ce club existe bien dans ta liste, mais le serveur le refuse. " +
+              "Ce n'est pas toi : c'est à corriger côté serveur."
+            : liste.length === 0
+              ? "tu n'es membre d'aucun club. Demande à être réinvité."
+              : "tu n'es plus membre de ce club — se reconnecter n'y changera rien. " +
+                `Tu es membre de : ${liste.map((c) => c.nom ?? c.id).join(", ")}.`;
+        }
+      } catch (e) {
+        // Une SessionExpiree doit remonter telle quelle : c'est elle qui
+        // déclenche le retour à l'écran de connexion.
+        if (e instanceof SessionExpiree) throw e;
+        // Sinon on garde le message par défaut : ne pas pouvoir joindre
+        // /api/me ne doit pas transformer un 404 en plantage.
+      }
+      throw new ErreurServeur(404, verdict);
     }
 
     if (!res.ok) throw new ErreurServeur(res.status, await detailDeLErreur(res));

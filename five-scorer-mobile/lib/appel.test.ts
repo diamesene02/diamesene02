@@ -404,3 +404,71 @@ describe("le 404 « introuvable » d'une route de club", () => {
     await expect(appel("/api/clubs/abc/matches/x")).rejects.toThrow(/match effacé/);
   });
 });
+
+describe("le 404 d'un club : l'app tranche au lieu de décrire", () => {
+  // Vu en production le 13 septembre 2026 : « je me suis déconnecté plusieurs
+  // fois mais j'ai toujours ça ». Le message disait « reconnecte-toi » alors
+  // que se reconnecter n'y pouvait rien. getClubApiContext rend null pour deux
+  // causes opposées ; /api/me les sépare, puisqu'il n'est pas sous /api/clubs/.
+
+  const CLUB = "cmtqb33rk0004iogb6w5cvvpj";
+  const chemin = `/api/clubs/${CLUB}/soirees`;
+
+  /// Un serveur qui refuse la route de club, et répond ce qu'on veut sur /api/me.
+  function serveurQuiRefuse(me: () => Response) {
+    return serveur((recu) =>
+      recu.url.includes("/api/me")
+        ? me()
+        : new Response(JSON.stringify({ error: "introuvable" }), { status: 404 }),
+    );
+  }
+
+  const json = (o: unknown, status = 200) =>
+    new Response(JSON.stringify(o), { status });
+
+  it("dit qu'on a été RETIRÉ du club quand il n'est pas dans la liste", async () => {
+    const s = serveurQuiRefuse(() =>
+      json({ clubs: [{ id: "un-autre", nom: "Les Jeudis" }] }),
+    );
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    const e = await appel(chemin).catch((x) => x);
+    expect(e.message).toMatch(/n'es plus membre de ce club/);
+    // Et surtout : il ne demande PLUS de se reconnecter, puisque ça ne sert à rien.
+    expect(e.message).not.toMatch(/reconnecte-toi/i);
+    // Il dit où on est, lui — sinon on ne sait pas quoi faire de l'information.
+    expect(e.message).toMatch(/Les Jeudis/);
+  });
+
+  it("accuse le SERVEUR, pas l'utilisateur, quand le club est bien dans la liste", async () => {
+    const s = serveurQuiRefuse(() => json({ clubs: [{ id: CLUB, nom: "Le Club" }] }));
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    const e = await appel(chemin).catch((x) => x);
+    expect(e.message).toMatch(/Ce n'est pas toi/);
+  });
+
+  it("renvoie à la connexion si /api/me répond 401", async () => {
+    // Là, et seulement là, se reconnecter est la bonne réponse.
+    const s = serveurQuiRefuse(() => json({ error: "non connecté" }, 401));
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    await expect(appel(chemin)).rejects.toBeInstanceOf(SessionExpiree);
+  });
+
+  it("garde son message par défaut si /api/me est injoignable", async () => {
+    // Ne pas pouvoir poser la question ne doit pas transformer un 404 en
+    // plantage : on retombe sur le message prudent.
+    const s = serveurQuiRefuse(() => {
+      throw new Error("réseau coupé");
+    });
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    const e = await appel(chemin).catch((x) => x);
+    expect(e).toBeInstanceOf(ErreurServeur);
+    expect(e.message).toMatch(/reconnecte-toi/i);
+  });
+
+  it("dit « aucun club » plutôt que « plus membre de ce club » si la liste est vide", async () => {
+    const s = serveurQuiRefuse(() => json({ clubs: [] }));
+    const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    const e = await appel(chemin).catch((x) => x);
+    expect(e.message).toMatch(/membre d'aucun club/);
+  });
+});
