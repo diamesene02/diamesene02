@@ -193,7 +193,16 @@ export async function GET(
       nomB: adverse(m),
       scoreA: m.scoreA,
       scoreB: m.scoreB,
-      etat: m.status === "LIVE" ? "En direct" : m.status === "SCHEDULED" ? "À venir" : "Terminé",
+      // Un match annulé n'est pas "Terminé" (APRES-04) : le mot ment sur ce
+      // qui s'est passé — rien, justement.
+      etat:
+        m.status === "LIVE"
+          ? "En direct"
+          : m.status === "SCHEDULED"
+            ? "À venir"
+            : m.status === "CANCELED"
+              ? "Annulé"
+              : "Terminé",
       heure: heure(m.playedAt),
       buteursA: bA,
       buteursB: bB,

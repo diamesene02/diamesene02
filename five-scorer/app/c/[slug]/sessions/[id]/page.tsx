@@ -333,6 +333,9 @@ export default async function SessionDetailPage({
           <div className="carte-titre">Les matchs</div>
           {autresMatchs.map((m) => {
             const aVenir = m.status === "SCHEDULED";
+            // Un match annulé n'est pas "Terminé" (APRES-04) : le mot ment
+            // sur ce qui s'est passé — rien, justement.
+            const annule = m.status === "CANCELED";
             return (
               <LigneScore
                 key={m.id}
@@ -341,10 +344,10 @@ export default async function SessionDetailPage({
                 scoreA={m.scoreA}
                 scoreB={m.scoreB}
                 aVenir={aVenir}
-                etat={aVenir ? "À venir" : "Terminé"}
+                etat={aVenir ? "À venir" : annule ? "Annulé" : "Terminé"}
                 heure={fmtShort(m.playedAt)}
                 href={`/c/${slug}/matches/${m.id}`}
-                pied={aVenir ? undefined : buteursDe(m) || undefined}
+                pied={aVenir || annule ? undefined : buteursDe(m) || undefined}
               />
             );
           })}
