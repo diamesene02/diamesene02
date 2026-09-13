@@ -2,11 +2,12 @@
 
 *Annexe de la spec produit. **549 cas** relevés le 10 septembre 2026 par un balayage
 en huit domaines puis six regards, **tenu à jour à chaque lot livré** (la spec
-0004 a refermé cinq cas le 11 septembre). Chaque cas a été vérifié dans le code — la ligne `>` porte
+0004 a refermé cinq cas le 11 septembre ; les specs 0005 et 0006, six cas le
+13 septembre). Chaque cas a été vérifié dans le code — la ligne `>` porte
 le fichier et la ligne. Les identifiants sont ceux du balayage ; c'est par eux que les specs
 numérotées citeront les cas.*
 
-**164 faits · 159 partiels · 92 absents · 134 faux.**
+**170 faits · 159 partiels · 89 absents · 131 faux.**
 **49 bloquent un lundi · 140 en gênent un · 152 gênent une saison · 208 relèvent du confort.**
 
 **État** — `✔ fait` : ça marche des deux côtés · `◐ partiel` : d'un seul côté, ou à moitié ·
@@ -622,15 +623,15 @@ numérotées citeront les cas.*
 
 > `app/c/[slug]/sessions/page.tsx:31-33,80 (réponses IN brutes) vs sessions/[id]/page.tsx:77-88 et app/api/clubs/[clubId]/soirees/route.ts:64-79 (calculerPresences)`
 
-### `SOIREE-24` — ⚠ faux · *gêne un lundi*
+### `SOIREE-24` — ✔ fait · *gêne un lundi*
 
 **La situation.** Accueil mobile, rappel ambre « Dans 3 jours — les équipes ne sont pas faites · préparer la compo maintenant ».
 
 **Ce qu'on attend.** Toucher mène à la préparation de la compo de cette soirée.
 
-**Où ça en est.** Le rappel ouvre « Nouveau match » : son seul débouché est un coup d'envoi (createMatch) — sans soireeId, donc détaché du lundi. Rien n'écrit MatchDayLineup. Le rappel n'est montré qu'aux gérants (l.143 `peutGerer`) alors que le site le montre à qui peut scorer (page.tsx:363-368).
+**Où ça en est.** Refermé le 13 septembre 2026 (lot 0005), en deux temps parce que la première passe n'avait corrigé que la moitié du défaut. Le rappel mène désormais à `/soiree/[id]`, où la compo se lit et se pose — plus vers un coup d'envoi détaché du lundi. Et il se montre à qui peut scorer (`club?.peutScorer`), plus seulement aux gérants : le montrer à un cercle plus étroit que ce que l'écran autorise revenait à cacher le geste à quelqu'un qui pouvait le faire.
 
-> `five-scorer-mobile/app/club/[id]/index.tsx:143-161 → app/compo.tsx:226-255`
+> `five-scorer-mobile/app/club/[id]/index.tsx:151-168 → app/soiree/[id].tsx`
 
 ### `SOIREE-50` — ⚠ faux · *gêne un lundi*
 
@@ -652,15 +653,15 @@ numérotées citeront les cas.*
 
 > `five-scorer/prisma/schema.prisma:452-467 ; five-scorer/app/c/[slug]/matches/[id]/page.tsx:158-172 ; five-scorer/app/c/[slug]/matches/new/page.tsx:82-87`
 
-### `SOIREE-23` — ✗ absent · *gêne un lundi*
+### `SOIREE-23` — ✔ fait · *gêne un lundi*
 
 **La situation.** Jeudi, le capitaine veut poser ou relire la compo depuis son téléphone.
 
 **Ce qu'on attend.** La même carte Composition que sur le site, modifiable.
 
-**Où ça en est.** Seul indice : la couleur de l'anneau des avatars dans la liste des présences (l.145). Ni lecture en équipes, ni écriture.
+**Où ça en est.** Refermé le 13 septembre 2026 (lot 0005, spec `specs/0005-preparer-la-compo`). La carte Composition place un joueur d'un tap (aucun → A → B → aucun), désigne le gardien de chaque camp, équilibre avec le même moteur que `/compo`, et enregistre — en ligne ou hors ligne (une opération de file dédiée, `setCompo`, qui remplace la compo entière au lieu d'un delta). Prouvé réseau réellement coupé : l'opération part seule au retour du réseau.
 
-> `five-scorer-mobile/app/soiree/[id].tsx (aucune carte compo ; `fiche.compo` reçu de soirees/[matchDayId]/route.ts:236-248 n'est pas rendu) ; app/api/clubs/[clubId]/matchdays/[matchDayId]/lineup/route.ts (GET seul, aucun appelant mobile) ; aucune route d'écriture de compo hors server action compo.ts`
+> `five-scorer-mobile/app/soiree/[id].tsx:151-410 ; app/api/clubs/[clubId]/matchdays/[matchDayId]/lineup/route.ts (PUT) ; five-scorer/lib/compo.ts`
 
 ### `SOIREE-27` — ✗ absent · *gêne un lundi*
 
@@ -692,13 +693,15 @@ numérotées citeront les cas.*
 
 > `aucun writer : grep `matchDay.update` ne trouve que compo.ts:76,134 (noms d'équipes) et calendrier.ts:52,72 (annulation) ; aucune route HTTP`
 
-### `SOIREE-77` — ✗ absent · *gêne un lundi*
+### `SOIREE-77` — ✔ fait · *gêne un lundi*
 
 **La situation.** Vendredi, la compo est posée. J'ouvre la soirée sur mon téléphone pour savoir si je joue en Blanc ou en Noir — c'est la chasuble que j'emmène dans le sac.
 
 **Ce qu'on attend.** Une carte Composition, ou au minimum « tu es avec les Blancs », lisible sans deviner une couleur.
 
-**Où ça en est.** L'API rend tout ce qu'il faut : `compo.faite`, `compo.nomA`, `compo.nomB` et un `camp` par joueur (route.ts:240-255). L'écran mobile ne rend RIEN de ce bloc — grep « compo » sur app/soiree/[id].tsx ne rend que des imports de chemin. Le seul indice à l'écran est l'anneau de l'avatar, peint en `t.taR` ou `t.tbR` selon `l.camp` (soiree/[id].tsx:143) : une couleur, sans nom d'équipe, sans légende, sans mention pour celui qui n'est dans aucun camp. Sur le site la carte existe (`CompoSoiree`, sessions/[id]/page.tsx). SOIREE-23 parle du capitaine qui veut POSER la compo depuis son téléphone ; ici c'est le joueur qui veut la LIRE, et lui non plus ne peut pas.
+**Où ça en est.** Refermé le 13 septembre 2026, par la même carte que SOIREE-23 (lot 0005). Chaque camp affiche son nom, son écusson, et la liste nominale de ses joueurs avec le marqueur gardien — plus une couleur d'anneau à deviner.
+
+> `five-scorer-mobile/app/soiree/[id].tsx:343-410`
 
 > `five-scorer-mobile/app/soiree/[id].tsx:135-155 ; five-scorer/app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:240-255`
 
@@ -2268,15 +2271,15 @@ numérotées citeront les cas.*
 
 > `app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:133-148 ; app/actions/matches.ts:62-67`
 
-### `APRES-25` — ⚠ faux · *gêne une saison*
+### `APRES-25` — ✔ fait · *gêne une saison*
 
 **La situation.** Un admin supprime un match terminé.
 
 **Ce qu'on attend.** D'après la spec 0001 : impossible — « Rien dans l'app ne supprime ». Si c'est permis : avec une trace et en connaissance des conséquences.
 
-**Où ça en est.** La suppression existe bel et bien sur le site (bouton « Supprimer » sur tout match terminé ou annulé, pour un admin), contrairement à ce qu'affirme la spec. Cascade en base : buts, compo, votes, convocations partent avec ; les stats, l'Élo et la forme se recalculent sans le match ; aucune trace, aucune corbeille. App : absente (la route DELETE existe, personne ne l'appelle).
+**Où ça en est.** Refermé le 13 septembre 2026 (lot 0006, spec `specs/0006-annuler-un-match`). Le contenu décide, pas le statut : un match sans participant, sans événement, sans réponse à une convocation s'efface pour de vrai — il n'y a rien à perdre. Dès qu'il y a quelque chose, le match s'annule (`CANCELED`, `canceledAt`, `cancelReason` — la trace que la spec 0001 réclamait) et reste visible, buts et compo intacts ; les stats l'excluent (elles filtraient déjà sur `FINISHED` seul, vérifié avant et après : le bilan d'une saison de test est passé de « 3-1-1 » à « 3-0-1 » en annulant un match, sans toucher au code des stats). Vrai sur le site et sur l'app, même geste.
 
-> `components/DeleteMatchButton.tsx ; app/actions/matches.ts:9-26 ; app/c/[slug]/matches/[id]/page.tsx:361-368 ; prisma/schema.prisma:407, 427, 455, 473 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:207-220`
+> `five-scorer/lib/matches.ts ; app/actions/matches.ts (retirerMatch) ; app/api/clubs/[clubId]/matches/[matchId]/route.ts (DELETE) ; five-scorer-mobile/app/recap/[id].tsx`
 
 ### `APRES-33` — ⚠ faux · *gêne une saison*
 
@@ -2298,15 +2301,15 @@ numérotées citeront les cas.*
 
 > `prisma/schema.prisma:379 (updatedAt, jamais lu) ; app/c/[slug]/matches/[id]/page.tsx ; five-scorer-mobile/app/recap/[id].tsx`
 
-### `APRES-23` — ✗ absent · *gêne une saison*
+### `APRES-23` — ✔ fait · *gêne une saison*
 
 **La situation.** Un match a été lancé par erreur (mauvais soir, test, doublon) ou terminé alors qu'il n'a jamais eu lieu.
 
 **Ce qu'on attend.** On l'annule — il reste dans l'histoire comme annulé — et il ne compte nulle part.
 
-**Où ça en est.** Le serveur n'annule que SCHEDULED. Les deux issues réelles : « Terminer » à 0–0, qui inscrit un nul, un match joué et un mouvement d'Élo à dix personnes pour un match qui n'a pas eu lieu ; ou « Supprimer » (admin), qui efface tout. La spec 0001 dit pourtant « un match qui n'a pas eu lieu s'annule, il ne s'efface pas ».
+**Où ça en est.** Refermé le 13 septembre 2026 (lot 0006), par le même geste qu'APRES-25 : « Supprimer » sur un match LIVE ou FINISHED annule désormais, au lieu de forcer entre l'effacement et un faux 0-0. `cancelScheduledMatch` (le chemin SCHEDULED) continue de fonctionner sans changement — étendu, pas remplacé.
 
-> `app/actions/schedule.ts:102-108 ; lib/stats.ts:52 ; app/actions/matches.ts:9-26`
+> `five-scorer/lib/matches.ts ; app/actions/schedule.ts (cancelScheduledMatch, inchangé)`
 
 ### `APRES-09` — ◐ partiel · *gêne une saison*
 
@@ -2358,15 +2361,15 @@ numérotées citeront les cas.*
 
 > `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:97-114 ; lib/stats.ts`
 
-### `APRES-26` — ⚠ faux · *confort*
+### `APRES-26` — ✔ fait · *confort*
 
 **La situation.** La suppression échoue (match déjà supprimé par un autre admin, panne de base).
 
 **Ce qu'on attend.** Un message ; on ne fait pas croire que c'est fait.
 
-**Où ça en est.** deleteMatch avale toute erreur (`.catch(() => null)`) puis redirige vers la liste comme si c'était fait ; le bouton n'affiche jamais rien (il ignore la valeur de retour, même « Réservé aux admins. »). Le match est toujours là et personne ne le sait.
+**Où ça en est.** Refermé le 13 septembre 2026 (lot 0006). `retirerMatch` ne redirige plus systématiquement : un échec (`{ok:false, error}`) s'affiche sur le bouton, une annulation garde le match sur sa propre page (il existe toujours), seule une vraie suppression envoie vers la liste. Même correction côté app.
 
-> `app/actions/matches.ts:21-25 ; components/DeleteMatchButton.tsx:31-35`
+> `five-scorer/app/actions/matches.ts (retirerMatch) ; components/DeleteMatchButton.tsx`
 
 ### `APRES-41` — ⚠ faux · *confort*
 
