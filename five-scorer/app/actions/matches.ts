@@ -2,9 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { idsValides } from "@/lib/ids";
+import { idsValides, estIdOuVide } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
-import { annulerOuSupprimerMatch, type ResultatRetrait } from "@/lib/matches";
+import {
+  annulerOuSupprimerMatch,
+  joueurSurLaFeuille,
+  type ResultatRetrait,
+} from "@/lib/matches";
 
 /// « Supprimer » — le mot reste, le geste réel dépend de ce qu'il y a à
 /// perdre (spec 0006). Un match sans participant, sans événement, sans
@@ -57,6 +61,12 @@ export async function updateMatchDetails(
   if (!idsValides(matchId)) {
     return { ok: false, error: "Identifiant invalide." };
   }
+  // mvpId et seasonId partent eux aussi dans un `where` Prisma plus bas :
+  // sans ce contrôle, un objet passé à leur place (`{ in: [...] }`) filtrerait
+  // toutes les fiches libres du club d'un coup (cf. lib/ids.ts, TRANS-22).
+  if (!estIdOuVide(input.mvpId) || !estIdOuVide(input.seasonId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
 
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
@@ -71,6 +81,13 @@ export async function updateMatchDetails(
       where: { id: input.mvpId, clubId: ctx.club.id },
     });
     if (!ok) return { ok: false, error: "MVP hors du club." };
+    // Un homme du match est toujours l'un de nos joueurs, désigné après
+    // coup : pas seulement du club, mais bien sur LA FEUILLE de CE match
+    // précis (spec 0001, Q6) — aucune exception EXTERNAL ici, contrairement
+    // au but/passe (lib/matches.ts, joueursValidesPourEvenement).
+    if (!(await joueurSurLaFeuille(matchId, input.mvpId))) {
+      return { ok: false, error: "MVP hors de la feuille de ce match." };
+    }
   }
   if (input.seasonId) {
     const ok = await prisma.season.count({

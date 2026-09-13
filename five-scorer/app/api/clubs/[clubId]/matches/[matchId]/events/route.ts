@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
-import { matchVerrouille } from "@/lib/matches";
+import { matchVerrouille, joueursValidesPourEvenement } from "@/lib/matches";
 import { estId, estIdOuVide } from "@/lib/ids";
 import type { MatchEventType, Team } from "@prisma/client";
 
@@ -95,23 +95,22 @@ export async function POST(req: Request, { params }: Ctx) {
     }
   }
 
-  // Les joueurs référencés doivent appartenir au club.
+  // Les joueurs référencés doivent appartenir au club et, sur un match
+  // INTERNAL, être sur SA feuille (spec 0001, Q6 — cf. lib/matches.ts).
   if (!estIdOuVide(body.playerId) || !estIdOuVide(body.assistPlayerId)) {
     return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
   }
   const refs = [body.playerId, body.assistPlayerId].filter((x): x is string =>
     Boolean(x),
   );
-  if (refs.length > 0) {
-    const owned = await prisma.player.count({
-      where: { id: { in: refs }, clubId },
-    });
-    if (owned !== new Set(refs).size) {
-      return NextResponse.json(
-        { error: "Joueur hors du club" },
-        { status: 400 },
-      );
-    }
+  const refsOk = await joueursValidesPourEvenement(
+    matchId,
+    clubId,
+    match.kind,
+    refs,
+  );
+  if (!refsOk.ok) {
+    return NextResponse.json({ error: refsOk.error }, { status: 400 });
   }
 
   const event = await prisma.matchEvent.create({
@@ -154,7 +153,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   // avait été oublié.
   const match = await prisma.match.findFirst({
     where: { id: matchId, clubId },
-    select: { status: true },
+    select: { status: true, kind: true },
   });
   if (!match) {
     return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
@@ -179,12 +178,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
   }
   if (cible) {
-    const owned = await prisma.player.count({ where: { id: cible, clubId } });
-    if (!owned) {
-      return NextResponse.json(
-        { error: "Joueur hors du club" },
-        { status: 400 },
-      );
+    const cibleOk = await joueursValidesPourEvenement(
+      matchId,
+      clubId,
+      match.kind,
+      [cible],
+    );
+    if (!cibleOk.ok) {
+      return NextResponse.json({ error: cibleOk.error }, { status: 400 });
     }
   }
 

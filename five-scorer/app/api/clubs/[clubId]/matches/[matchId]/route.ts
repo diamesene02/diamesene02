@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
 import { estId } from "@/lib/ids";
-import { annulerOuSupprimerMatch } from "@/lib/matches";
+import { annulerOuSupprimerMatch, joueurSurLaFeuille } from "@/lib/matches";
 
 type Ctx = { params: Promise<{ clubId: string; matchId: string }> };
 
@@ -160,6 +160,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
     });
     if (!mvpOk) {
       return NextResponse.json({ error: "MVP hors du club" }, { status: 400 });
+    }
+    // Un homme du match est toujours l'un de nos joueurs, désigné après
+    // coup : pas seulement du club, mais bien sur LA FEUILLE de CE match
+    // précis (spec 0001, Q6) — dans tous les cas, INTERNAL ou EXTERNAL.
+    if (!(await joueurSurLaFeuille(matchId, body.mvpId))) {
+      return NextResponse.json(
+        { error: "MVP hors de la feuille de ce match" },
+        { status: 400 },
+      );
     }
   }
 

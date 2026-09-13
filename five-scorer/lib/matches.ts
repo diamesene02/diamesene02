@@ -1,6 +1,66 @@
 import { prisma } from "@/lib/prisma";
+import type { MatchKind } from "@prisma/client";
 
 export { matchVerrouille } from "./matchStatus";
+
+// La feuille d'un match, c'est MatchParticipant — pas "être du club" (spec
+// 0001, Q6). Trois portes du serveur (buteur/passeur d'un événement, homme
+// du match) vérifiaient seulement l'appartenance au club, jamais que le
+// joueur avait vraiment participé à CE match précis : un membre pouvait donc
+// créditer un but, une passe ou un MVP à quiconque du club, même absent de
+// la soirée. Les deux fonctions ci-dessous portent cette vérification, pour
+// qu'elle vive à un seul endroit plutôt que dupliquée dans chaque route.
+
+/// Vérifie que les joueurs référencés par un événement (buteur, passeur, ou
+/// auteur d'un contre son camp) sont recevables sur CE match : toujours dans
+/// le club, et — seulement si le match est INTERNAL — bien sur SA feuille.
+///
+/// Sur un match EXTERNAL, la compo n'est pas toujours saisie (match amical) :
+/// la couche locale (lib/localMatch.ts, addEvent) n'exige la feuille que pour
+/// un INTERNAL. Le serveur ne doit pas devenir plus strict qu'elle, sous
+/// peine de rejeter à la synchronisation des écritures déjà acceptées hors
+/// ligne.
+export async function joueursValidesPourEvenement(
+  matchId: string,
+  clubId: string,
+  matchKind: MatchKind,
+  playerIds: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ids = [...new Set(playerIds)];
+  if (ids.length === 0) return { ok: true };
+
+  const owned = await prisma.player.count({
+    where: { id: { in: ids }, clubId },
+  });
+  if (owned !== ids.length) {
+    return { ok: false, error: "Joueur hors du club" };
+  }
+
+  if (matchKind === "INTERNAL") {
+    const surFeuille = await prisma.matchParticipant.count({
+      where: { matchId, playerId: { in: ids } },
+    });
+    if (surFeuille !== ids.length) {
+      return { ok: false, error: "Joueur hors de la feuille de ce match" };
+    }
+  }
+
+  return { ok: true };
+}
+
+/// L'homme du match est toujours l'un de nos joueurs, désigné après coup :
+/// contrairement au but/passe ci-dessus, aucune exception EXTERNAL de ce
+/// genre n'existe côté client pour lui — la feuille se vérifie dans tous les
+/// cas, INTERNAL ou EXTERNAL.
+export async function joueurSurLaFeuille(
+  matchId: string,
+  playerId: string,
+): Promise<boolean> {
+  const count = await prisma.matchParticipant.count({
+    where: { matchId, playerId },
+  });
+  return count > 0;
+}
 
 // Annuler ou effacer, en un seul geste — décidé par ce qu'il y a à perdre,
 // pas par le statut du match (spec 0006).
