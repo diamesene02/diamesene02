@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
+import { matchVerrouille } from "@/lib/matches";
 import type { MatchKind, MatchStatus } from "@prisma/client";
 
 type Ctx = { params: Promise<{ clubId: string }> };
@@ -252,8 +253,8 @@ export async function POST(req: Request, { params }: Ctx) {
       // propre compo le lendemain et écrasait celle du match déjà joué. Tout en
       // dépend — apparitions, victoires, pourcentages, Élo. Le statut, lui, était
       // déjà protégé ; les compos ne l'étaient pas.
-      if (upserted.status === "FINISHED" && !ctx.canManage) {
-        throw new Error("finished_scope");
+      if (matchVerrouille(upserted.status) && !ctx.canManage) {
+        throw new Error("locked_scope");
       }
 
       // La composition n'est écrite QUE si le match n'en a pas encore.
@@ -302,7 +303,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (
         e.message === "player_scope" ||
         e.message === "match_scope" ||
-        e.message === "finished_scope"
+        e.message === "locked_scope"
       ) {
         return e.message;
       }
@@ -312,9 +313,9 @@ export async function POST(req: Request, { params }: Ctx) {
   // Un rejeu tardif sur un match terminé n'est pas une erreur du client : on le
   // refuse explicitement pour que la file d'attente hors-ligne sache qu'il faut
   // conserver l'opération et prévenir, au lieu de la jeter.
-  if (match === "finished_scope") {
+  if (match === "locked_scope") {
     return NextResponse.json(
-      { error: "Match déjà terminé — admin requis pour le modifier" },
+      { error: "Match verrouillé (terminé ou annulé) — admin requis pour le modifier" },
       { status: 403 },
     );
   }

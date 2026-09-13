@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
+import { matchVerrouille } from "@/lib/matches";
 import { estId, estIdOuVide } from "@/lib/ids";
 import type { MatchEventType, Team } from "@prisma/client";
 
@@ -65,9 +66,9 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
   }
   // Modifier un match terminé = correction rétroactive → admin.
-  if (match.status === "FINISHED" && !ctx.canManage) {
+  if (matchVerrouille(match.status) && !ctx.canManage) {
     return NextResponse.json(
-      { error: "Admin requis pour modifier un match terminé" },
+      { error: "Admin requis pour modifier un match terminé ou annulé" },
       { status: 403 },
     );
   }
@@ -158,9 +159,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!match) {
     return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
   }
-  if (match.status === "FINISHED" && !ctx.canManage) {
+  if (matchVerrouille(match.status) && !ctx.canManage) {
     return NextResponse.json(
-      { error: "Admin requis pour modifier un match terminé" },
+      { error: "Admin requis pour modifier un match terminé ou annulé" },
       { status: 403 },
     );
   }
@@ -221,9 +222,9 @@ export async function DELETE(req: Request, { params }: Ctx) {
   if (!match) {
     return NextResponse.json({ error: "Match introuvable" }, { status: 404 });
   }
-  if (match.status === "FINISHED" && !ctx.canManage) {
+  if (matchVerrouille(match.status) && !ctx.canManage) {
     return NextResponse.json(
-      { error: "Admin requis pour modifier un match terminé" },
+      { error: "Admin requis pour modifier un match terminé ou annulé" },
       { status: 403 },
     );
   }
