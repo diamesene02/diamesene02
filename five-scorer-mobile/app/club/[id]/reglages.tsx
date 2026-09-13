@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, useGlobalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ecran from "../../../composants/Ecran";
 import { Avatar, BoutonRond, EcussonChasuble, Poignee } from "../../../composants/base";
@@ -45,7 +45,7 @@ import {
 /// confirmation qui DIT ce qui va se passer. Le site en oublie la moitié ; sur
 /// un téléphone, où le doigt glisse, ce n'est pas tenable.
 export default function Reglages() {
-  const { id } = useGlobalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [d, setD] = useState<EcranReglages | null>(null);
   const [occupe, setOccupe] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);

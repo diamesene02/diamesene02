@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ecran from "../../../composants/Ecran";
 import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import {
@@ -30,7 +30,7 @@ import {
 /// l'heure, le lieu, combien on est. Une rangée passée dit ce qu'il en reste —
 /// le nombre de matchs, les buts, et ce qu'il y a à encaisser.
 export default function Soirees() {
-  const { id } = useGlobalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [donnees, setDonnees] = useState<EcranSoirees | null>(null);
   const [resteOuvert, setResteOuvert] = useState(false);

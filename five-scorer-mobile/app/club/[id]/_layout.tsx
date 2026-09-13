@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { Tabs, router, useLocalSearchParams } from "expo-router";
+import { Tabs, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { chargerMoi } from "../../../lib/api";
 import {
@@ -47,7 +47,15 @@ export default function DispositionClub() {
   // vide pas à la déconnexion.
   //
   // Ici et pas dans les quinze écrans : ce layout les enveloppe tous.
-  useEffect(() => {
+  // À CHAQUE retour sur l'écran, pas seulement au montage.
+  //
+  // La première version utilisait `useEffect` : elle sortait bien du club au
+  // premier affichage, mais l'écran de l'ancien club RESTAIT dans la pile,
+  // déjà monté. Revenir dessus (un « ‹ » depuis une fiche de soirée) ne
+  // remontait rien, donc ne relançait rien — et le 404 réapparaissait.
+  // Constaté sur un enregistrement d'écran : corrigé à 09 s, revenu à 23 s.
+  useFocusEffect(
+    useCallback(() => {
     if (!id) return;
     let vivant = true;
     void (async () => {
@@ -68,7 +76,8 @@ export default function DispositionClub() {
     return () => {
       vivant = false;
     };
-  }, [id]);
+    }, [id]),
+  );
 
   return (
     <>

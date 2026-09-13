@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ecran from "../../../composants/Ecran";
 import { EcussonChasuble } from "../../../composants/base";
 import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
@@ -38,7 +38,7 @@ export default function Matchs() {
   // `useLocalSearchParams` ne rend que les paramètres du segment courant :
   // depuis un enfant de `Tabs`, le `[id]` du dossier parent n'y est pas, et
   // l'écran restait bloqué sur son indicateur de chargement sans rien dire.
-  const { id } = useGlobalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [donnees, setDonnees] = useState<EcranMatchs | null>(null);
   const [saison, setSaison] = useState<string>("toutes");

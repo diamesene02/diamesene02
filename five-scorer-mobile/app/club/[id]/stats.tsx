@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ecran from "../../../composants/Ecran";
 import { Avatar, EcussonChasuble, Poignee } from "../../../composants/base";
@@ -39,7 +39,7 @@ import {
 type Vue = "tableau" | "buteurs" | "forme";
 
 export default function Stats() {
-  const { id } = useGlobalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [d, setD] = useState<EcranStats | null>(null);
   const [saison, setSaison] = useState<string | undefined>(undefined);
