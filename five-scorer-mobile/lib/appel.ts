@@ -179,10 +179,18 @@ export function creerAppel(deps: DependancesAppel) {
       chemin.includes("/api/clubs/") &&
       (await detailDeLErreur(res.clone())) === "introuvable"
     ) {
+      // L'identifiant du club est DANS le message, et ce n'est pas une faute
+      // de goût : `getClubApiContext` rend null aussi bien pour « session
+      // morte » que pour « pas membre », et sans savoir QUEL club est refusé
+      // on ne peut pas trancher entre les deux. Vu en production le
+      // 13 septembre 2026 : le message restait après plusieurs reconnexions,
+      // donc ce n'était pas la session — et rien ne disait sur quoi ça portait.
+      const club = chemin.match(/\/api\/clubs\/([^/?]+)/)?.[1] ?? "?";
       throw new ErreurServeur(
         404,
         "ce club n'est plus accessible avec cette session. Déconnecte-toi et reconnecte-toi ; " +
-          "si ça persiste, c'est qu'on t'a retiré du club.",
+          "si ça persiste, c'est qu'on t'a retiré du club. " +
+          `(club ${club.slice(-8)} · ${chemin.split("?")[0]})`,
       );
     }
 
