@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,7 +14,7 @@ import Ecran from "../../composants/Ecran";
 import { Avatar, BoutonRond, EcussonChasuble, Poignee, Segment } from "../../composants/base";
 import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { themeTokens } from "../../lib/noyau/theme";
-import { chargerFicheMatch, SessionExpiree, type FicheMatch } from "../../lib/api";
+import { chargerFicheMatch, retirerMatch, SessionExpiree, type FicheMatch } from "../../lib/api";
 
 /// Le récap d'un match — la feuille refermée.
 ///
@@ -34,6 +35,7 @@ export default function Recap() {
   const [vue, setVue] = useState<Vue>("stats");
   const [occupe, setOccupe] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [retrait, setRetrait] = useState(false);
 
   const charger = useCallback(async () => {
     if (!id) return;
@@ -54,6 +56,41 @@ export default function Recap() {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  /// « Supprimer » — même geste que le site (spec 0006). On ne sait pas à
+  /// l'avance ce qui va se passer : un match sans rien dessus s'efface pour
+  /// de vrai, un match joué reste, marqué annulé. Le message le dit tel
+  /// quel plutôt que de deviner (article V).
+  function confirmerRetrait() {
+    if (!fiche || !clubId) return;
+    Alert.alert(
+      "Supprimer ce match ?",
+      "S'il n'y a rien dessus, il part pour de vrai. S'il y a des buts ou une compo, il reste, marqué annulé.",
+      [
+        { text: "Non", style: "cancel" },
+        {
+          text: "Oui",
+          style: "destructive",
+          onPress: () => {
+            setRetrait(true);
+            void retirerMatch(clubId, fiche.id)
+              .then((res) => {
+                if (res.geste === "supprime") {
+                  router.back();
+                } else {
+                  setRetrait(false);
+                  void charger();
+                }
+              })
+              .catch((e: Error) => {
+                setRetrait(false);
+                setErreur(e.message);
+              });
+          },
+        },
+      ],
+    );
+  }
 
   const couleurA = fiche?.chasubles.a ?? "#ffffff";
   const couleurB = fiche?.chasubles.b ?? "#111111";
@@ -88,6 +125,12 @@ export default function Recap() {
 
         {fiche && a && b && (
           <>
+            {fiche.statut === "ANNULE" && (
+              // Un match annulé se lit comme un match terminé — score et
+              // buteurs figés — avec ce mot en plus (spec 0006, même bandeau
+              // que le site).
+              <Text style={[s.annule, { color: "#ff453a" }]}>Annulé</Text>
+            )}
             <View style={s.marque}>
               <Text
                 style={[s.chiffre, { color: t.ink }, fiche.scoreB > fiche.scoreA && s.perd]}
@@ -294,6 +337,18 @@ export default function Recap() {
                 </Text>
               </Pressable>
             )}
+
+            {fiche.droits.peutGerer && fiche.statut === "TERMINE" && (
+              <Pressable
+                onPress={confirmerRetrait}
+                disabled={retrait}
+                style={[s.lien, { borderColor: "#ff453a" }]}
+              >
+                <Text style={{ color: "#ff453a", fontSize: 15, fontWeight: "600" }}>
+                  {retrait ? "…" : "Supprimer"}
+                </Text>
+              </Pressable>
+            )}
           </>
         )}
       </ScrollView>
@@ -335,6 +390,7 @@ const s = StyleSheet.create({
     paddingBottom: 16,
   },
   carteTitre: { fontSize: 17, fontWeight: "600", paddingBottom: 10 },
+  annule: { fontSize: 15, fontWeight: "700", textAlign: "center", paddingBottom: 4 },
 
   stat: { paddingVertical: 8, gap: 6 },
   statTete: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

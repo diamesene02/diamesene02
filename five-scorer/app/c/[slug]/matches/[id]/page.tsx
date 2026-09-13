@@ -66,7 +66,17 @@ export default async function MatchRecapPage({
   ).toISOString();
 
   // ── Match programmé / annulé : vue convocation, pas de récap ──────────────
-  if (match.status === "SCHEDULED" || match.status === "CANCELED") {
+  // Un CANCELED sans rien dedans (annulé avant d'avoir été lancé) garde la
+  // vue « convocation annulée » d'aujourd'hui. Un CANCELED qui a des
+  // participants ou des événements — annulé APRÈS avoir été joué (spec 0006)
+  // — tombe dans le récap plus bas, avec son score et un bandeau « Annulé » :
+  // il y a quelque chose à montrer, pas seulement une date qui ne tiendra
+  // plus lieu de rien.
+  const canceledVide =
+    match.status === "CANCELED" &&
+    match.participants.length === 0 &&
+    match.events.length === 0;
+  if (match.status === "SCHEDULED" || canceledVide) {
     const scheduledAt = match.scheduledAt ?? match.playedAt;
     const dateLabel = D.jourLong(scheduledAt);
     const timeLabel = D.heure(scheduledAt);
@@ -291,7 +301,12 @@ export default async function MatchRecapPage({
               : match.teamBName,
           scoreA: match.scoreA,
           scoreB: match.scoreB,
-          status: match.status === "FINISHED" ? "FINISHED" : "LIVE",
+          status:
+            match.status === "CANCELED"
+              ? "CANCELED"
+              : match.status === "FINISHED"
+                ? "FINISHED"
+                : "LIVE",
           mvpId: match.mvpId,
         }}
         mvpName={match.mvp?.name ?? null}

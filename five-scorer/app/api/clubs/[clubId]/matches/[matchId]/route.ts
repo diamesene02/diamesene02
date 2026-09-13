@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
 import { estId } from "@/lib/ids";
+import { annulerOuSupprimerMatch } from "@/lib/matches";
 
 type Ctx = { params: Promise<{ clubId: string; matchId: string }> };
 
@@ -204,8 +205,16 @@ export async function PATCH(req: Request, { params }: Ctx) {
   return NextResponse.json({ match: updated });
 }
 
-export async function DELETE(_req: Request, { params }: Ctx) {
+/// « Supprimer », pour l'app — même geste que le bouton du site
+/// (spec 0006) : `annulerOuSupprimerMatch` décide, selon ce qu'il y a à
+/// perdre, entre effacer pour de vrai et annuler en gardant tout visible.
+/// Un corps JSON optionnel `{ raison }` porte le motif de l'annulation, comme
+/// sur le site.
+export async function DELETE(req: Request, { params }: Ctx) {
   const { clubId, matchId } = await params;
+  if (!estId(matchId)) {
+    return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  }
   const ctx = await getClubApiContext(clubId);
   if (!ctx) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -213,8 +222,16 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!ctx.canManage) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  await prisma.match
-    .delete({ where: { id: matchId, clubId } })
-    .catch(() => null);
-  return NextResponse.json({ ok: true });
+
+  let raison: string | undefined;
+  try {
+    const corps = (await req.json()) as { raison?: unknown };
+    if (typeof corps.raison === "string") raison = corps.raison;
+  } catch {
+    // Corps absent ou illisible : pas de raison, ce n'est pas un refus.
+  }
+
+  const res = await annulerOuSupprimerMatch(clubId, matchId, raison);
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+  return NextResponse.json({ ok: true, geste: res.geste });
 }

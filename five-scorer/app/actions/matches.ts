@@ -1,15 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
+import { annulerOuSupprimerMatch, type ResultatRetrait } from "@/lib/matches";
 
-export async function deleteMatch(
+/// « Supprimer » — le mot reste, le geste réel dépend de ce qu'il y a à
+/// perdre (spec 0006). Un match sans participant, sans événement, sans
+/// réponse à une convocation s'efface pour de vrai. Dès qu'il y a quelque
+/// chose, il s'annule à la place : reste visible, sort du classement.
+///
+/// Ne redirige plus systématiquement : une annulation garde le match sur sa
+/// propre page (il existe toujours), seule une vraie suppression envoie vers
+/// la liste. C'est à l'appelant de le faire — cette fonction dit ce qui
+/// s'est passé, elle ne décide plus où atterrir.
+export async function retirerMatch(
   slug: string,
   matchId: string,
-): Promise<{ ok: false; error: string } | never> {
+  raison?: string,
+): Promise<ResultatRetrait> {
   // Identifiants venus du client : refuser tout ce qui n'est pas une
   // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
   if (!idsValides(matchId)) {
@@ -18,11 +28,14 @@ export async function deleteMatch(
 
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
-  await prisma.match
-    .delete({ where: { id: matchId, clubId: ctx.club.id } })
-    .catch(() => null);
-  revalidatePath(`/c/${slug}`);
-  redirect(`/c/${slug}/matches`);
+
+  const res = await annulerOuSupprimerMatch(ctx.club.id, matchId, raison);
+  if (res.ok) {
+    revalidatePath(`/c/${slug}`);
+    revalidatePath(`/c/${slug}/matches`);
+    revalidatePath(`/c/${slug}/matches/${matchId}`);
+  }
+  return res;
 }
 
 export type EditMatchInput = {

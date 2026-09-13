@@ -20,7 +20,11 @@ export type PartageProps = {
     teamBName: string;
     scoreA: number;
     scoreB: number;
-    status: "LIVE" | "FINISHED";
+    // "CANCELED" fait partie du type parce que RecapView.tsx passe l'objet
+    // Match entier, même si ce composant ne s'affiche jamais pour un match
+    // annulé (gardé à l'appel : `match.status !== "CANCELED"`, spec 0006).
+    // TypeScript ne rétrécit pas le type d'un objet passé en bloc.
+    status: "LIVE" | "FINISHED" | "CANCELED";
     mvpId: string | null;
   };
   mvpName: string | null;

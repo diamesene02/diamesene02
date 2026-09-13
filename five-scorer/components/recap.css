@@ -131,6 +131,12 @@
   border-radius: 50%;
   background: var(--bad);
 }
+.recap-etat .annule {
+  color: var(--bad);
+}
+.recap-entete-milieu .etat.annule {
+  color: var(--bad);
+}
 
 .recap-equipes {
   display: grid;

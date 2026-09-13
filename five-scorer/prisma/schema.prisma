@@ -375,6 +375,11 @@ model Match {
   mvpId       String?
   mvp         Player?     @relation("MatchMvp", fields: [mvpId], references: [id], onDelete: SetNull)
   notes       String?
+  /// Posés ENSEMBLE, jamais l'un sans l'autre (spec 0006) — même précédent
+  /// que MatchDay.canceledAt/cancelReason. Un match annulé le reste visible :
+  /// ses buts, sa compo, ses votes ne partent jamais avec (article II).
+  canceledAt   DateTime?
+  cancelReason String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

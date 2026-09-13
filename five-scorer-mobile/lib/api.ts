@@ -470,6 +470,26 @@ export function chargerFicheMatch(clubId: string, matchId: string): Promise<Fich
   );
 }
 
+/// « Supprimer » un match, même geste que le site (spec 0006). Le mot reste,
+/// le résultat réel dépend de ce qu'il y a à perdre : un match sans
+/// participant ni événement ni convocation s'efface pour de vrai (`geste:
+/// "supprime"`) ; dès qu'il y a quelque chose, il reste visible, marqué
+/// annulé (`geste: "annule"`). C'est le SERVEUR qui décide — pas cet appel.
+///
+/// Sur la route ANGLAISE (`/matches/`, pas `/matchs/`) : c'est celle qui
+/// porte déjà DELETE, utilisée par la reprise et par l'outbox. Pas de
+/// logique dupliquée côté serveur pour ce que l'app appelle différemment.
+export function retirerMatch(
+  clubId: string,
+  matchId: string,
+  raison?: string,
+): Promise<{ ok: true; geste: "supprime" | "annule" }> {
+  return appelAuthentifie<{ ok: true; geste: "supprime" | "annule" }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matches/${encodeURIComponent(matchId)}`,
+    { method: "DELETE", ...(raison ? { body: JSON.stringify({ raison }) } : {}) },
+  );
+}
+
 export type EcranEffectif = {
   peutGerer: boolean;
   aDejaUnProfil: boolean;

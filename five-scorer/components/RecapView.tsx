@@ -28,7 +28,7 @@ type Match = {
   teamBName: string;
   scoreA: number;
   scoreB: number;
-  status: "LIVE" | "FINISHED";
+  status: "LIVE" | "FINISHED" | "CANCELED";
   mvpId: string | null;
 };
 
@@ -100,6 +100,9 @@ export default function RecapView({
   const winA = match.scoreA > match.scoreB;
   const winB = match.scoreB > match.scoreA;
   const fini = match.status === "FINISHED";
+  // Un match annulé se lit comme un match terminé — score et buteurs figés —
+  // avec un mot en plus qui dit pourquoi on ne doit pas s'y fier (spec 0006).
+  const annule = match.status === "CANCELED";
 
   // La chronologie doit être CHRONOLOGIQUE. Les buts arrivent ordonnés par
   // date de saisie : bon ordre pendant le match, faux dès qu'on rattrape un
@@ -185,7 +188,7 @@ export default function RecapView({
             <span className={cn("recap-entete-chiffre", winB && "perd")}>{match.scoreA}</span>
           </div>
           <div className="recap-entete-milieu">
-            <div className="etat">{fini ? "Terminé" : "En direct"}</div>
+            <div className={cn("etat", annule && "annule")}>{annule ? "Annulé" : fini ? "Terminé" : "En direct"}</div>
             <div className="date">{dateCourte}</div>
           </div>
           <div className="recap-entete-camp B">
@@ -203,11 +206,13 @@ export default function RecapView({
           </svg>
         </button>
         <span className="recap-legende">{contexte ?? dateLongue}</span>
-        <button type="button" onClick={() => setPartage(true)} aria-label="Partager" className="verre rond">
-          <svg width="20" height="22" viewBox="0 0 20 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M10 13V2" /><path d="M6 6l4-4 4 4" /><path d="M4 10v9h12v-9" />
-          </svg>
-        </button>
+        {!annule && (
+          <button type="button" onClick={() => setPartage(true)} aria-label="Partager" className="verre rond">
+            <svg width="20" height="22" viewBox="0 0 20 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M10 13V2" /><path d="M6 6l4-4 4 4" /><path d="M4 10v9h12v-9" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className="recap-marque">
@@ -215,7 +220,12 @@ export default function RecapView({
           <span className="score-lourd">{match.scoreA}</span>
         </div>
         <div className="recap-etat">
-          {fini ? (
+          {annule ? (
+            <>
+              <span className="etat annule">Annulé</span>
+              <span className="date">{dateCourte}</span>
+            </>
+          ) : fini ? (
             <>
               <span className="etat">Terminé</span>
               <span className="date">{dateCourte}</span>
@@ -401,7 +411,7 @@ export default function RecapView({
         </section>
       )}
 
-      {showActions && (
+      {showActions && !annule && (
         <div className="recap-actions">
           <button type="button" onClick={() => setPartage(true)} className="plein">
             Partager
@@ -411,18 +421,20 @@ export default function RecapView({
 
       {children && <div className="recap-suite">{children}</div>}
 
-      <PartageFeuille
-        open={partage}
-        onClose={() => setPartage(false)}
-        match={match}
-        mvpName={mvpName}
-        teamA={teamA}
-        teamB={teamB}
-        goals={goals}
-        club={club}
-        publicUrl={publicUrl}
-        contexte={contexte ?? dateLongue}
-      />
+      {match.status !== "CANCELED" && (
+        <PartageFeuille
+          open={partage}
+          onClose={() => setPartage(false)}
+          match={match}
+          mvpName={mvpName}
+          teamA={teamA}
+          teamB={teamB}
+          goals={goals}
+          club={club}
+          publicUrl={publicUrl}
+          contexte={contexte ?? dateLongue}
+        />
+      )}
     </div>
   );
 }
