@@ -140,7 +140,15 @@ export default function ClubAccueil() {
         {/* Le rappel ambre : le club décide ses équipes trois ou quatre jours
             avant, sur WhatsApp. Si la compo n'est pas faite, c'est LA chose à
             faire, et l'accueil doit le dire. */}
-        {soiree && !soiree.compoFaite && !soiree.annulee && club?.peutGerer && (
+        {/* peutScorer, pas peutGerer : c'est le droit qui ouvre réellement la
+            compo sur l'écran soirée (soiree/[id].tsx:228, `fiche.peutScorer`).
+            Montrer ce rappel à un cercle plus étroit que ce que l'écran
+            autorise, c'est cacher le geste à quelqu'un qui pourrait le faire —
+            exactement ce que SOIREE-24 reprochait, et que le premier passage
+            sur ce rappel n'avait corrigé qu'à moitié (la destination, pas le
+            droit). Le site montre le même rappel à qui peut scorer
+            (page.tsx:363-368). */}
+        {soiree && !soiree.compoFaite && !soiree.annulee && club?.peutScorer && (
           <Pressable
             // Vers la SOIRÉE, pas vers « /compo ».
             //
