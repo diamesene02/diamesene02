@@ -3,11 +3,12 @@
 *Annexe de la spec produit. **549 cas** relevés le 10 septembre 2026 par un balayage
 en huit domaines puis six regards, **tenu à jour à chaque lot livré** (la spec
 0004 a refermé cinq cas le 11 septembre ; les specs 0005 et 0006, six cas le
-13 septembre). Chaque cas a été vérifié dans le code — la ligne `>` porte
+13 septembre ; la spec 0001, quinze cas le 16 septembre, et trois autres
+passés de faux à partiel). Chaque cas a été vérifié dans le code — la ligne `>` porte
 le fichier et la ligne. Les identifiants sont ceux du balayage ; c'est par eux que les specs
 numérotées citeront les cas.*
 
-**170 faits · 159 partiels · 89 absents · 131 faux.**
+**185 faits · 153 partiels · 88 absents · 123 faux.**
 **49 bloquent un lundi · 140 en gênent un · 152 gênent une saison · 208 relèvent du confort.**
 
 **État** — `✔ fait` : ça marche des deux côtés · `◐ partiel` : d'un seul côté, ou à moitié ·
@@ -1407,15 +1408,15 @@ numérotées citeront les cas.*
 
 > `five-scorer-mobile/app/match/[id].tsx:387-400 (`faireEntrer`) et 552 (le seul `setCompo(false)`)`
 
-### `FIN-03` — ⚠ faux · *gêne un lundi*
+### `FIN-03` — ✔ fait · *gêne un lundi*
 
 **La situation.** « Attends, c'était 4-3. » On veut rouvrir le match qu'on vient de terminer.
 
 **Ce qu'on attend.** Rouvrir la feuille, corriger, refermer — avec une trace.
 
-**Où ça en est.** Le bouton existe sur le site et ne fait rien : il repasse en phase « live », LiveMatch voit FINISHED, appelle onFinished, et on retombe sur le récap. Toute écriture est refusée « Match terminé » de toute façon. C'est l'objet de la spec 0001.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 12). « Attends, c'était 4-3 » se dit depuis la feuille : le bouton « Rouvrir » est devenu un lien « Corriger le match » vers `/corriger`, où l'admin ajoute le but manquant ; le score est recalculé et la trace « Corrigé le … à … par … » s'affiche sur le récap, site et app. On ne rouvre pas la feuille : on corrige le match terminé, ce qui revient au même pour le marqueur, et ça laisse une trace. Vu dans le navigateur le 16 septembre : 1–1 → 2–1 par un but ajouté, puis retiré, 1–1.
 
-> `five-scorer/components/PlayShell.tsx:312-314 (bouton « Rouvrir le match ») ; five-scorer/app/c/[slug]/matches/[id]/live/LiveMatch.tsx:267-273,568 ; five-scorer-mobile : aucun chemin vers un match terminé (lib/match/tables.ts:287-297 ne rend que LIVE)`
+> `five-scorer/components/PlayShell.tsx:308-312 ; five-scorer/app/actions/correction.ts ; five-scorer/lib/matchEvents.ts:22-30 (marquerCorrection), 132 ; five-scorer/app/c/[slug]/matches/[id]/page.tsx:314 ; five-scorer-mobile/app/recap/[id].tsx:159`
 
 ### `HL-05` — ⚠ faux · *gêne un lundi*
 
@@ -2121,45 +2122,45 @@ numérotées citeront les cas.*
 
 > `five-scorer-mobile/app/club/[id]/index.tsx:205-207 ; five-scorer-mobile/app/match/[id].tsx:128-131, 238-247 ; app/c/[slug]/matches/[id]/page.tsx:294, 307 ; components/RecapView.tsx:188, 270-276`
 
-### `APRES-04` — ⚠ faux · *gêne un lundi*
+### `APRES-04` — ◐ partiel · *gêne un lundi*
 
 **La situation.** Depuis la soirée, quelqu'un tape sur un match programmé (pas encore joué) ou sur un match annulé.
 
 **Ce qu'on attend.** Le site le dit : « Match programmé » avec la convocation, ou « Match annulé — était prévu le … ». L'app aussi.
 
-**Où ça en est.** Site (page match) : fait. App : la soirée envoie tout ce qui n'est pas LIVE vers /recap/[id], et le récap n'utilise jamais `statut` : un match programmé ou annulé s'affiche « 0 – 0 », « Aucun but dans ce match. », feuille vide, sans un mot. Pire, la ligne de la soirée l'étiquette « Terminé » pour un match annulé (route.ts:191), et la page soirée du site fait pareil (sessions/[id]/page.tsx:340).
+**Où ça en est.** Partiel depuis le 16 septembre 2026 (spec 0006, puis spec 0001 tâche 10). Site : fait, page match et page soirée (« Annulé » au lieu de « Terminé »). App : le récap dit « Match annulé » depuis 0006, et la ligne de la soirée ne l'étiquette plus « Terminé » (la route calcule l'état : à venir, annulé ou terminé). Ce qui reste : un match *programmé* ouvert depuis la soirée de l'app s'affiche toujours « 0 – 0 », feuille vide, sans un mot — le récap mobile ne traite que `statut === "ANNULE"`.
 
-> `app/c/[slug]/matches/[id]/page.tsx:69-181 ; five-scorer-mobile/app/soiree/[id].tsx:247-255 ; five-scorer-mobile/app/recap/[id].tsx ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:184-191 ; app/c/[slug]/sessions/[id]/page.tsx:335-343`
+> `app/c/[slug]/matches/[id]/page.tsx ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:196-205 ; app/c/[slug]/sessions/[id]/page.tsx:347 ; five-scorer-mobile/app/recap/[id].tsx (ANNULE seul) ; five-scorer-mobile/app/soiree/[id].tsx`
 
-### `APRES-07` — ⚠ faux · *gêne un lundi*
+### `APRES-07` — ✔ fait · *gêne un lundi*
 
 **La situation.** Le marqueur a tapé « Terminer » trop tôt (il restait deux minutes) et veut rouvrir la feuille.
 
 **Ce qu'on attend.** Soit on peut rouvrir, soit le bouton n'existe pas. Pas un bouton qui ne fait rien.
 
-**Où ça en est.** Le site affiche « Rouvrir le match » sur le récap local : il remonte LiveMatch, qui voit le statut FINISHED et rappelle aussitôt onFinished → retour au récap. Le bouton est mort, et le serveur ne connaît de toute façon aucun retour FINISHED → LIVE (PatchBody.status n'admet que « FINISHED »). App : rien.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 12). Le bouton mort a disparu : à sa place, sur le récap local de la feuille, un lien « Corriger le match » vers `/corriger`. Il n'y a toujours pas de retour FINISHED → LIVE, et c'est voulu (rien ne s'efface : on corrige un match terminé, on ne le rouvre pas) ; un membre qui suit le lien retombe sur le récap, qui lui dit pourquoi (APRES-12). App : la feuille locale ne rend que les matchs LIVE, un match terminé n'y a pas de bouton — rien de mort.
 
-> `components/PlayShell.tsx:308-310 ; app/c/[slug]/matches/[id]/live/LiveMatch.tsx:267-272, 568 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:113-114 ; five-scorer-mobile/app/match/[id].tsx`
+> `components/PlayShell.tsx:308-312 (lien « Corriger le match ») ; app/c/[slug]/matches/[id]/corriger/page.tsx ; app/api/clubs/[clubId]/matches/[matchId]/route.ts (PatchBody.status : toujours « FINISHED » seul) ; five-scorer-mobile/lib/match/tables.ts (LIVE seulement)`
 
-### `APRES-17` — ⚠ faux · *gêne un lundi*
+### `APRES-17` — ✔ fait · *gêne un lundi*
 
 **La situation.** Club en mode vote. L'admin décide de poser lui-même l'homme du match (personne n'a voté, ou pour trancher). Puis un membre vote le lendemain.
 
 **Ce qu'on attend.** Le choix de l'admin tient, ou l'admin est prévenu qu'un vote l'écrasera.
 
-**Où ça en est.** L'édition écrit mvpId sans regarder le mode ; la prochaine voix recompte et réécrit mvpId (motm.ts:68-71). Le choix de l'admin disparaît en silence, et rien dans le formulaire ne dit que le vote est ouvert.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 3). `Match.motmLocked` (migration `20260913120000_match_motm_locked`) : quand l'admin pose un homme du match depuis le formulaire, le verrou se ferme ; quand il l'efface, il se rouvre. Une voix qui arrive verrou fermé est refusée (`verifierMotmDeverouille`) et ne réécrit plus `mvpId`. Le récap le dit : « désigné par le capitaine », site et app. Le formulaire ne prévient pas que le vote est ouvert — c'est la première branche de l'attendu (« le choix de l'admin tient ») qui est tenue, pas la seconde.
 
-> `app/actions/matches.ts:79 ; app/actions/motm.ts:49-72 ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:117-132`
+> `prisma/schema.prisma (motmLocked) ; app/actions/matches.ts:166 ; app/actions/motm.ts:33 ; lib/motm.ts (verifierMotmDeverouille) ; lib/motm.test.ts ; components/RecapView.tsx ; five-scorer-mobile/app/recap/[id].tsx`
 
-### `APRES-02` — ◐ partiel · *gêne un lundi*
+### `APRES-02` — ✔ fait · *gêne un lundi*
 
 **La situation.** Un but rattrapé après coup, avec une minute antérieure aux buts déjà saisis (ou une feuille où l'on a annulé puis ressaisi).
 
 **Ce qu'on attend.** La chronologie est chronologique, la même sur le site et sur l'app.
 
-**Où ça en est.** Le site retrie par minute (un but sans minute hérite de celle du précédent) ; l'app garde l'ordre de saisie et calcule le score courant dans cet ordre. Le même match donne deux chronologies et deux suites de scores courants. Sans importance tant que la correction n'existe pas, faux dès qu'elle existera.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 12). Un but ajouté après coup n'a pas de minute — l'écran n'en propose pas (Q5) — et vient en fin de chronologie des deux côtés : le site trie par minute avec les sans-minute en dernier (fini l'héritage de la minute du but précédent), l'app garde l'ordre de saisie, où un but ajouté après coup est forcément le dernier. Le repère « ajouté après coup » s'affiche sur les deux, et seulement si le match a par ailleurs des minutes (une feuille rétro n'en a aucune). Une feuille annulée puis ressaisie en direct reste identique des deux côtés : ses minutes sont croissantes par construction. Le seul cas où les deux moteurs divergeraient — une minute saisie à la main, antérieure — n'existe plus dans le produit.
 
-> `components/RecapView.tsx:104-116 ; app/api/clubs/[clubId]/matchs/[matchId]/route.ts:136-159`
+> `components/RecapView.tsx:112-125 ; app/api/clubs/[clubId]/matchs/[matchId]/route.ts:153 (apresCoup) ; app/actions/correction.ts:55-93 (minute toujours nulle) ; five-scorer-mobile/app/recap/[id].tsx:284`
 
 ### `APRES-08` — ◐ partiel · *gêne un lundi*
 
@@ -2171,35 +2172,35 @@ numérotées citeront les cas.*
 
 > `lib/sync.ts:304-338 ; five-scorer-mobile/lib/outbox/sync.ts:328-344 ; components/PlayShell.tsx:220-228 ; five-scorer-mobile/app/match/[id].tsx:1042-1062 ; app/c/[slug]/matches/[id]/page.tsx (rien)`
 
-### `APRES-11` — ◐ partiel · *gêne un lundi*
+### `APRES-11` — ✔ fait · *gêne un lundi*
 
 **La situation.** Corriger les à-côtés : le nom d'une équipe, la date et l'heure, l'homme du match, la saison, une note.
 
 **Ce qu'on attend.** Un admin corrige depuis le récap ; le récap et la liste reflètent le changement, sur le site et l'app.
 
-**Où ça en est.** Site : fait pour un admin (formulaire complet, messages « Date invalide. », « MVP hors du club. », « Saison inconnue. »). App : absent — aucun écran ; et l'API PATCH que l'app pourrait appeler n'accepte ni playedAt ni seasonId (PatchBody route.ts:113-120), seulement noms, notes, MVP et durée.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâches 7 et 12). Site : le formulaire d'édition corrige nom, date, homme du match, saison, note — et désormais la soirée (`matchDayId`, option « Aucune — match isolé ») ; les buts et la composition se corrigent sur `/corriger`, vers lequel le formulaire renvoie par un vrai lien à la place de l'ancienne impasse. App : elle reflète tout par la route récap (score, chronologie, ligne « Corrigé le … ») mais n'édite rien elle-même — écart assumé du plan 0001 (pas de correction depuis le téléphone). L'API PATCH n'accepte toujours ni playedAt ni seasonId : sans écran mobile pour l'appeler, ça ne manque à personne.
 
-> `app/c/[slug]/matches/[id]/edit/page.tsx ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx ; app/actions/matches.ts:37-88 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:113-205 ; five-scorer-mobile/app/recap/[id].tsx (rien)`
+> `app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:163, 204 ; app/actions/matches.ts:139-166 ; app/c/[slug]/matches/[id]/corriger/page.tsx ; app/api/clubs/[clubId]/matchs/[matchId]/route.ts:209 ; five-scorer-mobile/app/recap/[id].tsx:159`
 
-### `APRES-12` — ◐ partiel · *gêne un lundi*
+### `APRES-12` — ✔ fait · *gêne un lundi*
 
 **La situation.** Celui qui a saisi le match (simple membre autorisé à marquer) se rend compte de l'erreur et veut corriger.
 
 **Ce qu'on attend.** Soit il peut, soit il reçoit un refus explicite — pas un écran qui ne réagit pas.
 
-**Où ça en est.** Le lien « Corriger » n'apparaît qu'aux admins ; si le membre tape l'URL /edit, il est renvoyé au récap sans un mot (redirect, edit/page.tsx:15) ; l'action serveur répond « Réservé aux admins. » et l'API « Admin requis pour modifier un match terminé ». Le refus existe côté serveur, mais l'écran, lui, se tait. App : rien à refuser, rien n'existe. La règle elle-même est tranchée depuis le 10 septembre 2026 : `canManage`, pas `canScore` (Q1 de la spec 0001, tranchée par le code — correction du 13 septembre : cette ligne disait encore « n'est pas tranchée »).
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 6). Le récap dit au membre, en toutes lettres : « Seul un administrateur peut corriger un match terminé. » — là où l'admin voit « Corriger » et « Modifier les infos ». `/corriger` et `/edit` tapés à la main renvoient au récap, qui porte la phrase. Le serveur refuse comme avant (« Réservé aux admins. », « Admin requis pour modifier un match terminé »). App : aucun chemin de correction, donc rien à refuser — écart assumé du plan. La règle : `canManage` (Q1, 10 septembre 2026).
 
-> `app/c/[slug]/matches/[id]/page.tsx:361-368 ; app/c/[slug]/matches/[id]/edit/page.tsx:15 ; app/actions/matches.ts:49 ; app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:68-73 ; five-scorer-mobile/app/recap/[id].tsx`
+> `app/c/[slug]/matches/[id]/page.tsx:401 ; app/c/[slug]/matches/[id]/corriger/page.tsx (redirect non-admin) ; app/actions/correction.ts (ouvrir) ; app/api/clubs/[clubId]/matches/[matchId]/events/route.ts`
 
-### `APRES-15` — ◐ partiel · *gêne un lundi*
+### `APRES-15` — ✔ fait · *gêne un lundi*
 
 **La situation.** Un match a été saisi le mauvais jour (compo lancée un mardi pour la soirée de lundi) ; l'admin corrige la date.
 
 **Ce qu'on attend.** Le match rejoint la bonne soirée ; le récap et le bilan de la soirée suivent.
 
-**Où ça en est.** playedAt est modifiable, matchDayId ne l'est pas. Après correction, le récap continue d'afficher « Soirée du <ancienne date> · Match n » (calculé depuis matchDay), et l'ancienne soirée continue de le compter dans son bilan et son mot. Aucun moyen de rattacher un match à une autre soirée.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 7). Le formulaire d'édition a un champ « Soirée » qui liste les soirées du club, plus « Aucune — match isolé » ; `updateMatchDetails` refuse une soirée d'un autre club (`matchDayAppartientAuClub`) et écrit `matchDayId`. Le récap recalcule « Soirée du … · Match n » depuis la nouvelle soirée, et l'ancienne ne le compte plus. Ce que ça ne fait pas : rien ne rapproche encore la date du match de celle de la soirée — c'est APRES-D3.
 
-> `app/actions/matches.ts:28-35, 78 ; app/c/[slug]/matches/[id]/page.tsx:238-248 ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:155-170`
+> `app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:155-165 ; app/actions/matches.ts:139-146 ; lib/matches.ts:68-76 (matchDayAppartientAuClub) ; app/c/[slug]/matches/[id]/page.tsx (contexte soirée, inchangé)`
 
 ### `APRES-22` — ◐ partiel · *gêne un lundi*
 
@@ -2217,9 +2218,9 @@ numérotées citeront les cas.*
 
 **Ce qu'on attend.** Le marqueur comprend que le match a été retiré, et sa file ne reste pas bloquée sans explication.
 
-**Où ça en est.** Les rejeux tombent en 404 « Match introuvable », la chaîne entière du match est marquée bloquée (« n refusées ») — conservée, pas perdue, c'est bien. Mais rien ne dit pourquoi, et « Réessayer » rejouera le même 404 indéfiniment.
+**Où ça en est.** Les rejeux tombent en 404 « Match introuvable », la chaîne entière du match est marquée bloquée (« n refusées ») — conservée, pas perdue, c'est bien. Mais rien ne dit pourquoi, et « Réessayer » rejouera le même 404 indéfiniment. — Tranché le 13 septembre 2026 (spec 0001, tâche 11) : pas de second mécanisme. Le blocage de toute la chaîne est voulu (il empêche un `finishMatch` de passer par-dessus un but refusé) ; les refus d'un match verrouillé disent désormais « Match terminé ou annulé ». Depuis le 16 septembre (tâche 15), un match *annulé* répond 409 « Un match annulé ne se corrige pas : rétablis-le d'abord. » à toute écriture, admin compris, et la file l'affiche tel quel : pour ce cas-là, le marqueur sait pourquoi et quoi faire. Reste ouvert : un match *supprimé* répond toujours « Match introuvable » — rien ne dit qu'il a été retiré, et « Réessayer » rejoue le 404.
 
-> `lib/sync.ts:304-338 ; five-scorer-mobile/lib/outbox/sync.ts:328-344 ; app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:64-66`
+> `lib/sync.ts:304-338 ; five-scorer-mobile/lib/outbox/sync.ts:328-344 ; five-scorer-mobile/lib/match/local.ts (« Match terminé ou annulé ») ; app/api/clubs/[clubId]/matches/[matchId]/events/route.ts`
 
 ### `APRES-29` — ◐ partiel · *gêne un lundi*
 
@@ -2261,15 +2262,15 @@ numérotées citeront les cas.*
 
 > `lib/soiree.ts ; app/c/[slug]/sessions/[id]/MotDeLaSoiree.tsx ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:279 ; five-scorer-mobile/app/soiree/[id].tsx:86-91, 230-241`
 
-### `APRES-14` — ⚠ faux · *gêne une saison*
+### `APRES-14` — ◐ partiel · *gêne une saison*
 
 **La situation.** Un admin corrige (ou déplace vers une autre saison) un match d'une saison clôturée dont le classement a déjà été lu et commenté.
 
 **Ce qu'on attend.** L'app le dit très fort avant, ou le refuse.
 
-**Où ça en est.** Le formulaire liste toutes les saisons du club, marque « (active) » et laisse choisir une saison close sans un mot ; le serveur vérifie seulement que la saison appartient au club. Le classement de la saison close change en silence.
+**Où ça en est.** Partiel depuis le 16 septembre 2026 (spec 0001, tâches 8 et 12). Sur `/corriger`, corriger un match d'une saison close ou de plus de six semaines (`rattrapable`, la même fenêtre que la saisie après coup) passe par une confirmation en deux temps qui nomme ce qui l'a déclenchée. Le formulaire d'édition, lui, n'a pas changé : il liste toujours toutes les saisons et laisse déplacer un match vers une saison close sans un mot — les à-côtés et le déplacement de saison restent muets. La spec 0001 comptait ce cas parmi ceux qu'elle referme : elle n'en referme que la moitié.
 
-> `app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:133-148 ; app/actions/matches.ts:62-67`
+> `app/c/[slug]/matches/[id]/corriger/page.tsx:48 (horsFenetre, saisonClose) ; app/c/[slug]/matches/[id]/corriger/CorrigerForm.tsx:110 ; lib/matches.ts:14 (rattrapable) ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:133-148 (inchangé)`
 
 ### `APRES-25` — ✔ fait · *gêne une saison*
 
@@ -2291,15 +2292,15 @@ numérotées citeront les cas.*
 
 > `app/actions/motm.ts:27-34, 68-71 ; lib/stats.ts (mvpCount)`
 
-### `APRES-13` — ✗ absent · *gêne une saison*
+### `APRES-13` — ✔ fait · *gêne une saison*
 
 **La situation.** Un score a changé après coup ; au club, quelqu'un demande « qui a touché à ça, et quand ? ».
 
 **Ce qu'on attend.** Le récap porte « corrigé le … par … ».
 
-**Où ça en est.** Aucune trace nulle part. `Match.updatedAt` existe mais bouge aussi à chaque vote MVP (motm.ts:68-71) et au coup de sifflet ; personne ne l'affiche. Aucun champ « par qui ». Une correction est indiscernable d'une saisie.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 12). `Match.correctedAt` et `Match.correctedById` (migration `20260913150000_match_correction`) se posent dans les fonctions partagées, pour toute correction d'un match verrouillé — depuis `/corriger` comme depuis les routes que l'app appelle — dans la même écriture que le score recalculé. Le récap du site (page club et page publique) et celui de l'app affichent « Corrigé le 16 sept. 2026 à 09:16 par Compte de dev ». `updatedAt` reste ce qu'il était : personne ne le lit.
 
-> `prisma/schema.prisma:379 (updatedAt, jamais lu) ; app/c/[slug]/matches/[id]/page.tsx ; five-scorer-mobile/app/recap/[id].tsx`
+> `prisma/schema.prisma (correctedAt, correctedById) ; lib/matchEvents.ts:22-30 (marquerCorrection), 132 ; app/c/[slug]/matches/[id]/page.tsx:314 ; app/r/[id]/page.tsx ; components/RecapView.tsx:225 ; app/api/clubs/[clubId]/matchs/[matchId]/route.ts:209 ; five-scorer-mobile/app/recap/[id].tsx:159`
 
 ### `APRES-23` — ✔ fait · *gêne une saison*
 
@@ -2311,25 +2312,25 @@ numérotées citeront les cas.*
 
 > `five-scorer/lib/matches.ts ; app/actions/schedule.ts (cancelScheduledMatch, inchangé)`
 
-### `APRES-09` — ◐ partiel · *gêne une saison*
+### `APRES-09` — ✔ fait · *gêne une saison*
 
 **La situation.** « Attends, c'était 4-3 » : ajouter un but oublié, avec son buteur, à un match terminé.
 
 **Ce qu'on attend.** Depuis le récap, on ajoute le but ; le score passe de 3-2 à 4-2 sur le site et l'app ; classement, Élo et forme suivent.
 
-**Où ça en est.** Le serveur sait le faire : POST events accepte un admin sur un match FINISHED et recalcule le score. Mais aucun écran ne l'appelle : le formulaire d'édition renvoie vers « la timeline » (« Pour corriger les buts, ouvre le match et utilise la timeline. »), qui n'est accessible que sur la feuille en direct — laquelle refuse de s'afficher sur un match terminé et redirige vers le récap. Impasse. App : rien. Droit serveur : admin — c'est aussi ce que la spec 0001 retient (`canManage`, Q1, 10 septembre 2026 ; correction du 13 septembre : cette ligne disait à tort « canScore »).
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 12). L'écran `/corriger`, réservé aux admins d'un match terminé, ajoute un but avec son buteur et sa passe ; le but n'a pas de minute et vient en fin de chronologie, marqué « ajouté après coup » ; le score est recalculé dans la même écriture que la trace « Corrigé le … par … ». Le classement et la forme se recalculent depuis les événements à chaque lecture (lib/stats.ts), rien à reprendre à part. L'app reflète le nouveau score et la chronologie par la route récap, mais ne corrige pas elle-même : écart assumé du plan (pas de correction depuis le téléphone). Droit : `canManage` (Q1, 10 septembre 2026).
 
-> `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:42-130 ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:180-182 ; app/c/[slug]/matches/[id]/live/LiveMatch.tsx:267-272 ; five-scorer-mobile/app/recap/[id].tsx (rien)`
+> `app/actions/correction.ts:55-93 (ajouterButCorrection, minute toujours nulle) ; lib/matchEvents.ts:65-143 (creerEvenementMatch → recomputeScore) ; app/c/[slug]/matches/[id]/corriger/CorrigerForm.tsx ; components/RecapView.tsx:112-125 ; five-scorer-mobile/app/recap/[id].tsx:284 (« ajouté après coup »)`
 
-### `APRES-10` — ◐ partiel · *gêne une saison*
+### `APRES-10` — ✔ fait · *gêne une saison*
 
 **La situation.** Retirer un but compté par erreur, ou le rendre au bon buteur (on a tapé sur la mauvaise tuile).
 
 **Ce qu'on attend.** On retire le but, ou on change son auteur, sans toucher au reste.
 
-**Où ça en est.** Serveur : DELETE d'un événement accepté pour un admin sur FINISHED, score recalculé. Changer le buteur : le PATCH `scorerPlayerId` est contraint au type OWN_GOAL (where type: "OWN_GOAL", route.ts:195-197) — pour un but normal il faut supprimer puis recréer, avec un nouvel identifiant et une nouvelle date de saisie (donc une autre place dans la chrono de l'app). Aucun écran ne fait ni l'un ni l'autre.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 12). Sur `/corriger`, chaque but a un bouton « Retirer » (confirmation en deux temps qui nomme ce qui la déclenche) ; la passe d'un but et l'auteur d'un csc se changent en place. Changer le *buteur* d'un but normal reste « retirer puis ré-ajouter » — écart assumé du plan, et sans conséquence de chronologie depuis que le but ré-ajouté, sans minute, va en fin de liste des deux côtés (APRES-02).
 
-> `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:190-202, 207-242 ; five-scorer-mobile/app/recap/[id].tsx (rien)`
+> `app/actions/correction.ts:95 (retirerEvenementCorrection), 120 (changerJoueurEvenementCorrection) ; lib/matchEvents.ts:145 (modifierEvenementMatch), 207 (supprimerEvenementMatch) ; app/c/[slug]/matches/[id]/corriger/CorrigerForm.tsx`
 
 ### `APRES-16` — ⚠ faux · *confort*
 
@@ -2351,15 +2352,15 @@ numérotées citeront les cas.*
 
 > `app/c/[slug]/matches/[id]/edit/page.tsx (aucun garde de statut) ; app/actions/matches.ts:51-54 ; lib/localMatch.ts:337-343 ; lib/retro.ts`
 
-### `APRES-20` — ⚠ faux · *confort*
+### `APRES-20` — ✔ fait · *confort*
 
 **La situation.** Un admin ajoute après coup un but à un joueur qui n'était pas sur la feuille de ce match.
 
 **Ce qu'on attend.** Refusé : un but se crédite à quelqu'un qui a joué.
 
-**Où ça en est.** POST events vérifie que le joueur est du club, pas qu'il est participant du match (la feuille locale, elle, le vérifie : localMatch.ts:326-331). Résultat dans les stats : des buts sans match joué. Aucun écran ne le fait aujourd'hui ; la future correction devra le tenir côté serveur.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 4). `joueursValidesPourEvenement` tient la règle côté serveur pour tout événement créé ou modifié : joueur du club toujours, et joueur de la feuille de ce match quand le match est interne (« Joueur hors de la feuille de ce match ») ; un match contre un adversaire garde la seule vérification du club, puisqu'il n'a pas de feuille B. `/corriger` ne propose de toute façon que les participants. Les buts sans match joué ne peuvent plus entrer ; ceux déjà entrés ne sont pas repris (écart assumé du plan).
 
-> `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:97-114 ; lib/stats.ts`
+> `lib/matches.ts:35-61 (joueursValidesPourEvenement) ; lib/matchEvents.ts:65 (creerEvenementMatch), 145 (modifierEvenementMatch) ; lib/matches.test.ts ; lib/matchEvents.test.ts`
 
 ### `APRES-26` — ✔ fait · *confort*
 
@@ -2397,9 +2398,9 @@ numérotées citeront les cas.*
 
 **Ce qu'on attend.** On le remet au programme, avec ses convocations.
 
-**Où ça en est.** Aucune action CANCELED → SCHEDULED. Le récap d'un match annulé ne propose que « Supprimer » ; il faut supprimer et reprogrammer, en perdant les réponses.
+**Où ça en est.** Aucune action CANCELED → SCHEDULED. Le récap d'un match annulé ne propose que « Supprimer » ; il faut supprimer et reprogrammer, en perdant les réponses. — Note du 16 septembre 2026 (spec 0001, tâche 9) : « Rétablir » existe désormais, mais pour un match *joué* puis annulé (CANCELED → FINISHED, `retablirMatch`) ; un match programmé puis annulé n'a toujours pas de retour au programme avec ses convocations, et le bouton Rétablir ne s'affiche pas sur sa vue. La spec 0001 le comptait par erreur parmi les cas qu'elle referme : il reste ouvert.
 
-> `app/c/[slug]/matches/[id]/page.tsx:93-97 ; app/actions/schedule.ts`
+> `app/c/[slug]/matches/[id]/page.tsx (vue « annulé, vide » : Supprimer seul) ; app/actions/schedule.ts ; lib/matches.ts (retablirMatch : vers FINISHED seulement)`
 
 ### `APRES-52` — ✗ absent · *confort*
 
@@ -2411,25 +2412,25 @@ numérotées citeront les cas.*
 
 > `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:132-204 (PATCH ne touche que passeur et auteur de csc)`
 
-### `APRES-18` — ◐ partiel · *confort*
+### `APRES-18` — ✔ fait · *confort*
 
 **La situation.** L'homme du match désigné n'a pas joué ce match (mauvais clic, ou appel forgé).
 
 **Ce qu'on attend.** Refusé : l'homme du match est un joueur de la feuille.
 
-**Où ça en est.** Le formulaire ne propose que les participants (tenu par l'affichage), mais le serveur accepte n'importe quel joueur du club (« MVP hors du club » est le seul refus). Le vote, lui, exige un participant. Le compteur mvpCount des stats peut donc créditer un absent.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 5). Les deux portes vérifient désormais que l'homme du match est sur la feuille : l'action d'édition et le PATCH du match, par `joueurSurLaFeuille`, avec un refus explicite. Le vote l'exigeait déjà. `mvpCount` ne peut plus créditer un absent.
 
-> `app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:126-131 ; app/actions/matches.ts:56-61 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:156-163 ; app/actions/motm.ts:36-41`
+> `lib/matches.ts:101-109 (joueurSurLaFeuille) ; app/actions/matches.ts (updateMatchDetails) ; app/api/clubs/[clubId]/matches/[matchId]/route.ts (PATCH) ; app/actions/motm.ts (inchangé) ; lib/matches.test.ts`
 
-### `APRES-21` — ◐ partiel · *confort*
+### `APRES-21` — ✔ fait · *confort*
 
 **La situation.** Un nom d'équipe corrigé très long (une phrase entière) ou vide.
 
 **Ce qu'on attend.** Borné comme à la création (40 caractères), jamais vide ; la carte de partage reste lisible.
 
-**Où ça en est.** Le vide est ignoré (trim → champ non modifié), mais aucun plafond de longueur, alors que scheduleMatch coupe à 40. La carte de partage dessine le nom sans le mesurer : un nom long déborde du canvas.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 7). Un seul plafond, `NOM_EQUIPE_MAX = 40`, tenu par `nomEquipeTronque` et appliqué aux trois endroits qui écrivent un nom d'équipe : la programmation, l'action d'édition et le PATCH de l'API — celui que l'app appelle, trouvé sans plafond par la vérification de la tâche. Le vide reste ignoré (champ non modifié). La carte de partage n'a pas changé : elle dessine un nom qu'on sait désormais borné.
 
-> `app/actions/matches.ts:76-77 ; app/actions/schedule.ts:77-80 ; lib/shareCard.ts:194-200`
+> `lib/matches.ts:86-95 (NOM_EQUIPE_MAX, nomEquipeTronque) ; app/actions/schedule.ts:78-81 ; app/actions/matches.ts:150-151 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:250-254 ; lib/shareCard.ts:194-200 (inchangé)`
 
 ### `APRES-28` — ◐ partiel · *confort*
 
@@ -4967,15 +4968,15 @@ numérotées citeront les cas.*
 
 > `five-scorer-mobile/lib/outbox/baseExpo.ts:16-19 et 66-71 ; app.json (aucune exclusion de sauvegarde)`
 
-### `TRANS-22` — ◐ partiel · *confort*
+### `TRANS-22` — ✔ fait · *confort*
 
 **La situation.** Le formulaire d'édition d'un match du site envoie un homme du match ou une saison.
 
 **Ce qu'on attend.** Même garde que partout.
 
-**Où ça en est.** `matchId` passe par `idsValides` (:44) mais `input.mvpId` et `input.seasonId` partent directement dans `prisma.player.count({ where: { id: input.mvpId } })` et `prisma.season.count(...)` (:56-67) sans `estIdOuVide`. La conséquence pratique est une erreur 500 plutôt qu'une fuite, mais la règle est enfreinte à l'endroit exact que lib/ids.ts vise.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâche 2). `input.mvpId`, `input.seasonId` et, depuis la tâche 7, `input.matchDayId` passent par `estIdOuVide` avant toute requête. Le PATCH `matches/[matchId]` de l'API, lui, n'y passe pas encore pour `body.mvpId` — hors de ce cas, qui vise le formulaire ; noté à part.
 
-> `five-scorer/app/actions/matches.ts:44-67 ; lib/ids.ts:39-43`
+> `five-scorer/app/actions/matches.ts:100-106 ; lib/ids.ts:39-43`
 
 ### `TRANS-23` — ◐ partiel · *confort*
 
@@ -5415,25 +5416,25 @@ numérotées citeront les cas.*
 
 > `Récap app : app/api/clubs/[clubId]/matchs/[matchId]/route.ts:171 (`filter(p => p.team === camp)`). Récap site : app/c/[slug]/matches/[id]/page.tsx:183-192. Stats : lib/stats.ts:206, 750, 988, 1131 (initialTeam)`
 
-### `APRES-D2` — ⚠ faux · *gêne une saison*
+### `APRES-D2` — ✔ fait · *gêne une saison*
 
 **La situation.** Un admin corrige un match après coup et attribue par erreur l'homme du match à quelqu'un qui n'a pas joué ce soir-là (ou, plus tard, ajoute un but à la mauvaise personne depuis le récap corrigeable de la spec 0001). On ouvre le tableau de la saison.
 
 **Ce qu'on attend.** Un but et un titre se créditent à quelqu'un qui était sur la feuille — sinon aucune ligne du tableau ne veut plus rien dire.
 
-**Où ça en est.** Les trois portes d'écriture (ajout d'un but, PATCH du match, formulaire d'édition) ne vérifient qu'une chose : que le joueur appartient au CLUB. Aucune ne vérifie qu'il est inscrit au match. Dans lib/stats.ts, `ensure(playerId)` cherche le joueur dans TOUT l'effectif (ligne 162, `byId`) et crée une ligne d'accumulateur au premier but ou au premier titre : le tableau affiche alors une rangée « MJ 0 · 3 buts · 0 V · 0 % », aucun écran ne filtre `matchesPlayed > 0` (vérifié : app/c/[slug]/stats/page.tsx, app/api/clubs/[clubId]/stats/route.ts, l'accueil, la vitrine publique et l'export CSV ne filtrent pas ; seule la fiche de la soirée le fait, sessions/[id]/page.tsx:127). Ce joueur peut être « Meilleur buteur » de la saison (getSeasonHonours, stats.ts:315) et « Homme du match » du palmarès.
+**Où ça en est.** Fait le 16 septembre 2026 (spec 0001, tâches 4 et 5). Les trois portes vérifient désormais la feuille : ajout ou modification d'un but (`joueursValidesPourEvenement`, match interne), PATCH du match et formulaire d'édition pour l'homme du match (`joueurSurLaFeuille`). `lib/stats.ts` n'a pas changé — `ensure()` créerait toujours une ligne pour un absent — mais plus rien ne peut lui en donner un. Les rangées « MJ 0 · 3 buts » déjà en base, s'il y en a, restent : le lot ne reprend pas l'historique (écart assumé du plan).
 
-> `app/api/clubs/[clubId]/matches/[matchId]/events/route.ts:105-114 ; app/actions/matches.ts:56-61 ; app/api/clubs/[clubId]/matches/[matchId]/route.ts:139-146 ; conséquence dans lib/stats.ts:160-215`
+> `lib/matches.ts:35-61, 101-109 ; lib/matchEvents.ts:65, 145 ; app/actions/matches.ts (updateMatchDetails) ; app/api/clubs/[clubId]/matches/[matchId]/route.ts (PATCH) ; lib/stats.ts:160-215 (inchangé)`
 
-### `APRES-D3` — ⚠ faux · *gêne une saison*
+### `APRES-D3` — ◐ partiel · *gêne une saison*
 
 **La situation.** Un admin corrige la date d'un match saisi le mardi pour la soirée de lundi et la met au 15 janvier, alors que le match reste rattaché à la soirée du 12. Puis quelqu'un ouvre la soirée du 12.
 
 **Ce qu'on attend.** Un match ne peut pas être daté d'un autre jour que la soirée à laquelle il appartient — ou alors on le détache.
 
-**Où ça en est.** `updateMatchDetails` écrit `playedAt` sans jamais toucher `matchDayId` ni vérifier la date de la soirée (ligne 79). Le match reste donc listé dans la soirée du 12 (qui trie ses matchs par `playedAt asc`, sessions/[id]/page.tsx:41) tout en portant une autre date, il apparaît une seconde fois dans le calendrier au 15, la « soirée la plus prolifique » se date sur lui, et le bilan de la soirée continue de le compter. Aucun garde-fou ne compare `Match.playedAt` à `MatchDay.date` nulle part dans le dépôt. Le même écran laisse aussi déplacer un match vers une autre saison sans rien dire de sa soirée (ligne 83), ce qui produit exactement SAISON-D1 à la main.
+**Où ça en est.** Partiel depuis le 16 septembre 2026 (spec 0001, tâche 7) : la moitié « ou alors on le détache » existe — le formulaire d'édition rattache un match à une autre soirée ou le détache (« Aucune — match isolé »), et l'admin qui change la date peut remettre le match d'équerre à la main. Ce qui manque toujours : aucun garde-fou ne compare `Match.playedAt` à `MatchDay.date` ; changer la date sans toucher la soirée produit encore le match daté du 15 dans la soirée du 12, compté deux fois au calendrier. Le déplacement vers une autre saison sans regarder la soirée n'a pas bougé non plus (SAISON-D1). La spec 0001 comptait ce cas parmi ceux qu'elle referme : elle n'en referme que la moitié.
 
-> `app/actions/matches.ts:66-84 (updateMatchDetails) ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx ; conséquences dans app/c/[slug]/sessions/[id]/page.tsx:41-50 et lib/stats.ts:696-707`
+> `app/actions/matches.ts:139-166 (updateMatchDetails : matchDayId écrit, playedAt jamais comparé) ; app/c/[slug]/matches/[id]/edit/EditMatchForm.tsx:155-165 ; conséquences inchangées dans app/c/[slug]/sessions/[id]/page.tsx:41-50 et lib/stats.ts:696-707`
 
 ### `SAISON-D1` — ⚠ faux · *gêne une saison*
 

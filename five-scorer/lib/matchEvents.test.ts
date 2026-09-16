@@ -110,6 +110,48 @@ describe("creerEvenementMatch", () => {
   });
 });
 
+// Un match ANNULÉ ne se corrige pas, admin compris : on le rétablit d'abord.
+// Trouvé le 16 septembre 2026 par scripts/parcours-lecture.mjs : l'API
+// acceptait (201) là où l'écran /corriger refusait — une règle tenue par
+// l'affichage (constitution, article III). Le 409 dit quoi faire, et la file
+// hors-ligne le montre tel quel.
+describe("un match annulé refuse toute écriture", () => {
+  const REFUS = { ok: false, status: 409, error: "Un match annulé ne se corrige pas : rétablis-le d'abord." };
+
+  it("un admin ne pousse pas un but dans un match annulé — rien n'est écrit, rien n'est marqué", async () => {
+    const id = await matchDuSoir("CANCELED");
+    const res = await creerEvenementMatch({ ...base(id, true), type: "GOAL", team: "A", playerId: J.j1 });
+    expect(res).toEqual(REFUS);
+    expect(await prisma.matchEvent.count({ where: { matchId: id } })).toBe(0);
+    const m = await relire(id);
+    expect(m.scoreA).toBe(0);
+    expect(m.correctedAt).toBeNull();
+  });
+
+  it("…ni n'en retire un", async () => {
+    const id = await matchDuSoir("CANCELED");
+    const ev = await prisma.matchEvent.create({ data: { matchId: id, type: "GOAL", team: "A", playerId: J.j1 } });
+    const res = await supprimerEvenementMatch({ ...base(id, true), eventId: ev.id });
+    expect(res).toEqual(REFUS);
+    expect(await prisma.matchEvent.count({ where: { id: ev.id } })).toBe(1);
+  });
+
+  it("…ni ne touche à la composition", async () => {
+    const id = await matchDuSoir("CANCELED");
+    expect(await deplacerJoueurMatch({ ...base(id, true), playerId: J.j1, team: "B" })).toEqual(REFUS);
+    expect(await inscrireJoueurMatch({ ...base(id, true), playerId: J.banc, team: "A" })).toEqual(REFUS);
+    const p = await prisma.matchParticipant.findUniqueOrThrow({ where: { matchId_playerId: { matchId: id, playerId: J.j1 } } });
+    expect(p.team).toBe("A");
+    expect((await relire(id)).correctedAt).toBeNull();
+  });
+
+  it("un membre reçoit toujours le refus de droits, pas celui de l'annulation", async () => {
+    const id = await matchDuSoir("CANCELED");
+    const res = await creerEvenementMatch({ ...base(id, false), type: "GOAL", team: "A", playerId: J.j1 });
+    expect(res).toEqual({ ok: false, status: 403, error: "Admin requis pour modifier un match terminé ou annulé" });
+  });
+});
+
 describe("supprimerEvenementMatch", () => {
   it("retire un but d'un match terminé, recalcule le score, marque la correction", async () => {
     const id = await matchDuSoir("FINISHED");

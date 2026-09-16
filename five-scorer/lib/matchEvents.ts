@@ -14,8 +14,34 @@ import { estId, estIdOuVide } from "@/lib/ids";
 // Le marquage correctedAt/correctedById (Match.correctedAt, spec 0001) est
 // pesé UNE fois ici : matchVerrouille(match.status) est vrai (le match est
 // FINISHED ou CANCELED) implique — par construction, la garde ci-dessous a
-// déjà refusé l'écriture sinon — que l'auteur est admin. C'est exactement la
-// condition qui distingue une correction rétroactive d'une saisie normale.
+// déjà refusé l'écriture sinon — que l'auteur est admin ET que le match est
+// FINISHED (un CANCELED n'arrive jamais jusqu'à l'écriture). C'est exactement
+// la condition qui distingue une correction rétroactive d'une saisie normale.
+
+const ADMIN_REQUIS = "Admin requis pour modifier un match terminé ou annulé";
+export const MATCH_ANNULE = "Un match annulé ne se corrige pas : rétablis-le d'abord.";
+
+/// La garde d'écriture, la même pour les cinq gestes de ce fichier.
+///
+/// Un match verrouillé (FINISHED ou CANCELED) n'accepte qu'un admin : c'est
+/// une correction. Un match ANNULÉ n'en accepte aucune, admin compris — on le
+/// rétablit d'abord, puis on corrige (spec 0001). Cette seconde règle vivait
+/// dans l'écran /corriger seulement ; le 16 septembre 2026, le parcours de
+/// lecture a montré l'API laissant un admin pousser un but dans un match
+/// annulé (201), but qui comptait dès le rétablissement. Une règle tenue par
+/// l'affichage n'est pas une règle (constitution, article III) : elle est ici.
+/// Le 409 est un refus définitif pour la file hors-ligne, avec sa raison —
+/// un téléphone qui rejoue ses buts sur un match annulé entre-temps lit
+/// pourquoi, et « Réessayer » aboutit une fois le match rétabli.
+function refusEcriture(
+  status: "SCHEDULED" | "LIVE" | "FINISHED" | "CANCELED",
+  canManage: boolean,
+): { ok: false; status: number; error: string } | null {
+  if (!matchVerrouille(status)) return null;
+  if (!canManage) return { ok: false, status: 403, error: ADMIN_REQUIS };
+  if (status === "CANCELED") return { ok: false, status: 409, error: MATCH_ANNULE };
+  return null;
+}
 
 /// Pose la marque de correction sur le match — qui, et quand (APRES-13).
 /// Toujours en plus d'une écriture qui vient d'avoir lieu, jamais seule.
@@ -80,13 +106,8 @@ export async function creerEvenementMatch(input: {
   const match = await prisma.match.findFirst({ where: { id: matchId, clubId } });
   if (!match) return { ok: false, status: 404, error: "Match introuvable" };
   // Modifier un match terminé = correction rétroactive → admin.
-  if (matchVerrouille(match.status) && !canManage) {
-    return {
-      ok: false,
-      status: 403,
-      error: "Admin requis pour modifier un match terminé ou annulé",
-    };
-  }
+  const refus = refusEcriture(match.status, canManage);
+  if (refus) return refus;
   const correction = matchVerrouille(match.status);
 
   // L'identifiant vient du client et part dans un `where` : sans ce contrôle,
@@ -159,13 +180,8 @@ export async function modifierEvenementMatch(input: {
     select: { status: true, kind: true },
   });
   if (!match) return { ok: false, status: 404, error: "Match introuvable" };
-  if (matchVerrouille(match.status) && !canManage) {
-    return {
-      ok: false,
-      status: 403,
-      error: "Admin requis pour modifier un match terminé ou annulé",
-    };
-  }
+  const refus = refusEcriture(match.status, canManage);
+  if (refus) return refus;
 
   if (!estId(input.eventId)) {
     return { ok: false, status: 400, error: "eventId requis" };
@@ -218,13 +234,8 @@ export async function supprimerEvenementMatch(input: {
     select: { status: true },
   });
   if (!match) return { ok: false, status: 404, error: "Match introuvable" };
-  if (matchVerrouille(match.status) && !canManage) {
-    return {
-      ok: false,
-      status: 403,
-      error: "Admin requis pour modifier un match terminé ou annulé",
-    };
-  }
+  const refus = refusEcriture(match.status, canManage);
+  if (refus) return refus;
 
   if (!input.eventId) {
     return { ok: false, status: 400, error: "eventId requis" };
@@ -271,13 +282,8 @@ export async function deplacerJoueurMatch(input: {
     select: { status: true, kind: true },
   });
   if (!match) return { ok: false, status: 404, error: "Match introuvable" };
-  if (matchVerrouille(match.status) && !canManage) {
-    return {
-      ok: false,
-      status: 403,
-      error: "Admin requis pour modifier un match terminé ou annulé",
-    };
-  }
+  const refus = refusEcriture(match.status, canManage);
+  if (refus) return refus;
   // L'équipe B d'un match EXTERNAL est l'adversaire, pas une équipe du club.
   if (match.kind === "EXTERNAL" && team === "B") {
     return { ok: false, status: 400, error: HORS_ADVERSAIRE };
@@ -318,13 +324,8 @@ export async function inscrireJoueurMatch(input: {
     select: { status: true, kind: true },
   });
   if (!match) return { ok: false, status: 404, error: "Match introuvable" };
-  if (matchVerrouille(match.status) && !canManage) {
-    return {
-      ok: false,
-      status: 403,
-      error: "Admin requis pour modifier un match terminé ou annulé",
-    };
-  }
+  const refus = refusEcriture(match.status, canManage);
+  if (refus) return refus;
   if (match.kind === "EXTERNAL" && team === "B") {
     return { ok: false, status: 400, error: HORS_ADVERSAIRE };
   }

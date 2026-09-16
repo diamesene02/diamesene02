@@ -203,6 +203,25 @@ retirer un but) et `APRES-07`/`FIN-03` (le bouton « Rouvrir le match » qui ne
 fait rien). Trois jours plus tard ils manquaient encore. Le compte passe de
 23 à 27 ; leur tâche est `taches.md` n°13.*
 
+*Recompté le 16 septembre 2026, à la livraison (tâche 15), cas par cas dans
+`cas.md` et non depuis cette liste. Sur les 27 : **18 sont `fait`** — quinze
+par ce lot (`APRES-09`, `APRES-10`, `APRES-07`, `FIN-03`, `APRES-11`,
+`APRES-02`, `APRES-15`, `APRES-21`, `APRES-13`, `APRES-20`, `APRES-18`,
+`APRES-D2`, `APRES-17`, `TRANS-22`, `APRES-12`) et trois par 0006 avant lui
+(`APRES-23`, `APRES-25`, `APRES-26`). **7 sont `partiel`** : trois que ce lot
+n'a fermés qu'à moitié — `APRES-D3` (on rattache ou détache une soirée, mais
+rien ne compare encore la date du match à celle de la soirée), `APRES-04`
+(« annulé » est dit partout, mais un match *programmé* ouvert depuis la soirée
+de l'app reste muet), `APRES-14` (la confirmation existe sur `/corriger`, pas
+sur le formulaire des à-côtés ni sur le déplacement de saison) — plus
+`APRES-27` (tranché sans code, tâche 11) et les trois annoncés hors lot
+(`APRES-50`, `APRES-30`, `APRES-51`). **2 restent `absent`** : `APRES-52`
+(hors lot) et `APRES-24` — « Rétablir » existe pour un match joué puis annulé,
+pas pour un match programmé puis annulé, qu'on ne remet toujours pas au
+programme avec ses convocations. La phrase « leur état y passe à `fait` »
+ci-dessus était donc une promesse, pas un constat : quatre cas y ont été
+comptés fermés qu'ils ne le sont pas.*
+
 **Corriger un match terminé** — `APRES-11` (◐ les à-côtés, saison comprise) ·
 `APRES-02` (◐ un but rattrapé avec une minute antérieure) · `APRES-52` (✗ la
 minute d'un but existant) · `APRES-09` (◐ ajouter un but oublié — la

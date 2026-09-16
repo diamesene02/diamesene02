@@ -9,6 +9,7 @@ import {
   deplacerJoueurMatch,
   modifierEvenementMatch,
   supprimerEvenementMatch,
+  MATCH_ANNULE,
 } from "@/lib/matchEvents";
 
 // Les gestes de l'écran /corriger (spec 0001). Chacun passe par les fonctions
@@ -19,9 +20,11 @@ import {
 // réseau manque, l'appel échoue côté navigateur et le formulaire le dit.
 //
 // Seul un match FINISHED se corrige ici : un CANCELED se rétablit d'abord,
-// un LIVE se corrige sur sa feuille. Les fonctions partagées laisseraient un
-// admin écrire dans un CANCELED (c'est la garde de l'API) ; cet écran-ci
-// est plus strict, et le dit.
+// un LIVE se corrige sur sa feuille. La règle du CANCELED est tenue par les
+// fonctions partagées (lib/matchEvents.ts, refusEcriture) — depuis le
+// 16 septembre 2026, avant quoi seul cet écran la tenait ; ici on la
+// répète avant d'ouvrir l'écran, avec le même message, pour ne pas
+// laisser l'admin remplir un formulaire qui sera refusé.
 
 type Resultat = { ok: true } | { ok: false; error: string };
 
@@ -37,7 +40,7 @@ async function ouvrir(
   });
   if (!match) return { ok: false, error: "Match introuvable." };
   if (match.status === "CANCELED") {
-    return { ok: false, error: "Un match annulé ne se corrige pas : rétablis-le d'abord." };
+    return { ok: false, error: MATCH_ANNULE };
   }
   if (match.status !== "FINISHED") {
     return { ok: false, error: "Seul un match terminé se corrige ici." };

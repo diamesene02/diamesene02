@@ -751,6 +751,130 @@ async function main() {
   }
 
 
+  // --- 3 bis⁵. Corriger un match terminé (spec 0001) --------------------------
+  //
+  // L'app ne corrige pas elle-même (écart assumé du plan 0001) : elle LIT ce
+  // qu'une correction a produit. Mais les routes qu'elle appelle sont celles
+  // que l'écran /corriger du site emprunte aussi (lib/matchEvents.ts) — c'est
+  // donc ici que se vérifie, sans navigateur, ce que le récap mobile doit
+  // montrer après coup : le score, « Corrigé le … par … », la chronologie avec
+  // le repère « ajouté après coup », et un match annulé qui se rétablit.
+  //
+  // Tout est remis en état à la fin : le but ajouté est retiré, le match
+  // rétabli. Ce qui reste, et doit rester, c'est la trace « corrigé » — rien
+  // ne s'efface (constitution, article II) : un parcours relancé la trouve
+  // déjà là, et c'est bien.
+
+  console.log("\n— corriger un match terminé —");
+  const FINI = `${C}/matches/match-essai-fini`;
+  const RECAP = `${C}/matchs/match-essai-fini`;
+  const [rAvant, avantCorrection] = await lire(RECAP);
+  ok(rAvant.ok && avantCorrection.statut === "TERMINE", "le match d'essai est terminé", avantCorrection?.statut);
+  ok(avantCorrection.droits.peutGerer === true, "…et je peux le gérer");
+  const butsAvant = avantCorrection.chronologie.length;
+  ok(
+    avantCorrection.chronologie.every((b) => b.apresCoup === false),
+    "avant correction, aucun but n'est marqué « ajouté après coup »",
+    `${butsAvant} but(s)`,
+  );
+
+  const buteur = f.participants.find((p) => p.team === "A")?.playerId;
+  const rAjout = await envoyer(`${FINI}/events`, "POST", {
+    type: "GOAL",
+    team: "A",
+    playerId: buteur,
+    minute: null,
+  });
+  const ajout = rAjout.ok ? await rAjout.json() : null;
+  ok(rAjout.status === 201, "un admin ajoute un but oublié à un match terminé", `HTTP ${rAjout.status}`);
+  ok(ajout?.scoreA === 3 && ajout?.scoreB === 1, "…le score passe de 2-1 à 3-1", `${ajout?.scoreA}-${ajout?.scoreB}`);
+
+  const [, apresAjout] = await lire(RECAP);
+  ok(
+    /^Corrigé le .+ à \d{2}:\d{2} par .+/.test(apresAjout.corrige ?? ""),
+    "le récap dit « Corrigé le … à … par … », préformaté par le serveur",
+    apresAjout.corrige ?? "null",
+  );
+  const dernier = apresAjout.chronologie[0];
+  ok(
+    apresAjout.chronologie.length === butsAvant + 1 && dernier?.minute === null && dernier?.apresCoup === true,
+    "le but sans minute est le plus récent de la chronologie, marqué « ajouté après coup »",
+    `minute=${dernier?.minute} apresCoup=${dernier?.apresCoup}`,
+  );
+  ok(
+    dernier?.scoreA === 3 && dernier?.scoreB === 1,
+    "…et le score courant de la chronologie suit",
+    `${dernier?.scoreA}-${dernier?.scoreB}`,
+  );
+
+  // Les refus, tant que le but est là — ils ne dépendent pas de lui.
+  const hors = `joueur-essai-neuf-hors-feuille-${Date.now().toString(36)}`;
+  await envoyer(`${C}/joueurs`, "POST", { id: hors, nom: "Pas sur la feuille" });
+  const rHors = await envoyer(`${FINI}/events`, "POST", { type: "GOAL", team: "A", playerId: hors });
+  ok(
+    rHors.status === 400 && (await rHors.json()).error === "Joueur hors de la feuille de ce match",
+    "un but à quelqu'un qui n'a pas joué ce match est REFUSÉ, et le refus est dit",
+    `HTTP ${rHors.status}`,
+  );
+  await envoyer(`${C}/joueurs/${hors}`, "PATCH", { archive: true });
+  if (membre.ok) {
+    const rMembre = await fetch(`${BASE}${FINI}/events`, {
+      method: "POST",
+      headers: { cookie: cookies(membre), origin: ORIGINE, "content-type": "application/json" },
+      body: JSON.stringify({ type: "GOAL", team: "A", playerId: buteur }),
+    });
+    ok(
+      rMembre.status === 403,
+      "un membre ordinaire ne corrige pas un match terminé : 403, pas un silence",
+      `HTTP ${rMembre.status} — ${(await rMembre.json()).error}`,
+    );
+  }
+
+  const rRetrait = await fetch(`${BASE}${FINI}/events?eventId=${encodeURIComponent(ajout?.event?.id ?? "")}`, {
+    method: "DELETE",
+    headers: h,
+  });
+  const retrait = rRetrait.ok ? await rRetrait.json() : null;
+  ok(rRetrait.ok, "le but ajouté se retire", `HTTP ${rRetrait.status}`);
+  ok(retrait?.scoreA === 2 && retrait?.scoreB === 1, "…le score revient à 2-1", `${retrait?.scoreA}-${retrait?.scoreB}`);
+  const [, apresRetrait] = await lire(RECAP);
+  ok(
+    apresRetrait.chronologie.length === butsAvant && apresRetrait.corrige !== null,
+    "la chronologie est comme avant, mais la trace « corrigé » RESTE",
+    apresRetrait.corrige ?? "null",
+  );
+
+  console.log("\n— annuler, puis rétablir —");
+  const rAnnule = await fetch(`${BASE}${FINI}`, { method: "DELETE", headers: h });
+  ok(rAnnule.ok, "un match terminé, avec ses buts, s'annule", `HTTP ${rAnnule.status}`);
+  const [, annule] = await lire(RECAP);
+  ok(annule.statut === "ANNULE", "…le récap le dit « annulé », pas « 0 – 0 »", annule.statut);
+  // Le 16 septembre 2026, ce parcours a trouvé l'API plus laxiste que l'écran
+  // /corriger : un admin poussait un but dans un match ANNULÉ (201), et le
+  // but comptait dès le rétablissement. Une règle tenue par l'affichage n'est
+  // pas une règle (constitution, article III) : elle vit désormais dans
+  // lib/matchEvents.ts, et un téléphone qui rejoue sa file lit la raison.
+  const rDoublon = await envoyer(`${FINI}/events`, "POST", { type: "GOAL", team: "A", playerId: buteur });
+  const corpsDoublon = await rDoublon.json();
+  ok(
+    rDoublon.status === 409 && corpsDoublon.error === "Un match annulé ne se corrige pas : rétablis-le d'abord.",
+    "un but sur un match annulé est REFUSÉ, admin compris, et le refus dit quoi faire",
+    `HTTP ${rDoublon.status} — ${corpsDoublon.error}`,
+  );
+  if (rDoublon.ok && corpsDoublon.event?.id) {
+    // Un serveur d'avant la règle l'a laissé entrer : on ne salit pas le jeu d'essai.
+    await fetch(`${BASE}${FINI}/events?eventId=${encodeURIComponent(corpsDoublon.event.id)}`, { method: "DELETE", headers: h });
+  }
+  const rRetabli = await envoyer(FINI, "PATCH", { status: "FINISHED" });
+  ok(rRetabli.ok, "il se rétablit par le même PATCH que l'app appelle", `HTTP ${rRetabli.status}`);
+  const [, retabli] = await lire(RECAP);
+  ok(retabli.statut === "TERMINE", "…et il est de nouveau terminé", retabli.statut);
+  ok(
+    retabli.chronologie.length === butsAvant,
+    "…avec tous ses buts : rien ne s'est effacé en route",
+    `${retabli.chronologie.length} but(s)`,
+  );
+
   // --- 3 bis⁴. Rejoindre un club --------------------------------------------
   //
   // Le geste d'AVANT tous les autres : sans lui, quelqu'un qui installe l'app
