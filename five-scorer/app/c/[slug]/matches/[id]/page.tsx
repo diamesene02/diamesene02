@@ -34,6 +34,7 @@ export default async function MatchRecapPage({
       motmVotes: true,
       rsvps: { select: { playerId: true, status: true } },
       matchDay: { select: { id: true, date: true } },
+      correctedBy: { select: { name: true } },
     },
   });
   if (!match) notFound();
@@ -310,6 +311,9 @@ export default async function MatchRecapPage({
                 : "LIVE",
           mvpId: match.mvpId,
           motmLocked: match.motmLocked,
+          corrige: match.correctedAt
+            ? `Corrigé le ${D.dateComplete(match.correctedAt)} à ${D.heure(match.correctedAt)}${match.correctedBy ? ` par ${match.correctedBy.name}` : ""}`
+            : null,
         }}
         mvpName={match.mvp?.name ?? null}
         mvpHref={match.mvpId ? `/c/${slug}/players/${match.mvpId}` : undefined}

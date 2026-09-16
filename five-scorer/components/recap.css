@@ -375,3 +375,11 @@
   color: #fff;
   font-weight: 600;
 }
+
+/* « Corrigé le … par … » (spec 0001, APRES-13) : sous la barre, avant le score. */
+.recap-corrige {
+  padding: 4px 16px 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.75;
+}

@@ -41,6 +41,8 @@ export async function GET(
       matchDay: { select: { id: true, date: true, title: true } },
       mvp: { select: { id: true, name: true, photo: true } },
       motmLocked: true,
+      correctedAt: true,
+      correctedBy: { select: { name: true } },
       participants: {
         select: {
           team: true,
@@ -202,6 +204,11 @@ export async function GET(
             ? "EN_DIRECT"
             : "TERMINE",
     retro: estRetro(m.playedAt),
+    // « Corrigé le … par … » (APRES-13) — préformaté ici, dans le fuseau du
+    // club : le téléphone ne recalcule rien, il dessine.
+    corrige: m.correctedAt
+      ? `Corrigé le ${jourMoisLong(m.correctedAt)} à ${heure(m.correctedAt)}${m.correctedBy ? ` par ${m.correctedBy.name}` : ""}`
+      : null,
 
     contexte: m.matchDay ? `Soirée du ${jourMoisLong(m.matchDay.date)}` : null,
     dateCourte: jourMoisLong(m.playedAt),

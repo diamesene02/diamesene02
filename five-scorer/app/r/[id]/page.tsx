@@ -57,6 +57,7 @@ export default async function PublicRecapPage({ params }: Params) {
       participants: { include: { player: true } },
       events: { orderBy: { createdAt: "asc" }, include: { player: true } },
       club: { select: { colorA: true, colorB: true, organization: { select: { name: true } } } },
+      correctedBy: { select: { name: true } },
     },
   });
   if (!match || match.status !== "FINISHED") notFound();
@@ -116,6 +117,9 @@ export default async function PublicRecapPage({ params }: Params) {
             status: "FINISHED",
             mvpId: match.mvpId,
             motmLocked: match.motmLocked,
+            corrige: match.correctedAt
+              ? `Corrigé le ${D.dateComplete(match.correctedAt)} à ${D.heure(match.correctedAt)}${match.correctedBy ? ` par ${match.correctedBy.name}` : ""}`
+              : null,
           }}
           mvpName={match.mvp?.name ?? null}
           teamA={teamA}

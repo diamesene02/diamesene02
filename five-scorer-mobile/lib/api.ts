@@ -410,6 +410,8 @@ export type FicheMatch = {
   id: string;
   statut: "PROGRAMME" | "ANNULE" | "EN_DIRECT" | "TERMINE";
   retro: boolean;
+  /// « Corrigé le … par … », préformaté par le serveur (spec 0001, APRES-13).
+  corrige: string | null;
   contexte: string | null;
   dateCourte: string;
   dateLongue: string;

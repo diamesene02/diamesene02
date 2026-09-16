@@ -32,6 +32,9 @@ type Match = {
   mvpId: string | null;
   /// Une désignation à la main ferme le vote (spec 0001, Q6) : le récap le dit.
   motmLocked: boolean;
+  /// « Corrigé le … par … » (APRES-13), préformaté par le serveur qui a le
+  /// fuseau du club — le récap n'a qu'à le montrer.
+  corrige?: string | null;
 };
 
 const Ballon = () => (
@@ -218,6 +221,8 @@ export default function RecapView({
           </button>
         )}
       </div>
+
+      {match.corrige && <div className="recap-corrige">{match.corrige}</div>}
 
       <div className="recap-marque">
         <div className={cn("recap-chiffre", winB && "perd")}>

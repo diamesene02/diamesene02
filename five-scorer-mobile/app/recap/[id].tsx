@@ -156,6 +156,9 @@ export default function Recap() {
               // que le site).
               <Text style={[s.annule, { color: "#ff453a" }]}>Annulé</Text>
             )}
+            {fiche.corrige && (
+              <Text style={[s.aide, { color: t.i2, textAlign: "center" }]}>{fiche.corrige}</Text>
+            )}
             <View style={s.marque}>
               <Text
                 style={[s.chiffre, { color: t.ink }, fiche.scoreB > fiche.scoreA && s.perd]}
