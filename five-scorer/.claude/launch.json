@@ -4,8 +4,18 @@
     {
       "name": "five-scorer-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeArgs": [
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "tableau-sdd",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "../outils/tableau-sdd/serveur.mjs"
+      ],
+      "port": 4560
     }
   ]
 }

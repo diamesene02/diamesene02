@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tableau de bord SDD — five-scorer</title>
+<style>
+  :root {
+    --fond: #0c110f;
+    --carte: #141b17;
+    --carte-2: #1a2320;
+    --filet: #26312b;
+    --encre: #eef3ef;
+    --encre-2: #98a69d;
+    --encre-3: #67736c;
+    --fait: #4ade80;
+    --partiel: #fbbf24;
+    --absent: #5f6d66;
+    --faux: #f87171;
+    --accent: #a3e635;
+    --inconnu: #a78bfa;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fond); color: var(--encre);
+    font: 15px/1.45 -apple-system, "SF Pro Text", system-ui, Segoe UI, Roboto, sans-serif; }
+  .entete { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 14px 28px; background: rgba(12,17,15,.92); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--filet); }
+  .marque { display: flex; align-items: baseline; gap: 12px; }
+  .marque h1 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: .01em; }
+  .marque .sous { color: var(--encre-2); font-size: 13px; }
+  .direct { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--encre-2);
+    font-variant-numeric: tabular-nums; }
+  .direct .point { width: 8px; height: 8px; border-radius: 50%; background: var(--fait); }
+  .direct.perdu .point { background: var(--faux); }
+  main { max-width: 1240px; margin: 0 auto; padding: 22px 28px 60px; display: grid; gap: 18px; }
+
+  .tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .tuile { background: var(--carte); border: 1px solid var(--filet); border-radius: 10px; padding: 14px 16px; }
+  .tuile .k { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); font-weight: 700; }
+  .tuile .v { font-size: 28px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .tuile .d { font-size: 12px; color: var(--encre-2); margin-top: 4px; }
+
+  .carte { background: var(--carte); border: 1px solid var(--filet); border-radius: 12px; padding: 18px 20px; }
+  .carte h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .carte h2 .droite { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--encre-2); font-size: 12px; }
+
+  .barre { display: flex; height: 26px; border-radius: 7px; overflow: hidden; background: var(--carte-2); }
+  .barre > span { display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;
+    color: #0c110f; min-width: 0; transition: width .4s ease; }
+  .barre .fait { background: var(--fait); } .barre .partiel { background: var(--partiel); }
+  .barre .absent { background: var(--absent); color: var(--encre); } .barre .faux { background: var(--faux); }
+  .legende { display: flex; flex-wrap: wrap; gap: 14px 22px; margin-top: 10px; font-size: 13px; color: var(--encre-2); }
+  .legende b { color: var(--encre); font-variant-numeric: tabular-nums; }
+  .legende i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px;
+    font-weight: 700; border: 1px solid var(--filet); background: var(--carte-2); color: var(--encre-2); }
+  .badge.ok { color: var(--fait); border-color: rgba(74,222,128,.35); }
+  .badge.alerte { color: var(--partiel); border-color: rgba(251,191,36,.4); }
+  .badge.faux { color: var(--faux); border-color: rgba(248,113,113,.4); }
+  .gravites { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 14px; }
+  .gravite { background: var(--carte-2); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--encre-2); }
+  .gravite b { display: block; font-size: 18px; color: var(--encre); font-variant-numeric: tabular-nums; }
+
+  .lots { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
+  .lot { background: var(--carte); border: 1px solid var(--filet); border-radius: 12px; padding: 16px 18px; display: grid; gap: 12px; align-content: start; }
+  .lot.livre { border-color: rgba(74,222,128,.35); }
+  .lot.en-cours { border-color: rgba(163,230,53,.45); box-shadow: 0 0 0 1px rgba(163,230,53,.12) inset; }
+  .lot .num { font-family: var(--mono); font-size: 12px; color: var(--encre-3); }
+  .lot h3 { margin: 2px 0 0; font-size: 16px; font-weight: 800; line-height: 1.25; }
+  .etat { font-size: 12px; color: var(--encre-2); }
+  .etat em { color: var(--encre); font-style: normal; font-weight: 600; }
+  .fichiers { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+
+  .etapes { display: flex; align-items: center; }
+  .etape { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; font-size: 10.5px;
+    color: var(--encre-3); letter-spacing: .02em; }
+  .etape::before { content: ""; position: absolute; top: 6px; left: -50%; right: 50%; height: 2px; background: var(--filet); z-index: 0; }
+  .etape:first-child::before { display: none; }
+  .etape i { width: 14px; height: 14px; border-radius: 50%; background: var(--carte-2); border: 2px solid var(--filet); z-index: 1; margin-bottom: 4px; }
+  .etape.ok i { background: var(--fait); border-color: var(--fait); }
+  .etape.ok::before { background: var(--fait); }
+  .etape.ok { color: var(--encre-2); }
+  .etape.courante i { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(163,230,53,.18); }
+  .etape.courante { color: var(--encre); font-weight: 700; }
+
+  .progres { display: grid; gap: 6px; }
+  .progres .ligne { display: flex; justify-content: space-between; font-size: 12px; color: var(--encre-2); }
+  .progres .ligne b { color: var(--encre); font-variant-numeric: tabular-nums; }
+  .jauge { height: 8px; border-radius: 6px; background: var(--carte-2); overflow: hidden; }
+  .jauge > span { display: block; height: 100%; background: var(--fait); transition: width .4s ease; }
+
+  .taches { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .tache { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+  .tache .g { font-weight: 800; text-align: center; }
+  .tache.faite .g { color: var(--fait); }
+  .tache.tranchee .g { color: var(--partiel); }
+  .tache.a-faire { color: var(--encre-2); }
+  .tache.a-faire .g { color: var(--encre-3); }
+  .tache.prochaine { background: rgba(163,230,53,.08); color: var(--encre); }
+  .tache.prochaine .g { color: var(--accent); }
+  .tache .quand { font-family: var(--mono); font-size: 11px; color: var(--encre-3); white-space: nowrap; }
+  .tache .n { color: var(--encre-3); font-family: var(--mono); font-size: 11px; margin-right: 6px; }
+
+  .cas-cites { display: flex; flex-wrap: wrap; gap: 5px; }
+  .cas { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--filet); color: var(--encre-2); }
+  .cas.fait { color: var(--fait); border-color: rgba(74,222,128,.35); }
+  .cas.partiel { color: var(--partiel); border-color: rgba(251,191,36,.35); }
+  .cas.faux { color: var(--faux); border-color: rgba(248,113,113,.35); }
+  .cas.inconnu { color: var(--inconnu); }
+
+  .deux { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
+  @media (max-width: 900px) { .deux { grid-template-columns: 1fr; } }
+  .articles { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .articles li { display: grid; grid-template-columns: 34px 1fr; gap: 8px; font-size: 13px; color: var(--encre-2); }
+  .articles li b { color: var(--encre-3); font-family: var(--mono); font-weight: 700; }
+  .commits { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .commit { display: grid; grid-template-columns: 62px 64px 1fr auto; gap: 10px; align-items: baseline; font-size: 13px; padding: 5px 6px; border-radius: 6px; }
+  .commit:hover { background: var(--carte-2); }
+  .commit .h { font-family: var(--mono); font-size: 11.5px; color: var(--encre-3); }
+  .puce { font-family: var(--mono); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--carte-2); color: var(--encre-2); text-align: center; }
+  .puce.spec { color: var(--partiel); }
+  .puce.absent { opacity: .35; }
+  .commit .s { color: var(--encre); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .commit .q { font-family: var(--mono); font-size: 11px; color: var(--encre-3); white-space: nowrap; }
+  .vide { color: var(--encre-3); font-size: 13px; }
+  .erreur { background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.4); padding: 12px 16px; border-radius: 10px; color: var(--faux); }
+</style>
+</head>
+<body>
+<header class="entete">
+  <div class="marque">
+    <h1>Tableau de bord SDD</h1>
+    <span class="sous">five-scorer · la spec d'abord</span>
+  </div>
+  <div class="direct" id="direct"><span class="point"></span><span id="direct-texte">Connexion…</span></div>
+</header>
+<main id="principal"><div class="vide">Lecture de specs/ et du journal git…</div></main>
+
+<script>
+(() => {
+  // Tout le rendu passe par h() : des nœuds DOM et des nœuds texte, jamais
+  // une chaîne HTML — ce qui vient des fichiers et de git est du texte, point.
+  const h = (tag, attrs, ...enfants) => {
+    const el = document.createElement(tag);
+    if (attrs) {
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v == null || v === false) continue;
+        if (k === "class") el.className = v;
+        else if (k === "style") el.style.cssText = v;
+        else el.setAttribute(k, v);
+      }
+    }
+    for (const x of enfants.flat(Infinity)) {
+      if (x == null || x === false) continue;
+      el.append(x instanceof Node ? x : document.createTextNode(String(x)));
+    }
+    return el;
+  };
+  const $ = (s) => document.querySelector(s);
+
+  const ETAPES = [
+    ["spec", "spec"], ["clarifie", "clarifiée"], ["plan", "plan"],
+    ["taches", "tâches"], ["code", "code"], ["livre", "livrée"],
+  ];
+  const GRAVITES = ["bloque un lundi", "gêne un lundi", "gêne une saison", "confort"];
+
+  function ilYA(iso) {
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 60) return "à l'instant";
+    const m = s / 60; if (m < 60) return `il y a ${Math.floor(m)} min`;
+    const hh = m / 60; if (hh < 24) return `il y a ${Math.floor(hh)} h`;
+    const j = hh / 24; if (j < 30) return `il y a ${Math.floor(j)} j`;
+    return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  }
+  const pct = (n, total) => (total ? Math.round((n / total) * 1000) / 10 : 0);
+  const pluriel = (n, s) => `${n} ${s}${n > 1 ? "s" : ""}`;
+
+  function rendreBase(b, lot0) {
+    const r = b.recomptes;
+    const total = b.total || 1;
+    const seg = (cls, n) => n
+      ? h("span", { class: cls, style: `width:${pct(n, total)}%`, title: `${n} ${cls}` }, pct(n, total) > 6 ? n : "")
+      : null;
+    const badges = [];
+    if (!b.declare) badges.push(h("span", { class: "badge alerte" }, "compteur en tête introuvable"));
+    else if (b.coherent) badges.push(h("span", { class: "badge ok" }, "✓ compteur en tête = recompte depuis le fichier"));
+    else badges.push(h("span", { class: "badge faux" },
+      `⚠ en tête : ${b.declare.fait} · ${b.declare.partiel} · ${b.declare.absent} · ${b.declare.faux} — le fichier dit ${r.fait} · ${r.partiel} · ${r.absent} · ${r.faux}`));
+    if (b.totalDeclare && b.totalDeclare !== b.total)
+      badges.push(h("span", { class: "badge faux" }, `⚠ ${b.totalDeclare} annoncés, ${b.total} trouvés`));
+
+    const leg = (couleur, n, nom) =>
+      h("span", null, h("i", { style: `background:var(--${couleur})` }), h("b", null, n), ` ${nom} · ${pct(n, total)} %`);
+
+    return h("section", { class: "carte" },
+      h("h2", null, h("span", null, `La base — 0000 · ${b.total} cas`, lot0?.etat ? ` · spec ${lot0.etat}` : ""), h("span", { class: "droite" }, badges)),
+      h("div", { class: "barre" }, seg("fait", r.fait), seg("partiel", r.partiel), seg("absent", r.absent), seg("faux", r.faux)),
+      h("div", { class: "legende" }, leg("fait", r.fait, "faits"), leg("partiel", r.partiel, "partiels"),
+        leg("absent", r.absent, "absents"), leg("faux", r.faux, "faux")),
+      h("div", { class: "gravites" }, GRAVITES.map((g) => h("div", { class: "gravite" }, h("b", null, b.gravites[g] ?? 0), g))),
+    );
+  }
+
+  function etapeCourante(et) {
+    let derniere = -1;
+    ETAPES.forEach(([k], i) => { if (et[k]) derniere = i; });
+    return derniere;
+  }
+
+  function rendreLot(l) {
+    const cour = etapeCourante(l.etapes);
+    const enCours = l.etapes.code && !l.etapes.livre;
+    const cls = l.etapes.livre ? "livre" : enCours ? "en-cours" : "";
+
+    const etapes = h("div", { class: "etapes" }, ETAPES.map(([k, nom], i) =>
+      h("div", { class: `etape ${l.etapes[k] ? "ok" : ""} ${i === cour && !l.etapes.livre ? "courante" : ""}` }, h("i"), nom)));
+
+    const etat = h("div", { class: "etat" },
+      l.etapes.livre
+        ? [h("em", null, "livrée"), l.livraison ? ` · ${l.livraison.h}` : null]
+        : h("em", null, l.etat ?? (enCours ? "en cours" : "à écrire")),
+      l.questionsOuvertes ? ` · ${pluriel(l.questionsOuvertes, "question")} tranchée${l.questionsOuvertes > 1 ? "s" : ""}` : null,
+    );
+
+    const fichiers = h("div", { class: "fichiers" },
+      h("span", null, ["spec", "plan", "taches", "journal"].map((f) =>
+        h("span", { class: `puce ${l.fichiers[f] ? "" : "absent"}`, style: "margin-right:6px" }, `${f}.md`))),
+      h("span", { class: "etat" }, l.commits.dernier
+        ? `dernier commit ${ilYA(l.commits.dernier.date)} · ${l.commits.code} code, ${l.commits.spec} spec`
+        : "aucun commit"),
+    );
+
+    let taches = null;
+    if (l.taches.length) {
+      // Un lot livré n'a plus de « prochaine » : une phase sans commit y est
+      // juste une phase qu'aucun commit ne nomme, pas un travail à venir.
+      const prochaine = l.etapes.livre ? null : l.taches.find((t) => !t.faite && !t.tranchee);
+      taches = [
+        h("div", { class: "progres" },
+          h("div", { class: "ligne" }, h("span", null, "Tâches"), h("b", null, `${l.tachesFaites} / ${l.taches.length}`)),
+          h("div", { class: "jauge" }, h("span", { style: `width:${pct(l.tachesFaites, l.taches.length)}%` }))),
+        h("ul", { class: "taches" }, l.taches.map((t) => {
+          const k = t.tranchee ? "tranchee" : t.faite ? "faite" : t === prochaine ? "prochaine" : "a-faire";
+          const g = t.tranchee ? "—" : t.faite ? "✔" : t === prochaine ? "▸" : "○";
+          const quand = t.commit ? `${t.commit.h} · ${ilYA(t.commit.date)}` : t.tranchee ? "tranché, sans code" : t === prochaine ? "prochaine" : l.etapes.livre ? "aucun commit ne la nomme" : "";
+          return h("li", { class: `tache ${k}`, title: t.commit?.sujet ?? t.titre },
+            h("span", { class: "g" }, g),
+            h("span", null, h("span", { class: "n" }, t.numero), t.titre),
+            h("span", { class: "quand" }, quand));
+        })),
+      ];
+    }
+
+    const cas = l.cites.length
+      ? h("div", { class: "progres" },
+          h("div", { class: "ligne" }, h("span", null, "Cas de la base refermés"), h("b", null, `${l.casFaits} / ${l.cites.length}`)),
+          h("div", { class: "cas-cites" }, l.cites.map((c) => h("span", { class: `cas ${c.statut}`, title: c.gravite ?? "" }, c.id))))
+      : h("div", { class: "vide" }, "Aucun cas de la base cité.");
+
+    return h("article", { class: `lot ${cls}` },
+      h("div", null, h("div", { class: "num" }, `${l.numero} · ${l.dossier}`), h("h3", null, l.titre)),
+      etat, etapes, fichiers, taches, cas,
+    );
+  }
+
+  function rendreLots(lots) {
+    const enCours = lots.filter((l) => l.etapes.code && !l.etapes.livre);
+    const livres = lots.filter((l) => l.etapes.livre);
+    const tachesTotal = lots.reduce((n, l) => n + l.taches.length, 0);
+    const tachesFaites = lots.reduce((n, l) => n + l.tachesFaites, 0);
+    const tuile = (k, v, d) => h("div", { class: "tuile" }, h("div", { class: "k" }, k), h("div", { class: "v" }, v), h("div", { class: "d" }, d));
+    return [
+      h("div", { class: "tuiles" },
+        tuile("Lots", lots.length, `${pluriel(livres.length, "livré")} · ${enCours.length} en cours`),
+        tuile("En cours", enCours.map((l) => l.numero).join(", ") || "—", enCours.map((l) => l.titre).join(" · ") || "rien d'ouvert"),
+        tuile("Tâches", `${tachesFaites} / ${tachesTotal}`, "sur les lots qui ont un taches.md")),
+      h("section", { class: "lots" }, lots.map(rendreLot)),
+    ];
+  }
+
+  function rendreConstitution(c) {
+    return h("section", { class: "carte" },
+      h("h2", null, h("span", null, "La constitution"), h("span", { class: "droite" }, `${c.articles.length} articles${c.version ? ` · v${c.version}` : ""}`)),
+      h("ul", { class: "articles" }, c.articles.map((a) => h("li", null, h("b", null, `${a.numero}.`), h("span", null, a.titre)))));
+  }
+
+  function rendreCommits(commits) {
+    return h("section", { class: "carte" },
+      h("h2", null, h("span", null, "Le journal"), h("span", { class: "droite" }, `${commits.length} derniers commits`)),
+      h("ul", { class: "commits" }, commits.map((c) => h("li", { class: "commit", title: c.sujet },
+        h("span", { class: "h" }, c.h),
+        h("span", { class: `puce ${c.spec ? "spec" : ""} ${c.lot ? "" : "absent"}` }, c.lot ? (c.spec ? "spec " : "") + c.lot : "—"),
+        h("span", { class: "s" }, c.sujet),
+        h("span", { class: "q" }, ilYA(c.date))))));
+  }
+
+  function rendre(d) {
+    // 0000 est la base, pas un delta : elle n'a pas de tâches ni d'étapes,
+    // elle a un compteur — c'est la section « La base » qui la montre.
+    const lots = d.lots.filter((l) => l.numero !== "0000");
+    const lot0 = d.lots.find((l) => l.numero === "0000");
+    $("#principal").replaceChildren(
+      ...rendreLots(lots),
+      rendreBase(d.base, lot0),
+      h("div", { class: "deux" }, rendreConstitution(d.constitution), rendreCommits(d.commits)),
+    );
+  }
+
+  let dernierOk = null;
+  async function rafraichir() {
+    try {
+      const r = await fetch("/api/etat", { cache: "no-store" });
+      const d = await r.json();
+      if (d.erreur) throw new Error(d.erreur);
+      rendre(d);
+      dernierOk = Date.now();
+      $("#direct").classList.remove("perdu");
+    } catch (err) {
+      $("#direct").classList.add("perdu");
+      if (!dernierOk) $("#principal").replaceChildren(h("div", { class: "erreur" }, `Le serveur ne répond pas : ${err.message}`));
+    }
+  }
+  setInterval(() => {
+    const t = $("#direct-texte");
+    const perdu = $("#direct").classList.contains("perdu");
+    if (!dernierOk) { t.textContent = perdu ? "Serveur injoignable" : "Connexion…"; return; }
+    const s = Math.floor((Date.now() - dernierOk) / 1000);
+    t.textContent = (perdu ? "Hors de portée · dernier état " : "En direct · mis à jour ") + (s < 2 ? "à l'instant" : `il y a ${s} s`);
+  }, 1000);
+  rafraichir();
+  setInterval(rafraichir, 4000);
+})();
+</script>
+</body>
+</html>
