@@ -9,6 +9,9 @@
       "channel": "production",
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "credentialsSource": "local"
       }
     },
     "atelier": {
@@ -27,6 +30,9 @@
       "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "credentialsSource": "local"
       }
     }
   },

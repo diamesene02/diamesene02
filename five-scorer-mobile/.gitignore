@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Signature Android locale (eas.json credentialsSource local) — jamais dans git
+credentials.json
+credentials/
