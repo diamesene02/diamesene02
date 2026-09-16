@@ -108,17 +108,19 @@ export default function RecapView({
 
   // La chronologie doit être CHRONOLOGIQUE. Les buts arrivent ordonnés par
   // date de saisie : bon ordre pendant le match, faux dès qu'on rattrape un
-  // but oublié. Un but sans minute hérite de celle du but qui le précède.
-  const ordonnes = (() => {
-    let derniere = 0;
-    return goals
-      .map((g, i) => {
-        if (g.minute != null) derniere = g.minute;
-        return { g, cle: derniere, i };
-      })
-      .sort((x, y) => x.cle - y.cle || x.i - y.i)
-      .map((x) => x.g);
-  })();
+  // but oublié. Un but SANS minute — ajouté après coup depuis /corriger, où
+  // l'on ne demande jamais une minute qu'on inventerait (spec 0001, Q5) — se
+  // place en FIN de chronologie, après tous ceux qui en ont une ; entre eux,
+  // l'ordre de saisie départage. Il héritait avant de la minute du but qui le
+  // précède, ce qui l'intercalait au milieu du match. Sur une feuille rétro,
+  // où AUCUN but n'a de minute, rien ne change : l'ordre de saisie reste.
+  const ordonnes = goals
+    .map((g, i) => ({ g, i }))
+    .sort((x, y) => (x.g.minute ?? Infinity) - (y.g.minute ?? Infinity) || x.i - y.i)
+    .map((x) => x.g);
+  // « ajouté après coup » ne se dit que si le match a par ailleurs une vraie
+  // chronologie — sur une feuille rétro, tous les buts sont sans minute.
+  const chronoMinutee = goals.some((g) => g.minute != null);
 
   // « Karim 3′, 11′, 15′ » par camp, dans l'ordre du match.
   const buteurs = (t: "A" | "B") => {
@@ -375,6 +377,7 @@ export default function RecapView({
                       <span className="truncate">
                         {g.scorerName}
                         {g.assistName && <span className="note"> — passe de {g.assistName}</span>}
+                        {g.minute == null && chronoMinutee && <span className="note"> — ajouté après coup</span>}
                       </span>
                     </span>
                     <span className="marque">{a}–{b}</span>

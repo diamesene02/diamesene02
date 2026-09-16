@@ -377,9 +377,14 @@ export default async function MatchRecapPage({
 
         {ctx.canManage && match.status === "FINISHED" && (
           <div className="flex items-center justify-between gap-3">
-            <Link href={`/c/${slug}/matches/${match.id}/edit`} className="verre">
-              Corriger
-            </Link>
+            <span className="flex items-center gap-3">
+              <Link href={`/c/${slug}/matches/${match.id}/corriger`} className="verre">
+                Corriger
+              </Link>
+              <Link href={`/c/${slug}/matches/${match.id}/edit`} className="text-sm text-[color:var(--ink-2)] hover:text-white">
+                Modifier les infos
+              </Link>
+            </span>
             <DeleteMatchButton slug={slug} matchId={match.id} />
           </div>
         )}

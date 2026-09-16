@@ -276,6 +276,11 @@ export default function Recap() {
                         <Text style={[s.nomBut, { color: t.ink }]} numberOfLines={1}>
                           {e.nom}
                         </Text>
+                        {e.apresCoup && (
+                          <Text style={[s.passeur, { color: t.i3 }]} numberOfLines={1}>
+                            ajouté après coup
+                          </Text>
+                        )}
                         {e.passeur && (
                           <Text style={[s.passeur, { color: t.i3 }]} numberOfLines={1}>
                             passe de {e.passeur}

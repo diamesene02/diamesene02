@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
+import * as D from "@/lib/dates";
 import EditMatchForm from "./EditMatchForm";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,13 @@ export default async function EditMatchPage({
     orderBy: { startsAt: "desc" },
     select: { id: true, name: true, isActive: true },
   });
+  // Rattacher un match à sa soirée après coup (APRES-15) : la liste des
+  // soirées du club, la plus récente d'abord.
+  const matchDays = await prisma.matchDay.findMany({
+    where: { clubId: ctx.club.id },
+    orderBy: { date: "desc" },
+    select: { id: true, date: true, title: true, location: true },
+  });
 
   return (
     <main className="mx-auto max-w-xl">
@@ -45,6 +53,7 @@ export default async function EditMatchPage({
             playedAt: match.playedAt.toISOString(),
             mvpId: match.mvpId,
             seasonId: match.seasonId,
+            matchDayId: match.matchDayId,
             notes: match.notes ?? "",
           }}
           participants={match.participants.map((p) => ({
@@ -53,6 +62,10 @@ export default async function EditMatchPage({
             team: p.team,
           }))}
           seasons={seasons}
+          matchDays={matchDays.map((md) => ({
+            id: md.id,
+            libelle: `${D.jourAbrege(md.date)} · ${D.heure(md.date)}${md.title ? ` · ${md.title}` : md.location ? ` · ${md.location}` : ""}`,
+          }))}
         />
       </div>
     </main>

@@ -174,7 +174,6 @@ export default function PlayShell({
         slug={slug}
         matchId={matchId}
         onRejouer={rejouer}
-        onReprendre={() => setPhase("live")}
       />
     );
   }
@@ -199,12 +198,10 @@ function RecapLocal({
   slug,
   matchId,
   onRejouer,
-  onReprendre,
 }: {
   slug: string;
   matchId: string;
   onRejouer: () => void;
-  onReprendre: () => void;
 }) {
   const data = useLiveQuery(() => getLocalMatch(matchId), [matchId]);
   const enAttente = useLiveQuery(() => pendingOpsForMatch(matchId), [matchId]);
@@ -309,9 +306,9 @@ function RecapLocal({
           {busy ? "Coup d'envoi…" : "On rejoue — mêmes équipes"}
         </button>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <button onClick={onReprendre} className="btn ghost tap">
-            Rouvrir le match
-          </button>
+          <Link href={`/c/${slug}/matches/${matchId}/corriger`} className="btn ghost tap">
+            Corriger le match
+          </Link>
           {tousSyncs ? (
             <Link href={`/c/${slug}/matches/${matchId}`} className="btn ghost tap">
               Récap complet

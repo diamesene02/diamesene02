@@ -135,6 +135,10 @@ export async function GET(
   }
 
   // La chronologie, du plus récent au plus ancien, avec le score courant.
+  // Un but sans minute au milieu d'un match qui en a — ajouté après coup
+  // depuis /corriger (spec 0001, Q5) — se signale comme tel ; sur une feuille
+  // rétro, où aucun but n'a de minute, le repère ne dirait rien.
+  const chronoMinutee = buts.some((b) => b.minute != null);
   let ca = 0;
   let cb = 0;
   const chronologie = buts
@@ -144,6 +148,7 @@ export async function GET(
       return {
         id: e.id,
         minute: e.minute,
+        apresCoup: e.minute == null && chronoMinutee,
         camp: e.team as "A" | "B",
         nom: e.player
           ? e.type === "OWN_GOAL"

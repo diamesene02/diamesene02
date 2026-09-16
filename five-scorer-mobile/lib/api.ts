@@ -432,6 +432,8 @@ export type FicheMatch = {
   chronologie: {
     id: string;
     minute: number | null;
+    /// Ajouté après coup depuis le site, sans minute (spec 0001, Q5).
+    apresCoup: boolean;
     camp: "A" | "B";
     nom: string;
     passeur: string | null;

@@ -19,6 +19,7 @@ export default function EditMatchForm({
   initial,
   participants,
   seasons,
+  matchDays,
 }: {
   slug: string;
   matchId: string;
@@ -28,10 +29,12 @@ export default function EditMatchForm({
     playedAt: string; // ISO
     mvpId: string | null;
     seasonId: string | null;
+    matchDayId: string | null;
     notes: string;
   };
   participants: { id: string; name: string; team: "A" | "B" }[];
   seasons: { id: string; name: string; isActive: boolean }[];
+  matchDays: { id: string; libelle: string }[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -40,6 +43,7 @@ export default function EditMatchForm({
   const [playedAt, setPlayedAt] = useState("");
   const [mvpId, setMvpId] = useState(initial.mvpId ?? "");
   const [seasonId, setSeasonId] = useState(initial.seasonId ?? "");
+  const [matchDayId, setMatchDayId] = useState(initial.matchDayId ?? "");
   const [notes, setNotes] = useState(initial.notes);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +67,7 @@ export default function EditMatchForm({
         playedAt: date.toISOString(),
         mvpId: mvpId || null,
         seasonId: seasonId || null,
+        matchDayId: matchDayId || null,
         notes,
       });
       if (!res.ok) {
@@ -149,6 +154,22 @@ export default function EditMatchForm({
       </div>
 
       <label className="block">
+        <span className="kicker">Soirée</span>
+        <select
+          value={matchDayId}
+          onChange={(e) => setMatchDayId(e.target.value)}
+          className={inputCls}
+        >
+          <option value="">Aucune — match isolé</option>
+          {matchDays.map((md) => (
+            <option key={md.id} value={md.id}>
+              {md.libelle}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block">
         <span className="kicker">Notes</span>
         <textarea
           value={notes}
@@ -178,7 +199,10 @@ export default function EditMatchForm({
       </div>
 
       <p className="border-t border-[color:var(--rule)] pt-4 text-xs text-[color:var(--ink-2)]">
-        Pour corriger les buts, ouvre le match et utilise la timeline.
+        Pour corriger les buts, les passes ou la composition :{" "}
+        <Link href={`/c/${slug}/matches/${matchId}/corriger`} className="font-bold text-[color:var(--ink-1)] hover:text-white">
+          l'écran de correction →
+        </Link>
       </p>
     </form>
   );

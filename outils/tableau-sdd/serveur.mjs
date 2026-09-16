@@ -105,11 +105,12 @@ function etiqueter(sujet) {
   }
   const taches = [];
   if (lot && !spec) {
-    const re = /(?:tâche|phase)s?\s*(\d+)(?:\s*(?:et|,|&)\s*(\d+))?/gi;
+    // « tâche 4 », « phases 2 et 3 », « tâches 12, 13 et 14 » : tous les
+    // numéros qui suivent le mot, jusqu'au premier mot qui n'en est pas un.
+    const re = /(?:tâche|phase)s?\s*((?:\d+\s*(?:,|et|&)?\s*)+)/gi;
     let r;
     while ((r = re.exec(sujet))) {
-      taches.push(+r[1]);
-      if (r[2]) taches.push(+r[2]);
+      for (const n of r[1].match(/\d+/g) ?? []) taches.push(+n);
     }
   }
   const livraison = /TOUT VERT|tâches sont faites|\blivré\b/i.test(sujet);
