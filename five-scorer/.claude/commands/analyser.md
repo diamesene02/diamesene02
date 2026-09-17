@@ -33,7 +33,7 @@ qui se contredisent. **Recompte tout nombre repris d'un autre document** — ne 
 crois pas.
 
 ### 4. Contre la base
-La spec 0000 est la base : 549 cas. Cette spec doit dire **quels cas elle
+La spec 0000 est la base (550 cas au 17 septembre 2026 — recompte-les, ne crois pas ce nombre). Cette spec doit dire **quels cas elle
 referme**, par leur identifiant. Vérifie qu'ils existent dans
 `specs/0000-le-club-et-lapp/cas.md`, que leur gravité correspond à ce que la
 spec en dit, et qu'aucun cas fermé n'est oublié.
