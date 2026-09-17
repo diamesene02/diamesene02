@@ -379,7 +379,13 @@ vérifications. Les specs sont le détail d'une étape ; elles ne le répètent 
 
 | Spec | Sujet | État |
 |---|---|---|
-| [0001](../specs/0001-corriger-un-match/spec.md) | Corriger un match après coup | spec à valider |
+| [0001](../specs/0001-corriger-un-match/spec.md) | Corriger un match après coup | **livré** le 16 sept. 2026 |
+| [0002](../specs/0002-le-nom/spec.md) | Le nom du produit | spec à valider — bloquée sur le choix du nom |
+| [0003](../specs/0003-les-manches/spec.md) | Les manches, et ce qui vaut plus d'un point | spec à valider |
+| [0004](../specs/0004-le-miroir-sait-vieillir/spec.md) | Le miroir local sait vieillir | **livré** le 11 sept. 2026 |
+| [0005](../specs/0005-preparer-la-compo/spec.md) | Préparer la compo d'une soirée | **livré** le 13 sept. 2026 |
+| [0006](../specs/0006-annuler-un-match/spec.md) | Annuler un match au lieu de l'effacer | **livré** le 13 sept. 2026 |
+| [0007](../specs/0007-le-match-du-lundi/spec.md) | Le match du lundi appartient au lundi | spec à valider — `/clarifier` passé le 17 sept. |
 
 ---
 

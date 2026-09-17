@@ -145,7 +145,15 @@ clic près, il double son propre match.
    Le site le fait déjà, l'app non.
 4. **Rattacher ou détacher un match après coup**, quand la règle automatique
    s'est trompée ou n'avait pas de quoi trancher. Le site sait le faire depuis
-   le lot 0001 ; ce geste doit rester, et rester le dernier mot.
+   le lot 0001 ; ce geste doit rester, rester le dernier mot — et **s'ouvrir à
+   qui peut scorer** (tranché le 17 septembre 2026). Celui qui a le droit de
+   créer un match a le droit de dire à quel lundi il appartient ; aujourd'hui
+   il ne l'a pas, et le lundi soir il n'y a pas d'admin sous la main.
+5. **Voir un orphelin signalé là où il se voit, et le ranger d'un geste.** Un
+   écran qui allait réclamer la feuille et qui trouve un match de ce jour-là
+   sans soirée le dit et propose de le rattacher (tranché le 17 septembre
+   2026) — au lieu de se taire, ce qui laisserait le match orphelin en silence
+   et la soirée vide pour toujours.
 
 ## Ce qu'on ne doit PAS faire
 
@@ -273,6 +281,53 @@ Ce lot rattache à la création ; il ne protège pas contre ce geste-là. Mais u
 produit qui recolle d'un côté et détache en masse de l'autre n'a rien réglé :
 c'est un lot à lui, et il faudra le faire.
 
+### Qui a le droit de rattacher ?
+
+**Qui peut scorer — tranché par Ibrahima le 17 septembre 2026.** Aujourd'hui
+l'asymétrie est nette : *lancer* un match est ouvert à `canScore`, *rattacher*
+après coup exige `canManage`, sur le site seulement, et seulement sur un match
+terminé. Le marqueur du lundi soir peut donc fabriquer un orphelin et ne peut
+pas le réparer — un cul-de-sac, que l'article V interdit. Celui qui a le droit
+de créer le match a le droit de dire à quel lundi il appartient.
+
+Ce que ça coûte, et que le plan devra peser : le champ « Soirée » vit
+aujourd'hui dans le formulaire d'édition, qui porte aussi la date, la saison et
+l'homme du match — ouvrir le formulaire entier à `canScore` n'est pas ce qui a
+été demandé. C'est le rattachement qui s'ouvre, pas le reste.
+
+### Les matchs programmés rejoignent-ils leur soirée ?
+
+**Oui, même règle — tranché par Ibrahima le 17 septembre 2026.** Aujourd'hui
+tous les matchs programmés du club naissent orphelins : l'action serveur
+accepte pourtant une soirée et la vérifie, mais le seul formulaire qui l'appelle
+ne la passe jamais. Une seule règle pour toutes les naissances d'un match —
+c'est l'article III, et laisser cette fabrique ouverte garantissait la prochaine
+surprise.
+
+### Les quatre questions que le code avait déjà tranchées
+
+*Cherchées dans le code avant d'être posées, comme la garde l'impose.*
+
+- **Un match contre un adversaire (EXTERNAL) rejoint-il une soirée ?** Oui, et
+  le produit le prévoit déjà : la fiche d'une soirée sépare ses matchs internes
+  des autres pour le bilan, et le calendrier de la saison pose les matchs
+  externes à côté des soirées. Rien à inventer, rien à distinguer.
+- **Une soirée annulée prend-elle un match ?** Non. Partout où le site cherche
+  une soirée — la prochaine, et celles « sans résultat » — il exclut déjà
+  `canceledAt: null`. La règle suit ce que le produit fait déjà.
+- **Deux soirées le même jour ?** C'est possible : rien en base ne l'interdit
+  (aucune contrainte d'unicité sur le couple club + date), et seul le poseur de
+  calendrier annuel déduplique. **Décision : dans le doute, on ne rattache
+  pas.** Le match reste isolé et les écrans proposent — c'est la même règle que
+  « rattacher quand il y a un lundi à rejoindre, se taire sinon », et une règle
+  qui choisit au hasard entre deux soirées serait pire que pas de règle.
+- **Le repli repasse-t-il sur un match déjà en base ?** Non : **à la création
+  seulement.** C'est ce qui rend tenable le « Aucune — match isolé » choisi
+  exprès : en base, « n'a jamais eu de soirée » et « détaché volontairement »
+  sont le même `NULL`, et rien ne les distingue. La seule façon de ne pas
+  écraser un choix humain est donc de ne jamais repasser. C'est aussi pour ça
+  que le match du 14 septembre se répare à la main, et pas par un balayage.
+
 ### L'accueil de l'app, qui ne montre pas les matchs joués ?
 
 **Hors lot** (`APRES-54`), et dit ici pour qu'il ne repasse pas pour un oubli.
@@ -307,11 +362,18 @@ article VIII). « L'app rattache bien » n'est pas un critère.*
       (rangée « Saisir », fiche de la soirée) reste souverain ; le repli ne
       s'applique qu'à son absence. Et « match isolé » choisi à la main dans le
       formulaire d'édition n'est pas ré-écrasé au prochain passage.
-- [ ] **Les trois écrans qui réclament regardent d'abord.** Le calendrier de
-      l'app, le calendrier du site et le bandeau de l'accueil du site ne
-      proposent plus « Saisir » sur une soirée dont un match du même jour
-      existe — ils proposent de le rattacher, ou se taisent. Vérifié en base
-      d'essai avec un match orphelin daté du bon jour.
+- [ ] **Les trois écrans qui réclament regardent d'abord, et proposent le bon
+      geste.** Le calendrier de l'app, le calendrier du site et le bandeau de
+      l'accueil du site ne proposent plus « Saisir » sur une soirée dont un
+      match du même jour existe sans soirée : ils disent qu'il y en a un et
+      proposent de le rattacher. Vérifié en base d'essai avec un match orphelin
+      daté du bon jour.
+- [ ] **Un match programmé pour un lundi rejoint la soirée de ce lundi.**
+      Même règle, même fonction — vérifié par un test sur le chemin de
+      programmation, qui aujourd'hui produit des orphelins à tous les coups.
+- [ ] **Le marqueur répare son propre match.** Quelqu'un qui peut scorer, sans
+      être admin, rattache un match orphelin à sa soirée — et n'obtient pas au
+      passage le droit de changer la date, la saison ou l'homme du match.
 - [ ] **Le deuxième match d'un lundi reste possible.** « On rejoue » depuis un
       récap, et « Lancer un match » depuis la fiche de la soirée, marchent sur
       une soirée qui a déjà un résultat. Le lot fait taire ce qui *réclame*
