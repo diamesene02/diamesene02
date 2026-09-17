@@ -50,18 +50,25 @@ soirée » — et ne rend que lui. Le match resterait dans l'historique complet 
 site, qui liste tous les matchs terminés sans regarder les soirées ; mais
 l'écran qu'on ouvre, lui, montrerait le faux à la place du vrai.
 
-Et il n'y a même pas besoin d'aller au bout. Un match naît `LIVE` (`prisma/schema.prisma:367`) : au premier
-tap, avant qu'une seule équipe soit composée, les trois alarmes s'éteignent, la
-rangée du lundi passe à « En cours », le bouton « Coup d'envoi » disparaît de
-l'accueil et « Feuille restée ouverte » apparaît. Un geste hésitant, abandonné
-à la deuxième compo, laisse le produit dans un état pire qu'avant — en silence,
-et pour toujours.
+Et il n'y a même pas besoin de saisir un seul but. Il suffit de composer les
+deux équipes et de taper le coup d'envoi : le faux match naît `LIVE`
+(`prisma/schema.prisma:367`), et à cet instant les trois alarmes s'éteignent,
+la rangée du lundi passe à « En cours », le bouton « Coup d'envoi » disparaît
+de l'accueil, et six heures plus tard « Feuille restée ouverte » apparaît
+(`app/c/[slug]/page.tsx:714-716`, `lib/retro.ts:17`). Personne ne saisira jamais de
+but dans cette feuille : elle restera ouverte, et elle aura éteint tout ce qui
+signalait qu'il y avait quelque chose à ranger. *Avant* ce tap, en revanche,
+rien n'est écrit — les deux formulaires refusent une équipe vide
+(`app/c/[slug]/matches/new/NewMatchForm.tsx:236-243`,
+`five-scorer-mobile/app/compo.tsx:227-230`).
 
 Enfin, le même écran se contredit. L'accueil du site sait retomber sur le jour :
-le 17–11 **est** dans son onglet daté « Lundi 14 ». Le bandeau rouge, juste
+le 17–11 **est** dans son onglet daté « Lundi 14 ». Le bandeau ambre, juste
 au-dessus, dit que cette soirée n'a pas de résultat. L'onglet ne s'ouvre jamais
-de lui-même — il y a 44 soirées à venir, et c'est « À venir » qui gagne
-(`app/c/[slug]/page.tsx:621-625`).
+de lui-même : la priorité est écrite en dur — « ce soir » s'il y a quelque
+chose ce soir, sinon « à venir » dès qu'une seule soirée future existe, sinon
+seulement le premier onglet (`app/c/[slug]/page.tsx:621-625`). Le nombre de
+soirées n'y entre pas ; une seule suffit à faire perdre l'onglet daté.
 
 ### Ce que la base de production dit, et qui rend ce lot petit
 
@@ -76,17 +83,30 @@ Quatre matchs, lus le 17 septembre :
 
 Trois choses en sortent.
 
-**La règle existe déjà, et elle marche.** Le match de 08:06 a rejoint la soirée
-de 19:00 parce que le site recolle un match lancé le jour d'une soirée — « on
-ne recolle que si on est effectivement dedans », dit son commentaire. Mieux :
-le produit a déjà tranché *quelle* unité de temps fait foi. La requête ne
-regarde que les soirées à partir de minuit du jour courant
-(`app/c/[slug]/page.tsx:110-120`), et le commentaire dit pourquoi
-(`app/c/[slug]/page.tsx:113-117`) : « une soirée reste en cours jusqu'à la fin de sa journée, pas
-douze heures glissantes — le mardi à 7 h, la soirée du lundi s'affichait encore
-comme la prochaine, avec le match du jour qui venait s'y rattacher. » La bonne
-unité, c'est **le jour du club**, et ça a déjà été payé une fois. Il n'y a donc
-rien à inventer.
+**Une règle existe, et ce n'est pas celle qu'on croit.** Le site recolle un
+match à la prochaine soirée quand l'écart entre elle et **l'instant présent**
+est de moins de douze heures — `Math.abs(soirée − maintenant) < 12 h`
+(`app/c/[slug]/page.tsx:292-296`). Ce n'est pas « le jour de la soirée », c'est
+une fenêtre glissante, et elle a trois défauts qu'on peut calculer :
+
+- **Elle rate des matchs du bon jour.** Lancé à 06:30 pour une soirée de 19:00,
+  l'écart fait 12 h 30 : orphelin. À 08:06 il fait 10 h 54 : rattaché. C'est
+  pour ça, et pour ça seulement, que le match annulé du 14 au matin a une
+  soirée — pas parce qu'il était « le bon jour ».
+- **Elle se cale sur maintenant, pas sur la date du match.** Un match saisi
+  hors ligne le lundi et rejoué le mercredi serait mesuré depuis le mercredi.
+- **Elle n'existe que sur le site**, et seulement pour un bouton.
+
+**Mais le produit sait déjà quelle est la bonne unité — il l'a écrit ailleurs.**
+Pour choisir quelle soirée est « la prochaine », la requête ne regarde que les
+soirées à partir de minuit du jour courant
+(`app/c/[slug]/page.tsx:110-120`), et son commentaire raconte pourquoi
+(`app/c/[slug]/page.tsx:113-117`) : « une soirée reste en cours jusqu'à la fin
+de sa journée, **pas douze heures glissantes** : le mardi à 7 h, la soirée du
+lundi s'affichait encore comme la prochaine, avec “ce soir” écrit dessus et le
+match du jour qui venait s'y rattacher. » Le jour civil a donc déjà été payé
+une fois — mais pour une autre question. Les ingrédients sont là ; c'est
+l'assemblage qui manque.
 
 **Mais elle est tenue par deux écrans, et elle ne s'applique qu'à un bouton.**
 C'est la découverte du balayage 0000, mot pour mot : *une règle tenue par
@@ -98,12 +118,20 @@ d'envoi » : les deux liens voisins — « Composer les équipes »
 (`app/c/[slug]/page.tsx:789`), « Lancer un match »
 (`app/c/[slug]/page.tsx:795`) — partent sans la soirée, et le formulaire
 d'arrivée ne la résout que depuis `?md=`
-(`app/c/[slug]/matches/new/page.tsx:45-58`). Dans l'app, aucun chemin ne la transmet,
-alors que l'écran a la soirée du jour sous la main. Le serveur, lui, ne cherche
+(`app/c/[slug]/matches/new/page.tsx:45-58`). Dans l'app, un seul chemin transmet une
+soirée — la rangée « Saisir » du calendrier
+(`five-scorer-mobile/app/club/[id]/saison.tsx:82-98` →
+`five-scorer-mobile/app/compo.tsx:245`). Les trois chemins du lundi soir, eux,
+partent avec le seul club : « Nouveau match » sur l'accueil
+(`five-scorer-mobile/app/club/[id]/index.tsx:186`), « Lancer un match
+maintenant » et « Saisir un match déjà joué » dans la feuille « Créer »
+(`five-scorer-mobile/app/club/[id]/_layout.tsx:143,151`) — alors que l'accueil
+a la soirée du jour sous la main
+(`five-scorer-mobile/app/club/[id]/index.tsx:95`). Le serveur, lui, ne cherche
 jamais : il vérifie la soirée qu'on lui donne et écrit `null` sinon
 (`app/api/clubs/[clubId]/matches/route.ts:204-211`).
 
-**Ce qui rend l'oubli d'autant plus net :** la même fonction, à six lignes
+**Ce qui rend l'oubli d'autant plus net :** la même route, à vingt-six lignes
 d'écart, traite deux rattachements de deux façons opposées. Pour la saison, si
 le champ manque, le serveur retombe sur la saison active du club
 (`app/api/clubs/[clubId]/matches/route.ts:155-176`). Pour la
@@ -137,7 +165,7 @@ lundi : elle est vide.
 
 **Ibrahima, jeudi soir.** Il cherche le match de lundi pour le montrer à
 quelqu'un. L'accueil de l'app dit « Pas encore de match aujourd'hui » ; celui du
-site lui propose, en rouge, de saisir une feuille qu'il a déjà remplie. À un
+site lui propose, en ambre, de saisir une feuille qu'il a déjà remplie. À un
 clic près, il double son propre match.
 
 ---
@@ -194,21 +222,42 @@ jusqu'à la fin de sa journée, pas douze heures glissantes : le mardi à 7 h, l
 soirée du lundi s'affichait encore comme la prochaine, avec “ce soir” écrit
 dessus et le match du jour qui venait s'y rattacher. »* Une fenêtre glissante a
 donc déjà été essayée, et elle a déjà volé un match. La règle est : **un match
-rejoint la soirée du même jour, dans le fuseau du club** — ni la veille, ni le
-lendemain matin.
+rejoint la soirée du même jour**, dans le fuseau du produit — ni la veille, ni
+le lendemain matin. (Le fuseau est une constante, `Europe/Paris`
+(`lib/dates.ts:17`), et son commentaire explique pourquoi ce n'est pas un
+réglage du club ; ce lot n'y touche pas.)
 
 Ce qui s'en déduit sans autre débat : un match du dimanche ne rejoint pas le
-lundi ; une soirée qui déborde sur 00:30 laisse un orphelin, et c'est le prix
-assumé d'une règle qu'on peut expliquer en une phrase.
+lundi.
+
+**Et un cas limite qui n'est pas gratuit : le match qui commence à 23:50.**
+Daté du mardi 00:30, il ne rejoint pas la soirée du lundi — mais il ne
+disparaît pas pour autant : la soirée du lundi reste alors « sans résultat »,
+et les trois écrans la réclament, exactement ce que la promesse n°2 doit
+empêcher. Une règle du jour civil ne suffit donc pas seule : **la question que
+les écrans posent et la règle qui rattache doivent regarder la même fenêtre.**
+C'est le plan qui dira comment, mais la spec le nomme ici pour qu'il ne soit
+pas découvert dans le diff (article X).
 
 ### Où la règle doit-elle vivre ?
 
-**Dans le serveur.** Deux raisons, et la seconde est décisive.
+*La méthode dit qu'une spec ne contient aucune solution — ni écran, ni route,
+ni table. Ce qui suit n'est donc pas un choix de conception mais une
+**contrainte** : l'article III interdit qu'une règle qui protège un chiffre
+soit tenue par un écran, et le gymnase interdit qu'elle soit tenue par le
+téléphone. Le plan dira comment ; la spec dit seulement ce qui est exclu.*
+
+**Pas dans un écran, et pas dans le téléphone.** Deux raisons, et la seconde
+est décisive.
 
 La première est l'article III : aujourd'hui la règle est écrite deux fois, dans
 deux pages du site, sans constante ni test, et elle ne décide que d'un bouton
 sur trois de son propre écran. Une règle qui vit à l'écran ne vaut que pour
-l'écran qui la porte — il y a dix-huit endroits qui créent un match.
+l'écran qui la porte — et le produit n'a que **deux** écritures de match en
+base (`app/actions/schedule.ts:63` et
+`app/api/clubs/[clubId]/matches/route.ts:235-240`) pour une bonne quinzaine de
+boutons qui y mènent. La règle a donc deux endroits possibles, et dix-huit
+endroits impossibles.
 
 La seconde est le gymnase. **Le téléphone n'a aucune mémoire des soirées** : sa
 base locale ne déclare que six tables — clubs, effectif, matchs, participants,
@@ -220,9 +269,11 @@ l'accueil de l'app ne rend qu'une ligne d'erreur, et le bouton « Nouveau
 match » n'apparaît même pas. Une règle tenue par l'app ne marcherait donc pas
 le seul soir où elle compte (constitution, article I).
 
-Le serveur, lui, a tout ce qu'il faut — et au bon moment : la date du match
-(`playedAt`) voyage dans la file d'envoi (`five-scorer-mobile/lib/match/local.ts:323`)
-et il la lit déjà (`app/api/clubs/[clubId]/matches/route.ts:151,230`). Un match saisi hors
+Ce qui reste, c'est le serveur — et il a de quoi trancher **au bon moment** :
+la date du match (`playedAt`) voyage dans la file d'envoi
+(`five-scorer-mobile/lib/match/local.ts:323`) et il la lit déjà
+(`app/api/clubs/[clubId]/matches/route.ts:151,230`). C'est ce qui manque le
+plus à la règle d'aujourd'hui, qui se cale sur l'instant présent. Un match saisi hors
 ligne le lundi et rejoué le mercredi rejoint donc le lundi, pas le mercredi.
 
 ### Rattacher tout seul, ou demander ?
@@ -277,12 +328,17 @@ cher que de la corriger.
 Et il faut savoir ce qu'une migration en masse frôlerait. **La soirée mixte —
 une partie des matchs d'un lundi rattachée, l'autre non — n'est pas un risque
 futur : c'est l'état actuel de la soirée du 14 septembre**, qui porte le match
-annulé de 08:06 (rattaché) et le 17–11 (orphelin). Deux écrans s'y comportent
-mal, et aucun cas de la base ne le décrit : l'accueil du site n'a qu'un repli
-tout ou rien — si le dernier match du soir est rattaché, son onglet daté ne
-montre que les rattachés et les autres disparaissent — et la liste des matchs
-de l'app coupe le même lundi en deux groupes, l'un sous la soirée, l'autre sous
-la date. Ce lot doit donc supprimer cet état, pas en fabriquer d'autres.
+annulé de 08:06 (rattaché) et le 17–11 (orphelin). Aujourd'hui l'état ne fait encore aucun dégât
+visible, et c'est un hasard : les deux écrans qui souffriraient ne regardent
+que les matchs terminés, et le rattaché du 14 est annulé
+(`app/c/[slug]/page.tsx:267`, `app/api/clubs/[clubId]/matchs/route.ts:69`). Le
+jour où deux matchs **terminés** du même lundi seront l'un rattaché et l'autre
+pas, deux choses casseront, et aucun cas de la base ne les décrit : l'accueil
+du site n'a qu'un repli tout ou rien — si le dernier match du soir est
+rattaché, son onglet daté ne montre que les rattachés et les autres
+disparaissent — et la liste des matchs de l'app coupe le même lundi en deux
+groupes, l'un sous la soirée, l'autre sous la date. Ce lot doit donc supprimer
+cet état, pas en fabriquer d'autres.
 
 ### Et la soirée qu'on supprime, qui détache tout ?
 
@@ -335,9 +391,16 @@ surprise.
   (`app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:160`), et le calendrier
   de la saison pose les matchs externes à côté des soirées
   (`app/api/clubs/[clubId]/saison/route.ts:180`). Rien à inventer, rien à distinguer.
-- **Une soirée annulée prend-elle un match ?** Non. Partout où le site cherche
-  une soirée — la prochaine (`app/c/[slug]/page.tsx:119`), et celles « sans
-  résultat » (`app/c/[slug]/page.tsx:247`) — il exclut déjà `canceledAt: null`. La règle suit ce que le produit fait déjà.
+- **Une soirée annulée prend-elle un match ?** Non. **Attention, ce n'est pas vrai
+  partout, et c'est justement l'endroit où la règle va vivre qui ne le fait
+  pas.** Les deux requêtes de l'accueil du *site* excluent bien les soirées
+  annulées — la prochaine (`app/c/[slug]/page.tsx:119`) et celles « sans
+  résultat » (`app/c/[slug]/page.tsx:247`). Mais la route qui sert l'accueil de
+  l'*app* cherche la prochaine soirée **sans filtrer**, et se contente de la
+  marquer annulée (`app/api/clubs/[clubId]/accueil/route.ts:40-41`). Un plan
+  qui recopierait cette requête-là pour « trouver la soirée du jour »
+  rattacherait à une soirée annulée. La règle doit donc exclure explicitement,
+  pas hériter.
 - **Deux soirées le même jour ?** C'est possible : rien en base ne l'interdit
   — le modèle `MatchDay` ne porte aucune contrainte d'unicité sur le couple
   club + date (`prisma/schema.prisma:269-306`) — et seul le poseur de calendrier
@@ -375,8 +438,9 @@ article VIII). « L'app rattache bien » n'est pas un critère.*
       ne doit rejoindre aucun lundi. Même test, cas inverse.
 - [ ] **Le jour est celui du club, pas celui du serveur.** Un match joué à
       23:30 un lundi rejoint le lundi ; un match joué à 00:30 le mardi ne le
-      rejoint pas. Testé aux deux bornes, dans le fuseau du club — c'est le
-      piège que `lib/dates.ts` raconte déjà avoir payé.
+      rejoint pas. Testé aux deux bornes, dans le fuseau du produit
+      (`lib/dates.ts:17`) — c'est le piège que ce fichier raconte déjà avoir
+      payé.
 - [ ] **Le hors-ligne rejoint le bon lundi.** Un match créé dans la file le
       lundi et rejoué trois jours plus tard rejoint la soirée du lundi, pas
       celle du jour du rejeu. Vérifiable parce que `playedAt` voyage déjà dans
@@ -407,8 +471,8 @@ article VIII). « L'app rattache bien » n'est pas un critère.*
       trois écrans se sont tus. C'est le seul rattrapage de ce lot ; il se fait
       à la main, avec le geste qui existe.
 - [ ] `npx tsc --noEmit` vert des deux côtés · `npm test` (site) et
-      `npm run tester` (app) verts · `node scripts/jeu-dessai.mjs && node
-      scripts/parcours-lecture.mjs` en TOUT VERT · `npx expo export --platform
+      `npm run tester` (app) verts · `cd five-scorer-mobile && node scripts/jeu-dessai.mjs
+      && node scripts/parcours-lecture.mjs` en TOUT VERT · `npx expo export --platform
       ios` en 0 · `next build` en 0, dans un dossier à côté, jamais dans le
       `.next` d'un serveur de dev vivant.
 - [ ] **Vu dans le simulateur, à côté de la page du site** (article VII) : un
