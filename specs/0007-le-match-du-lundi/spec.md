@@ -37,14 +37,15 @@ résultat · Lundi 14 septembre · Saisir la feuille ». Les trois ouvrent une
 feuille **vierge** datée de ce lundi. Les trois **créeraient un second match**,
 et ils le proposent pendant six semaines.
 
-Ce n'est pas seulement un faux match de plus. **Le doublon efface le vrai.**
-Aujourd'hui le 17–11 reste visible sur l'accueil du site parce que le dernier
-match terminé n'a pas de soirée, ce qui fait basculer la requête sur un repli
-par jour : « la soirée à laquelle le dernier match est rattaché, *sinon tous
-les matchs de ce jour-là* ». Dès qu'un doublon daté de 19:00 et rattaché
-devient le dernier match terminé, la requête repart sur la branche « les matchs
-de cette soirée » — et ne rend que lui. Le seul écran qui montrait encore le
-vrai match cesse de le montrer.
+Ce n'est pas seulement un faux match de plus. **Le doublon chasse le vrai de
+l'accueil.** Aujourd'hui le 17–11 y est visible parce que le dernier match
+terminé n'a pas de soirée, ce qui fait basculer la requête sur un repli par
+jour : « la soirée à laquelle le dernier match est rattaché, *sinon tous les
+matchs de ce jour-là* ». Dès qu'un doublon daté de 19:00 et rattaché devient le
+dernier match terminé, la requête repart sur la branche « les matchs de cette
+soirée » — et ne rend que lui. Le match resterait dans l'historique complet du
+site, qui liste tous les matchs terminés sans regarder les soirées ; mais
+l'écran qu'on ouvre, lui, montrerait le faux à la place du vrai.
 
 Et il n'y a même pas besoin d'aller au bout. Un match naît `LIVE` : au premier
 tap, avant qu'une seule équipe soit composée, les trois alarmes s'éteignent, la
@@ -216,8 +217,25 @@ au coup d'envoi.
 **Ils doivent regarder avant de réclamer.** Aujourd'hui les trois posent la
 même question — « cette soirée a-t-elle un match rattaché ? » — et concluent
 « non, donc il n'y a pas eu de match ». La bonne question est : « y a-t-il un
-match de ce jour-là ? » Si oui, l'écran ne propose plus d'en créer un : il
-propose de rattacher celui qui existe, ou se tait.
+match de ce jour-là qui n'appartient à aucune soirée ? » Si oui, l'écran ne
+propose plus d'en créer un : il propose de rattacher celui qui existe, ou se
+tait.
+
+**Réclamer n'est pas proposer, et le lot ne touche qu'au premier.** Trois
+écrans *réclament* sans qu'on leur demande rien, sur la foi d'une soirée qu'ils
+croient vide : le calendrier de l'app, le calendrier du site et le bandeau de
+l'accueil du site. La fiche d'une soirée, elle, *propose* « Lancer un match » et
+« Saisir un match joué » à quelqu'un qui l'a ouverte exprès — ça reste, et c'est
+juste.
+
+**Le piège à ne pas tomber dedans en réparant.** La règle naïve — « cette
+soirée a déjà un résultat, donc plus de feuille » — casserait le geste que le
+code appelle lui-même « le plus fréquent d'une soirée » : **On rejoue**. Un
+lundi porte plusieurs matchs (le produit écrit « Soirée du 7 sept. · Match 2 »),
+et le deuxième match d'un lundi n'est pas un doublon. C'est pour ça que la
+question à poser n'est pas « cette soirée a-t-elle un résultat ? » mais
+« y a-t-il un orphelin de ce jour-là à recoller ? » — la première interdirait
+le match 2, la seconde ne gêne personne.
 
 Le repli par jour n'est pas à inventer non plus : il est déjà écrit deux fois
 dans le dépôt — l'accueil du site l'utilise pour son onglet daté, et la liste
@@ -230,12 +248,30 @@ ce qu'est la soirée d'un match ; il ne l'a simplement jamais fait lire aux
 **Un geste, pas une migration.** Il y en a un seul en base — le 17–11 du
 14 septembre — et le geste qui le répare existe (champ « Soirée » de
 « Modifier les infos »). Écrire une migration pour une ligne coûterait plus
-cher que de la corriger, et une migration qui rattache en masse fabriquerait le
-seul état que la base ne décrit nulle part : **la soirée mixte**, où une partie
-des matchs d'un lundi est rattachée et l'autre non. Cet état-là casse deux
-écrans d'une façon inédite — l'accueil du site n'a qu'un repli tout ou rien et
-masquerait les non-rattachés, la liste de l'app couperait le même lundi en deux
-groupes. On n'en fabrique pas.
+cher que de la corriger.
+
+Et il faut savoir ce qu'une migration en masse frôlerait. **La soirée mixte —
+une partie des matchs d'un lundi rattachée, l'autre non — n'est pas un risque
+futur : c'est l'état actuel de la soirée du 14 septembre**, qui porte le match
+annulé de 08:06 (rattaché) et le 17–11 (orphelin). Deux écrans s'y comportent
+mal, et aucun cas de la base ne le décrit : l'accueil du site n'a qu'un repli
+tout ou rien — si le dernier match du soir est rattaché, son onglet daté ne
+montre que les rattachés et les autres disparaissent — et la liste des matchs
+de l'app coupe le même lundi en deux groupes, l'un sous la soirée, l'autre sous
+la date. Ce lot doit donc supprimer cet état, pas en fabriquer d'autres.
+
+### Et la soirée qu'on supprime, qui détache tout ?
+
+**Hors lot, et nommé — parce qu'il défait exactement ce que ce lot fait.**
+Supprimer une soirée est une suppression **dure**, et la relation entre un
+match et sa soirée est déclarée `onDelete: SetNull` : tous les matchs de cette
+soirée redeviennent orphelins, d'un coup, en silence. Pire, l'action avale son
+erreur et répond « c'est fait » quoi qu'il arrive — le même défaut que le lot
+0006 a réparé pour la suppression d'un match (`APRES-26`), laissé intact ici.
+
+Ce lot rattache à la création ; il ne protège pas contre ce geste-là. Mais un
+produit qui recolle d'un côté et détache en masse de l'autre n'a rien réglé :
+c'est un lot à lui, et il faudra le faire.
 
 ### L'accueil de l'app, qui ne montre pas les matchs joués ?
 
@@ -276,6 +312,11 @@ article VIII). « L'app rattache bien » n'est pas un critère.*
       proposent plus « Saisir » sur une soirée dont un match du même jour
       existe — ils proposent de le rattacher, ou se taisent. Vérifié en base
       d'essai avec un match orphelin daté du bon jour.
+- [ ] **Le deuxième match d'un lundi reste possible.** « On rejoue » depuis un
+      récap, et « Lancer un match » depuis la fiche de la soirée, marchent sur
+      une soirée qui a déjà un résultat. Le lot fait taire ce qui *réclame*
+      sans qu'on demande, jamais ce qu'on demande exprès. Vérifié à la main,
+      sur une soirée d'essai portant déjà un match terminé.
 - [ ] **Le match du 14 septembre 2026 porte sa soirée en production**, et les
       trois écrans se sont tus. C'est le seul rattrapage de ce lot ; il se fait
       à la main, avec le geste qui existe.
@@ -335,6 +376,17 @@ par enthousiasme.
   saisissable ? Ce lot touche les trois écrans qui réclament, mais il ne
   tranche pas leur fenêtre : il leur apprend seulement à ne pas réclamer ce qui
   existe déjà. La question des six semaines reste entière.
+- **`SAISON-D1`** (⚠ faux · *gêne une saison*) — un match rattaché à une
+  soirée de juin part quand même dans la saison en cours, parce que le serveur
+  retombe sur la saison active sans jamais regarder celle de la soirée. Ce lot
+  **frôle** ce cas sans le refermer : il rend le rattachement plus fréquent,
+  donc il rendra ce trou plus visible. Le tenir voudrait dire faire dépendre la
+  saison de la soirée — un second repli, dans la même fonction, qu'il vaut
+  mieux peser à part que glisser dans celui-ci.
+- **La soirée supprimée qui détache tout** — `deleteMatchDay` fait une
+  suppression dure, `onDelete: SetNull` orpheline tous ses matchs en silence,
+  et l'action ment sur son succès. Aucun cas de la base ne le décrit ;
+  il en faudra un, et un lot.
 - **`SOIREE-63`** (◐ partiel · *confort*) et **`SOIREE-70`** (✗ absent · *gêne
   un lundi*) — cités par erreur dans mes premières notes du 17 septembre. Le
   premier demande un bouton « Ajouter une soirée » dans l'app, le second de
