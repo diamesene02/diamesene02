@@ -1,15 +1,17 @@
 # 0000 — Les cas, tous les cas
 
-*Annexe de la spec produit. **549 cas** relevés le 10 septembre 2026 par un balayage
+*Annexe de la spec produit. **550 cas** — 549 relevés le 10 septembre 2026 par un balayage
 en huit domaines puis six regards, **tenu à jour à chaque lot livré** (la spec
 0004 a refermé cinq cas le 11 septembre ; les specs 0005 et 0006, six cas le
 13 septembre ; la spec 0001, quinze cas le 16 septembre, et trois autres
-passés de faux à partiel). Chaque cas a été vérifié dans le code — la ligne `>` porte
+passés de faux à partiel) — **et complété par le terrain** : le 550ᵉ,
+`APRES-54`, vient du téléphone d'Ibrahima le 17 septembre, avec le
+rafraîchissement de `SOIREE-33` que le même soir a rendu urgent. Chaque cas a été vérifié dans le code — la ligne `>` porte
 le fichier et la ligne. Les identifiants sont ceux du balayage ; c'est par eux que les specs
 numérotées citeront les cas.*
 
-**185 faits · 153 partiels · 88 absents · 123 faux.**
-**49 bloquent un lundi · 140 en gênent un · 152 gênent une saison · 208 relèvent du confort.**
+**185 faits · 154 partiels · 88 absents · 123 faux.**
+**49 bloquent un lundi · 140 en gênent un · 152 gênent une saison · 209 relèvent du confort.**
 
 **État** — `✔ fait` : ça marche des deux côtés · `◐ partiel` : d'un seul côté, ou à moitié ·
 `✗ absent` : rien ne le fait · `⚠ faux` : ça existe et ça se trompe, ce qui est pire.
@@ -862,9 +864,15 @@ numérotées citeront les cas.*
 
 **Ce qu'on attend.** Le match appartient à la soirée du jour : bilan, mot, « soirées jouées », calendrier.
 
-**Où ça en est.** Le seul chemin qui rattache est « Saisir » depuis le calendrier de saison (saison.tsx:86-96). Un lundi joué depuis l'accueil mobile = soirée à « 0 match », mot vide, calendrier qui réclame « Saisir » six semaines.
+**Où ça en est.** Toujours faux, et **vu en production le 17 septembre 2026** : le match joué le lundi 14/09 de 18:46 à 20:11 (Blanc 17–11 Noir, 28 événements, 10 joueurs, 72 minutes), lancé depuis l'accueil de l'app, porte `matchDayId = NULL`. La soirée du 14/09 19:00 ne compte donc qu'un match annulé saisi le matin à 08:06 — et Ibrahima : « on a joué un match lundi mais je ne le trouve pas ». Le chemin, ligne à ligne : l'accueil a pourtant la soirée du jour sous la main (`index.tsx:95`) mais son bouton « Nouveau match » pousse `/compo` avec le seul `clubId` (`index.tsx:186`), comme « Lancer un match maintenant » de la feuille « Créer » (`_layout.tsx:143`) ; `compo.tsx:245` écrit alors `matchDayId: soireeId ?? null` ; la couche locale (`local.ts:281`) et l'opération de file (`local.ts:324`) le recopient ; le serveur ne cherche jamais la soirée par date (`matches/route.ts:204-211`). La fiche de la soirée, elle, ne lit que la relation `matchDay.matches` (`soirees/[matchDayId]/route.ts:50-67`) : un match du bon jour sans ce champ y est invisible. Le seul chemin qui rattache reste « Saisir » depuis le calendrier (`saison.tsx:82-98`).
 
-> `five-scorer-mobile/app/soiree/[id].tsx (aucun bouton Lancer / Saisir) ; app/club/[id]/index.tsx:163-173 et app/club/[id]/_layout.tsx:88-104 (→ /compo sans soireeId) ; app/compo.tsx:245 (`matchDayId: soireeId ?? null`) ; app/api/clubs/[clubId]/matches/route.ts:203-209 (ne rattache pas par date)`
+**Le piège, nouveau et coupant.** Le calendrier ne compte que les matchs `FINISHED` rattachés (`saison/route.ts:99`) : la soirée du 14/09 vaut « aucun match », et sa rangée affiche « Saisir » pendant six semaines. Taper « Saisir » ouvre une feuille vierge datée de ce lundi — elle **créerait un second match**, doublon de celui qui a été joué. Le défaut ne fait donc pas que cacher un match : il tend un bouton qui en fabrique un faux.
+
+**Et le site n'est pas au-dessus.** Son accueil ne rattache que par le bouton « Coup d'envoi » (`page.tsx:779`, `matchDayId={soireeEnCours?.id ?? null}`), qui n'apparaît que si une compo est prête des deux côtés (`page.tsx:334`) ; les deux liens voisins — « Composer les équipes » (`page.tsx:789`) et « Lancer un match » (`page.tsx:795`) — mènent à `matches/new` sans `?md=`, et ce formulaire ne résout la soirée que depuis ce paramètre (`matches/new/page.tsx:45-58`). Deux chemins sur trois ont le même trou que l'app.
+
+**Ce qui répare après coup :** le champ « Soirée » du formulaire d'édition du site (`APRES-15`, lot 0001 tâche 7), qui liste toutes les soirées du club (`edit/page.tsx:35-37`).
+
+> `five-scorer-mobile/app/club/[id]/index.tsx:95,179-189 ; app/club/[id]/_layout.tsx:138-153 ; app/compo.tsx:241-246 ; lib/match/local.ts:281,324 ; app/soiree/[id].tsx:477-513 (aucun bouton Lancer / Saisir) ; app/club/[id]/saison.tsx:82-98 ; five-scorer/app/api/clubs/[clubId]/matches/route.ts:204-211 ; app/api/clubs/[clubId]/soirees/[matchDayId]/route.ts:50-67 ; app/api/clubs/[clubId]/saison/route.ts:99,128-133 ; app/c/[slug]/page.tsx:334,779,789,795 ; app/c/[slug]/matches/new/page.tsx:45-58 ; specs/0000-le-club-et-lapp/regles.md:218-220 (« Qui la tient : personne »)`
 
 ### `SOIREE-40` — ⚠ faux · *gêne une saison*
 
@@ -1767,6 +1775,16 @@ numérotées citeront les cas.*
 **Où ça en est.** La file connaît huit sortes d'opérations (createMatch, addEvent, removeEvent, setAssist, setScorer, addParticipant, movePlayer, finishMatch) — aucune pour un vote. Et le récap de l'app reçoit déjà `vote: { monVote, candidats }` du serveur sans jamais l'afficher : il ne montre que le décompte sous le nom du lauréat. Sur le téléphone, on ne vote donc ni en ligne ni hors ligne ; le seul écran qui vote est celui du site (components/MotmVotePanel.tsx), qui exige le réseau. Toute l'app est faite pour le gymnase sauf la seule chose qu'on y fait après le dernier match.
 
 > `five-scorer-mobile/lib/outbox/types.ts:97-177 ; app/recap/[id].tsx:259-282 ; lib/api.ts:456-459`
+
+### `APRES-54` — ◐ partiel · *confort*
+
+**La situation.** Jeudi. On ouvre l'app pour revoir le match de lundi.
+
+**Ce qu'on attend.** L'accueil en dit quelque chose — comme celui du site, qui porte un onglet daté de la dernière soirée jouée et sa ligne « Soirée du 14 sept. › ».
+
+**Où ça en est.** Relevé le 17 septembre 2026, sur le téléphone : « sur accueil je ne peux pas voir les matchs déjà joués ». La route de l'accueil ne rend que les matchs dont `playedAt` dépasse minuit du jour (`accueil/route.ts:53-58`, « les matchs du jour : c'est la soirée en cours »), et l'app les coupe en « Ce soir » / « À venir » ; du mardi au dimanche la carte affiche « Pas encore de match aujourd'hui. » (`index.tsx:196-197,213`). L'accueil du site, lui, calcule la dernière soirée jouée et lui donne un onglet daté (`page.tsx:261,417-426`). **Partiel, pas absent :** les matchs terminés sont bien dans l'app, un onglet plus loin — « Matchs » dans la barre du bas (`matchs.tsx`, filtrés sur la saison active par défaut, `matchs.tsx:61`) ; le serveur les y envoie tous (`matchs/route.ts:69`, les 300 derniers `FINISHED`). Rien sur l'accueil ne le dit, et c'est là que quelqu'un qui cherche son match regarde d'abord. À ne pas confondre avec `SOIREE-33`, qui est la vraie raison pour laquelle le match du 14/09 manquait aussi dans sa soirée.
+
+> `five-scorer-mobile/app/club/[id]/index.tsx:196-197,213 ; app/club/[id]/matchs.tsx:45,61,80-85 ; five-scorer/app/api/clubs/[clubId]/accueil/route.ts:53-58 ; app/api/clubs/[clubId]/matchs/route.ts:69,98 ; app/c/[slug]/page.tsx:261,417-426`
 
 ### `COMPO-04` — ✗ absent · *gêne une saison*
 

@@ -3,13 +3,13 @@
 *La spec produit. Écrite le 10 septembre 2026, à partir d'un balayage de tout ce
 qu'on peut faire avec Five Scorer — huit domaines, puis six regards : le
 gymnase, le nouveau venu, le capitaine sur une saison, celui qui vient une fois
-sur trois, le téléphone lui-même, et les données. **549 cas**, chacun vérifié
+sur trois, le téléphone lui-même, et les données. **550 cas**, chacun vérifié
 dans le code.*
 
 *État : à valider. Rien n'est à faire tant que les questions du § « Ce que seul
 le club peut trancher » n'ont pas de réponse.*
 
-**Annexes** — [les 549 cas](cas.md) · [les 298 règles](regles.md) ·
+**Annexes** — [les 550 cas](cas.md) · [les 298 règles](regles.md) ·
 [les 184 questions](questions.md)
 
 ---
@@ -53,7 +53,7 @@ trancher quand deux choses se disputent le même après-midi de travail.
 
 | | fait | partiel | absent | **faux** |
 |---|---|---|---|---|
-| **549 cas** | 185 | 153 | 88 | **123** |
+| **550 cas** | 185 | 154 | 88 | **123** |
 
 - **fait** — ça marche, des deux côtés.
 - **partiel** — ça marche d'un seul côté, ou à moitié.
@@ -62,7 +62,7 @@ trancher quand deux choses se disputent le même après-midi de travail.
   personne ne va vérifier ce qui a l'air de marcher.
 
 Par gravité : **49 cas bloquent un lundi**, 140 en gênent un, 152 gênent une
-saison, 208 relèvent du confort.
+saison, 209 relèvent du confort.
 
 *Tenu à jour à chaque lot. Au 11 septembre 2026, la spec 0004 a refermé cinq
 cas — dont quatre des 49 qui bloquent un lundi : il en reste **24 cassés** sur

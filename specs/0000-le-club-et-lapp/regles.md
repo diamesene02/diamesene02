@@ -217,7 +217,8 @@ tenue par « personne » est une règle qu'on croit avoir.
 
 - **Sur l'app, un match lancé depuis l'accueil ou la feuille « Créer » n'est rattaché à aucune soirée ; le serveur ne rattache pas par date.**
   <br>*Qui la tient :* personne
-  <br>`five-scorer-mobile/app/club/[id]/index.tsx:163-173 ; app/club/[id]/_layout.tsx:88-104 ; app/compo.tsx:245 ; app/api/clubs/[clubId]/matches/route.ts:203-209`
+  <br>*Vue en production le 17 septembre 2026 : le match du lundi 14/09 (Blanc 17–11 Noir) porte `matchDayId = NULL`, et le calendrier propose « Saisir » sur cette soirée — un second match. Voir `SOIREE-33`.*
+  <br>`five-scorer-mobile/app/club/[id]/index.tsx:95,179-189 ; app/club/[id]/_layout.tsx:138-153 ; app/compo.tsx:241-246 ; app/api/clubs/[clubId]/matches/route.ts:204-211 ; app/api/clubs/[clubId]/saison/route.ts:99,128-133`
 
 - **Une réponse explicite gagne toujours sur l'abonnement.**
   <br>*Qui la tient :* le serveur
