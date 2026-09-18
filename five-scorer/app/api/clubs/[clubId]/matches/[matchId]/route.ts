@@ -178,6 +178,32 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ ok: true });
   }
 
+  // Ranger un match dans sa soirée — la porte étroite, ouverte à qui peut
+  // scorer (spec 0007). Elle passe AVANT la garde générique, sur le modèle
+  // exact de la branche « rétablir » ci-dessus, et elle ne s'ouvre que si le
+  // corps ne porte QUE `matchDayId` : dès qu'il y a autre chose à écrire, on
+  // retombe sur `canManage`. Celui qui crée un match a le droit de dire à
+  // quel lundi il appartient ; pas d'en changer la date ni l'homme du match.
+  const clesEcrites = Object.keys(body).filter(
+    (k) => (body as Record<string, unknown>)[k] !== undefined,
+  );
+  if (clesEcrites.length === 1 && clesEcrites[0] === "matchDayId") {
+    if (!ctx.canScore) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (
+      body.matchDayId &&
+      !(await matchDayAppartientAuClub(body.matchDayId, clubId))
+    ) {
+      return NextResponse.json({ error: "Soirée inconnue" }, { status: 400 });
+    }
+    await prisma.match.update({
+      where: { id: matchId },
+      data: { matchDayId: body.matchDayId ?? null },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
   // Terminer un match LIVE : ouvert à qui peut scorer (idempotent).
   // Toute retouche d'un match déjà FINISHED : admin.
   const isFinishing = body.status === "FINISHED" && match.status === "LIVE";

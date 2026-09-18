@@ -11,7 +11,9 @@ import { estRetro } from "@/lib/retro";
 import Icon from "@/components/Icon";
 import MatchRsvpPanel from "./MatchRsvpPanel";
 import CancelMatchButton from "./CancelMatchButton";
+import { soireeDuJour } from "@/lib/matches";
 import RestoreMatchButton from "./RestoreMatchButton";
+import RangerDansSoireeButton from "./RangerDansSoireeButton";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +63,22 @@ export default async function MatchRecapPage({
   const soireeEnCours =
     match.matchDay && D.memeJour(match.matchDay.date, new Date())
       ? match.matchDay.id
+      : null;
+
+  // Un match sans soirée, un jour où une soirée existe : on propose de le
+  // ranger. C'est la destination des trois écrans qui réclamaient une
+  // feuille — ils mènent ici, et ici on range (spec 0007).
+  const soireeARanger =
+    match.matchDayId === null && match.status !== "CANCELED"
+      ? await (async () => {
+          const id = await soireeDuJour(prisma, ctx.club.id, match.playedAt);
+          return id
+            ? prisma.matchDay.findUnique({
+                where: { id },
+                select: { id: true, date: true },
+              })
+            : null;
+        })()
       : null;
   // Sauf quand on est en train de rattraper une soirée passée : là, « le
   // match suivant » est le deuxième match de CETTE soirée-là, pas un match de
@@ -411,6 +429,20 @@ export default async function MatchRecapPage({
             Q8). */}
         {ctx.canManage && match.status === "CANCELED" && (
           <RestoreMatchButton slug={slug} matchId={match.id} />
+        )}
+
+        {/* Le match n'appartient à aucune soirée, et une soirée existe ce
+            jour-là : c'est ici qu'atterrissent les trois écrans qui
+            réclamaient une feuille. Ouvert à qui peut scorer (spec 0007) —
+            celui qui a fabriqué l'orphelin peut le ranger, sans attendre un
+            admin le mardi matin. */}
+        {ctx.canScore && soireeARanger && (
+          <RangerDansSoireeButton
+            slug={slug}
+            matchId={match.id}
+            soireeId={soireeARanger.id}
+            libelle={`Soirée du ${D.jourLong(soireeARanger.date)}`}
+          />
         )}
       </RecapView>
     </main>

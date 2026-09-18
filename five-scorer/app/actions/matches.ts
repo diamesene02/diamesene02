@@ -85,6 +85,56 @@ export type EditMatchInput = {
   matchDayId?: string | null;
 };
 
+/// Ranger un match dans sa soirée — ou l'en sortir.
+///
+/// **Ouvert à qui peut scorer**, et c'est tout l'objet de cette fonction
+/// (spec 0007, tranché le 17 septembre 2026). Jusqu'ici le seul chemin était
+/// `updateMatchDetails`, réservé aux admins : le marqueur du lundi soir
+/// pouvait fabriquer un match sans soirée et ne pouvait pas le réparer — un
+/// cul-de-sac, que l'article V interdit. Celui qui a le droit de créer un
+/// match a le droit de dire à quel lundi il appartient.
+///
+/// Ce qui ne s'ouvre PAS : le reste du formulaire d'édition. La date, la
+/// saison, l'homme du match et les noms d'équipe restent `canManage`. C'est
+/// une porte étroite, pas une ouverture du formulaire.
+///
+/// `null` détache — « Aucune — match isolé ». C'est un choix humain, et le
+/// serveur ne repassera jamais dessus : le repli de `soireeDuJour` ne joue
+/// qu'à la création.
+export async function rattacherMatch(
+  slug: string,
+  matchId: string,
+  matchDayId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!idsValides(matchId) || !estIdOuVide(matchDayId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
+  const ctx = await requireClub(slug);
+  if (!ctx.canScore) return { ok: false, error: "Non autorisé." };
+
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, clubId: ctx.club.id },
+    select: { id: true },
+  });
+  if (!match) return { ok: false, error: "Match introuvable." };
+
+  if (matchDayId && !(await matchDayAppartientAuClub(matchDayId, ctx.club.id))) {
+    return { ok: false, error: "Soirée inconnue." };
+  }
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { matchDayId: matchDayId ?? null },
+  });
+
+  revalidatePath(`/c/${slug}`);
+  revalidatePath(`/c/${slug}/saison`);
+  revalidatePath(`/c/${slug}/matches/${matchId}`);
+  if (matchDayId) revalidatePath(`/c/${slug}/sessions/${matchDayId}`);
+  return { ok: true };
+}
+
 export async function updateMatchDetails(
   slug: string,
   matchId: string,
