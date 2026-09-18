@@ -875,6 +875,102 @@ async function main() {
     `${retabli.chronologie.length} but(s)`,
   );
 
+  // --- 3 bis⁶. Le match du lundi appartient au lundi (spec 0007) -------------
+  //
+  // La règle vit dans le serveur (`lib/matches.ts`, `soireeDuJour`) et
+  // s'applique au point de passage des deux clients. On la vérifie donc là où
+  // l'app la rencontrera : par HTTP, en créant un match SANS soirée un jour où
+  // une soirée existe.
+  //
+  // Le match porte un identifiant FIXE : l'upsert du serveur est idempotent,
+  // donc rejouer ce parcours ne crée pas un second match. Et ce rejeu est
+  // lui-même une vérification — l'`update` de l'upsert ne porte pas
+  // `matchDayId`, donc un match déjà en base ne se voit jamais réattribuer une
+  // soirée. C'est ce qui protège le « Aucune — match isolé » choisi exprès.
+
+  console.log("\n— le match du lundi appartient au lundi —");
+  const jourDeLaSoiree = compo.matchDay.date;
+  const deuxJoueurs = f.participants.slice(0, 2).map((p) => ({ playerId: p.playerId }));
+  const deuxAutres = f.participants.slice(2, 4).map((p) => ({ playerId: p.playerId }));
+
+  const rAuto = await envoyer(`${C}/matches`, "POST", {
+    id: "match-essai-rattache",
+    playedAt: jourDeLaSoiree,
+    teamA: deuxJoueurs,
+    teamB: deuxAutres,
+    teamAName: "Blanc",
+    teamBName: "Noir",
+    // AUCUN matchDayId : c'est tout l'objet du test.
+  });
+  ok(rAuto.ok, "un match créé sans soirée est accepté", `HTTP ${rAuto.status}`);
+
+  const [, apresAuto] = await lire(`${C}/matches?limite=100`);
+  const auto = apresAuto.matches.find((m) => m.id === "match-essai-rattache");
+  ok(
+    auto?.matchDayId === compo.matchDay.id,
+    "…et le serveur l'a rattaché à la soirée de ce jour-là, tout seul",
+    `${auto?.matchDayId} attendu ${compo.matchDay.id}`,
+  );
+
+  // Un match d'un jour SANS soirée reste isolé — et c'est juste.
+  const rIsole = await envoyer(`${C}/matches`, "POST", {
+    id: "match-essai-isole",
+    // Un mercredi lointain, où aucune soirée n'existe.
+    playedAt: new Date(Date.parse(jourDeLaSoiree) + 2 * 86400_000).toISOString(),
+    teamA: deuxJoueurs,
+    teamB: deuxAutres,
+  });
+  ok(rIsole.ok, "un match un jour sans soirée est accepté aussi", `HTTP ${rIsole.status}`);
+  const [, apresIsole] = await lire(`${C}/matches?limite=100`);
+  const isole = apresIsole.matches.find((m) => m.id === "match-essai-isole");
+  ok(
+    isole?.matchDayId === null,
+    "…et il reste isolé : sans lundi à rejoindre, on ne rattache rien",
+    `${isole?.matchDayId}`,
+  );
+
+  // Le rejeu ne réattribue pas : l'upsert ne met à jour que les noms.
+  const rRejeuIsole = await envoyer(`${C}/matches`, "POST", {
+    id: "match-essai-isole",
+    playedAt: jourDeLaSoiree, // cette fois AVEC un jour de soirée
+    teamA: deuxJoueurs,
+    teamB: deuxAutres,
+  });
+  ok(rRejeuIsole.ok, "on rejoue le même identifiant, daté du jour de la soirée", `HTTP ${rRejeuIsole.status}`);
+  const [, apresRejeuIsole] = await lire(`${C}/matches?limite=100`);
+  ok(
+    apresRejeuIsole.matches.find((m) => m.id === "match-essai-isole")?.matchDayId === null,
+    "…et il reste isolé : un match déjà en base ne se voit JAMAIS réattribuer une soirée",
+  );
+
+  // Un identifiant de soirée qui n'en est pas un est refusé avant Prisma.
+  const rSoireeTordue = await envoyer(`${C}/matches`, "POST", {
+    matchDayId: { in: ["x"] },
+    teamA: deuxJoueurs,
+    teamB: deuxAutres,
+  });
+  ok(
+    rSoireeTordue.status === 400,
+    "une soirée qui est un objet : 400, pas un filtre Prisma",
+    `HTTP ${rSoireeTordue.status}`,
+  );
+
+  // On laisse la scène comme on l'a trouvée. Un match naît LIVE : sans ce coup
+  // de sifflet, le DEUXIÈME passage de ce parcours verrait trois matchs
+  // ouverts et l'assertion « y a-t-il déjà un match ouvert ? » tomberait.
+  // C'est la leçon déjà écrite plus haut dans ce fichier — un test qui ne
+  // passe qu'une fois n'est pas un test — et celui-ci l'a rappelée en
+  // échouant au deuxième tour.
+  for (const id of ["match-essai-rattache", "match-essai-isole"]) {
+    await envoyer(`${C}/matches/${id}`, "PATCH", { status: "FINISHED" });
+  }
+  const [, ouvertsApres] = await lire(`${C}/matches?status=LIVE`);
+  ok(
+    ouvertsApres.matches.length === 1,
+    "…et on n'a laissé qu'un seul match ouvert derrière nous",
+    `${ouvertsApres.matches.length}`,
+  );
+
   // --- 3 bis⁴. Rejoindre un club --------------------------------------------
   //
   // Le geste d'AVANT tous les autres : sans lui, quelqu'un qui installe l'app

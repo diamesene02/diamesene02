@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
-import { matchVerrouille } from "@/lib/matches";
+import { matchVerrouille, soireeDuJour } from "@/lib/matches";
+import { estIdOuVide } from "@/lib/ids";
 import type { MatchKind, MatchStatus } from "@prisma/client";
 
 type Ctx = { params: Promise<{ clubId: string }> };
@@ -152,6 +153,13 @@ export async function POST(req: Request, { params }: Ctx) {
   const kind: MatchKind =
     body.matchKind === "EXTERNAL" ? "EXTERNAL" : "INTERNAL";
 
+  // `body.matchDayId` part dans un `where` Prisma plus bas : sans ce
+  // contrôle, un objet y passe pour un filtre (cf. lib/ids.ts). Les deux
+  // autres écritures de ce champ le vérifiaient déjà ; celle-ci non.
+  if (!estIdOuVide(body.matchDayId)) {
+    return NextResponse.json({ error: "Identifiant invalide" }, { status: 400 });
+  }
+
   // Saison : celle demandée SI elle appartient à ce club, sinon la saison
   // active. matchDayId et opponentId étaient déjà revérifiés ainsi ; seasonId
   // ne l'était pas, et un match rattaché à la saison d'un autre club
@@ -200,8 +208,28 @@ export async function POST(req: Request, { params }: Ctx) {
         throw new Error("player_scope");
       }
 
-      // Ancrages optionnels : ignorés s'ils n'appartiennent pas au club.
-      const matchDayId = body.matchDayId
+      // La soirée : celle demandée SI elle appartient à ce club, sinon celle
+      // du jour où le match s'est joué (spec 0007).
+      //
+      // C'est le miroir du repli de saison écrit trente lignes plus haut, et
+      // il a fallu la même leçon pour l'écrire : un match qui n'appartient à
+      // aucune soirée disparaît du bilan de son lundi, du mot du mardi matin
+      // et du calendrier — sans erreur ni trace. Pire, trois écrans le
+      // voyaient comme « cette soirée n'a pas été jouée » et proposaient de
+      // saisir une feuille vierge, c'est-à-dire de fabriquer un doublon.
+      //
+      // `playedAt` et non `new Date()` : la file hors-ligne rejoue parfois
+      // trois jours plus tard, et c'est le lundi du gymnase qui compte, pas
+      // le mercredi du rejeu.
+      //
+      // Le repli ne s'applique qu'ici, à la création. L'`update` de l'upsert
+      // plus bas ne porte pas `matchDayId` : un match déjà en base ne se voit
+      // jamais réattribuer une soirée, ce qui protège le « Aucune — match
+      // isolé » choisi exprès dans le formulaire d'édition. En base, « n'a
+      // jamais eu de soirée » et « détachée volontairement » sont le même
+      // `null` — ne jamais repasser est la seule façon de ne pas écraser un
+      // choix humain.
+      const matchDayDemandee = body.matchDayId
         ? ((
             await tx.matchDay.findFirst({
               where: { id: body.matchDayId, clubId },
@@ -209,6 +237,9 @@ export async function POST(req: Request, { params }: Ctx) {
             })
           )?.id ?? null)
         : null;
+      const matchDayId =
+        matchDayDemandee ??
+        (await soireeDuJour(tx, clubId, playedAt ?? new Date()));
       const opponentId =
         kind === "EXTERNAL" && body.opponentId
           ? ((

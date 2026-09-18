@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { MatchKind } from "@prisma/client";
+import type { MatchKind, Prisma } from "@prisma/client";
 import { fenetreDuJour } from "./jour";
 
 export { matchVerrouille } from "./matchStatus";
@@ -76,13 +76,14 @@ export async function matchDayAppartientAuClub(
   return count > 0;
 }
 
-/// Le strict nécessaire pour lire les soirées : le client global ou une
-/// transaction en cours. Le POST des matchs travaille dans un `$transaction`,
-/// et une règle qui ne saurait pas y entrer se ferait doubler par sa propre
-/// écriture.
-type LecteurSoirees = {
-  matchDay: { findMany: (args: unknown) => Promise<{ id: string }[]> };
-};
+/// Le client global ou une transaction en cours. Le POST des matchs travaille
+/// dans un `$transaction`, et une règle qui ne saurait pas y entrer se ferait
+/// doubler par sa propre écriture : elle lirait les soirées hors de la
+/// transaction qui est en train d'écrire le match.
+///
+/// `Prisma.TransactionClient` est un `Omit` du client complet — le client
+/// global lui est donc assignable, et les deux appelants passent sans cast.
+type LecteurSoirees = Pick<Prisma.TransactionClient, "matchDay">;
 
 /// **La règle du lot 0007 : un match rejoint la soirée de son jour.**
 ///
