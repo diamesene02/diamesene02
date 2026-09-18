@@ -1,15 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import type { MatchKind, Prisma } from "@prisma/client";
-import { fenetreDuJour } from "./jour";
+import { cleJour, fenetreDuJour } from "./jour";
 
 export { matchVerrouille } from "./matchStatus";
 
 /// Au-delà de six semaines on se tait — le score, plus personne ne l'a en
-/// tête. Posée une seule fois ici et appelée par les deux endroits qui
-/// décident si une soirée jouée sans feuille est encore rattrapable :
-/// `app/api/clubs/[clubId]/saison/route.ts` (l'API que lit l'app) et
-/// `app/c/[slug]/saison/page.tsx` (le calendrier du site). Sans ce partage,
+/// tête. Posée une seule fois ici et appelée par les TROIS endroits qui
+/// décident si une soirée jouée sans feuille est encore réclamée :
+/// `app/api/clubs/[clubId]/saison/route.ts` (l'API que lit l'app),
+/// `app/c/[slug]/saison/page.tsx` (le calendrier du site) et
+/// `app/c/[slug]/page.tsx` (le bandeau de l'accueil). Sans ce partage,
 /// la fenêtre se recopie et finit par diverger (article III).
+///
+/// Ce commentaire a dit « les deux endroits » du 16 au 18 septembre 2026,
+/// alors que le bandeau de l'accueil recopiait `42 * 86_400_000` en dur — la
+/// tâche 8 du lot 0001 avait rassemblé trois appelants et manqué le
+/// quatrième. `/analyser` l'a trouvé le 17 ; le lot 0007 l'a rapatrié.
 export const SIX_SEMAINES_MS = 42 * 86400_000;
 
 export function rattrapable(dateMs: number, maintenant: number): boolean {
@@ -122,6 +128,82 @@ export async function soireeDuJour(
     take: 2,
   });
   return soirees.length === 1 ? soirees[0].id : null;
+}
+
+/// Ce qu'un écran doit proposer pour une soirée passée qui n'a pas de
+/// résultat. Trois réponses, et une seule fabrique une feuille.
+export type Reclamation =
+  | { quoi: "rien" }
+  | { quoi: "saisir" }
+  | { quoi: "rattacher"; matchId: string };
+
+/// Les matchs qui n'appartiennent à aucune soirée, rangés par jour du club.
+///
+/// **Une seule requête pour un calendrier entier** : les trois écrans qui
+/// réclament affichent des dizaines de soirées, et poser la question une fois
+/// par ligne coûterait autant de requêtes.
+///
+/// `LIVE` compte autant que `FINISHED` : une feuille restée ouverte n'est pas
+/// « aucun match », c'est un match qu'on a oublié de siffler. L'ignorer
+/// ferait proposer une seconde feuille par-dessus la première.
+export async function orphelinsParJour(
+  db: Pick<Prisma.TransactionClient, "match">,
+  clubId: string,
+  bornes: { debut: Date; fin: Date },
+): Promise<Map<string, string>> {
+  const matchs = await db.match.findMany({
+    where: {
+      clubId,
+      matchDayId: null,
+      status: { in: ["LIVE", "FINISHED"] },
+      playedAt: { gte: bornes.debut, lt: bornes.fin },
+    },
+    select: { id: true, playedAt: true },
+    orderBy: { playedAt: "asc" },
+  });
+  const parJour = new Map<string, string>();
+  // Le premier du jour suffit : l'écran propose de ranger la soirée, pas de
+  // faire l'inventaire. Ranger le premier fait disparaître la réclamation, et
+  // le suivant se voit au tour d'après.
+  for (const m of matchs) {
+    const cle = cleJour(m.playedAt);
+    if (!parJour.has(cle)) parJour.set(cle, m.id);
+  }
+  return parJour;
+}
+
+/// **Ce qu'un écran doit dire d'une soirée passée** — la question unique qui
+/// remplace les trois versions divergentes du calendrier de l'app, du
+/// calendrier du site et du bandeau de l'accueil.
+///
+/// L'ordre des refus compte :
+///
+/// 1. une soirée **annulée** ne réclame rien — elle n'a pas eu lieu ;
+/// 2. une soirée qui a **déjà un match** (ouvert ou terminé) n'a rien à
+///    réclamer. C'est ce qui garde « On rejoue » possible : la question n'est
+///    pas « cette soirée a-t-elle un résultat ? » mais « y a-t-il quelque
+///    chose à ranger ? » — le deuxième match d'un lundi n'est pas un doublon ;
+/// 3. au-delà de **six semaines** on se tait (`rattrapable`) — le score, plus
+///    personne ne l'a en tête ;
+/// 4. s'il existe un match **de ce jour-là sans soirée**, on propose de le
+///    RATTACHER. Jamais une feuille vierge : elle fabriquerait un doublon, et
+///    le vrai match, lui, est déjà là ;
+/// 5. sinon seulement, on propose de saisir.
+///
+/// `orphelins` vient de `orphelinsParJour`, qui utilise la même
+/// `fenetreDuJour` que `soireeDuJour`. C'est ce qui garantit que la règle et
+/// la question regardent la même fenêtre : sans ça, un match joué à 23:50 et
+/// daté du mardi laisserait la soirée du lundi réclamée pour toujours.
+export function soireeReclame(
+  soiree: { date: Date; canceledAt: Date | null; matchsActifs: number },
+  orphelins: Map<string, string>,
+  maintenant: number,
+): Reclamation {
+  if (soiree.canceledAt) return { quoi: "rien" };
+  if (soiree.matchsActifs > 0) return { quoi: "rien" };
+  if (!rattrapable(soiree.date.getTime(), maintenant)) return { quoi: "rien" };
+  const orphelin = orphelins.get(cleJour(soiree.date));
+  return orphelin ? { quoi: "rattacher", matchId: orphelin } : { quoi: "saisir" };
 }
 
 /// Longueur maximale d'un nom d'équipe saisi par un membre (APRES-21) — posée

@@ -18,6 +18,8 @@ import {
   retablirMatch,
   SIX_SEMAINES_MS,
   soireeDuJour,
+  orphelinsParJour,
+  soireeReclame,
 } from "./matches";
 import { estIdOuVide } from "./ids";
 
@@ -628,5 +630,117 @@ describe("soireeDuJour", () => {
     expect(await soireeDuJour(prisma, ORG_ID, a0630)).toBe(md.id);
 
     await prisma.matchDay.delete({ where: { id: md.id } });
+  });
+});
+
+// La question que les trois écrans posent — celle qui remplace leurs trois
+// versions divergentes. Le piège qu'elle évite : réclamer une feuille pour
+// une soirée dont le match existe déjà, ce qui fabriquerait un doublon.
+describe("orphelinsParJour et soireeReclame", () => {
+  const LUNDI = new Date("2026-09-14T17:00:00Z"); // 19:00 à Paris
+  const LARGE = {
+    debut: new Date("2026-09-01T00:00:00Z"),
+    fin: new Date("2026-10-01T00:00:00Z"),
+  };
+  const MAINTENANT = new Date("2026-09-17T12:00:00Z").getTime();
+
+  it("trouve un orphelin du bon jour, ignore un match déjà rattaché", async () => {
+    const md = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: LUNDI },
+    });
+    const orphelin = await prisma.match.create({
+      data: {
+        clubId: ORG_ID,
+        status: "FINISHED",
+        playedAt: new Date("2026-09-14T16:46:00Z"),
+      },
+    });
+    const range = await prisma.match.create({
+      data: {
+        clubId: ORG_ID,
+        status: "FINISHED",
+        playedAt: new Date("2026-09-14T16:50:00Z"),
+        matchDayId: md.id,
+      },
+    });
+
+    const parJour = await orphelinsParJour(prisma, ORG_ID, LARGE);
+    expect(parJour.get("2026-09-14")).toBe(orphelin.id);
+
+    await prisma.match.deleteMany({
+      where: { id: { in: [orphelin.id, range.id] } },
+    });
+    await prisma.matchDay.delete({ where: { id: md.id } });
+  });
+
+  it("une soirée qui a déjà un match ne réclame rien — « On rejoue » reste possible", () => {
+    const r = soireeReclame(
+      { date: LUNDI, canceledAt: null, matchsActifs: 1 },
+      new Map([["2026-09-14", "peu-importe"]]),
+      MAINTENANT,
+    );
+    expect(r).toEqual({ quoi: "rien" });
+  });
+
+  it("une soirée vide avec un orphelin du jour propose de RATTACHER, pas de saisir", () => {
+    const r = soireeReclame(
+      { date: LUNDI, canceledAt: null, matchsActifs: 0 },
+      new Map([["2026-09-14", "m-17-11"]]),
+      MAINTENANT,
+    );
+    expect(r).toEqual({ quoi: "rattacher", matchId: "m-17-11" });
+  });
+
+  it("une soirée vraiment vide propose de saisir — le rattrapage légitime", () => {
+    const r = soireeReclame(
+      { date: LUNDI, canceledAt: null, matchsActifs: 0 },
+      new Map(),
+      MAINTENANT,
+    );
+    expect(r).toEqual({ quoi: "saisir" });
+  });
+
+  it("une soirée annulée ne réclame rien", () => {
+    const r = soireeReclame(
+      { date: LUNDI, canceledAt: new Date(), matchsActifs: 0 },
+      new Map(),
+      MAINTENANT,
+    );
+    expect(r).toEqual({ quoi: "rien" });
+  });
+
+  it("au-delà de six semaines, on se tait", () => {
+    const r = soireeReclame(
+      { date: LUNDI, canceledAt: null, matchsActifs: 0 },
+      new Map(),
+      LUNDI.getTime() + SIX_SEMAINES_MS + 1,
+    );
+    expect(r).toEqual({ quoi: "rien" });
+  });
+
+  it("la fenêtre est la MÊME que celle de la règle : 23:30 est du lundi", async () => {
+    // C'est la contrainte que /analyser a nommée. Si les deux fenêtres
+    // divergeaient, un match de 23:30 serait rattaché par la règle mais
+    // introuvable par la question — la soirée resterait réclamée pour
+    // toujours.
+    const tard = await prisma.match.create({
+      data: {
+        clubId: ORG_ID,
+        status: "FINISHED",
+        playedAt: new Date("2026-09-14T21:30:00Z"), // 23:30 à Paris
+      },
+    });
+
+    const parJour = await orphelinsParJour(prisma, ORG_ID, LARGE);
+    expect(parJour.get("2026-09-14")).toBe(tard.id);
+    expect(
+      soireeReclame(
+        { date: LUNDI, canceledAt: null, matchsActifs: 0 },
+        parJour,
+        MAINTENANT,
+      ),
+    ).toEqual({ quoi: "rattacher", matchId: tard.id });
+
+    await prisma.match.delete({ where: { id: tard.id } });
   });
 });
