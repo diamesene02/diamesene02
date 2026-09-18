@@ -86,14 +86,29 @@ export default function Saison() {
       return router.push({ pathname: "/recap/[id]", params: { id: e.cible.id, clubId: id } });
     // « Saisir » : la compo s'ouvre en mode « déjà joué », datée de ce lundi-là
     // et rattachée à la soirée — sinon le match ne compterait sur aucune.
+    if (e.cible.quoi === "saisir") {
+      return router.push({
+        pathname: "/compo",
+        params: {
+          clubId: id,
+          quand: "deja",
+          soireeId: e.cible.id,
+          ...(e.cible.date ? { date: e.cible.date } : null),
+        },
+      });
+    }
+    // Un genre de cible que cette version ne connaît pas : on ouvre la
+    // soirée, jamais une feuille de création.
+    //
+    // « Saisir » était la branche PAR DÉFAUT jusqu'au 18 septembre 2026, et
+    // c'était un piège : le jour où le serveur enverrait un genre nouveau,
+    // tout téléphone pas encore mis à jour aurait ouvert une feuille vierge
+    // et fabriqué un doublon. Le serveur de la spec 0007 prend soin de
+    // n'envoyer que des genres connus ; cette version-ci n'a plus besoin de
+    // lui faire confiance pour ça.
     return router.push({
-      pathname: "/compo",
-      params: {
-        clubId: id,
-        quand: "deja",
-        soireeId: e.cible.id,
-        ...(e.cible.date ? { date: e.cible.date } : null),
-      },
+      pathname: "/soiree/[id]",
+      params: { id: e.cible.id, clubId: id },
     });
   };
 
