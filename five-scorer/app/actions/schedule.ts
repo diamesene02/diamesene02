@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
-import { nomEquipeTronque } from "@/lib/matches";
+import { nomEquipeTronque, soireeDuJour } from "@/lib/matches";
 import type { RsvpStatus } from "@prisma/client";
 
 /// Programmer un match à l'avance : le match naît SCHEDULED, les membres
@@ -44,7 +44,15 @@ export async function scheduleMatch(
     opponentName = opponent.name;
   }
 
-  // Rattachement optionnel à une session — ignoré si elle n'est pas au club.
+  // La soirée : celle demandée si elle est au club, sinon celle du jour où le
+  // match est programmé (spec 0007).
+  //
+  // Ce paramètre existait déjà, vérification comprise — et le seul formulaire
+  // qui appelle cette action ne l'a jamais passé
+  // (matches/schedule/ScheduleMatchForm.tsx). Tous les matchs programmés du
+  // club naissaient donc orphelins. On ferme la fabrique depuis le serveur,
+  // sans toucher au formulaire : c'est la démonstration, en un diff, que la
+  // règle était au mauvais étage.
   let matchDayId: string | null = null;
   if (input.matchDayId) {
     const md = await prisma.matchDay.findFirst({
@@ -53,6 +61,7 @@ export async function scheduleMatch(
     });
     matchDayId = md?.id ?? null;
   }
+  matchDayId ??= await soireeDuJour(prisma, ctx.club.id, scheduledAt);
 
   const season = await prisma.season.findFirst({
     where: { clubId: ctx.club.id, isActive: true },
