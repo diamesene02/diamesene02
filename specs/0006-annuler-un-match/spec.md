@@ -103,8 +103,14 @@ qu'annuler une soirée entière — pas un geste de simple marqueur.
 
 **Hors lot.** `APRES-24` le demande pour une SOIRÉE annulée, pas pour un
 match — pas mélangé ici. Un match annulé par erreur se relance en créant un
-nouveau match ; c'est un geste rare, et le mécanisme de retour n'existe même
-pas pour les soirées aujourd'hui.
+nouveau match ; c'est un geste rare.
+
+*Correction du 18 septembre 2026 : cette décision s'appuyait aussi sur « le
+mécanisme de retour n'existe même pas pour les soirées aujourd'hui ». C'était
+faux — `retablirSoiree` (`app/actions/calendrier.ts:64`) existait déjà quand
+ces lignes ont été écrites, complète et sans un seul appelant. La conclusion
+(hors lot) ne change pas ; sa raison, si. Trouvé par la recherche du lot
+0008.*
 
 ### Le lien public `/r/[id]` d'un match annulé ?
 

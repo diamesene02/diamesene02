@@ -535,8 +535,13 @@ par enthousiasme.
   mieux peser à part que glisser dans celui-ci.
 - **La soirée supprimée qui détache tout** — `deleteMatchDay` fait une
   suppression dure, `onDelete: SetNull` orpheline tous ses matchs en silence,
-  et l'action ment sur son succès. Aucun cas de la base ne le décrit ;
-  il en faudra un, et un lot.
+  et l'action ment sur son succès. C'est le lot 0008.
+
+  *Correction du 18 septembre 2026 : cette ligne disait « aucun cas de la base
+  ne le décrit ; il en faudra un ». C'était faux, et vérifiable — `SOIREE-51`
+  (⚠ faux) et `SOIREE-D3` (⚠ faux) le décrivent depuis le balayage du
+  10 septembre, et `regles.md:154` portait déjà la règle avec sa mention
+  « AUCUN écran ne l'appelle ». La recherche du lot 0008 l'a trouvé.*
 - **`SOIREE-63`** (◐ partiel · *confort*) et **`SOIREE-70`** (✗ absent · *gêne
   un lundi*) — cités par erreur dans mes premières notes du 17 septembre. Le
   premier demande un bouton « Ajouter une soirée » dans l'app, le second de
