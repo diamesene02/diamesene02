@@ -15,6 +15,7 @@ import LigneScore from "@/components/ios/LigneScore";
 import { nomsChasubles, DEFAULT_BIB_B } from "@/lib/color";
 import { ini, lettre } from "@/lib/ini";
 import { estRetro } from "@/lib/retro";
+import { orphelinsParJour, soireeReclame, SIX_SEMAINES_MS } from "@/lib/matches";
 import EnteteCollante from "./_accueil/EnteteCollante";
 import Banniere from "./_accueil/Banniere";
 import BoutonPresence from "./_accueil/BoutonPresence";
@@ -83,6 +84,13 @@ export default async function ClubHomePage({
   const clubId = ctx.club.id;
 
   const debutDeCeJour = D.debutDuJour();
+
+  // Les matchs sans soirée des six dernières semaines — la même fenêtre que
+  // celle qui décide si une soirée est encore réclamée (spec 0007).
+  const orphelins = await orphelinsParJour(prisma, clubId, {
+    debut: new Date(debutDeCeJour.getTime() - SIX_SEMAINES_MS),
+    fin: new Date(),
+  });
   const finDeCeJour = new Date(debutDeCeJour.getTime() + 86_400_000);
 
   const activeSeason = await prisma.season.findFirst({
@@ -247,7 +255,10 @@ export default async function ClubHomePage({
         canceledAt: null,
         date: {
           lt: debutDeCeJour,
-          gte: new Date(debutDeCeJour.getTime() - 42 * 86_400_000),
+          // La fenêtre vit dans lib/matches.ts et s'appelle ; elle était
+          // recopiée en dur ici, et le commentaire de la constante annonçait
+          // « deux appelants » alors qu'il y en avait trois (spec 0007).
+          gte: new Date(debutDeCeJour.getTime() - SIX_SEMAINES_MS),
         },
         // Un match seulement PROGRAMMÉ ne compte pas pour un résultat.
         matches: { none: { status: { in: ["LIVE", "FINISHED"] } } },
@@ -287,11 +298,22 @@ export default async function ClubHomePage({
   // Le nom court : « FC Lundi Soir » devient « Lundi Soir ».
   const clubShort = ctx.org.name.replace(/^(FC|AS|US|SC|Five)\s+/i, "");
 
-  // Rattacher le match à la soirée en cours, oui — à celle de la semaine
-  // prochaine, non. On ne recolle que si on est effectivement dedans.
+  // La soirée du jour, s'il y en a une — pour que le « Coup d'envoi » la
+  // passe explicitement et que la compo préparée s'y raccroche.
+  //
+  // Ce calcul portait, jusqu'au 18 septembre 2026, une fenêtre glissante de
+  // douze heures autour de l'instant présent : `Math.abs(soirée − maintenant)
+  // < 12 h`. Elle ratait un match lancé à 06:30 pour une soirée de 19:00
+  // (12 h 30 d'écart) et se calait sur `Date.now()` plutôt que sur la date du
+  // match, ce qui la faisait mentir au rejeu d'une file hors-ligne. Surtout,
+  // elle ne valait que pour ce bouton-ci : les deux liens voisins partaient
+  // sans soirée, et l'app n'en avait aucune. La règle vit désormais dans le
+  // serveur (`lib/matches.ts`, `soireeDuJour`), qui rattache par le JOUR — ce
+  // qui reste ici n'est qu'un raccourci d'affichage, et il n'a plus besoin
+  // d'être juste tout seul : si la soirée n'est pas passée, le serveur la
+  // retrouvera (spec 0007).
   const soireeEnCours =
-    nextMatchDay &&
-    Math.abs(nextMatchDay.date.getTime() - Date.now()) < 12 * 3600_000
+    nextMatchDay && D.memeJour(nextMatchDay.date, new Date())
       ? nextMatchDay
       : null;
 
@@ -737,17 +759,35 @@ export default async function ClubHomePage({
               ? `${soireesSansResultat.length} soirées sans résultat`
               : "Une soirée sans résultat"}
           </div>
-          {soireesSansResultat.map((s) => (
-            <Link
-              key={s.id}
-              href={`/c/${slug}/matches/new?md=${s.id}&joue=1`}
-              className="rangee"
-            >
-              <span className="quand">{jourLong(s.date)}</span>
-              <span className="acte">Saisir la feuille</span>
-              <Icon name="chevron" size={16} />
-            </Link>
-          ))}
+          {soireesSansResultat.map((s) => {
+            // Avant de réclamer une feuille, on regarde s'il existe déjà un
+            // match de ce jour-là sans soirée. Si oui, le lien mène au MATCH
+            // pour le ranger — jamais à une feuille vierge, qui en
+            // fabriquerait un second (spec 0007).
+            const r = soireeReclame(
+              { date: s.date, canceledAt: null, matchsActifs: 0 },
+              orphelins,
+              Date.now(),
+            );
+            const ranger = r.quoi === "rattacher";
+            return (
+              <Link
+                key={s.id}
+                href={
+                  ranger
+                    ? `/c/${slug}/matches/${r.matchId}`
+                    : `/c/${slug}/matches/new?md=${s.id}&joue=1`
+                }
+                className="rangee"
+              >
+                <span className="quand">{jourLong(s.date)}</span>
+                <span className="acte">
+                  {ranger ? "Ranger le match" : "Saisir la feuille"}
+                </span>
+                <Icon name="chevron" size={16} />
+              </Link>
+            );
+          })}
         </section>
       )}
 

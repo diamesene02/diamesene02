@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { nomsChasubles } from "@/lib/color";
 import { calculerPresences, phraseEtat } from "@/lib/presences";
-import { rattrapable } from "@/lib/matches";
+import { orphelinsParJour, soireeReclame, SIX_SEMAINES_MS } from "@/lib/matches";
 import Onglets from "@/components/ios/Onglets";
 import Ecusson from "@/components/ios/Ecusson";
 import CalendrierForm from "./CalendrierForm";
@@ -74,6 +74,13 @@ export default async function SaisonPage({
   const noms = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
   const now = Date.now();
 
+  // Les matchs sans soirée des six dernières semaines, en une requête pour
+  // tout le calendrier (spec 0007).
+  const orphelins = await orphelinsParJour(prisma, ctx.club.id, {
+    debut: new Date(now - SIX_SEMAINES_MS),
+    fin: new Date(now),
+  });
+
   // ── Le calendrier : soirées et matchs externes, dans l'ordre des dates ──
   type Entree = {
     cle: string;
@@ -88,7 +95,11 @@ export default async function SaisonPage({
   const entrees: Entree[] = [];
   for (const md of soirees) {
     const heure = D.heure(md.date);
-    const joues = md.matches.filter((m) => m.status === "FINISHED").length;
+    // LIVE compte : une feuille restée ouverte n'est pas « aucun match »
+    // (spec 0007).
+    const joues = md.matches.filter(
+      (m) => m.status === "FINISHED" || m.status === "LIVE",
+    ).length;
     const direct = md.matches.some((m) => m.status === "LIVE");
     const reponses = md.rsvps.filter((r) => r.status !== null).length;
     const maReponse = moi ? md.rsvps.find((r) => r.playerId === moi.id) : null;
@@ -109,14 +120,29 @@ export default async function SaisonPage({
       sous = [md.location, joues ? `${joues} match${joues > 1 ? "s" : ""} joué${joues > 1 ? "s" : ""}` : "aucun match"].filter(Boolean).join(" · ");
       etiquette = joues ? "Jouée" : "";
       ton = "muet";
-      // Une soirée jouée sans feuille ne disparaît pas en silence : le
-      // calendrier la réclame, et le lien mène droit à la saisie. Au-delà de
-      // six semaines on se tait — le score, plus personne ne l'a en tête.
-      const encoreRattrapable = rattrapable(md.date.getTime(), now);
-      if (!joues && encoreRattrapable && ctx.canScore) {
-        etiquette = "Saisir";
-        ton = "appel";
-        href = `/c/${slug}/matches/new?md=${md.id}&joue=1`;
+      // Une soirée jouée sans feuille ne disparaît pas en silence. Mais on
+      // regarde d'abord s'il n'existe pas déjà un match de ce jour-là sans
+      // soirée : dans ce cas le lien mène au MATCH, pour le ranger — jamais à
+      // une feuille vierge, qui en fabriquerait un second (spec 0007). Même
+      // question que les deux autres écrans qui réclament.
+      if (ctx.canScore) {
+        const r = soireeReclame(
+          { date: md.date, canceledAt: md.canceledAt, matchsActifs: joues },
+          orphelins,
+          now,
+        );
+        if (r.quoi === "rattacher") {
+          etiquette = "Ranger";
+          ton = "appel";
+          sous = [md.location, "un match de ce jour n'a pas de soirée"]
+            .filter(Boolean)
+            .join(" · ");
+          href = `/c/${slug}/matches/${r.matchId}`;
+        } else if (r.quoi === "saisir") {
+          etiquette = "Saisir";
+          ton = "appel";
+          href = `/c/${slug}/matches/new?md=${md.id}&joue=1`;
+        }
       }
     } else {
       // « 3 réponses » ne dit pas si la soirée tient. L'état, oui — et il

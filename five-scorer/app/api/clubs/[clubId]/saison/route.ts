@@ -5,7 +5,8 @@ import { getClubApiContext } from "@/lib/guard";
 import { nomsChasubles } from "@/lib/color";
 import { calculerPresences, phraseEtat } from "@/lib/presences";
 import { ini } from "@/lib/ini";
-import { rattrapable } from "@/lib/matches";
+import { orphelinsParJour, soireeReclame } from "@/lib/matches";
+import { SIX_SEMAINES_MS } from "@/lib/matches";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,14 @@ export async function GET(
   const noms = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
   const now = Date.now();
 
+  // Les matchs sans soirée des six dernières semaines — la fenêtre au-delà de
+  // laquelle on se tait de toute façon. Une seule requête pour tout le
+  // calendrier (spec 0007).
+  const orphelins = await orphelinsParJour(prisma, clubId, {
+    debut: new Date(now - SIX_SEMAINES_MS),
+    fin: new Date(now),
+  });
+
   type Cible = { quoi: "soiree" | "match" | "saisir"; id: string; date?: string };
   type Entree = {
     cle: string;
@@ -96,7 +105,11 @@ export async function GET(
 
   for (const md of soirees) {
     const heure = D.heure(md.date);
-    const joues = md.matches.filter((m) => m.status === "FINISHED").length;
+    // LIVE compte : une feuille restée ouverte n'est pas « aucun match »,
+    // c'est un match qu'on a oublié de siffler (spec 0007).
+    const joues = md.matches.filter(
+      (m) => m.status === "FINISHED" || m.status === "LIVE",
+    ).length;
     const direct = md.matches.some((m) => m.status === "LIVE");
     const maReponse = moi ? md.rsvps.find((r) => r.playerId === moi.id) : null;
     const passee = md.date.getTime() < now - 6 * 3600_000 && !direct;
@@ -121,15 +134,38 @@ export async function GET(
         .join(" · ");
       etiquette = joues ? "Jouée" : "";
       ton = "muet";
-      // Une soirée jouée sans feuille ne disparaît pas en silence : le
-      // calendrier la réclame, et la rangée mène droit à la saisie, datée du
-      // bon lundi. Au-delà de six semaines on se tait — le score, plus
-      // personne ne l'a en tête.
-      const encoreRattrapable = rattrapable(md.date.getTime(), now);
-      if (!joues && encoreRattrapable && ctx.canScore) {
-        etiquette = "Saisir";
-        ton = "appel";
-        cible = { quoi: "saisir", id: md.id, date: md.date.toISOString() };
+      // Une soirée jouée sans feuille ne disparaît pas en silence. Mais
+      // avant de réclamer, on regarde s'il n'y a pas déjà un match de ce
+      // jour-là sans soirée : dans ce cas on propose de le RANGER, pas d'en
+      // saisir un second — qui serait un doublon du vrai (spec 0007). La
+      // question est la même pour les trois écrans qui réclament.
+      if (ctx.canScore) {
+        const r = soireeReclame(
+          { date: md.date, canceledAt: md.canceledAt, matchsActifs: joues },
+          orphelins,
+          now,
+        );
+        if (r.quoi === "rattacher") {
+          // La rangée mène au MATCH, pas à une feuille de création.
+          //
+          // On n'invente PAS un genre de cible : `saison.tsx` aiguille sur
+          // `cible.quoi` avec « saisir » en branche PAR DÉFAUT, donc un
+          // téléphone qui n'a pas encore pris la mise à jour ouvrirait une
+          // feuille vierge sur un genre inconnu — précisément le doublon que
+          // ce lot existe pour empêcher. En renvoyant « match », toutes les
+          // versions de l'app font la bonne chose : elles ouvrent le récap du
+          // match orphelin. Le geste de rattachement vit sur cet écran-là.
+          etiquette = "Ranger";
+          ton = "appel";
+          sous = [md.location, "un match de ce jour n'a pas de soirée"]
+            .filter(Boolean)
+            .join(" · ");
+          cible = { quoi: "match", id: r.matchId };
+        } else if (r.quoi === "saisir") {
+          etiquette = "Saisir";
+          ton = "appel";
+          cible = { quoi: "saisir", id: md.id, date: md.date.toISOString() };
+        }
       }
     } else {
       // « 3 réponses » ne dit pas si la soirée tient. L'état, oui — et il

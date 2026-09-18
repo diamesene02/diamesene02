@@ -5,7 +5,7 @@ import "server-only";
 // hors React Server, et la règle « un match rejoint la soirée du même jour »
 // devait être testable (article VIII). On les ré-exporte pour que les appels
 // existants ne bougent pas.
-export { FUSEAU, minuit, debutDuJour } from "./jour";
+export { FUSEAU, minuit, debutDuJour, memeJour, cleJour } from "./jour";
 import { FUSEAU } from "./jour";
 
 const fmt = (options: Intl.DateTimeFormatOptions) =>

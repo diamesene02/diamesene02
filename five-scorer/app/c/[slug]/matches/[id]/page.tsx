@@ -54,9 +54,12 @@ export default async function MatchRecapPage({
       select: { id: true },
     }),
   ]);
+  // Même histoire qu'à l'accueil : ce calcul portait une seconde copie de la
+  // fenêtre glissante de douze heures, sans nom ni test. Le jour du club a
+  // remplacé les deux, et la règle qui rattache vraiment vit dans le serveur
+  // (spec 0007).
   const soireeEnCours =
-    match.matchDay &&
-    Math.abs(match.matchDay.date.getTime() - Date.now()) < 12 * 3600_000
+    match.matchDay && D.memeJour(match.matchDay.date, new Date())
       ? match.matchDay.id
       : null;
   // Sauf quand on est en train de rattraper une soirée passée : là, « le
