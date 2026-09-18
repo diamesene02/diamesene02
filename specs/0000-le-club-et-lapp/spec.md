@@ -53,7 +53,7 @@ trancher quand deux choses se disputent le même après-midi de travail.
 
 | | fait | partiel | absent | **faux** |
 |---|---|---|---|---|
-| **550 cas** | 185 | 154 | 88 | **123** |
+| **550 cas** | 186 | 154 | 88 | **122** |
 
 - **fait** — ça marche, des deux côtés.
 - **partiel** — ça marche d'un seul côté, ou à moitié.
