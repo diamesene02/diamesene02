@@ -156,7 +156,7 @@ cd five-scorer && npx tsc --noEmit
 - `app/actions/matches.ts` : `rattacherMatch(slug, matchId, matchDayId | null)`,
   gardée `canScore`, qui ne touche **que** `matchDayId` et réutilise
   `matchDayAppartientAuClub`. `updateMatchDetails` reste `canManage`
-  (`:110`), `/edit` reste `canManage` (`edit/page.tsx:16`).
+  (`:110`), `/edit` reste `canManage` (`app/c/[slug]/matches/[id]/edit/page.tsx:16`).
 - `app/api/clubs/[clubId]/matches/[matchId]/route.ts` : une branche
   « rattachement seul » **avant** la garde générique, sur le modèle exact de
   la branche « rétablir » (`:169-170`). Un corps qui ne porte que
