@@ -17,6 +17,7 @@ import {
   rattrapable,
   retablirMatch,
   SIX_SEMAINES_MS,
+  soireeDuJour,
 } from "./matches";
 import { estIdOuVide } from "./ids";
 
@@ -525,5 +526,107 @@ describe("rattrapable — la fenêtre de six semaines", () => {
   it("à six semaines pile, plus rattrapable — c'est un « strictement inférieur »", () => {
     const maintenant = Date.now();
     expect(rattrapable(maintenant - SIX_SEMAINES_MS, maintenant)).toBe(false);
+  });
+});
+
+// La règle du lot 0007 : un match rejoint la soirée de son jour.
+//
+// Les dates sont écrites en UTC et lues à Paris : un match « du lundi 14 » à
+// 18:46 heure du gymnase est 16:46 UTC. C'est volontaire — écrire les cas
+// dans le fuseau du serveur serait écrire le bug qu'on répare.
+describe("soireeDuJour", () => {
+  const LUNDI_19H = new Date("2026-09-14T17:00:00Z"); // 19:00 à Paris
+  const LUNDI_1846 = new Date("2026-09-14T16:46:00Z"); // 18:46 à Paris
+
+  it("rend la soirée quand il y en a une ce jour-là", async () => {
+    const md = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: LUNDI_19H },
+    });
+
+    expect(await soireeDuJour(prisma, ORG_ID, LUNDI_1846)).toBe(md.id);
+
+    await prisma.matchDay.delete({ where: { id: md.id } });
+  });
+
+  it("rend null quand aucune soirée ce jour-là — et c'est une réponse, pas un échec", async () => {
+    const md = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: LUNDI_19H },
+    });
+
+    // Le dimanche 13 : on a joué, mais aucune soirée n'existait. Il a raison
+    // de rester isolé.
+    const dimanche = new Date("2026-09-13T10:30:00Z");
+    expect(await soireeDuJour(prisma, ORG_ID, dimanche)).toBeNull();
+
+    await prisma.matchDay.delete({ where: { id: md.id } });
+  });
+
+  it("rend null quand DEUX soirées partagent le jour — on ne tranche pas au hasard", async () => {
+    const a = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: LUNDI_19H },
+    });
+    const b = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: new Date("2026-09-14T19:00:00Z") },
+    });
+
+    expect(await soireeDuJour(prisma, ORG_ID, LUNDI_1846)).toBeNull();
+
+    await prisma.matchDay.deleteMany({ where: { id: { in: [a.id, b.id] } } });
+  });
+
+  it("ignore une soirée annulée", async () => {
+    const md = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: LUNDI_19H, canceledAt: new Date() },
+    });
+
+    expect(await soireeDuJour(prisma, ORG_ID, LUNDI_1846)).toBeNull();
+
+    await prisma.matchDay.delete({ where: { id: md.id } });
+  });
+
+  it("ne traverse pas les clubs", async () => {
+    const autre = `${ORG_ID}-voisin`;
+    await prisma.organization.create({
+      data: { id: autre, name: "Voisin", slug: autre, createdAt: new Date() },
+    });
+    await prisma.club.create({ data: { id: autre } });
+    const md = await prisma.matchDay.create({
+      data: { clubId: autre, date: LUNDI_19H },
+    });
+
+    expect(await soireeDuJour(prisma, ORG_ID, LUNDI_1846)).toBeNull();
+    expect(await soireeDuJour(prisma, autre, LUNDI_1846)).toBe(md.id);
+
+    await prisma.organization.delete({ where: { id: autre } });
+  });
+
+  it("le match de 23:30 rejoint son lundi, celui de 00:30 ne le rejoint pas", async () => {
+    const md = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: LUNDI_19H },
+    });
+
+    const a2330 = new Date("2026-09-14T21:30:00Z"); // 23:30 à Paris, lundi
+    const a0030 = new Date("2026-09-14T22:30:00Z"); // 00:30 à Paris, mardi
+    expect(await soireeDuJour(prisma, ORG_ID, a2330)).toBe(md.id);
+    expect(await soireeDuJour(prisma, ORG_ID, a0030)).toBeNull();
+
+    await prisma.matchDay.delete({ where: { id: md.id } });
+  });
+
+  it("rattache aussi un match de 06:30 — ce que la fenêtre glissante ratait", async () => {
+    // 06:30 pour une soirée de 19:00, c'est 12 h 30 d'écart : au-delà des
+    // douze heures que le site mesurait. C'est le cas qui prouve que la
+    // règle a changé, pas seulement déménagé.
+    const md = await prisma.matchDay.create({
+      data: { clubId: ORG_ID, date: LUNDI_19H },
+    });
+
+    const a0630 = new Date("2026-09-14T04:30:00Z"); // 06:30 à Paris
+    expect(Math.abs(LUNDI_19H.getTime() - a0630.getTime())).toBeGreaterThan(
+      12 * 3600_000,
+    );
+    expect(await soireeDuJour(prisma, ORG_ID, a0630)).toBe(md.id);
+
+    await prisma.matchDay.delete({ where: { id: md.id } });
   });
 });

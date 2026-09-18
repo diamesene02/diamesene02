@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { MatchKind } from "@prisma/client";
+import { fenetreDuJour } from "./jour";
 
 export { matchVerrouille } from "./matchStatus";
 
@@ -73,6 +74,53 @@ export async function matchDayAppartientAuClub(
     where: { id: matchDayId, clubId },
   });
   return count > 0;
+}
+
+/// Le strict nécessaire pour lire les soirées : le client global ou une
+/// transaction en cours. Le POST des matchs travaille dans un `$transaction`,
+/// et une règle qui ne saurait pas y entrer se ferait doubler par sa propre
+/// écriture.
+type LecteurSoirees = {
+  matchDay: { findMany: (args: unknown) => Promise<{ id: string }[]> };
+};
+
+/// **La règle du lot 0007 : un match rejoint la soirée de son jour.**
+///
+/// Rend l'identifiant de la soirée à laquelle un match joué à `quand`
+/// appartient, ou `null` s'il n'y en a pas — et `null` n'est pas un échec,
+/// c'est une réponse : un match du dimanche n'a pas de lundi à rejoindre, et
+/// il a raison de rester isolé.
+///
+/// Trois décisions, toutes prises dans `spec.md` :
+///
+/// - **Le jour, pas une fenêtre glissante.** Le produit a déjà essayé les
+///   douze heures glissantes : le mardi à 7 h, la soirée du lundi
+///   s'affichait encore comme la prochaine et le match du jour venait s'y
+///   rattacher. La fenêtre est celle de `fenetreDuJour` — la même que celle
+///   que les écrans utilisent pour chercher un orphelin, sans quoi un match
+///   de 23:50 laisserait sa soirée réclamée à jamais.
+/// - **Une soirée annulée ne prend pas de match.** C'est ce que le site fait
+///   déjà partout où il cherche une soirée ; la règle le fait explicitement,
+///   parce que la route qui sert l'accueil de l'app, elle, ne filtre pas.
+/// - **Deux soirées le même jour → `null`.** Rien en base ne l'interdit
+///   (aucune contrainte d'unicité sur club + date) ; une règle qui choisirait
+///   au hasard entre deux soirées serait pire que pas de règle. Le match
+///   reste isolé, et les écrans proposeront de le ranger.
+///
+/// Ce que cette fonction ne fait PAS : décider si on a le droit d'écrire.
+/// Elle répond à une question de calendrier, rien d'autre.
+export async function soireeDuJour(
+  db: LecteurSoirees,
+  clubId: string,
+  quand: Date,
+): Promise<string | null> {
+  const { debut, fin } = fenetreDuJour(quand);
+  const soirees = await db.matchDay.findMany({
+    where: { clubId, canceledAt: null, date: { gte: debut, lt: fin } },
+    select: { id: true },
+    take: 2,
+  });
+  return soirees.length === 1 ? soirees[0].id : null;
 }
 
 /// Longueur maximale d'un nom d'équipe saisi par un membre (APRES-21) — posée
