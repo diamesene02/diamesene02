@@ -253,6 +253,33 @@ async function main() {
     })),
   });
 
+  // La soirée SUIVANTE, compo faite — ce que l'onglet « À venir » de
+  // l'accueil doit montrer. « soiree-essai » garde sa date d'origine (update
+  // vide) et finit toujours dans le passé ; celle-ci est replacée à chaque
+  // passage, deux jours plus loin, à 19 h, pour ne jamais tomber aujourd'hui.
+  const dans2Jours = new Date(Date.now() + 2 * 86400_000);
+  dans2Jours.setHours(19, 0, 0, 0);
+  const suivante = await prisma.matchDay.upsert({
+    where: { id: "soiree-essai-suivante" },
+    create: {
+      id: "soiree-essai-suivante",
+      clubId,
+      seasonId: saison.id,
+      date: dans2Jours,
+      location: "Five Renault",
+      teamAName: "Blanc",
+      teamBName: "Noir",
+    },
+    update: { date: dans2Jours, canceledAt: null },
+  });
+  await prisma.matchDayLineup.deleteMany({ where: { matchDayId: suivante.id } });
+  await prisma.matchDayLineup.createMany({
+    data: [
+      ...A.slice(0, 5).map((p) => ({ matchDayId: suivante.id, playerId: p.id, team: "A" })),
+      ...B.slice(0, 5).map((p) => ({ matchDayId: suivante.id, playerId: p.id, team: "B" })),
+    ],
+  });
+
   // Un match terminé (avec buts, cartons, MVP, votes) et un match en direct :
   // l'app pose deux questions différentes à ces deux-là.
   for (const [id, statut, quand] of [

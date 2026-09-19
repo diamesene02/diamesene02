@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getClubApiContext } from "@/lib/guard";
 import { getLeaderboard } from "@/lib/stats";
 import { calculerPresences, phraseEtat } from "@/lib/presences";
-import { minuit } from "@/lib/dates";
+import { fenetreDuJour } from "@/lib/jour";
+import { nomsChasubles } from "@/lib/color";
 import { points, trierParPoints } from "@/lib/classement";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +36,12 @@ export async function GET(
     select: { id: true, name: true },
   });
 
-  const [prochaine, matchsDuJour, classement, monJoueur] = await Promise.all([
+  const { debut: debutDuJour, fin: finDuJour } = fenetreDuJour(new Date());
+
+  const [prochaine, matchsDuJour, classement, monJoueur, suivante, programmes, dernierFini] = await Promise.all([
     // La prochaine soirée, avec de quoi calculer les présences.
     prisma.matchDay.findFirst({
-      where: { clubId, date: { gte: new Date(minuit(new Date())) } },
+      where: { clubId, date: { gte: debutDuJour } },
       orderBy: { date: "asc" },
       select: {
         id: true,
@@ -52,8 +55,11 @@ export async function GET(
     }),
     // Les matchs du jour : c'est la soirée en cours, celle qu'on est en train
     // de jouer. Les matchs en direct passent devant, puis les plus récents.
+    //
+    // Joués ou en cours seulement : un match PROGRAMMÉ n'a pas de score, et un
+    // match ANNULÉ ne s'est pas joué — les deux s'affichaient « Terminé 0–0 ».
     prisma.match.findMany({
-      where: { clubId, playedAt: { gte: new Date(minuit(new Date())) } },
+      where: { clubId, status: { in: ["LIVE", "FINISHED"] }, playedAt: { gte: debutDuJour } },
       orderBy: { playedAt: "desc" },
       take: 12,
       select: {
@@ -72,7 +78,91 @@ export async function GET(
       where: { clubId, userId: ctx.user.id },
       select: { id: true },
     }),
+    // « À venir » : la prochaine soirée APRÈS aujourd'hui, avec sa compo. Celle
+    // du jour vit dans « Ce soir ». Une soirée annulée n'est pas la prochaine.
+    // L'app ne regardait que les matchs du jour : la soirée de lundi, compo
+    // faite, n'y apparaissait jamais (« Rien de programmé »).
+    prisma.matchDay.findFirst({
+      where: { clubId, canceledAt: null, date: { gte: finDuJour } },
+      orderBy: { date: "asc" },
+      select: {
+        id: true,
+        date: true,
+        title: true,
+        location: true,
+        teamAName: true,
+        teamBName: true,
+        _count: { select: { rsvps: true } },
+        lineup: { where: { player: { isArchived: false } }, select: { team: true } },
+      },
+    }),
+    // Les matchs programmés à l'avance, comme sur le site : ils n'ont pas
+    // commencé, ou viennent de passer leur heure sans être lancés.
+    prisma.match.findMany({
+      where: {
+        clubId,
+        status: "SCHEDULED",
+        scheduledAt: { gte: new Date(Date.now() - 2 * 3600_000) },
+      },
+      orderBy: { scheduledAt: "asc" },
+      take: 5,
+      select: {
+        id: true,
+        scheduledAt: true,
+        playedAt: true,
+        kind: true,
+        venue: true,
+        teamAName: true,
+        teamBName: true,
+        matchDayId: true,
+        opponent: { select: { name: true } },
+        _count: { select: { rsvps: { where: { status: "IN" } } } },
+      },
+    }),
+    // Le dernier match terminé avant aujourd'hui désigne la dernière soirée
+    // jouée — l'onglet daté du site. Sans lui, du mardi au dimanche, l'accueil
+    // de l'app ne montrait aucun match.
+    prisma.match.findFirst({
+      where: { clubId, status: "FINISHED", playedAt: { lt: debutDuJour } },
+      orderBy: { playedAt: "desc" },
+      select: {
+        matchDayId: true,
+        playedAt: true,
+        matchDay: { select: { date: true } },
+      },
+    }),
   ]);
+
+  // La dernière soirée : les matchs de sa soirée, sinon tous ceux de ce
+  // jour-là — un club sans calendrier a quand même joué.
+  const matchsDerniere = dernierFini
+    ? await prisma.match.findMany({
+        where: dernierFini.matchDayId
+          ? { clubId, matchDayId: dernierFini.matchDayId, status: "FINISHED" }
+          : {
+              clubId,
+              status: "FINISHED",
+              playedAt: {
+                gte: fenetreDuJour(dernierFini.playedAt).debut,
+                lt: fenetreDuJour(dernierFini.playedAt).fin,
+              },
+            },
+        orderBy: { playedAt: "asc" },
+        take: 12,
+        select: {
+          id: true,
+          playedAt: true,
+          status: true,
+          teamAName: true,
+          teamBName: true,
+          scoreA: true,
+          scoreB: true,
+          durationMin: true,
+        },
+      })
+    : [];
+
+  const nomsClub = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
 
   let soiree = null;
   if (prochaine) {
@@ -116,19 +206,58 @@ export async function GET(
     };
   }
 
+  const ligneMatch = (m: (typeof matchsDuJour)[number]) => ({
+    id: m.id,
+    joueLe: m.playedAt.toISOString(),
+    statut: m.status,
+    nomA: m.teamAName,
+    nomB: m.teamBName,
+    scoreA: m.scoreA,
+    scoreB: m.scoreB,
+    dureeMin: m.durationMin,
+  });
+
   return NextResponse.json({
     saison: saison ? { id: saison.id, nom: saison.name } : null,
     soiree,
-    matchs: matchsDuJour.map((m) => ({
-      id: m.id,
-      joueLe: m.playedAt.toISOString(),
-      statut: m.status,
-      nomA: m.teamAName,
-      nomB: m.teamBName,
-      scoreA: m.scoreA,
-      scoreB: m.scoreB,
-      dureeMin: m.durationMin,
-    })),
+    matchs: matchsDuJour.map(ligneMatch),
+    // Champs ajoutés le 19 septembre 2026. Une app plus ancienne les ignore.
+    derniere:
+      dernierFini && matchsDerniere.length > 0
+        ? {
+            date: (dernierFini.matchDay?.date ?? dernierFini.playedAt).toISOString(),
+            soireeId: dernierFini.matchDayId,
+            matchs: matchsDerniere.map(ligneMatch),
+          }
+        : null,
+    aVenir: {
+      soiree: suivante
+        ? {
+            id: suivante.id,
+            date: suivante.date.toISOString(),
+            libelle: suivante.title,
+            lieu: suivante.location,
+            nomA: suivante.teamAName ?? nomsClub.a,
+            nomB: suivante.teamBName ?? nomsClub.b,
+            compoA: suivante.lineup.filter((l) => l.team === "A").length,
+            compoB: suivante.lineup.filter((l) => l.team === "B").length,
+            reponses: suivante._count.rsvps,
+          }
+        : null,
+      matchs: programmes.map((m) => {
+        const externe = m.kind === "EXTERNAL" && m.opponent != null;
+        return {
+          id: m.id,
+          quand: (m.scheduledAt ?? m.playedAt).toISOString(),
+          nomA: m.teamAName,
+          nomB: externe ? m.opponent!.name : m.teamBName,
+          externe,
+          lieu: m.venue,
+          presents: m._count.rsvps,
+          soireeId: m.matchDayId,
+        };
+      }),
+    },
     // `getLeaderboard` rend les lignes triées par buts — c'est l'ordre du
     // classement des buteurs, pas celui du tableau. Le tableau se trie aux
     // points, comme sur le site, avec le barème du club.

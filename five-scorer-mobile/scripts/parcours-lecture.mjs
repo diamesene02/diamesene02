@@ -54,6 +54,42 @@ async function main() {
   if (!club) return;
   const C = `/api/clubs/${club.id}`;
 
+  // --- 0. L'accueil : dernière soirée, ce soir, à venir ---------------------
+  //
+  // « À venir » disait « Rien de programmé » avec la soirée de lundi, compo
+  // faite, sous les yeux (19 septembre 2026) : la route ne rendait que les
+  // matchs du jour.
+
+  console.log("\n— l'accueil —");
+  const [rAcc, acc] = await lire(`${C}/accueil`);
+  ok(rAcc.ok, "l'accueil répond", `HTTP ${rAcc.status}`);
+  const suivante = acc?.aVenir?.soiree;
+  ok(
+    suivante?.id === "soiree-essai-suivante",
+    "« À venir » porte la prochaine soirée",
+    suivante ? `${suivante.id} · ${suivante.date}` : "aucune",
+  );
+  ok(
+    suivante?.compoA === 5 && suivante?.compoB === 5,
+    "…avec sa compo, cinq contre cinq",
+    suivante ? `${suivante.nomA} ${suivante.compoA} contre ${suivante.compoB} ${suivante.nomB}` : "",
+  );
+  ok(
+    Array.isArray(acc?.aVenir?.matchs),
+    "les matchs programmés sont une liste",
+  );
+  ok(
+    (acc?.matchs ?? []).every((m) => m.statut === "LIVE" || m.statut === "FINISHED"),
+    "« Ce soir » ne rend ni programmé ni annulé",
+    (acc?.matchs ?? []).map((m) => m.statut).join(", "),
+  );
+  ok(
+    (acc?.derniere?.matchs?.length ?? 0) > 0 &&
+      Date.parse(acc.derniere.date) < Date.now(),
+    "la dernière soirée jouée est là, avec ses matchs",
+    acc?.derniere ? `${acc.derniere.date} · ${acc.derniere.matchs.length} match(s)` : "aucune",
+  );
+
   // --- 1. La liste des matchs -----------------------------------------------
 
   console.log("\n— la liste des matchs —");

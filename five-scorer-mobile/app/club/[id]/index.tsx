@@ -21,7 +21,10 @@ import {
   SessionExpiree,
   type Accueil,
   type ClubDeMoi,
+  type MatchAccueil,
 } from "../../../lib/api";
+
+type Onglet = "derniere" | "soir" | "venir";
 
 /// L'accueil du club — repris de la page du site.
 ///
@@ -43,7 +46,9 @@ export default function ClubAccueil() {
   const [enCours, setEnCours] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
-  const [onglet, setOnglet] = useState<"soir" | "venir">("soir");
+  // null tant qu'on n'a pas touché aux onglets : l'onglet ouvert se déduit
+  // alors de ce qu'il y a à voir (voir `ongletParDefaut`).
+  const [ongletChoisi, setOngletChoisi] = useState<Onglet | null>(null);
   const [banniereFermee, setBanniereFermee] = useState(false);
 
   const t: Jetons = club?.theme.sombre ?? JETONS_NEUTRES;
@@ -81,18 +86,120 @@ export default function ClubAccueil() {
   const couleurA = club?.couleurA ?? "#ffffff";
   const couleurB = club?.couleurB ?? "#111111";
 
-  const matchs = donnees?.matchs ?? [];
-  const aVenir = useMemo(
-    () => matchs.filter((m) => Date.parse(m.joueLe) > Date.now()),
-    [matchs],
+  // « À venir » ne filtrait que les matchs DU JOUR dont l'heure n'était pas
+  // passée : la soirée de lundi, compo faite, n'y apparaissait jamais. Il
+  // montre désormais ce que le site montre — la prochaine soirée et sa compo,
+  // puis les matchs programmés.
+  const ceSoir = donnees?.matchs ?? [];
+  const derniere = donnees?.derniere ?? null;
+  const suivante = donnees?.aVenir?.soiree ?? null;
+  const programmes = donnees?.aVenir?.matchs ?? [];
+  const programmesCeSoir = useMemo(
+    () => programmes.filter((m) => memeJour(m.quand, new Date().toISOString())),
+    [programmes],
   );
-  const ceSoir = useMemo(
-    () => matchs.filter((m) => Date.parse(m.joueLe) <= Date.now()),
-    [matchs],
+  const programmesPlusTard = useMemo(
+    () => programmes.filter((m) => !programmesCeSoir.includes(m)),
+    [programmes, programmesCeSoir],
   );
-  const listeVisible = onglet === "soir" ? ceSoir : aVenir;
 
   const soiree = donnees?.soiree ?? null;
+  const soireeCeSoir =
+    soiree && !soiree.annulee && memeJour(soiree.date, new Date().toISOString()) ? soiree : null;
+
+  // L'onglet ouvert d'office, comme sur le site : ce soir s'il se passe
+  // quelque chose aujourd'hui, sinon ce qui vient, sinon la dernière soirée.
+  const ongletParDefaut: Onglet =
+    ceSoir.length > 0 || programmesCeSoir.length > 0 || soireeCeSoir || enCours
+      ? "soir"
+      : suivante || programmesPlusTard.length > 0
+        ? "venir"
+        : derniere
+          ? "derniere"
+          : "soir";
+  const onglet = ongletChoisi ?? ongletParDefaut;
+  const onglets: [Onglet, string][] = [
+    ...(derniere ? [["derniere", jourEtNumero(derniere.date)] as [Onglet, string]] : []),
+    ["soir", "Ce soir"],
+    ["venir", "À venir"],
+  ];
+
+  const ouvrirSoiree = (soireeId: string) =>
+    router.push({ pathname: "/soiree/[id]", params: { id: soireeId, clubId: id } });
+
+  const ligneScore = (m: MatchAccueil, i: number) => (
+    <Pressable
+      key={m.id}
+      onPress={() =>
+        router.push(
+          m.statut === "LIVE"
+            ? { pathname: "/match/[id]", params: { id: m.id } }
+            : { pathname: "/recap/[id]", params: { id: m.id, clubId: id } },
+        )
+      }
+      style={[s.ligneMatch, i > 0 && { borderTopWidth: 1, borderTopColor: t.sep }]}
+    >
+      <View style={s.cote}>
+        <EcussonChasuble couleur={couleurA} lettre={m.nomA[0] ?? "A"} taille={48} />
+        <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
+          {m.nomA}
+        </Text>
+      </View>
+      <Text style={[s.score, { color: t.ink }]}>{m.scoreA}</Text>
+      <View style={s.milieuMatch}>
+        <Text style={[s.statut, { color: m.statut === "LIVE" ? "#ff453a" : t.i2 }]}>
+          {m.statut === "LIVE" ? "• En direct" : "Terminé"}
+        </Text>
+        <Text style={[s.heure, { color: t.i3 }]}>
+          {m.statut === "LIVE"
+            ? fmt(Math.max(0, Date.now() - Date.parse(m.joueLe)))
+            : heure(m.joueLe)}
+        </Text>
+      </View>
+      <Text style={[s.score, { color: t.ink }]}>{m.scoreB}</Text>
+      <View style={s.cote}>
+        <EcussonChasuble couleur={couleurB} lettre={m.nomB[0] ?? "B"} taille={48} />
+        <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
+          {m.nomB}
+        </Text>
+      </View>
+    </Pressable>
+  );
+
+  const ligneProgramme = (m: (typeof programmes)[number], i: number, avecDate: boolean) => (
+    <Pressable
+      key={m.id}
+      disabled={!m.soireeId}
+      onPress={() => m.soireeId && ouvrirSoiree(m.soireeId)}
+      style={[s.ligneMatch, i > 0 && { borderTopWidth: 1, borderTopColor: t.sep }]}
+    >
+      <View style={s.cote}>
+        <EcussonChasuble couleur={couleurA} lettre={m.nomA[0] ?? "A"} taille={48} />
+        <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
+          {m.nomA}
+        </Text>
+      </View>
+      <View style={s.milieuMatch}>
+        <Text style={[s.statut, { color: t.ink }]}>
+          {avecDate ? `${jourAbrege(m.quand)} · ${heure(m.quand)}` : heure(m.quand)}
+        </Text>
+        <Text style={[s.heure, { color: t.i3 }]} numberOfLines={1}>
+          {m.externe ? "Match externe" : "Match programmé"} · {m.presents} présent
+          {m.presents > 1 ? "s" : ""}
+        </Text>
+      </View>
+      <View style={s.cote}>
+        <EcussonChasuble
+          couleur={m.externe ? "#3a3a3c" : couleurB}
+          lettre={m.nomB[0] ?? "B"}
+          taille={48}
+        />
+        <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
+          {m.nomB}
+        </Text>
+      </View>
+    </Pressable>
+  );
   const jours = soiree ? joursAvant(soiree.date) : null;
 
   return (
@@ -191,13 +298,8 @@ export default function ClubAccueil() {
         {donnees && (
           <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
             <View style={s.onglets}>
-              {(
-                [
-                  ["soir", "Ce soir"],
-                  ["venir", "À venir"],
-                ] as const
-              ).map(([cle, libelle]) => (
-                <Pressable key={cle} onPress={() => setOnglet(cle)} hitSlop={8}>
+              {onglets.map(([cle, libelle]) => (
+                <Pressable key={cle} onPress={() => setOngletChoisi(cle)} hitSlop={8}>
                   <Text
                     style={[s.onglet, { color: onglet === cle ? t.ink : "rgba(255,255,255,0.4)" }]}
                   >
@@ -208,54 +310,83 @@ export default function ClubAccueil() {
             </View>
             <View style={[s.filet, { backgroundColor: t.sep }]} />
 
-            {listeVisible.length === 0 ? (
-              <Text style={[s.vide, { color: t.i2 }]}>
-                {onglet === "soir" ? "Pas encore de match aujourd'hui." : "Rien de programmé."}
-              </Text>
-            ) : (
-              listeVisible.map((m, i) => (
-                <Pressable
-                  key={m.id}
-                  onPress={() =>
-                    router.push(
-                      m.statut === "LIVE"
-                        ? { pathname: "/match/[id]", params: { id: m.id } }
-                        : { pathname: "/recap/[id]", params: { id: m.id, clubId: id } },
-                    )
-                  }
-                  style={[s.ligneMatch, i > 0 && { borderTopWidth: 1, borderTopColor: t.sep }]}
-                >
-                  <View style={s.cote}>
-                    <EcussonChasuble couleur={couleurA} lettre={m.nomA[0] ?? "A"} taille={48} />
-                    <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
-                      {m.nomA}
+            {onglet === "derniere" && derniere && (
+              <>
+                <LigneSoiree
+                  t={t}
+                  texte={`Soirée du ${jourCourt(derniere.date)}`}
+                  onPress={derniere.soireeId ? () => ouvrirSoiree(derniere.soireeId!) : undefined}
+                />
+                {derniere.matchs.map(ligneScore)}
+              </>
+            )}
+
+            {onglet === "soir" && (
+              <>
+                {soireeCeSoir && (
+                  <LigneSoiree
+                    t={t}
+                    texte={`Soirée du ${jourCourt(soireeCeSoir.date)}`}
+                    onPress={() => ouvrirSoiree(soireeCeSoir.id)}
+                  />
+                )}
+                {ceSoir.map(ligneScore)}
+                {programmesCeSoir.map((m, i) => ligneProgramme(m, ceSoir.length + i, false))}
+                {ceSoir.length === 0 && programmesCeSoir.length === 0 && (
+                  <Text style={[s.vide, { color: t.i2 }]}>Pas encore de match aujourd'hui.</Text>
+                )}
+              </>
+            )}
+
+            {onglet === "venir" && (
+              <>
+                {suivante && (
+                  <>
+                    <LigneSoiree
+                      t={t}
+                      texte={dateLongue(suivante.date)}
+                      onPress={() => ouvrirSoiree(suivante.id)}
+                    />
+                    <Pressable onPress={() => ouvrirSoiree(suivante.id)} style={s.ligneMatch}>
+                      <View style={s.cote}>
+                        <EcussonChasuble couleur={couleurA} lettre={suivante.nomA[0] ?? "A"} taille={48} />
+                        <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
+                          {suivante.nomA}
+                        </Text>
+                      </View>
+                      <View style={s.milieuMatch}>
+                        <Text style={[s.heureProchaine, { color: t.ink }]}>{heure(suivante.date)}</Text>
+                        {(suivante.lieu || suivante.libelle) && (
+                          <Text style={[s.heure, { color: t.i3 }]} numberOfLines={1}>
+                            {suivante.lieu || suivante.libelle}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={s.cote}>
+                        <EcussonChasuble couleur={couleurB} lettre={suivante.nomB[0] ?? "B"} taille={48} />
+                        <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
+                          {suivante.nomB}
+                        </Text>
+                      </View>
+                    </Pressable>
+                    <Text style={[s.reponses, { color: t.i2 }]} numberOfLines={1}>
+                      {/* Les présents plutôt que les réponses : les abonnés comptent
+                          présents sans répondre, et « 0 réponse » sous un bandeau
+                          « 8 présents » se contredisait. */}
+                      {soiree?.id === suivante.id
+                        ? `${soiree.presents} présent${soiree.presents > 1 ? "s" : ""} · `
+                        : ""}
+                      {suivante.compoA + suivante.compoB > 0
+                        ? `${suivante.nomA} ${suivante.compoA} contre ${suivante.compoB} ${suivante.nomB}`
+                        : "équipes à préparer"}
                     </Text>
-                  </View>
-                  <Text style={[s.score, { color: t.ink }]}>{m.scoreA}</Text>
-                  <View style={s.milieuMatch}>
-                    <Text
-                      style={[
-                        s.statut,
-                        { color: m.statut === "LIVE" ? "#ff453a" : t.i2 },
-                      ]}
-                    >
-                      {m.statut === "LIVE" ? "• En direct" : "Terminé"}
-                    </Text>
-                    <Text style={[s.heure, { color: t.i3 }]}>
-                      {m.statut === "LIVE"
-                        ? fmt(Math.max(0, Date.now() - Date.parse(m.joueLe)))
-                        : heure(m.joueLe)}
-                    </Text>
-                  </View>
-                  <Text style={[s.score, { color: t.ink }]}>{m.scoreB}</Text>
-                  <View style={s.cote}>
-                    <EcussonChasuble couleur={couleurB} lettre={m.nomB[0] ?? "B"} taille={48} />
-                    <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
-                      {m.nomB}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))
+                  </>
+                )}
+                {programmesPlusTard.map((m, i) => ligneProgramme(m, suivante ? i + 1 : i, true))}
+                {!suivante && programmesPlusTard.length === 0 && (
+                  <Text style={[s.vide, { color: t.i2 }]}>Rien de programmé.</Text>
+                )}
+              </>
             )}
           </View>
         )}
@@ -295,6 +426,41 @@ export default function ClubAccueil() {
       </ScrollView>
     </Ecran>
   );
+}
+
+/// La ligne « Soirée du 14 sept. › » en tête d'onglet, comme sur le site.
+function LigneSoiree({ t, texte, onPress }: { t: Jetons; texte: string; onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} disabled={!onPress} style={[s.ligneSoiree, { borderBottomColor: t.sep }]}>
+      <Text style={[s.ligneSoireeTexte, { color: t.i2 }]} numberOfLines={1}>
+        {texte}
+      </Text>
+      {onPress && <Text style={[s.chevronPetit, { color: t.i3 }]}>›</Text>}
+    </Pressable>
+  );
+}
+
+/// Même jour au calendrier du téléphone. Le club joue en France et le
+/// téléphone y est : le fuseau de l'appareil est celui du gymnase.
+function memeJour(a: string, b: string): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
+
+/// « Lun. 14 » — l'onglet de la dernière soirée, comme sur le site.
+function jourEtNumero(iso: string): string {
+  const d = new Date(iso);
+  const jour = d.toLocaleDateString("fr-FR", { weekday: "short" });
+  return `${jour.charAt(0).toUpperCase()}${jour.slice(1)} ${d.getDate()}`;
+}
+
+/// « 14 sept. »
+function jourCourt(iso: string): string {
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+/// « lun. 21 »
+function jourAbrege(iso: string): string {
+  return new Date(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" });
 }
 
 function joursAvant(iso: string): number {
@@ -390,6 +556,18 @@ const s = StyleSheet.create({
   milieuMatch: { flex: 1, alignItems: "center", gap: 2 },
   statut: { fontSize: 14, fontWeight: "700" },
   heure: { fontSize: 13 },
+  heureProchaine: { fontSize: 28, fontWeight: "700" },
+  reponses: { fontSize: 14, textAlign: "center", paddingHorizontal: 14, paddingBottom: 16 },
+  ligneSoiree: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  ligneSoireeTexte: { fontSize: 15, fontWeight: "600", flexShrink: 1 },
+  chevronPetit: { fontSize: 18 },
 
   tableauTete: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 12 },
   rangee: {

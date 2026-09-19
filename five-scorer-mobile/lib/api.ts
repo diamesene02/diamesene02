@@ -155,16 +155,35 @@ export type Accueil = {
     compoFaite: boolean;
     maReponse: "IN" | "OUT" | "MAYBE" | null;
   } | null;
-  matchs: {
-    id: string;
-    joueLe: string;
-    statut: "LIVE" | "FINISHED";
-    nomA: string;
-    nomB: string;
-    scoreA: number;
-    scoreB: number;
-    dureeMin: number | null;
-  }[];
+  matchs: MatchAccueil[];
+  /// La dernière soirée jouée avant aujourd'hui. Absent d'un serveur plus
+  /// ancien que le 19 septembre 2026.
+  derniere?: { date: string; soireeId: string | null; matchs: MatchAccueil[] } | null;
+  /// La prochaine soirée après aujourd'hui et les matchs programmés. Même
+  /// remarque.
+  aVenir?: {
+    soiree: {
+      id: string;
+      date: string;
+      libelle: string | null;
+      lieu: string | null;
+      nomA: string;
+      nomB: string;
+      compoA: number;
+      compoB: number;
+      reponses: number;
+    } | null;
+    matchs: {
+      id: string;
+      quand: string;
+      nomA: string;
+      nomB: string;
+      externe: boolean;
+      lieu: string | null;
+      presents: number;
+      soireeId: string | null;
+    }[];
+  };
   classement: {
     rang: number;
     playerId: string;
@@ -177,6 +196,17 @@ export type Accueil = {
     buts: number;
     points: number;
   }[];
+};
+
+export type MatchAccueil = {
+  id: string;
+  joueLe: string;
+  statut: "LIVE" | "FINISHED";
+  nomA: string;
+  nomB: string;
+  scoreA: number;
+  scoreB: number;
+  dureeMin: number | null;
 };
 
 export function chargerAccueil(clubId: string): Promise<Accueil> {
