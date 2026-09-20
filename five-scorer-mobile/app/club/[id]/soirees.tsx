@@ -1,19 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useCallback, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import { useClubId } from "../../../composants/ClubCourant";
+import { chargerMoiMemorise, useClubId, useClubMemorise } from "../../../composants/ClubCourant";
 import Ecran from "../../../composants/Ecran";
-import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import EnTeteClub from "../../../composants/EnTeteClub";
+import ErreurChargement from "../../../composants/ErreurChargement";
+import { BoutonPlein, CarteVerre } from "../../../composants/base";
+import { IconeCalendrier, IconeJeu, IconePlus } from "../../../composants/Icones";
+import { quandRelatif } from "../../../composants/soiree/logique";
+import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import {
-  chargerMoi,
   chargerSoirees,
   SessionExpiree,
   type ClubDeMoi,
@@ -24,250 +20,355 @@ import {
 
 /// « Les soirées » — le calendrier du club, repris de la page du site.
 ///
-/// Trois blocs : les six prochaines, le reste de la saison sous un dépliant,
-/// et les soirées déjà jouées. Chacun groupé par mois dans une carte de verre.
+/// Les six prochaines, puis les soirées déjà jouées, et le reste de la
+/// saison replié EN BAS : un club qui pose sa saison d'un coup a quarante
+/// lundis devant lui, et la soirée qu'on vient de jouer — celle dont on
+/// cherche le résultat — ne doit pas se retrouver sous quarante rangées.
 ///
-/// Une rangée à venir dit ce qu'il faut savoir avant de venir — le jour,
-/// l'heure, le lieu, combien on est. Une rangée passée dit ce qu'il en reste —
-/// le nombre de matchs, les buts, et ce qu'il y a à encaisser.
+/// Une rangée à venir dit ce qu'il faut savoir avant de venir — quand, à
+/// quelle heure, combien on est, où. Une rangée passée dit ce qu'il en
+/// reste — les matchs, les buts, et ce qu'il y a à encaisser.
 export default function Soirees() {
   const id = useClubId();
+  const memo = useClubMemorise();
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [donnees, setDonnees] = useState<EcranSoirees | null>(null);
   const [resteOuvert, setResteOuvert] = useState(false);
   const [occupe, setOccupe] = useState(true);
-  const [erreur, setErreur] = useState<string | null>(null);
+  const [rafraichit, setRafraichit] = useState(false);
+  const [erreur, setErreur] = useState<unknown>(null);
 
-  const t: Jetons = club?.theme.sombre ?? JETONS_NEUTRES;
-  const couleurA = club?.couleurA ?? "#ffffff";
-  const couleurB = club?.couleurB ?? "#111111";
+  // Les couleurs du dernier `/api/me` dès la première image : l'écran ne
+  // passe plus du gris au dégradé du club à chaque ouverture.
+  const c = club ?? memo;
+  const t: Jetons = c?.theme.sombre ?? JETONS_NEUTRES;
 
   const charger = useCallback(async () => {
     if (!id) return;
-    setErreur(null);
     try {
-      const [moi, s] = await Promise.all([chargerMoi(), chargerSoirees(id)]);
-      setClub(moi.clubs.find((c) => c.id === id) ?? null);
+      const [moi, s] = await Promise.all([
+        chargerMoiMemorise().catch(() => null),
+        chargerSoirees(id),
+      ]);
+      if (moi) setClub(moi.clubs.find((x) => x.id === id) ?? null);
       setDonnees(s);
+      setErreur(null);
     } catch (e) {
       if (e instanceof SessionExpiree) return router.replace("/connexion");
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(e);
     } finally {
       setOccupe(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    void charger();
-  }, [charger]);
-
+  // À chaque retour : une réponse donnée ou une soirée créée change la liste.
   useFocusEffect(
     useCallback(() => {
       void charger();
     }, [charger]),
   );
 
+  const peutMarquer = donnees?.club.peutMarquer ?? c?.peutScorer ?? false;
+  const peutGerer = donnees?.club.peutGerer ?? c?.peutGerer ?? false;
+  const programmer = () =>
+    router.push({ pathname: "/soiree/nouvelle", params: { clubId: id } });
+
   return (
-    <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
+    <Ecran t={t} chasubles={c ? { a: c.couleurA, b: c.couleurB } : undefined}>
       <ScrollView
-        contentContainerStyle={s.contenu}
+        contentContainerStyle={s.defile}
         refreshControl={
           <RefreshControl
-            refreshing={occupe && donnees != null}
-            onRefresh={charger}
+            refreshing={rafraichit}
+            onRefresh={async () => {
+              setRafraichit(true);
+              await charger();
+              setRafraichit(false);
+            }}
             tintColor={t.i2}
           />
         }
       >
-        <View>
-          <Text style={[s.kicker, { color: t.i2 }]}>Calendrier</Text>
-          <Text style={[s.titre, { color: t.ink }]}>Les soirées</Text>
-          <Text style={[s.chapeau, { color: t.i2 }]}>
-            Un créneau de terrain, les présents, et les matchs qui en sortent.
-          </Text>
-        </View>
+        <EnTeteClub t={t} club={c} />
 
-        {occupe && !donnees && (
-          <View style={s.centre}>
-            <ActivityIndicator color={t.ink} />
-            <Text style={[s.aide, { color: t.i2 }]}>On va chercher le calendrier…</Text>
-          </View>
-        )}
-        {erreur && <Text style={[s.erreur, { color: "#ff453a" }]}>{erreur}</Text>}
-
-        {donnees?.vide && (
-          <View style={s.centre}>
-            <Text style={[s.aide, { color: t.ink, fontSize: 17 }]}>
-              Aucune soirée pour l'instant.
+        <View style={s.contenu}>
+          <View style={s.tete}>
+            <Text style={[s.kicker, { color: jeton(t, "i2") }]}>Le calendrier</Text>
+            <Text style={[s.titre, { color: t.ink }]} accessibilityRole="header">
+              Les soirées
             </Text>
-            <Text style={[s.aide, { color: t.i2, textAlign: "center" }]}>
-              Une soirée, c'est un créneau de terrain : la date, le lieu, et qui vient.
-              Les matchs se rangent dessous.
+            <Text style={[s.chapeau, { color: jeton(t, "i2") }]}>
+              Un créneau réservé : une date, un terrain, qui vient.{" "}
+              <Text style={{ color: t.ink }}>Les matchs se jouent dedans.</Text>
             </Text>
           </View>
-        )}
 
-        {/* « À venir » ne coiffe que la première carte : les suivantes portent
-            leur mois, sinon trois cartes de suite répètent le même mot et on
-            ne sait plus ce qu'on regarde. */}
-        {donnees?.prochaines.map((g, i) => (
-          <CarteMois
-            key={"p" + g.cle}
-            g={g}
-            t={t}
-            titre={i === 0 ? "À venir" : undefined}
-            clubId={id}
-          />
-        ))}
-
-        {donnees && donnees.resteTotal > 0 && (
-          <>
-            <Pressable onPress={() => setResteOuvert((o) => !o)} style={s.deplier}>
-              <Text style={[s.deplierTexte, { color: t.i2 }]}>
-                {resteOuvert ? "Masquer" : "Le reste de la saison"} ({donnees.resteTotal})
-              </Text>
+          {peutMarquer && !donnees?.vide && (
+            <Pressable
+              onPress={programmer}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                s.programmer,
+                { borderColor: jeton(t, "gb"), backgroundColor: jeton(t, "seg") },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <IconePlus couleur={t.ink} taille={16} />
+              <Text style={[s.programmerTexte, { color: t.ink }]}>Programmer une soirée</Text>
             </Pressable>
-            {resteOuvert &&
-              donnees.reste.map((g) => <CarteMois key={"r" + g.cle} g={g} t={t} clubId={id} />)}
-          </>
-        )}
+          )}
+          {peutGerer && (
+            // Poser toute la saison d'un coup : la voie normale pour un club
+            // qui joue toutes les semaines. Créer les soirées une par une reste
+            // possible juste au-dessus, pour les dates hors calendrier.
+            <Pressable
+              onPress={() => router.push({ pathname: "/calendrier", params: { clubId: id } })}
+              accessibilityRole="button"
+              style={({ pressed }) => [s.saison, pressed && { opacity: 0.6 }]}
+            >
+              <IconeCalendrier couleur={jeton(t, "i2")} taille={15} />
+              <Text style={[s.saisonTexte, { color: jeton(t, "i2") }]}>Poser toute la saison</Text>
+              <IconeJeu nom="chevron" couleur={jeton(t, "i2")} taille={14} />
+            </Pressable>
+          )}
 
-        {donnees && donnees.passees.length > 0 && (
-          <Text style={[s.section, { color: t.i2 }]}>Déjà jouées</Text>
-        )}
-        {donnees?.passees.map((g) => (
-          <CarteMois key={"j" + g.cle} g={g} t={t} clubId={id} />
-        ))}
+          {erreur != null && (
+            <ErreurChargement t={t} erreur={erreur} onReessayer={charger} style={s.section} />
+          )}
+
+          {occupe && !donnees && (
+            // La forme de la page, pour que rien ne saute quand elle arrive.
+            <View style={s.section}>
+              <CarteVerre t={t} style={[s.squelette, { height: 150 }]} />
+              <CarteVerre t={t} style={[s.squelette, { height: 110, marginTop: 18 }]} />
+            </View>
+          )}
+
+          {donnees?.vide && (
+            <CarteVerre t={t} style={[s.vide, s.section]}>
+              <Text style={[s.videTitre, { color: t.ink }]}>Aucune soirée pour l&apos;instant.</Text>
+              <Text style={[s.videTexte, { color: t.ink }]}>
+                Une soirée, c&apos;est le créneau : jeudi 19 h, terrain 2. Tu la programmes, chacun
+                dit s&apos;il vient, et tu répartis le prix du terrain entre les présents.
+              </Text>
+              <Text style={[s.videTexte, { color: jeton(t, "i2"), marginTop: 12 }]}>
+                Les matchs, eux, se jouent dedans — et souvent plusieurs dans la même soirée. Ce
+                sont eux qui portent les scores et les statistiques.
+              </Text>
+              {peutMarquer && (
+                <BoutonPlein
+                  t={t}
+                  titre="Programmer une soirée"
+                  icone={<IconePlus couleur={jeton(t, "bf")} taille={18} />}
+                  onPress={programmer}
+                  style={{ marginTop: 20, alignSelf: "stretch" }}
+                />
+              )}
+            </CarteVerre>
+          )}
+
+          {donnees && donnees.prochaines.length > 0 && (
+            <View style={s.section}>
+              <Text style={[s.kicker, s.kickerSection, { color: jeton(t, "i2") }]}>À venir</Text>
+              {donnees.prochaines.map((g) => (
+                <CarteMois key={"p" + g.cle} g={g} t={t} clubId={id} />
+              ))}
+            </View>
+          )}
+
+          {donnees && donnees.passees.length > 0 && (
+            <View style={s.section}>
+              <Text style={[s.kicker, s.kickerSection, { color: jeton(t, "i2") }]}>
+                Déjà jouées
+              </Text>
+              {donnees.passees.map((g) => (
+                <CarteMois key={"j" + g.cle} g={g} t={t} clubId={id} />
+              ))}
+            </View>
+          )}
+
+          {donnees && donnees.resteTotal > 0 && (
+            <View style={s.section}>
+              <Pressable
+                onPress={() => setResteOuvert((o) => !o)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: resteOuvert }}
+                style={s.deplier}
+              >
+                <Text style={[s.kicker, { color: jeton(t, "i2") }]}>
+                  {resteOuvert ? "▾" : "▸"} Le reste de la saison ({donnees.resteTotal})
+                </Text>
+              </Pressable>
+              {resteOuvert &&
+                donnees.reste.map((g) => <CarteMois key={"r" + g.cle} g={g} t={t} clubId={id} />)}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </Ecran>
   );
 }
 
-function CarteMois({
-  g,
-  t,
-  titre,
-  clubId,
-}: {
-  g: GroupeMois;
-  t: Jetons;
-  titre?: string;
-  clubId: string;
-}) {
+function CarteMois({ g, t, clubId }: { g: GroupeMois; t: Jetons; clubId: string }) {
   return (
-    <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
+    <CarteVerre t={t} style={s.carte}>
       <View style={s.carteTete}>
-        <Text style={[s.kicker, { color: t.i2 }]}>{titre ?? capitale(g.titre)}</Text>
-        <Text style={[s.petitCompte, { color: t.i3 }]}>{g.compte}</Text>
+        <Text style={[s.mois, { color: t.ink }]}>{capitale(g.titre)}</Text>
+        <Text style={[s.petitCompte, { color: jeton(t, "i3") }]}>{g.compte}</Text>
       </View>
-      {g.soirees.map((so, i) => (
-        <Rangee key={so.id} so={so} t={t} premiere={i === 0} clubId={clubId} />
+      {g.soirees.map((so) => (
+        <Rangee key={so.id} so={so} t={t} clubId={clubId} />
       ))}
-    </View>
+    </CarteVerre>
   );
 }
 
-function Rangee({
-  so,
-  t,
-  premiere,
-  clubId,
-}: {
-  so: LigneSoiree;
-  t: Jetons;
-  premiere: boolean;
-  clubId: string;
-}) {
+function Rangee({ so, t, clubId }: { so: LigneSoiree; t: Jetons; clubId: string }) {
+  const ouvrir = () => router.push({ pathname: "/soiree/[id]", params: { id: so.id, clubId } });
+  const i2 = jeton(t, "i2");
+
+  // Une soirée annulée se présentait comme les autres, et le joueur passé
+  // par le menu venait pour rien.
+  if (so.annulee) {
+    return (
+      <Pressable
+        onPress={ouvrir}
+        accessibilityRole="button"
+        accessibilityLabel={`${so.jour}, annulée${so.motifAnnulation ? ` : ${so.motifAnnulation}` : ""}`}
+        style={({ pressed }) => [s.rangee, { opacity: pressed ? 0.4 : 0.55 }]}
+      >
+        <Text style={[s.jour, { color: i2, textDecorationLine: "line-through" }]} numberOfLines={1}>
+          {so.jour}
+        </Text>
+        <Text style={[s.milieu, { color: i2 }]}>Annulée</Text>
+        <Text style={[s.reste, { color: i2 }]} numberOfLines={1}>
+          {so.motifAnnulation ?? so.lieu ?? ""}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  if (so.aVenir) {
+    // Le plus utile d'abord, le lieu en dernier : c'est toujours le même, et
+    // c'est lui que l'ellipse doit manger.
+    const relatif = quandRelatif(so.date);
+    const lieu = so.lieu ?? so.libelle;
+    const morceaux = [
+      relatif ? (
+        <Text key="q" style={{ color: t.ink }}>
+          {relatif}
+        </Text>
+      ) : null,
+      so.presents > 0 ? (
+        <Text key="p" style={{ color: t.taInk ?? i2 }}>
+          {so.presents} présent{so.presents > 1 ? "s" : ""}
+        </Text>
+      ) : null,
+      lieu ? <Text key="l">{lieu}</Text> : null,
+    ].filter(Boolean);
+    return (
+      <Pressable
+        onPress={ouvrir}
+        accessibilityRole="button"
+        style={({ pressed }) => [s.rangee, pressed && { opacity: 0.7 }]}
+      >
+        <Text style={[s.jour, { color: i2 }]} numberOfLines={1}>
+          {so.jour}
+        </Text>
+        <Text style={[s.milieu, { color: t.ink }]}>{so.heure}</Text>
+        <Text style={[s.reste, { color: i2 }]} numberOfLines={1}>
+          {morceaux.flatMap((m, i) => (i === 0 ? [m] : [" · ", m]))}
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable
-      onPress={() =>
-        router.push({ pathname: "/soiree/[id]", params: { id: so.id, clubId } })
-      }
-      style={({ pressed }) => [
-        s.rangee,
-        !premiere && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.sep },
-        pressed && { opacity: 0.7 },
-      ]}
+      onPress={ouvrir}
+      accessibilityRole="button"
+      style={({ pressed }) => [s.rangee, pressed && { opacity: 0.7 }]}
     >
-      <Text
-        style={[
-          s.jour,
-          { color: t.i2 },
-          so.annulee && { textDecorationLine: "line-through" },
-        ]}
-        numberOfLines={1}
-      >
+      <Text style={[s.jour, { color: i2 }]} numberOfLines={1}>
         {so.jour}
       </Text>
-
-      {so.aVenir ? (
-        <>
-          <Text style={[s.milieu, { color: t.ink }]}>{so.heure}</Text>
-          <Text style={[s.reste, { color: t.i2 }]} numberOfLines={1}>
-            {so.annulee
-              ? `Annulée${so.motifAnnulation ? ` · ${so.motifAnnulation}` : ""}`
-              : [so.lieu ?? so.libelle, so.presents > 0 ? `${so.presents} présent${so.presents > 1 ? "s" : ""}` : null]
-                  .filter(Boolean)
-                  .join(" · ")}
+      <Text style={[s.milieu, { color: t.ink }]}>
+        {so.matchs}
+        <Text style={[s.unite, { color: jeton(t, "i3") }]}> match{so.matchs > 1 ? "s" : ""}</Text>
+      </Text>
+      <Text style={[s.reste, { color: i2 }]} numberOfLines={1}>
+        {so.buts > 0 ? `${so.buts} but${so.buts > 1 ? "s" : ""}` : ""}
+        {so.buts > 0 && so.prix ? " · " : ""}
+        {so.prix ? (
+          <Text style={{ color: so.toutRegle ? jeton(t, "i3") : jeton(t, "or") }}>
+            {so.prix} {so.toutRegle ? "réglé" : "à encaisser"}
           </Text>
-        </>
-      ) : (
-        <>
-          <Text style={[s.milieu, { color: t.ink }]}>
-            {so.matchs} match{so.matchs > 1 ? "s" : ""}
-          </Text>
-          <Text style={[s.reste, { color: t.i2 }]} numberOfLines={1}>
-            {so.buts > 0 ? `${so.buts} but${so.buts > 1 ? "s" : ""}` : ""}
-            {so.buts > 0 && so.prix ? " · " : ""}
-            {so.prix ? (
-              <Text style={{ color: so.toutRegle ? t.i3 : "#ffd60a" }}>
-                {so.prix} {so.toutRegle ? "réglé" : "à encaisser"}
-              </Text>
-            ) : null}
-          </Text>
-        </>
-      )}
+        ) : null}
+      </Text>
     </Pressable>
   );
 }
 
-/// « septembre 2026 » → « Septembre 2026 ». Intl rend le mois en minuscule en
-/// français ; un titre de carte commence par une capitale.
+/// « septembre 2026 » → « Septembre 2026 ». Le serveur rend le mois en
+/// minuscule ; un titre de carte commence par une capitale.
 function capitale(x: string): string {
   return x.charAt(0).toUpperCase() + x.slice(1);
 }
 
 const s = StyleSheet.create({
-  contenu: { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 40, gap: 18 },
-  kicker: { fontSize: 15, fontWeight: "600" },
-  titre: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4, marginTop: 4 },
-  chapeau: { fontSize: 14, lineHeight: 20, marginTop: 6 },
-  section: { fontSize: 15, fontWeight: "600", marginTop: 4 },
-
-  centre: { paddingTop: 60, alignItems: "center", gap: 12, paddingHorizontal: 20 },
-  aide: { fontSize: 15 },
-  erreur: { fontSize: 15, textAlign: "center" },
-
-  carte: {
-    borderRadius: 28,
-    borderWidth: 1,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 20,
-  },
-  carteTete: {
+  defile: { paddingBottom: 48 },
+  contenu: { paddingHorizontal: 14 },
+  tete: { paddingHorizontal: 4, paddingTop: 16 },
+  kicker: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },
+  kickerSection: { marginBottom: 0, paddingHorizontal: 4 },
+  titre: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4, lineHeight: 31, marginTop: 4 },
+  chapeau: { fontSize: 14, lineHeight: 20, marginTop: 6, maxWidth: 384 },
+  programmer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    gap: 10,
+    alignSelf: "flex-start",
+    gap: 8,
+    minHeight: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    marginTop: 14,
+    marginLeft: 4,
   },
-  petitCompte: { fontSize: 13 },
-  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
-  jour: { width: 72, fontSize: 15 },
-  milieu: { fontSize: 17, fontWeight: "600", minWidth: 72 },
-  reste: { flex: 1, fontSize: 15 },
+  programmerTexte: { fontSize: 14, fontWeight: "700" },
+  saison: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    minHeight: 44,
+    marginTop: 2,
+    marginLeft: 4,
+  },
+  saisonTexte: { fontSize: 14, fontWeight: "700" },
 
-  deplier: { paddingVertical: 6, alignItems: "center" },
-  deplierTexte: { fontSize: 15, fontWeight: "600" },
+  section: { marginTop: 32 },
+  squelette: { opacity: 0.6 },
+
+  vide: { padding: 32, alignItems: "center" },
+  videTitre: { fontSize: 18, fontWeight: "900", textAlign: "center" },
+  videTexte: { fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 8, maxWidth: 384 },
+
+  carte: { marginTop: 18, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20 },
+  carteTete: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  mois: { fontSize: 13, fontWeight: "600" },
+  petitCompte: { fontSize: 13, fontVariant: ["tabular-nums"] },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
+  jour: { width: 64, fontSize: 15, fontVariant: ["tabular-nums"] },
+  milieu: { fontSize: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  unite: { fontSize: 13, fontWeight: "400" },
+  reste: { flex: 1, minWidth: 0, fontSize: 15 },
+
+  deplier: { minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
 });

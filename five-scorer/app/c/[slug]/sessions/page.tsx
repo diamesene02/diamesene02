@@ -3,6 +3,8 @@ import * as D from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import Icon from "@/components/Icon";
+import { calculerPresences } from "@/lib/presences";
+import { quandRelatif } from "@/lib/quand";
 
 export const dynamic = "force-dynamic";
 
@@ -23,20 +25,28 @@ export default async function SessionsPage({
   const ctx = await requireClub(slug);
   const clubId = ctx.club.id;
 
-  const matchDays = await prisma.matchDay.findMany({
-    where: { clubId },
-    orderBy: { date: "desc" },
-    take: 100,
-    include: {
-      rsvps: {
-        where: { status: "IN" },
-        select: { hasPaid: true },
+  const [matchDays, vivier] = await Promise.all([
+    prisma.matchDay.findMany({
+      where: { clubId },
+      orderBy: { date: "desc" },
+      take: 100,
+      include: {
+        rsvps: {
+          select: { playerId: true, status: true, respondedAt: true, hasPaid: true },
+        },
+        matches: {
+          select: { id: true, scoreA: true, scoreB: true, status: true },
+        },
       },
-      matches: {
-        select: { id: true, scoreA: true, scoreB: true, status: true },
-      },
-    },
-  });
+    }),
+    // Les abonnés viennent sans répondre : sans eux, « lun. 21 » ne montrait
+    // aucun présent alors que l'accueil en annonçait huit.
+    prisma.player.findMany({
+      where: { clubId, isArchived: false },
+      select: { id: true, abonne: true },
+    }),
+  ]);
+  const maintenant = new Date();
 
   const startOfToday = D.debutDuJour();
   const upcoming = matchDays
@@ -77,9 +87,37 @@ export default async function SessionsPage({
     md: (typeof matchDays)[number];
     aVenir?: boolean;
   }) => {
-    const presents = md.rsvps.length;
-    const toutRegle = presents > 0 && md.rsvps.every((r) => r.hasPaid);
+    const inscrits = md.rsvps.filter((r) => r.status === "IN");
+    const toutRegle = inscrits.length > 0 && inscrits.every((r) => r.hasPaid);
     const buts = md.matches.reduce((s, m) => s + m.scoreA + m.scoreB, 0);
+    // Une soirée annulée se présentait comme les autres — date, heure, lieu —
+    // et le joueur passé par Menu > Soirées venait pour rien.
+    if (md.canceledAt) {
+      return (
+        <Link href={`/c/${slug}/sessions/${md.id}`} className="ticker annulee">
+          <span className="ticker-heure">{fmtCourt(md.date)}</span>
+          <span className="ticker-score whitespace-nowrap">Annulée</span>
+          <span className="ticker-buteurs">{md.cancelReason ?? md.location ?? ""}</span>
+        </Link>
+      );
+    }
+    const presents = aVenir
+      ? calculerPresences({
+          entrees: vivier.map((j) => {
+            const r = md.rsvps.find((x) => x.playerId === j.id);
+            return {
+              playerId: j.id,
+              reponse: r?.status ?? null,
+              repondueLe: r?.respondedAt ?? null,
+              abonne: j.abonne,
+            };
+          }),
+          creeeLe: md.createdAt,
+          minJoueurs: ctx.club.minJoueurs,
+          capacite: ctx.club.capaciteSoiree,
+        }).titulaires.length
+      : inscrits.length;
+    const relatif = aVenir ? quandRelatif(md.date, maintenant) : null;
     return (
       <Link href={`/c/${slug}/sessions/${md.id}`} className="ticker">
         <span className="ticker-heure">{fmtCourt(md.date)}</span>
@@ -98,15 +136,26 @@ export default async function SessionsPage({
         </span>
         <span className="ticker-buteurs">
           {aVenir ? (
+            // Le plus utile d'abord, le lieu en dernier : c'est toujours le
+            // même, et c'est lui que l'ellipse doit manger.
             <>
-              {md.location && <span>{md.location}</span>}
-              {presents > 0 && (
-                <span style={{ color: "var(--bib-a-ink)" }}>
-                  {md.location ? " · " : ""}
-                  {presents} présent{presents > 1 ? "s" : ""}
-                </span>
-              )}
-              {md.title && !md.location && <span>{md.title}</span>}
+              {[
+                relatif && (
+                  <span key="q" style={{ color: "var(--ink-1)" }}>
+                    {relatif}
+                  </span>
+                ),
+                presents > 0 && (
+                  <span key="p" style={{ color: "var(--bib-a-ink)" }}>
+                    {presents} présent{presents > 1 ? "s" : ""}
+                  </span>
+                ),
+                (md.location ?? md.title) && (
+                  <span key="l">{md.location ?? md.title}</span>
+                ),
+              ]
+                .filter(Boolean)
+                .flatMap((el, i) => (i === 0 ? [el] : [" · ", el]))}
             </>
           ) : (
             <>

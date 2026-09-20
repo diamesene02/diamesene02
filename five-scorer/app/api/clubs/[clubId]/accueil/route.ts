@@ -6,6 +6,18 @@ import { calculerPresences, phraseEtat } from "@/lib/presences";
 import { fenetreDuJour } from "@/lib/jour";
 import { nomsChasubles } from "@/lib/color";
 import { points, trierParPoints } from "@/lib/classement";
+import { estRetro } from "@/lib/retro";
+import { orphelinsParJour, soireeReclame, SIX_SEMAINES_MS } from "@/lib/matches";
+import {
+  heure,
+  jourAbrege,
+  jourCourt,
+  jourEtNumero,
+  jourLong,
+  jourSemaineLong,
+  memeJour,
+  minuit,
+} from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +33,11 @@ export const dynamic = "force-dynamic";
 /// Les calculs ne sont pas refaits ici : `getLeaderboard` et
 /// `calculerPresences` sont les mêmes fonctions que celles du site. Deux
 /// implémentations du classement, ce serait deux classements.
+///
+/// Les dates arrivent aussi ÉCRITES (« Lun. 21 sept. », « 20:00 ») : le moteur
+/// JavaScript du téléphone ne connaît pas toujours le fuseau du club, et un
+/// Android d'entrée de gamme formate mal le français. Les ISO restent là pour
+/// les calculs.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ clubId: string }> },
@@ -36,21 +53,65 @@ export async function GET(
     select: { id: true, name: true },
   });
 
-  const { debut: debutDuJour, fin: finDuJour } = fenetreDuJour(new Date());
+  const maintenant = new Date();
+  const { debut: debutDuJour, fin: finDuJour } = fenetreDuJour(maintenant);
 
-  const [prochaine, matchsDuJour, classement, monJoueur, suivante, programmes, dernierFini] = await Promise.all([
-    // La prochaine soirée, avec de quoi calculer les présences.
+  // Le détail d'un joueur de compo : c'est ce que le coup d'envoi en un tap
+  // doit pouvoir écrire dans le miroir local sans repasser par l'effectif.
+  //
+  // Pas `photo` : ce sont les MÊMES joueurs que ceux du classement de cette
+  // réponse, qui porte déjà leur visage. Les envoyer deux fois doublait le
+  // poids de l'écran le plus ouvert de l'app — 70 Ko de data-URI recopiés à
+  // chaque tirer-pour-rafraîchir, au gymnase, en 4G. C'est la règle déjà
+  // écrite dans lib/succes-serveur.ts, et le site ne les envoie pas non plus
+  // (app/c/[slug]/page.tsx, le lineup du RematchButton).
+  const joueurCompo = {
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      skill: true,
+      isGk: true,
+      isGuest: true,
+      isArchived: true,
+    },
+  } as const;
+
+  const [
+    prochaine,
+    matchsDuJour,
+    classement,
+    monJoueur,
+    suivante,
+    programmes,
+    dernierFini,
+    enDirect,
+    derniereCompo,
+    soireesSansResultat,
+    orphelins,
+  ] = await Promise.all([
+    // La prochaine soirée, avec de quoi calculer les présences. Une soirée
+    // annulée n'est pas la prochaine soirée — c'est la règle du site, et
+    // sans elle un lundi annulé masquait le suivant et le rappel « aucune
+    // soirée au calendrier ».
     prisma.matchDay.findFirst({
-      where: { clubId, date: { gte: debutDuJour } },
+      where: { clubId, canceledAt: null, date: { gte: debutDuJour } },
       orderBy: { date: "asc" },
       select: {
         id: true,
         date: true,
         title: true,
+        location: true,
         canceledAt: true,
         createdAt: true,
+        teamAName: true,
+        teamBName: true,
         rsvps: { select: { playerId: true, status: true, respondedAt: true } },
-        lineup: { select: { playerId: true } },
+        // Les archivés depuis ne sont jamais reconduits.
+        lineup: {
+          where: { player: { isArchived: false } },
+          select: { playerId: true, team: true, isGk: true, player: joueurCompo },
+        },
       },
     }),
     // Les matchs du jour : c'est la soirée en cours, celle qu'on est en train
@@ -66,11 +127,13 @@ export async function GET(
         id: true,
         playedAt: true,
         status: true,
+        kind: true,
         teamAName: true,
         teamBName: true,
         scoreA: true,
         scoreB: true,
         durationMin: true,
+        opponent: { select: { name: true } },
       },
     }),
     getLeaderboard({ clubId, seasonId: saison?.id ?? null }),
@@ -92,7 +155,7 @@ export async function GET(
         location: true,
         teamAName: true,
         teamBName: true,
-        _count: { select: { rsvps: true } },
+        rsvps: { select: { playerId: true, status: true } },
         lineup: { where: { player: { isArchived: false } }, select: { team: true } },
       },
     }),
@@ -112,6 +175,7 @@ export async function GET(
         playedAt: true,
         kind: true,
         venue: true,
+        isHome: true,
         teamAName: true,
         teamBName: true,
         matchDayId: true,
@@ -130,6 +194,59 @@ export async function GET(
         playedAt: true,
         matchDay: { select: { date: true } },
       },
+    }),
+    // Le match en cours CÔTÉ SERVEUR, quelle que soit sa date. Un match reste
+    // LIVE tant que personne n'a sifflé la fin — et une soirée se termine
+    // rarement par un tap sur « Terminer ». Le lendemain, ce match n'était ni
+    // « de ce soir » ni terminé : il n'apparaissait nulle part, tout en
+    // bloquant le coup d'envoi suivant.
+    prisma.match.findFirst({
+      where: { clubId, status: "LIVE" },
+      orderBy: { playedAt: "desc" },
+      select: {
+        id: true,
+        playedAt: true,
+        kind: true,
+        matchDayId: true,
+        teamAName: true,
+        teamBName: true,
+        scoreA: true,
+        scoreB: true,
+        opponent: { select: { name: true } },
+      },
+    }),
+    // La dernière composition réellement jouée : à l'heure du match, si la
+    // feuille n'est pas préparée, la meilleure hypothèse est « comme la
+    // dernière fois ».
+    prisma.match.findFirst({
+      where: { clubId, status: "FINISHED", kind: "INTERNAL" },
+      orderBy: { playedAt: "desc" },
+      select: {
+        teamAName: true,
+        teamBName: true,
+        participants: { select: { team: true, isGk: true, player: joueurCompo } },
+      },
+    }),
+    // Les soirées passées dont personne n'a fait la feuille — la requête de
+    // l'accueil du site, fenêtre de six semaines comprise (lib/matches.ts).
+    prisma.matchDay.findMany({
+      where: {
+        clubId,
+        canceledAt: null,
+        date: {
+          lt: debutDuJour,
+          gte: new Date(debutDuJour.getTime() - SIX_SEMAINES_MS),
+        },
+        // Un match seulement PROGRAMMÉ ne compte pas pour un résultat.
+        matches: { none: { status: { in: ["LIVE", "FINISHED"] } } },
+      },
+      orderBy: { date: "desc" },
+      take: 3,
+      select: { id: true, date: true },
+    }),
+    orphelinsParJour(prisma, clubId, {
+      debut: new Date(debutDuJour.getTime() - SIX_SEMAINES_MS),
+      fin: maintenant,
     }),
   ]);
 
@@ -153,16 +270,24 @@ export async function GET(
           id: true,
           playedAt: true,
           status: true,
+          kind: true,
           teamAName: true,
           teamBName: true,
           scoreA: true,
           scoreB: true,
           durationMin: true,
+          opponent: { select: { name: true } },
         },
       })
     : [];
 
   const nomsClub = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
+  /// Le camp B d'un match : l'adversaire quand il y en a un, la chasuble sinon.
+  const adverse = (m: {
+    kind: "INTERNAL" | "EXTERNAL";
+    teamBName: string;
+    opponent: { name: string } | null;
+  }) => (m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName);
 
   let soiree = null;
   if (prochaine) {
@@ -190,6 +315,7 @@ export async function GET(
       capacite: ctx.club.capaciteSoiree,
       annulee: prochaine.canceledAt != null,
     });
+    const maLigne = monJoueur ? presences.lignes.get(monJoueur.id) : undefined;
     soiree = {
       id: prochaine.id,
       date: prochaine.date.toISOString(),
@@ -203,6 +329,23 @@ export async function GET(
       // question qui déclenche l'alerte de l'accueil.
       compoFaite: prochaine.lineup.length > 0,
       maReponse: monJoueur ? (reponses.get(monJoueur.id)?.statut ?? null) : null,
+      // Champs ajoutés le 19 septembre 2026.
+      lieu: prochaine.location,
+      heure: heure(prochaine.date),
+      jourAbrege: jourAbrege(prochaine.date),
+      jourLong: jourLong(prochaine.date),
+      // En JOURS CIVILS du club, pas en millisecondes : à 19 h pour une
+      // soirée à 20 h, un arrondi sur l'écart annonçait « Demain » au-dessus
+      // de la date du jour même. 0 = aujourd'hui.
+      joursAvant: Math.round((minuit(prochaine.date) - minuit(maintenant)) / 86_400_000),
+      ceSoir: memeJour(prochaine.date, maintenant),
+      etat: presences.etat.statut,
+      // Ma présence RETENUE, abonnement compris : `maReponse` ne dit que la
+      // réponse explicite, et un abonné qui n'a rien dit se voyait proposer
+      // « Touche pour répondre » alors qu'il est compté présent.
+      maPresence: maLigne
+        ? { statut: maLigne.statut, viaAbonnement: maLigne.source === "abonnement" }
+        : null,
     };
   }
 
@@ -211,11 +354,108 @@ export async function GET(
     joueLe: m.playedAt.toISOString(),
     statut: m.status,
     nomA: m.teamAName,
-    nomB: m.teamBName,
+    nomB: adverse(m),
     scoreA: m.scoreA,
     scoreB: m.scoreB,
     dureeMin: m.durationMin,
+    heure: heure(m.playedAt),
   });
+
+  // ── Le coup d'envoi en un tap ─────────────────────────────────────────────
+  // D'où vient la compo, dans l'ordre — la règle de l'accueil du site :
+  //   1. celle PRÉPARÉE pour la prochaine soirée — le club connaît ses équipes
+  //      trois à quatre jours avant, c'est la seule source qui soit juste ;
+  //   2. à défaut, celle du dernier match interne joué, annoncée comme telle.
+  // La compo et le rattachement sont deux questions : on prend la compo dès
+  // qu'elle est préparée, même la veille, mais on ne RATTACHE le match à la
+  // soirée que si elle a lieu aujourd'hui.
+  type JoueurPret = {
+    playerId: string;
+    nom: string;
+    surnom: string | null;
+    niveau: number;
+    estGardien: boolean;
+    gardienCeMatch: boolean;
+    invite: boolean;
+    camp: "A" | "B";
+  };
+  const versJoueur = (l: {
+    team: string;
+    isGk: boolean;
+    player: {
+      id: string;
+      name: string;
+      nickname: string | null;
+      skill: number;
+      isGk: boolean;
+      isGuest: boolean;
+    };
+  }): JoueurPret => ({
+    playerId: l.player.id,
+    nom: l.player.name,
+    surnom: l.player.nickname,
+    niveau: l.player.skill,
+    estGardien: l.player.isGk,
+    gardienCeMatch: l.isGk,
+    invite: l.player.isGuest,
+    camp: l.team as "A" | "B",
+  });
+  const compoSoiree = (prochaine?.lineup ?? []).map(versJoueur);
+  const compoDernier = (derniereCompo?.participants ?? [])
+    .filter((p) => !p.player.isArchived)
+    .map(versJoueur);
+  const sourcePreparee = compoSoiree.length > 0;
+  const compoPrete = sourcePreparee ? compoSoiree : compoDernier;
+  const compoA = compoPrete.filter((p) => p.camp === "A").length;
+  const compoB = compoPrete.filter((p) => p.camp === "B").length;
+  const nomCoupA = sourcePreparee
+    ? (prochaine?.teamAName ?? nomsClub.a)
+    : (derniereCompo?.teamAName ?? nomsClub.a);
+  const nomCoupB = sourcePreparee
+    ? (prochaine?.teamBName ?? nomsClub.b)
+    : (derniereCompo?.teamBName ?? nomsClub.b);
+  const joursAvant = prochaine
+    ? Math.round((minuit(prochaine.date) - minuit(maintenant)) / 86_400_000)
+    : null;
+  // « ce soir », « demain », ou le jour nommé : le bouton dit de quelle soirée
+  // vient la compo qu'il s'apprête à utiliser.
+  const quand =
+    joursAvant == null || joursAvant <= 0
+      ? "ce soir"
+      : joursAvant === 1
+        ? "demain"
+        : jourSemaineLong(prochaine!.date);
+  // Réservé à qui peut scorer : le bouton crée un match, et un membre simple
+  // se verrait proposer un geste que la file d'envoi lui refuserait. L'app le
+  // cachait déjà dans ce cas (lib/api.ts) ; la garde vit maintenant des deux
+  // côtés. `chasubleDe` reste calculé pour tout le monde — c'est l'anneau des
+  // avatars du tableau, pas un droit.
+  const coupDEnvoi =
+    ctx.canScore && compoA > 0 && compoB > 0
+      ? {
+          nomA: nomCoupA,
+          nomB: nomCoupB,
+          source: sourcePreparee ? ("preparee" as const) : ("derniere" as const),
+          quand,
+          // Seulement si la soirée a lieu aujourd'hui : un match lancé mardi
+          // avec la compo de lundi prochain n'appartient pas à lundi prochain.
+          soireeId: prochaine && memeJour(prochaine.date, maintenant) ? prochaine.id : null,
+          saisonId: saison?.id ?? null,
+          compoA,
+          compoB,
+          indice: `${nomCoupA} ${compoA} vs ${compoB} ${nomCoupB} — ${
+            sourcePreparee ? `la compo préparée pour ${quand}` : "la compo de la dernière fois"
+          }`,
+          joueurs: compoPrete,
+        }
+      : null;
+  // La chasuble de chacun dans la dernière compo connue : c'est l'anneau de
+  // son avatar dans le tableau.
+  const chasubleDe = new Map(compoPrete.map((p) => [p.playerId, p.camp]));
+
+  // Le nom court : « FC Lundi Soir » devient « Lundi Soir ». C'est le camp A
+  // d'un match externe à l'accueil du site.
+  const clubCourt = ctx.org.name.replace(/^(FC|AS|US|SC|Five)\s+/i, "");
 
   return NextResponse.json({
     saison: saison ? { id: saison.id, nom: saison.name } : null,
@@ -228,6 +468,9 @@ export async function GET(
             date: (dernierFini.matchDay?.date ?? dernierFini.playedAt).toISOString(),
             soireeId: dernierFini.matchDayId,
             matchs: matchsDerniere.map(ligneMatch),
+            // « Lundi 7 » pour l'onglet, « 7 sept. » pour « Soirée du … ».
+            onglet: jourEtNumero(dernierFini.matchDay?.date ?? dernierFini.playedAt),
+            jourCourt: jourCourt(dernierFini.matchDay?.date ?? dernierFini.playedAt),
           }
         : null,
     aVenir: {
@@ -241,20 +484,34 @@ export async function GET(
             nomB: suivante.teamBName ?? nomsClub.b,
             compoA: suivante.lineup.filter((l) => l.team === "A").length,
             compoB: suivante.lineup.filter((l) => l.team === "B").length,
-            reponses: suivante._count.rsvps,
+            reponses: suivante.rsvps.length,
+            // Pour le bouton « Je serai là » : la réponse explicite, comme le
+            // site. `soiree.maReponse` ne parle que de la soirée du dessus.
+            maReponse: monJoueur
+              ? (suivante.rsvps.find((r) => r.playerId === monJoueur.id)?.status ?? null)
+              : null,
+            heure: heure(suivante.date),
+            jourLong: jourLong(suivante.date),
           }
         : null,
       matchs: programmes.map((m) => {
         const externe = m.kind === "EXTERNAL" && m.opponent != null;
+        const q = m.scheduledAt ?? m.playedAt;
         return {
           id: m.id,
-          quand: (m.scheduledAt ?? m.playedAt).toISOString(),
+          quand: q.toISOString(),
           nomA: m.teamAName,
           nomB: externe ? m.opponent!.name : m.teamBName,
           externe,
           lieu: m.venue,
           presents: m._count.rsvps,
           soireeId: m.matchDayId,
+          domicile: m.isHome,
+          // Programmé pour aujourd'hui : il va dans « Ce soir », pas dans
+          // « À venir ».
+          ceSoir: m.scheduledAt != null && m.scheduledAt < finDuJour,
+          heure: heure(q),
+          jourAbrege: jourAbrege(q),
         };
       }),
     },
@@ -276,6 +533,45 @@ export async function GET(
       defaites: r.losses,
       buts: r.goals,
       points: points(r, ctx.club.pointsWin, ctx.club.pointsDraw),
+      camp: chasubleDe.get(r.playerId) ?? null,
     })),
+
+    enDirect: enDirect
+      ? {
+          id: enDirect.id,
+          joueLe: enDirect.playedAt.toISOString(),
+          scoreA: enDirect.scoreA,
+          scoreB: enDirect.scoreB,
+          nomA: enDirect.teamAName,
+          nomB: adverse(enDirect),
+          soireeId: enDirect.matchDayId,
+          // Plus de six heures : c'est une feuille qu'on a oublié de fermer,
+          // pas le match de ce soir (lib/retro.ts).
+          retro: estRetro(enDirect.playedAt),
+          jourLong: jourLong(enDirect.playedAt),
+        }
+      : null,
+    // Les soirées passées sans résultat. Avant de réclamer une feuille, on
+    // regarde s'il existe déjà un match de ce jour-là sans soirée : si oui,
+    // on propose de le RANGER — jamais une feuille vierge, qui fabriquerait
+    // un doublon (spec 0007).
+    sansResultat: soireesSansResultat.flatMap((s) => {
+      const r = soireeReclame(
+        { date: s.date, canceledAt: null, matchsActifs: 0 },
+        orphelins,
+        maintenant.getTime(),
+      );
+      if (r.quoi === "rien") return [];
+      return [
+        {
+          soireeId: s.id,
+          date: s.date.toISOString(),
+          jourLong: jourLong(s.date),
+          rangerMatchId: r.quoi === "rattacher" ? r.matchId : null,
+        },
+      ];
+    }),
+    coupDEnvoi,
+    clubCourt,
   });
 }

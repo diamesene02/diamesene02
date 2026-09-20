@@ -31,7 +31,10 @@ const LIBELLES: Record<RsvpStatus, string> = {
   OUT: "Absent",
 };
 
-/// Tap admin : cycle IN → MAYBE → OUT (sans réponse → IN).
+/// Tap admin : cycle IN → MAYBE → OUT (sans réponse → IN). Il part du statut
+/// RETENU : un abonné sans réponse est déjà présent, et le faire « passer »
+/// présent ne changeait rien à l'écran — sinon la mention « abonné » qui
+/// disparaissait. L'admin retapait, croyant avoir raté son geste.
 function nextStatus(s: RsvpStatus | null): RsvpStatus {
   if (s === "IN") return "MAYBE";
   if (s === "MAYBE") return "OUT";
@@ -79,14 +82,28 @@ export default function SessionRsvpAdmin({
 
   function apply(playerId: string, status: RsvpStatus) {
     setError(null);
+    const avant = rows.find((r) => r.playerId === playerId);
     // Optimiste : maj locale immédiate.
     setRows((prev) =>
       prev.map((r) => (r.playerId === playerId ? { ...r, status } : r))
     );
+    // En cas d'échec, la ligne revient à ce que le serveur sait : l'écran ne
+    // doit pas montrer un statut qui n'a pas été enregistré.
+    const restaurer = () => {
+      if (avant) {
+        setRows((prev) => prev.map((r) => (r.playerId === playerId ? avant : r)));
+      }
+    };
     startTransition(async () => {
-      const res = await setRsvp(slug, matchDayId, playerId, status);
-      if (!res.ok) {
-        setError(res.error ?? "Erreur");
+      try {
+        const res = await setRsvp(slug, matchDayId, playerId, status);
+        if (!res.ok) {
+          restaurer();
+          setError(res.error ?? "Erreur");
+        }
+      } catch {
+        restaurer();
+        setError("Pas enregistré — pas de réseau ? Réessaie.");
       }
       router.refresh();
     });
@@ -205,7 +222,7 @@ export default function SessionRsvpAdmin({
             key={p.playerId}
             type="button"
             disabled={pending}
-            onClick={() => apply(p.playerId, nextStatus(p.status))}
+            onClick={() => apply(p.playerId, nextStatus(effectif(p)))}
             title="Changer le statut"
             className="soiree-rangee tape"
           >
@@ -231,7 +248,9 @@ export default function SessionRsvpAdmin({
         <div style={{ height: 12 }} />
       )}
 
-      {canManage && deplie && (
+      {/* Les quatre premières lignes sont déjà touchables : le mode d'emploi
+          ne peut pas attendre qu'on déplie la liste. */}
+      {canManage && (
         <p className="soiree-aide">
           Touche un joueur pour changer son statut : présent → peut-être →
           absent.

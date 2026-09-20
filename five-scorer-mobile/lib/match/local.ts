@@ -66,6 +66,7 @@ import {
 } from "../noyau/clock";
 import {
   compterCoequipiers,
+  compterOpsBloqueesDuMatch,
   compterOpsDuMatch,
   ecrireClub,
   ecrireEvenement,
@@ -199,17 +200,28 @@ export function creerMatchLocal(deps: Dependances) {
   /// fiche renvoyée sans surnom perd son surnom, c'est le serveur qui a
   /// raison. Une seule transaction pour tout le lot — quatorze fiches, un seul
   /// verrou.
+  ///
+  /// **Une exception, `photo`** : le champ est optionnel, et ABSENT ne veut pas
+  /// dire « plus de photo ». Les compos prêtes à lancer (coup d'envoi de
+  /// l'accueil, « On rejoue ») ne portent plus le visage des joueurs — il est
+  /// déjà ailleurs dans la même réponse, et l'envoyer deux fois doublait le
+  /// poids de l'accueil. Écraser par `null` ce que le téléphone a déjà, c'est
+  /// une feuille de match en initiales au gymnase, sans réseau pour la
+  /// rattraper. `photo: null` explicite, lui, efface bien : c'est la réponse de
+  /// l'effectif, qui fait autorité.
   async function saveRoster(
     clubId: string,
     players: FicheEffectif[],
   ): Promise<void> {
+    const muets = players.filter((p) => p.photo === undefined).map((p) => p.id);
+    const connus = muets.length > 0 ? await lireJoueurs(base, muets) : new Map();
     await base.transaction(async (b) => {
       for (const p of players) {
         await ecrireJoueur(b, {
           ...p,
           clubId,
           nickname: p.nickname ?? null,
-          photo: p.photo ?? null,
+          photo: p.photo !== undefined ? p.photo : (connus.get(p.id)?.photo ?? null),
           isArchived: Boolean(p.isArchived),
         });
       }
@@ -266,6 +278,14 @@ export function creerMatchLocal(deps: Dependances) {
   /// sait tout, on peut lui faire confiance pour le récap complet.
   function pendingOpsForMatch(matchId: string): Promise<number> {
     return compterOpsDuMatch(base, matchId);
+  }
+
+  /// Combien de ces opérations le serveur a refusées. Elles ne repartiront
+  /// pas toutes seules : il faut `drain.rejouerBloquees()`. L'écran de fin de
+  /// match s'en sert pour distinguer « ça part » de « ça a été refusé » —
+  /// deux situations que `pendingOpsForMatch` mélange, à dessein.
+  function blockedOpsForMatch(matchId: string): Promise<number> {
+    return compterOpsBloqueesDuMatch(base, matchId);
   }
 
   // --- Cycle de vie du match -----------------------------------------------
@@ -951,6 +971,7 @@ export function creerMatchLocal(deps: Dependances) {
     getLocalClubBySlug,
     getLiveMatchOfClub,
     pendingOpsForMatch,
+    blockedOpsForMatch,
     createMatch,
     launchScheduledMatch,
     addEvent,

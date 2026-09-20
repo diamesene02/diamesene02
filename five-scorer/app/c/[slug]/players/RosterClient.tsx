@@ -26,6 +26,8 @@ type RosterPlayer = {
   isLinked: boolean;
   matchesPlayed: number;
   goals: number;
+  /// Le niveau des succès ; null tant que le joueur n'a pas d'XP.
+  niveau: { niveau: number; titre: string } | null;
 };
 
 type PlayerFormValues = {
@@ -36,14 +38,16 @@ type PlayerFormValues = {
   photo: string | null;
 };
 
-// Niveau : cinq étoiles du jeu d'icônes. Le glyphe ★ n'existe pas dans
-// Archivo — il partait en police de repli et cassait le dessin.
+// La note d'équilibrage : cinq étoiles du jeu d'icônes. Le glyphe ★
+// n'existe pas dans Archivo — il partait en police de repli et cassait le
+// dessin. Lue « note » et pas « niveau » : la rangée porte aussi le niveau
+// des succès, et un lecteur d'écran annonçait deux niveaux différents.
 function Etoiles({ skill, taille = 13 }: { skill: number; taille?: number }) {
   return (
     <span
       className="inline-flex items-center gap-0.5"
       role="img"
-      aria-label={`Niveau ${skill} sur 5`}
+      aria-label={`Note ${skill} sur 5`}
     >
       {[1, 2, 3, 4, 5].map((n) => (
         <Icon
@@ -99,8 +103,10 @@ function PlayerForm({
       </label>
 
       <div className="roster-champ">
-        <span>Niveau</span>
-        <div className="segment plein-large" role="radiogroup" aria-label="Niveau">
+        {/* « Note » et pas « niveau » : la rangée juste à côté porte le niveau
+            des succès, qui est l'XP. Le nom du champ, lui, reste `skill`. */}
+        <span>Note</span>
+        <div className="segment plein-large" role="radiogroup" aria-label="Note">
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               key={n}
@@ -292,6 +298,16 @@ export default function RosterClient({
                 <span className="corps">
                   <span className="nom">
                     {p.name}
+                    {p.niveau && (
+                      <span
+                        className="ecusson A niveau"
+                        role="img"
+                        aria-label={`Niveau ${p.niveau.niveau}, ${p.niveau.titre}`}
+                        title={`Niveau ${p.niveau.niveau} · ${p.niveau.titre}`}
+                      >
+                        {p.niveau.niveau}
+                      </span>
+                    )}
                     {p.isGk && (
                       <Icon name="glove" size={13} label="Gardien" className="gant" />
                     )}

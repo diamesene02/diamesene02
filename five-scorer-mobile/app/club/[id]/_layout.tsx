@@ -1,37 +1,24 @@
-import { useCallback, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback } from "react";
 import { Tabs, router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { chargerMoi } from "../../../lib/api";
-import { FournisseurClub } from "../../../composants/ClubCourant";
-import {
-  IconeAccueil,
-  IconeBallon,
-  IconeCalendrier,
-  IconeCourbe,
-  IconePlus,
-} from "../../../composants/Icones";
+import { FournisseurClub, memoriserMoi } from "../../../composants/ClubCourant";
 
-/// La barre du bas, reprise de celle du site (components/BottomNav.tsx).
+/// Le cadre des écrans du club.
 ///
-/// Cinq onglets de largeur égale sur 64 px, l'icône puis son libellé en 13
-/// gras, et un trait de 3 px sous l'actif. Le troisième n'est pas une page :
-/// c'est « Créer », qui ouvre une feuille.
+/// Plus de barre d'onglets en bas : comme sur le site (app/c/[slug]/layout.tsx,
+/// « le menu en verre porte toute la navigation »), on passe d'un écran à
+/// l'autre par la pilule du club, en haut à droite de chaque écran
+/// (composants/EnTeteClub.tsx). La feuille « Créer » du « + » central vit
+/// maintenant dans composants/FeuilleCreer.tsx, ouverte depuis l'accueil.
 ///
-/// On dessine la barre à la main plutôt que d'utiliser celle d'expo-router :
-/// l'onglet du milieu n'a pas d'écran derrière lui, et le trait actif du site
-/// est au-dessus du libellé, pas en dessous de la barre.
-const ONGLETS = [
-  { nom: "index", libelle: "Accueil", Icone: IconeAccueil },
-  { nom: "matchs", libelle: "Matchs", Icone: IconeBallon },
-  { nom: "soirees", libelle: "Soirées", Icone: IconeCalendrier },
-  { nom: "stats", libelle: "Stats", Icone: IconeCourbe },
-] as const;
-
+/// Les écrans restent déclarés dans un `Tabs`, barre masquée, plutôt que dans
+/// une pile : un écran visité reste monté, on y revient sans le recharger ni
+/// perdre où l'on avait défilé — et le menu y saute sans empiler de doublon.
+/// `backBehavior="history"` : le retour ramène à l'écran d'où l'on venait,
+/// comme le bouton retour du navigateur sur le site, et pas toujours à
+/// l'accueil.
 export default function DispositionClub() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [feuille, setFeuille] = useState(false);
-  const bas = useSafeAreaInsets().bottom;
 
   // Le club de la route peut ne plus être un club de l'utilisateur.
   //
@@ -55,197 +42,51 @@ export default function DispositionClub() {
   // déjà monté. Revenir dessus (un « ‹ » depuis une fiche de soirée) ne
   // remontait rien, donc ne relançait rien — et le 404 réapparaissait.
   // Constaté sur un enregistrement d'écran : corrigé à 09 s, revenu à 23 s.
+  //
+  // La réponse est gardée au passage (`memoriserMoi`) : c'est elle qui donne
+  // à la pilule le nom de l'utilisateur et le nombre de ses clubs, et aux
+  // écrans leurs couleurs dès la première image.
   useFocusEffect(
     useCallback(() => {
-    if (!id) return;
-    let vivant = true;
-    void (async () => {
-      try {
-        const moi = await chargerMoi();
-        if (!vivant) return;
-        if (!moi.clubs.some((c) => c.id === id)) {
-          // Vers la liste : elle sait dire « aucun club » et proposer d'en
-          // rejoindre un. On ne laisse personne dans un club fantôme.
-          router.replace("/clubs");
+      if (!id) return;
+      let vivant = true;
+      void (async () => {
+        try {
+          const moi = await chargerMoi();
+          if (!vivant) return;
+          memoriserMoi(moi);
+          if (!moi.clubs.some((c) => c.id === id)) {
+            // Vers la liste : elle sait dire « aucun club » et proposer d'en
+            // rejoindre un. On ne laisse personne dans un club fantôme.
+            router.replace("/clubs");
+          }
+        } catch {
+          // Hors ligne, session finie, serveur muet : on NE SORT PAS quelqu'un de
+          // son club parce que le réseau a hoqueté. Les écrans ont déjà leurs
+          // propres messages pour ces cas ; ici, on ne fait rien.
         }
-      } catch {
-        // Hors ligne, session finie, serveur muet : on NE SORT PAS quelqu'un de
-        // son club parce que le réseau a hoqueté. Les écrans ont déjà leurs
-        // propres messages pour ces cas ; ici, on ne fait rien.
-      }
-    })();
-    return () => {
-      vivant = false;
-    };
+      })();
+      return () => {
+        vivant = false;
+      };
     }, [id]),
   );
 
   return (
     <FournisseurClub value={id}>
       <Tabs
+        tabBar={() => null}
+        backBehavior="history"
         screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}
-        tabBar={({ state, navigation }) => (
-          <View style={[s.barre, { height: 64 + bas, paddingBottom: bas }]}>
-            {ONGLETS.slice(0, 2).map((o) => (
-              <Onglet
-                key={o.nom}
-                {...o}
-                actif={state.routes[state.index]?.name === o.nom}
-                onPress={() => navigation.navigate(o.nom)}
-              />
-            ))}
-
-            <Pressable
-              onPress={() => setFeuille(true)}
-              accessibilityLabel="Créer un match ou une soirée"
-              style={s.onglet}
-            >
-              <IconePlus couleur="rgba(255,255,255,0.4)" />
-              <Text style={[s.libelle, { color: "rgba(255,255,255,0.4)" }]}>Créer</Text>
-            </Pressable>
-
-            {ONGLETS.slice(2).map((o) => (
-              <Onglet
-                key={o.nom}
-                {...o}
-                actif={state.routes[state.index]?.name === o.nom}
-                onPress={() => navigation.navigate(o.nom)}
-              />
-            ))}
-          </View>
-        )}
       >
         <Tabs.Screen name="index" />
         <Tabs.Screen name="matchs" />
         <Tabs.Screen name="soirees" />
-        <Tabs.Screen name="stats" />
-        {/* L'effectif n'a pas d'onglet : on y va par le menu de la pilule,
-            comme sur le site. Il est déclaré ici pour que la pile le connaisse
-            — sans quoi il s'ouvrirait hors du cadre du club, sans barre. */}
-        <Tabs.Screen name="effectif" />
         <Tabs.Screen name="saison" />
+        <Tabs.Screen name="stats" />
+        <Tabs.Screen name="effectif" />
         <Tabs.Screen name="reglages" />
       </Tabs>
-
-      <Modal
-        visible={feuille}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setFeuille(false)}
-      >
-        <Pressable style={s.voile} onPress={() => setFeuille(false)}>
-          <Pressable style={[s.feuille, { paddingBottom: bas + 16 }]} onPress={() => {}}>
-            <Action
-              titre="Lancer un match maintenant"
-              aide="Deux équipes, un score, un chrono"
-              onPress={() => {
-                setFeuille(false);
-                router.push({ pathname: "/compo", params: { clubId: id } });
-              }}
-            />
-            <Action
-              titre="Saisir un match déjà joué"
-              aide="La feuille sans chrono, pour rattraper une soirée"
-              onPress={() => {
-                setFeuille(false);
-                router.push({ pathname: "/compo", params: { clubId: id, quand: "deja" } });
-              }}
-            />
-            <View style={{ height: 8 }} />
-            <Pressable onPress={() => setFeuille(false)} style={s.fermer}>
-              <Text style={s.fermerTexte}>Fermer</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </FournisseurClub>
   );
 }
-
-function Onglet({
-  libelle,
-  Icone,
-  actif,
-  onPress,
-}: {
-  libelle: string;
-  Icone: (p: { couleur: string; taille?: number }) => React.ReactElement;
-  actif: boolean;
-  onPress: () => void;
-}) {
-  const couleur = actif ? "#ffffff" : "rgba(255,255,255,0.4)";
-  return (
-    <Pressable onPress={onPress} style={s.onglet} accessibilityRole="button">
-      <Icone couleur={couleur} />
-      <Text style={[s.libelle, { color: couleur }]}>{libelle}</Text>
-      {actif && <View style={s.trait} />}
-    </Pressable>
-  );
-}
-
-function Action({
-  titre,
-  aide,
-  onPress,
-}: {
-  titre: string;
-  aide: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={s.action}>
-      <View style={{ flex: 1 }}>
-        <Text style={s.actionTitre}>{titre}</Text>
-        <Text style={s.actionAide}>{aide}</Text>
-      </View>
-      <Text style={s.chevron}>›</Text>
-    </Pressable>
-  );
-}
-
-const s = StyleSheet.create({
-  barre: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    // La hauteur est posée à l'usage : en React Native elle englobe le
-    // rembourrage, donc « 64 » avec une zone sûre de 34 ne laissait que 30 px
-    // de contenu — le trait de l'onglet actif barrait le libellé.
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "#0b0b0e",
-    paddingHorizontal: 4,
-  },
-  onglet: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8 },
-  libelle: { fontSize: 13, fontWeight: "600" },
-  // Le trait du site est posé sous l'onglet actif, bord à bord moins 12 px.
-  trait: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    bottom: 0,
-    height: 3,
-    backgroundColor: "#ffffff",
-  },
-
-  voile: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  feuille: {
-    backgroundColor: "#0b0b0e",
-    borderTopWidth: 3,
-    borderTopColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  action: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    minHeight: 56,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  actionTitre: { color: "#ffffff", fontSize: 17, fontWeight: "600" },
-  actionAide: { color: "rgba(255,255,255,0.62)", fontSize: 13, paddingTop: 2 },
-  chevron: { color: "rgba(255,255,255,0.4)", fontSize: 22 },
-  fermer: { height: 52, alignItems: "center", justifyContent: "center" },
-  fermerTexte: { color: "rgba(255,255,255,0.62)", fontSize: 17, fontWeight: "600" },
-});

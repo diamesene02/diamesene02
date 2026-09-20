@@ -8,8 +8,11 @@ import Onglets from "@/components/ios/Onglets";
 import Records from "./Records";
 import DerbyCarte from "./Derby";
 import Gardiens from "./Gardiens";
+import SuccesClub from "./SuccesClub";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Classement, { trierParPoints } from "@/components/Classement";
+import { cn } from "@/lib/cn";
+import { succesDuClub } from "@/lib/succes-serveur";
 import {
   getClubRecords,
   getDerby,
@@ -112,7 +115,7 @@ export default async function StatsPage({
     seasonId: selected === "all" ? null : selected,
   };
 
-  const [rows, external, records, derby, gardiens, participations] = await Promise.all([
+  const [rows, external, records, derby, gardiens, participations, succes] = await Promise.all([
     getLeaderboard(scope),
     getExternalRecord(scope, { win: club.pointsWin, draw: club.pointsDraw }),
     getClubRecords(scope),
@@ -132,7 +135,19 @@ export default async function StatsPage({
       select: { playerId: true, initialTeam: true },
       orderBy: { match: { playedAt: "desc" } },
     }),
+    // Les succès ne sont qu'un plus, comme sur l'accueil : s'ils échouent,
+    // les stats s'affichent sans eux plutôt que pas du tout. Le moteur lit
+    // deux tables en SQL écrit à la main (lib/succes-serveur) — le jour où
+    // une migration renomme une colonne, le mardi matin ne doit pas perdre
+    // le tableau, les buteurs et la forme avec.
+    succesDuClub(clubId).catch((e: unknown) => {
+      console.error("Stats : succès indisponibles", e);
+      return null;
+    }),
   ]);
+  // Le joueur du compte connecté : sa ligne ressort dans chaque liste. Le
+  // mardi, on ouvre les stats pour se trouver, pas pour lire le podium.
+  const moi = succes?.joueurDuCompte(ctx.user.id) ?? null;
   const camps: Record<string, Camp | undefined> = {};
   for (const p of participations) {
     if (!camps[p.playerId]) camps[p.playerId] = p.initialTeam;
@@ -232,6 +247,15 @@ export default async function StatsPage({
     eloTrend: r.eloTrend,
   }));
   const fiche = (id: string) => `/c/${slug}/players/${id}`;
+  const photos: Record<string, string | null> = {};
+  for (const r of rows) photos[r.playerId] = r.photo;
+
+  // Le tableau vient de components/Classement, partagé avec la soirée et la
+  // vitrine publique, qui n'ont pas de ligne « moi » : il reçoit donc le
+  // joueur du compte en prop et pose la classe lui-même (stats.css). Avant,
+  // la page écrivait une règle CSS visant la rangée par son lien : le
+  // « · toi » était un `::after` sur la cellule du nom, qui rogne à
+  // l'ellipse — le repère n'apparaissait jamais.
 
   // Buteurs : tous les joueurs, du plus prolifique au moins, la barre en
   // proportion du meilleur.
@@ -341,6 +365,7 @@ export default async function StatsPage({
                       <Classement
                         slug={slug}
                         lignes={lignes}
+                        moi={moi}
                         trackAssists={club.trackAssists}
                         trackCards={club.trackCards}
                         pointsWin={club.pointsWin}
@@ -364,12 +389,16 @@ export default async function StatsPage({
                           <Link
                             key={r.playerId}
                             href={fiche(r.playerId)}
-                            className="stats-rangee stats-buteur"
+                            className={cn("stats-rangee stats-buteur", r.playerId === moi && "moi")}
+                            aria-current={r.playerId === moi ? "true" : undefined}
                           >
                             <span>{i + 1}</span>
                             <AvatarAnneau nom={r.name} photo={r.photo} camp={camp ?? null} taille={30} />
                             <span className="bloc">
-                              <span className="nom">{r.name}</span>
+                              <span className="nom">
+                                {r.name}
+                                {r.playerId === moi && <span className="toi"> · toi</span>}
+                              </span>
                               <span className="barre" aria-hidden>
                                 <i
                                   className={camp ?? undefined}
@@ -395,7 +424,8 @@ export default async function StatsPage({
                         <Link
                           key={r.playerId}
                           href={fiche(r.playerId)}
-                          className="stats-rangee stats-forme"
+                          className={cn("stats-rangee stats-forme", r.playerId === moi && "moi")}
+                          aria-current={r.playerId === moi ? "true" : undefined}
                         >
                           <AvatarAnneau
                             nom={r.name}
@@ -403,7 +433,10 @@ export default async function StatsPage({
                             camp={camps[r.playerId] ?? null}
                             taille={30}
                           />
-                          <span className="nom">{r.name}</span>
+                          <span className="nom">
+                            {r.name}
+                            {r.playerId === moi && <span className="toi"> · toi</span>}
+                          </span>
                           <Forme form={r.form} />
                           <Serie streak={r.streak} />
                         </Link>
@@ -537,6 +570,19 @@ export default async function StatsPage({
                 </div>
               ))}
             </Carte>
+          )}
+
+          {/* LES SUCCÈS : le fil des exploits, les niveaux, les raretés. */}
+          {succes && (
+            <SuccesClub
+              slug={slug}
+              club={succes.club}
+              badgesDe={(id) => succes.parJoueur.get(id)?.badges}
+              moi={moi}
+              photos={photos}
+              camps={camps}
+              maintenant={new Date()}
+            />
           )}
 
           {/* LE DERBY : le club joue contre lui-même toute l'année, avec

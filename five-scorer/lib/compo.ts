@@ -23,6 +23,10 @@ export type EntreeCompo = {
 
 export type ResultatCompo = { ok: true } | { ok: false; error: string };
 
+// Le gardien du soir (qui a les gants ce lundi-là) : `estGardienDuSoir`,
+// dans lib/gardien.ts. Il y vit seul pour rester importable depuis l'écran
+// de compo, qui est un composant client et n'a rien à faire de Prisma.
+
 /// Écrit la compo d'une soirée. **Remplace l'ensemble** : ce n'est pas une
 /// modification partielle, c'est la liste entière qui vaut.
 ///
@@ -99,4 +103,81 @@ export async function ecrireCompo(
   ]);
 
   return { ok: true };
+}
+
+export type ResultatReprise =
+  | { ok: true; reprises: number }
+  | { ok: false; status: number; error: string };
+
+/// « Compo précédente » : reprend la composition de la dernière soirée déjà
+/// préparée, comme point de départ. Les équipes tournent d'une semaine à
+/// l'autre, mais on part rarement d'une page blanche.
+///
+/// La soirée précédente est la plus récente AVANT celle-ci qui a une compo,
+/// les joueurs archivés depuis ne sont pas reconduits, et la reprise remplace
+/// l'ensemble — noms d'équipes compris. Deux appelants : la route que l'app
+/// appelle, et l'action serveur du site (`reprendreCompoPrecedente`,
+/// app/actions/compo.ts), qui n'en garde que `requireClub` + `canScore` et la
+/// revalidation.
+///
+/// Le droit d'écrire (`canScore`) se vérifie AVANT, chez l'appelant.
+export async function reprendreCompo(
+  clubId: string,
+  matchDayId: string,
+): Promise<ResultatReprise> {
+  if (!idsValides(matchDayId)) {
+    return { ok: false, status: 400, error: "Identifiant invalide." };
+  }
+
+  const soiree = await prisma.matchDay.findFirst({
+    where: { id: matchDayId, clubId },
+    select: { id: true, date: true, canceledAt: true },
+  });
+  if (!soiree) return { ok: false, status: 404, error: "Soirée introuvable." };
+  // Le MÊME refus que `ecrireCompo`, avec les mêmes mots : deux portes vers
+  // `matchDayLineup`, une seule règle. Un écran ouvert avant l'annulation
+  // (ou un appel direct) écrivait encore la compo de la semaine d'avant sur
+  // une soirée annulée, noms d'équipes compris.
+  if (soiree.canceledAt) {
+    return { ok: false, status: 409, error: "Cette soirée est annulée." };
+  }
+
+  const precedente = await prisma.matchDay.findFirst({
+    where: {
+      clubId,
+      date: { lt: soiree.date },
+      lineup: { some: {} },
+      // Un lundi annulé n'a jamais eu lieu : sa compo n'est pas « la
+      // précédente », même si elle avait été préparée avant l'annulation.
+      canceledAt: null,
+    },
+    orderBy: { date: "desc" },
+    select: {
+      teamAName: true,
+      teamBName: true,
+      lineup: {
+        select: { playerId: true, team: true, isGk: true },
+        where: { player: { isArchived: false } },
+      },
+    },
+  });
+  if (!precedente || precedente.lineup.length === 0) {
+    return { ok: false, status: 409, error: "Aucune compo précédente à reprendre." };
+  }
+
+  await prisma.$transaction([
+    prisma.matchDayLineup.deleteMany({ where: { matchDayId } }),
+    prisma.matchDayLineup.createMany({
+      data: precedente.lineup.map((l) => ({ matchDayId, ...l })),
+    }),
+    prisma.matchDay.update({
+      where: { id: matchDayId },
+      data: {
+        teamAName: precedente.teamAName,
+        teamBName: precedente.teamBName,
+      },
+    }),
+  ]);
+
+  return { ok: true, reprises: precedente.lineup.length };
 }

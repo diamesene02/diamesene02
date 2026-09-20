@@ -14,6 +14,9 @@ import CancelMatchButton from "./CancelMatchButton";
 import { soireeDuJour } from "@/lib/matches";
 import RestoreMatchButton from "./RestoreMatchButton";
 import RangerDansSoireeButton from "./RangerDansSoireeButton";
+import DebloquesDuMatch, { type JoueurDuMatch } from "./DebloquesDuMatch";
+import AnnonceSucces from "@/components/succes/AnnonceSucces";
+import { succesDuClub } from "@/lib/succes-serveur";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +43,22 @@ export default async function MatchRecapPage({
     },
   });
   if (!match) notFound();
+
+  // Les succès ne se lisent que sur un match terminé (le moteur ignore les
+  // autres). Lancés tout de suite, ils se chargent pendant les requêtes du
+  // récap au lieu de les attendre.
+  //
+  // Ils ne sont qu'un plus, comme sur l'accueil : s'ils échouent, le récap
+  // s'affiche sans eux plutôt que pas du tout. Le `catch` évite du même coup
+  // la promesse rejetée sans preneur pendant que le récap attend ses autres
+  // requêtes — Node la signale, voire arrête le processus.
+  const succesEnCours =
+    match.status === "FINISHED"
+      ? succesDuClub(ctx.club.id).catch((e: unknown) => {
+          console.error("Récap : succès indisponibles", e);
+          return null;
+        })
+      : null;
 
   // Rejouer, c'est créer un match AUJOURD'HUI. Il ne doit donc hériter ni de
   // la saison ni de la soirée du match rejoué s'il regarde un vieux récap :
@@ -311,6 +330,14 @@ export default async function MatchRecapPage({
   const votesPour = match.mvpId ? (votesByPlayer.get(match.mvpId) ?? 0) : 0;
   const votesTotal = match.motmVotes.length;
 
+  const succes = succesEnCours ? ((await succesEnCours) ?? null) : null;
+  const debloques = succes ? succes.deblocagesDuMatch(match.id) : [];
+  const joueursDuMatch = new Map<string, JoueurDuMatch>(
+    match.participants.map((p) => [p.playerId, { photo: p.player.photo, camp: p.team as "A" | "B" }]),
+  );
+  const moi = succes?.joueurDuCompte(ctx.user.id) ?? null;
+  const mesSucces = moi ? (succes?.parJoueur.get(moi) ?? null) : null;
+
   return (
     <main>
       <RecapView
@@ -385,6 +412,20 @@ export default async function MatchRecapPage({
               }))}
             />
           )}
+
+        {/* Après « on rejoue » (le geste du bord du terrain), avant le vote :
+            quelques lignes, qui ne doivent pas finir sous la liste des
+            candidats. */}
+        {debloques.length > 0 && (
+          <DebloquesDuMatch slug={slug} deblocages={debloques} joueurs={joueursDuMatch} />
+        )}
+
+        {/* L'annonce d'un succès neuf pour le joueur du compte : c'est ici
+            qu'on arrive après le coup de sifflet, ou depuis le lien du
+            groupe le lendemain. */}
+        {moi && mesSucces && (
+          <AnnonceSucces clubId={ctx.club.id} playerId={moi} slug={slug} deblocages={mesSucces.deblocages} />
+        )}
 
         {showVoting && (
           <MotmVotePanel

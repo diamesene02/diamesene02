@@ -118,6 +118,12 @@ export async function GET(
     playerId: string;
     nom: string;
     valeur: string;
+    /// Le nombre et son unité, séparés : le site écrit l'unité en maigre
+    /// (« 12 buts »), ce que `valeur` ne permettait qu'en la redécoupant.
+    /// `unite` est nul pour le podium d'une saison en cours, que le site
+    /// écrit sans unité.
+    nombre: number;
+    unite: string | null;
   };
 
   const palmares: Titre[] = honneurs
@@ -149,16 +155,18 @@ export async function GET(
           playerId: c.e!.playerId,
           nom: c.e!.name,
           valeur: `${c.e!.value} ${c.u(c.e!.value)}`,
+          nombre: c.e!.value,
+          unite: c.u(c.e!.value),
         }))
     : ([
         parMvp && parMvp.mvpCount > 0
-          ? { cle: "mvp", libelle: "Homme du match", icone: "trophee" as const, or: true, playerId: parMvp.playerId, nom: parMvp.name, valeur: String(parMvp.mvpCount) }
+          ? { cle: "mvp", libelle: "Homme du match", icone: "trophee" as const, or: true, playerId: parMvp.playerId, nom: parMvp.name, valeur: String(parMvp.mvpCount), nombre: parMvp.mvpCount, unite: null }
           : null,
         parButs && parButs.goals > 0
-          ? { cle: "buteur", libelle: "Meilleur buteur", icone: "ballon" as const, playerId: parButs.playerId, nom: parButs.name, valeur: String(parButs.goals) }
+          ? { cle: "buteur", libelle: "Meilleur buteur", icone: "ballon" as const, playerId: parButs.playerId, nom: parButs.name, valeur: String(parButs.goals), nombre: parButs.goals, unite: null }
           : null,
         club.trackAssists && parPasses && parPasses.assists > 0
-          ? { cle: "passeur", libelle: "Meilleur passeur", icone: "passe" as const, playerId: parPasses.playerId, nom: parPasses.name, valeur: String(parPasses.assists) }
+          ? { cle: "passeur", libelle: "Meilleur passeur", icone: "passe" as const, playerId: parPasses.playerId, nom: parPasses.name, valeur: String(parPasses.assists), nombre: parPasses.assists, unite: null }
           : null,
       ] as (Titre | null)[]).filter((t): t is Titre => t !== null);
 

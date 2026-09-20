@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
-import { creerAppel, joindre } from "./appel";
+import { creerAppel, creerAppelTexte, joindre, SessionExpiree, ErreurServeur } from "./appel";
 
 // Le cœur de l'appel authentifié vit dans `./appel`, sans un import d'Expo,
 // pour être testable dans le nuage. Ici on ne fait que le brancher sur ce
@@ -141,9 +141,39 @@ export const API = resolu.url;
 /// une adresse injoignable sans explication, c'est une demi-heure perdue.
 export const OBSTACLE = resolu.obstacle;
 
+/// L'état d'une soirée, pour la couleur de sa pastille : vert quand elle est
+/// confirmée, or quand il manque du monde, gris quand elle est annulée. La
+/// phrase (« 8 présents · 4 places ») arrive à côté, déjà écrite.
+export type EtatSoiree = "confirmee" | "en-attente" | "annulee";
+
+/// Un joueur d'une compo prête à lancer — le coup d'envoi de l'accueil, ou
+/// « On rejoue » au bas d'un récap. Tout ce qu'il faut pour écrire le match
+/// et amorcer le miroir local sans repasser par l'effectif.
+///
+/// Pas de `photo` : le visage est déjà dans la même réponse, ailleurs
+/// (`Accueil.classement`, `FicheMatch.effectifs`), et le renvoyer ici doublait
+/// le poids de l'accueil et des récaps. `saveRoster` garde le visage déjà en
+/// base quand la fiche arrive sans (lib/match/local.ts).
+export type JoueurCompoPrete = {
+  playerId: string;
+  nom: string;
+  surnom: string | null;
+  niveau: number;
+  /// Gardien ATTITRÉ du club — un rôle permanent.
+  estGardien: boolean;
+  /// Gardien DANS CE match (ou cette compo) — un rôle d'un soir.
+  gardienCeMatch: boolean;
+  invite: boolean;
+  camp: "A" | "B";
+};
+
 /// Ce que l'accueil du club affiche, en un seul aller-retour.
+///
+/// Les champs marqués `?` sont arrivés le 19 septembre 2026 : absents d'un
+/// serveur plus ancien, que l'app mise à jour à chaud peut encore croiser.
 export type Accueil = {
   saison: { id: string; nom: string } | null;
+  /// La prochaine soirée, aujourd'hui compris. Jamais une soirée annulée.
   soiree: {
     id: string;
     date: string;
@@ -153,12 +183,35 @@ export type Accueil = {
     presents: number;
     attente: number;
     compoFaite: boolean;
+    /// La réponse EXPLICITE, comme le site. Voir `maPresence` pour la
+    /// présence retenue, abonnement compris.
     maReponse: "IN" | "OUT" | "MAYBE" | null;
+    lieu?: string | null;
+    /// « 19:00 », « Lun. 21 sept. », « Lundi 21 septembre » — dans le fuseau
+    /// du club.
+    heure?: string;
+    jourAbrege?: string;
+    jourLong?: string;
+    /// En jours CIVILS du club : 0 aujourd'hui, 1 demain.
+    joursAvant?: number;
+    ceSoir?: boolean;
+    etat?: EtatSoiree;
+    /// Ma présence retenue : un abonné qui n'a rien dit est `IN` via
+    /// l'abonnement. `null` sans profil joueur dans ce club.
+    maPresence?: { statut: StatutReponse | null; viaAbonnement: boolean } | null;
   } | null;
   matchs: MatchAccueil[];
   /// La dernière soirée jouée avant aujourd'hui. Absent d'un serveur plus
   /// ancien que le 19 septembre 2026.
-  derniere?: { date: string; soireeId: string | null; matchs: MatchAccueil[] } | null;
+  derniere?: {
+    date: string;
+    soireeId: string | null;
+    matchs: MatchAccueil[];
+    /// « Lundi 7 » : le libellé de l'onglet.
+    onglet?: string;
+    /// « 7 sept. » : pour « Soirée du 7 sept. ».
+    jourCourt?: string;
+  } | null;
   /// La prochaine soirée après aujourd'hui et les matchs programmés. Même
   /// remarque.
   aVenir?: {
@@ -172,6 +225,10 @@ export type Accueil = {
       compoA: number;
       compoB: number;
       reponses: number;
+      /// Ma réponse explicite à CETTE soirée — pour « Je serai là ».
+      maReponse?: StatutReponse | null;
+      heure?: string;
+      jourLong?: string;
     } | null;
     matchs: {
       id: string;
@@ -182,6 +239,13 @@ export type Accueil = {
       lieu: string | null;
       presents: number;
       soireeId: string | null;
+      /// Match externe : à domicile ou à l'extérieur.
+      domicile?: boolean;
+      /// Programmé pour aujourd'hui : il va dans « Ce soir ».
+      ceSoir?: boolean;
+      heure?: string;
+      /// « Mar. 22 sept. »
+      jourAbrege?: string;
     }[];
   };
   classement: {
@@ -195,7 +259,56 @@ export type Accueil = {
     defaites: number;
     buts: number;
     points: number;
+    /// La chasuble de la dernière compo connue (préparée, sinon jouée) :
+    /// l'anneau de l'avatar. Un CAMP, pas une couleur.
+    camp?: "A" | "B" | null;
   }[];
+  /// Le match LIVE côté serveur, QUELLE QUE SOIT SA DATE — y compris lancé
+  /// depuis un autre téléphone. `retro` : plus de six heures, c'est une
+  /// feuille restée ouverte (« Terminer »), pas le match de ce soir. Tant
+  /// qu'il existe, le coup d'envoi se cache.
+  enDirect?: {
+    id: string;
+    joueLe: string;
+    scoreA: number;
+    scoreB: number;
+    nomA: string;
+    nomB: string;
+    soireeId: string | null;
+    retro: boolean;
+    jourLong: string;
+  } | null;
+  /// Les soirées passées (six semaines au plus) sans aucun match. Avec
+  /// `rangerMatchId`, un match de ce jour-là existe sans soirée : « Ranger le
+  /// match » ouvre son récap. Sans, « Saisir la feuille ». À montrer à qui
+  /// peut scorer.
+  sansResultat?: {
+    soireeId: string;
+    date: string;
+    jourLong: string;
+    rangerMatchId: string | null;
+  }[];
+  /// La compo prête pour un coup d'envoi en un tap : celle PRÉPARÉE pour la
+  /// prochaine soirée, sinon celle du dernier match interne. `null` si l'un
+  /// des deux camps est vide. `soireeId` n'est posé que si la soirée a lieu
+  /// aujourd'hui. `indice` est la phrase sous le bouton, déjà écrite. À
+  /// cacher quand `enDirect` existe ou que le club ne me laisse pas scorer.
+  coupDEnvoi?: {
+    nomA: string;
+    nomB: string;
+    source: "preparee" | "derniere";
+    /// « ce soir », « demain », ou le jour (« lundi »).
+    quand: string;
+    soireeId: string | null;
+    saisonId: string | null;
+    compoA: number;
+    compoB: number;
+    indice: string;
+    joueurs: JoueurCompoPrete[];
+  } | null;
+  /// Le nom court du club (« FC Lundi Soir » → « Lundi Soir ») : le camp A
+  /// d'un match externe.
+  clubCourt?: string;
 };
 
 export type MatchAccueil = {
@@ -203,10 +316,12 @@ export type MatchAccueil = {
   joueLe: string;
   statut: "LIVE" | "FINISHED";
   nomA: string;
+  /// L'adversaire pour un match externe (depuis le 19 septembre 2026).
   nomB: string;
   scoreA: number;
   scoreB: number;
   dureeMin: number | null;
+  heure?: string;
 };
 
 export function chargerAccueil(clubId: string): Promise<Accueil> {
@@ -237,8 +352,13 @@ export type EcranMatchs = {
     quand: string;
     jour: string;
     heure: string;
+    /// Le lieu DU MATCH (depuis le 19 septembre 2026 ; avant, celui de sa
+    /// soirée).
     lieu: string | null;
+    /// Les « présents » de la convocation (un 0 en dur avant le 19
+    /// septembre 2026).
     presents: number;
+    domicile?: boolean;
   })[];
   joues: (CommunMatch & {
     joueLe: string;
@@ -327,6 +447,8 @@ export type FicheSoiree = {
     maReponse: StatutReponse | null;
     compte: string;
     phrase: string;
+    /// Pour la couleur de la pastille de `phrase`.
+    etat?: EtatSoiree;
     nbPresents: number;
     nbAttente: number;
     nbPeutEtre: number;
@@ -370,7 +492,9 @@ export type FicheSoiree = {
     resume: string | null;
     encaisse: string;
     pourcentage: number;
-    payeurs: { playerId: string; nom: string; aPaye: boolean }[];
+    /// Les titulaires, dans l'ordre de la file. Tous peuvent être cochés par
+    /// un gérant (`marquerPaye`), abonnés sans réponse compris.
+    payeurs: { playerId: string; nom: string; aPaye: boolean; photo?: string | null }[];
   };
   bilan: {
     enCours: boolean;
@@ -436,6 +560,50 @@ export function repondrePresence(
   );
 }
 
+/// « Compo précédente » : reprendre les équipes de la dernière soirée
+/// préparée. Remplace la compo de CETTE soirée, noms d'équipe compris — à
+/// relire ensuite avec `chargerSoiree`. Ouvert à qui peut scorer.
+///
+/// Refus parlants : 409 « Aucune compo précédente à reprendre. », 403 sans le
+/// droit. En ligne seulement.
+export function reprendreCompoPrecedente(
+  clubId: string,
+  soireeId: string,
+): Promise<{ ok: true; reprises: number }> {
+  return appelAuthentifie<{ ok: true; reprises: number }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matchdays/${encodeURIComponent(soireeId)}/lineup/precedente`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+/// Le prix du terrain d'une soirée, en CENTIMES (`null` retire le suivi).
+/// Réservé aux gérants (403 sinon) ; le serveur borne le montant.
+export function ecrirePrixTerrain(
+  clubId: string,
+  soireeId: string,
+  prixCents: number | null,
+): Promise<{ ok: true }> {
+  return appelAuthentifie<{ ok: true }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/soirees/${encodeURIComponent(soireeId)}/terrain`,
+    { method: "PUT", body: JSON.stringify({ prixCents }) },
+  );
+}
+
+/// Cocher ou décocher « a payé sa part ». Réservé aux gérants (403 sinon).
+/// Un abonné qui n'a rien répondu peut être coché ; un joueur ni répondant ni
+/// abonné est refusé (409 « Pas de réponse de ce joueur. »).
+export function marquerPaye(
+  clubId: string,
+  soireeId: string,
+  playerId: string,
+  paye: boolean,
+): Promise<{ ok: true; paye: boolean }> {
+  return appelAuthentifie<{ ok: true; paye: boolean }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/soirees/${encodeURIComponent(soireeId)}/paye`,
+    { method: "POST", body: JSON.stringify({ playerId, paye }) },
+  );
+}
+
 export type FicheMatch = {
   id: string;
   statut: "PROGRAMME" | "ANNULE" | "EN_DIRECT" | "TERMINE";
@@ -497,11 +665,151 @@ export type FicheMatch = {
     candidats: { playerId: string; nom: string; photo: string | null; voix: number }[];
   } | null;
   droits: { peutSaisir: boolean; peutGerer: boolean };
+  // Depuis le 19 septembre 2026 (absents d'un serveur plus ancien). Au même
+  // moment, quatre valeurs existantes ont été alignées sur le site :
+  // `dateCourte` (« 2 sept. »), `dateLongue` (« mer. 2 sept. »), `contexte`
+  // (« Soirée du 7 sept. · Match 2 ») et `corrige` (« Corrigé le 19 sept.
+  // 2026 à … »). `statistiques` porte UNE ligne « Cartons » (jaunes et rouges,
+  // `accent: "or"`), « Contre son camp » se range du côté de l'équipe qui l'a
+  // commis, `chronologie` est triée par minute, et `bilan` ne compte que les
+  // matchs entre ces deux mêmes noms d'équipe (`null` s'il n'y en a qu'un).
+  genre?: "INTERNAL" | "EXTERNAL";
+  /// « On rejoue — mêmes équipes », ou « Saisir le match suivant » en
+  /// rattrapage d'une soirée passée. `null` quand le geste n'a pas lieu
+  /// d'être : match non terminé, droit de scorer absent, un match déjà LIVE
+  /// dans le club, ou plus aucun joueur non archivé.
+  ///
+  /// - `soireeId` : la soirée du match si on est ce jour-là (ou en
+  ///   rattrapage), sinon `null` — le serveur rattachera au jour du match.
+  /// - `saisonId` : la saison active, ou celle du match en rattrapage.
+  /// - `joueLe` : en rattrapage, l'heure à donner au match suivant (une
+  ///   demi-heure après, jamais dans le futur) ; `null` = maintenant.
+  rejouer?: {
+    libelle: string;
+    rattrapage: boolean;
+    genre: "INTERNAL" | "EXTERNAL";
+    adversaireId: string | null;
+    nomA: string;
+    nomB: string;
+    soireeId: string | null;
+    saisonId: string | null;
+    joueLe: string | null;
+    joueurs: JoueurCompoPrete[];
+  } | null;
+  /// Un match sans soirée, joué un jour où une soirée existe. « Ranger le
+  /// match ici » appelle `rangerDansSoiree` ; ouvert à qui peut scorer.
+  soireeARanger?: { id: string; libelle: string } | null;
+  /// La convocation d'un match PROGRAMMÉ (statut « PROGRAMME ») : qui est
+  /// là ? `null` pour tout autre statut. Répondre : `repondreConvocation`.
+  convocation?: {
+    quand: string;
+    /// « Mardi 22 septembre », « 20:00 »
+    jourLong: string;
+    heure: string;
+    lieu: string | null;
+    domicile: boolean;
+    presents: number;
+    monPlayerId: string | null;
+    maReponse: StatutReponse | null;
+    lignes: {
+      playerId: string;
+      nom: string;
+      photo: string | null;
+      moi: boolean;
+      statut: StatutReponse | null;
+    }[];
+  } | null;
 };
 
 export function chargerFicheMatch(clubId: string, matchId: string): Promise<FicheMatch> {
   return appelAuthentifie<FicheMatch>(
     `/api/clubs/${encodeURIComponent(clubId)}/matchs/${encodeURIComponent(matchId)}`,
+  );
+}
+
+/// Voter pour l'homme du match. On peut changer d'avis : la voix se déplace.
+/// La règle est celle du site (lib/motm.ts) : 409 si le vote n'est pas
+/// ouvert (mode du club, désignation du capitaine, match pas terminé), 400
+/// si le joueur n'a pas joué ce match. Rend l'homme du match recompté.
+///
+/// En ligne seulement, jamais par la file : un vote rejoué trois jours plus
+/// tard recompterait un résultat que tout le club a déjà lu.
+export function voterHommeDuMatch(
+  clubId: string,
+  matchId: string,
+  playerId: string,
+): Promise<{ ok: true; hommeDuMatch: string }> {
+  return appelAuthentifie<{ ok: true; hommeDuMatch: string }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matchs/${encodeURIComponent(matchId)}/vote`,
+    { method: "POST", body: JSON.stringify({ playerId }) },
+  );
+}
+
+/// Siffler la fin d'une feuille restée ouverte (`Accueil.enDirect`) quand
+/// elle n'est PAS dans le miroir local de ce téléphone — lancée depuis un
+/// autre appareil ou depuis le site. Ouvert à qui peut scorer, idempotent.
+///
+/// Si le match est dans le miroir local, c'est la feuille locale qui doit le
+/// terminer (sa file porte peut-être des buts pas encore envoyés : les
+/// devancer ferait refuser ces buts, un match terminé ne se corrige plus
+/// qu'en admin).
+export function terminerMatchServeur(clubId: string, matchId: string): Promise<unknown> {
+  return appelAuthentifie<unknown>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matches/${encodeURIComponent(matchId)}`,
+    { method: "PATCH", body: JSON.stringify({ status: "FINISHED" }) },
+  );
+}
+
+/// Ranger un match sans soirée dans celle de son jour (`FicheMatch.
+/// soireeARanger`). Passe par la porte étroite du PATCH anglais : un corps qui
+/// ne porte QUE `matchDayId` est ouvert à qui peut scorer (spec 0007).
+export function rangerDansSoiree(
+  clubId: string,
+  matchId: string,
+  soireeId: string,
+): Promise<{ ok: true }> {
+  return appelAuthentifie<{ ok: true }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matches/${encodeURIComponent(matchId)}`,
+    { method: "PATCH", body: JSON.stringify({ matchDayId: soireeId }) },
+  );
+}
+
+/// Répondre à la convocation d'un match programmé. Pour soi, ou pour
+/// n'importe qui si l'on gère le club (403 sinon) ; 409 « Les convocations
+/// sont closes. » dès que le match n'est plus programmé.
+export function repondreConvocation(
+  clubId: string,
+  matchId: string,
+  playerId: string,
+  statut: StatutReponse,
+): Promise<{ ok: true }> {
+  return appelAuthentifie<{ ok: true }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/matchs/${encodeURIComponent(matchId)}/convocation`,
+    { method: "POST", body: JSON.stringify({ playerId, statut }) },
+  );
+}
+
+export type Adversaire = { id: string; nom: string };
+
+/// Les adversaires du club, pour la compo « Vs adversaire ». `peutCreer` :
+/// le droit d'en ajouter un (le même que celui de scorer).
+export function chargerAdversaires(
+  clubId: string,
+): Promise<{ adversaires: Adversaire[]; peutCreer: boolean }> {
+  return appelAuthentifie<{ adversaires: Adversaire[]; peutCreer: boolean }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/adversaires`,
+  );
+}
+
+/// Ajouter un adversaire (2 à 60 caractères). Un nom déjà connu rend
+/// l'adversaire existant : retaper le bouton ne crée pas de doublon.
+export function creerAdversaire(
+  clubId: string,
+  nom: string,
+): Promise<{ ok: true; adversaire: Adversaire }> {
+  return appelAuthentifie<{ ok: true; adversaire: Adversaire }>(
+    `/api/clubs/${encodeURIComponent(clubId)}/adversaires`,
+    { method: "POST", body: JSON.stringify({ nom }) },
   );
 }
 
@@ -683,6 +991,9 @@ export type FicheJoueur = {
     reste: number;
     libelle: string;
     part: number;
+    /// Le mot seul, accordé à `reste` (« buts », « but ») : pour écrire le
+    /// nombre en gras sans redécouper `libelle`. Depuis le 19 septembre 2026.
+    unite?: string;
   }[];
   trophees: { cle: string; nom: string; detail: string; quand: string | null }[];
   parSaison: {
@@ -906,6 +1217,10 @@ export async function lireCookie(): Promise<string | null> {
 /// expirée) vit dans `./appel` et s'y teste avec un `fetch` de papier.
 export const appelAuthentifie = creerAppel({ api: API, cookie: lireCookie });
 
+/// Le même, pour la seule route qui rend du texte et pas du JSON : l'export
+/// CSV.
+export const appelTexte = creerAppelTexte({ api: API, cookie: lireCookie });
+
 export function chargerMoi(): Promise<Moi> {
   return appelAuthentifie<Moi>("/api/me");
 }
@@ -995,6 +1310,11 @@ export type EcranStats = {
       playerId: string;
       nom: string;
       valeur: string;
+      /// `valeur` en deux morceaux, pour l'unité en maigre (« 12 buts »).
+      /// `unite` est nul pour le podium d'une saison en cours, que le site
+      /// écrit sans unité. Depuis le 19 septembre 2026.
+      nombre?: number;
+      unite?: string | null;
     }[];
   };
   saisonsPassees: { saison: string; lignes: string[]; vide: boolean }[];
@@ -1061,6 +1381,29 @@ export function chargerStats(clubId: string, saison?: string): Promise<EcranStat
   return appelAuthentifie<EcranStats>(
     `/api/clubs/${encodeURIComponent(clubId)}/stats${q}`,
   );
+}
+
+/// L'export CSV du site (« Exporter en CSV »), en TEXTE : séparateur « ; »
+/// et BOM UTF-8, pour qu'Excel l'ouvre en français. `type` : le tableau des
+/// joueurs ou la liste des matchs ; `saison` : un identifiant, ou « all ».
+///
+/// Par `appelTexte` et non `appelAuthentifie`, qui lit du JSON : même cookie,
+/// même `credentials: "omit"`, même 401. À l'app d'en faire un fichier ou un
+/// partage.
+///
+/// Le BOM est REPOSÉ ici : la route l'envoie bien, mais `Response.text()` le
+/// retire — la spec fetch décode l'UTF-8 en mangeant la marque d'ordre. Sans
+/// lui, Excel en français lit le fichier en latin-1 et « Prénom » devient
+/// « PrÃ©nom ». C'est tout l'objet de cet export.
+export async function chargerExportCsv(
+  clubId: string,
+  type: "leaderboard" | "matches" = "leaderboard",
+  saison = "all",
+): Promise<string> {
+  const csv = await appelTexte(
+    `/api/clubs/${encodeURIComponent(clubId)}/export?type=${type}&saison=${encodeURIComponent(saison)}`,
+  );
+  return csv.startsWith("﻿") ? csv : "﻿" + csv;
 }
 
 /// L'écran « Saison » : le calendrier, les adversaires, le bilan.

@@ -76,7 +76,10 @@ export async function GET(
   const p = detail.player;
   const sousTitre = [
     camp ? (camp === "A" ? noms.a : noms.b) : null,
-    `Niveau ${p.skill}`,
+    // Texte d'interface : « Note », car « Niveau » est réservé au niveau
+    // d'expérience. Le NOM DE CHAMP `niveau` ci-dessous ne bouge pas : une
+    // app déjà installée le lit.
+    `Note ${p.skill}`,
     p.isGk ? "gardien" : null,
     p.isGuest ? "invité" : null,
     rang > 0 ? `${rang}${rang === 1 ? "er" : "e"} du tableau` : null,
@@ -153,6 +156,9 @@ export async function GET(
         p.objectif - p.actuel > 1 ? p.nom : p.nomSingulier
       } pour ${p.objectif}`,
       part: Math.min(1, p.actuel / p.objectif),
+      // Le mot seul, accordé au reste : l'app met le nombre en gras sans
+      // redécouper `libelle`.
+      unite: p.objectif - p.actuel > 1 ? p.nom : p.nomSingulier,
     })),
     trophees: trophees.obtenus.map((t) => ({
       cle: t.cle,

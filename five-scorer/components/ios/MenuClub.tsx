@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { ini } from "@/lib/ini";
 import { signOut } from "@/lib/auth-client";
+import { lienInvitation } from "@/app/actions/club";
 import Ecusson from "./Ecusson";
 
 // Le menu « pilule » en verre : le nom court du club dans une capsule, qui
-// ouvre une liste translucide — Mon profil, Accueil, Soirées, Saison, Stats,
-// Partager, Réglages. Il remplace la barre d'onglets du bas.
+// ouvre une liste translucide — Mon profil, Accueil, Soirées, Matchs,
+// Effectif, Saison, Stats, Partager, Réglages. Il remplace la barre d'onglets
+// du bas : ce qui n'y figure pas n'est joignable par aucun chemin évident.
 
 function Ico({ d, cap = "round" }: { d: string; cap?: "round" | "square" }) {
   return (
@@ -33,6 +35,9 @@ function Ico({ d, cap = "round" }: { d: string; cap?: "round" | "square" }) {
 const ICONES = {
   accueil: "M3 10.5 12 3l9 7.5M5 9.5V21h14V9.5M9.5 21v-6h5v6",
   soirees: "M3.5 5h17v16h-17zM3.5 10h17M8 3v4M16 3v4",
+  matchs: "M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M12 7.4l3.9 2.8-1.5 4.6h-4.8L8.1 10.2z",
+  effectif:
+    "M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7M2.5 20.5c.6-3.6 3.1-5.8 6.5-5.8s5.9 2.2 6.5 5.8M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.9c2 .8 3.2 2.7 3.5 5.6",
   saison:
     "M7 4h10v5a5 5 0 0 1-10 0zM7 5.5H4V8a3 3 0 0 0 3 3M17 5.5h3V8a3 3 0 0 1-3 3M12 14v3.5M8.5 20.5h7",
   stats: "M5 21v-8M12 21V4M19 21v-12",
@@ -82,22 +87,64 @@ export default function MenuClub({
     );
   };
 
+  // Ce que « Partager » envoie dépend du club. Public : sa page publique,
+  // que n'importe qui peut ouvrir. Privé : seule l'invitation fait entrer
+  // quelqu'un — un admin la partage (« Inviter au club »), un membre n'a rien
+  // à envoyer qui marcherait chez un non-membre, l'entrée disparaît.
+  const invite = !publicUrl && canManage;
+  const [cheminInvite, setCheminInvite] = useState<string | null>(null);
+  const [copie, setCopie] = useState(false);
+
+  // Chargé à l'ouverture, pas au tap : iOS n'ouvre la feuille de partage que
+  // dans la foulée du geste, et un aller-retour serveur entre les deux suffit
+  // à la perdre.
+  useEffect(() => {
+    if (!open || !invite || cheminInvite) return;
+    let vivant = true;
+    void lienInvitation(slug)
+      .then((r) => {
+        if (vivant && r.ok) setCheminInvite(r.chemin);
+      })
+      .catch(() => {});
+    return () => {
+      vivant = false;
+    };
+  }, [open, invite, cheminInvite, slug]);
+
   const partager = async () => {
-    fermer();
-    const url =
-      publicUrl ??
-      (typeof window !== "undefined" ? window.location.origin + base : base);
+    let chemin = publicUrl ?? base;
+    if (invite) {
+      const r = cheminInvite
+        ? { ok: true as const, chemin: cheminInvite }
+        : await lienInvitation(slug).catch(() => null);
+      if (!r?.ok) return;
+      chemin = r.chemin;
+    }
+    const url = window.location.origin + chemin;
+    const texte = invite
+      ? `Rejoins le club « ${clubShort} » sur Five Scorer :`
+      : `${clubShort} sur Five Scorer :`;
     const nav = navigator as Navigator & {
-      canShare?: (d: { url?: string }) => boolean;
+      canShare?: (d: { url?: string; text?: string }) => boolean;
     };
     try {
-      if (nav.share && (!nav.canShare || nav.canShare({ url }))) {
-        await nav.share({ title: clubShort, url });
+      if (nav.share && (!nav.canShare || nav.canShare({ text: texte, url }))) {
+        await nav.share({ title: clubShort, text: texte, url });
+        fermer();
         return;
       }
-      await navigator.clipboard.writeText(url);
-    } catch {
-      /* annulé */
+      await navigator.clipboard.writeText(`${texte} ${url}`);
+      // Sans feuille de partage (ordinateur), le lien partait dans le
+      // presse-papier sans un mot : on croyait que le bouton ne marchait pas.
+      setCopie(true);
+      setTimeout(() => {
+        setCopie(false);
+        fermer();
+      }, 1400);
+    } catch (e) {
+      // Partage annulé par l'utilisateur : rien à dire.
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      window.prompt("Le lien à envoyer :", url);
     }
   };
 
@@ -142,12 +189,21 @@ export default function MenuClub({
             </div>
             {item(base, "Accueil", "accueil", true)}
             {item(`${base}/sessions`, "Soirées", "soirees")}
+            {item(`${base}/matches`, "Matchs", "matchs")}
+            {item(`${base}/players`, "Effectif", "effectif", true)}
             {item(`${base}/saison`, "Saison", "saison")}
             {item(`${base}/stats`, "Stats", "stats")}
-            <button type="button" onClick={partager} className="menu-club-item">
-              <Ico d={ICONES.partager} />
-              Partager
-            </button>
+            {(publicUrl || invite) && (
+              <button
+                type="button"
+                onClick={partager}
+                className="menu-club-item"
+                aria-live="polite"
+              >
+                <Ico d={ICONES.partager} />
+                {copie ? "Lien copié" : invite ? "Inviter au club" : "Partager"}
+              </button>
+            )}
             {canManage && item(`${base}/settings`, "Réglages", "reglages")}
             <Link href="/onboarding" onClick={fermer} className="menu-club-item">
               <Ico d={ICONES.clubs} />

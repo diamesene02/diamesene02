@@ -40,6 +40,8 @@ export async function GET(
     teamBName: true,
     scoreA: true,
     scoreB: true,
+    venue: true,
+    isHome: true,
     opponent: { select: { name: true } },
     mvp: { select: { name: true } },
     matchDay: { select: { id: true, date: true, title: true, location: true } },
@@ -59,7 +61,7 @@ export async function GET(
     prisma.match.findMany({
       where: { clubId, status: "SCHEDULED" },
       orderBy: [{ scheduledAt: "asc" }, { playedAt: "asc" }],
-      select: champs,
+      select: { ...champs, _count: { select: { rsvps: { where: { status: "IN" } } } } },
     }),
     // Du plus récent au plus ancien : l'app regroupe par soirée dans cet
     // ordre, donc les soirées sortent naturellement de la plus récente à la
@@ -106,8 +108,16 @@ export async function GET(
         quand: q.toISOString(),
         jour: jourCourt2(q),
         heure: heure(q),
-        lieu: m.matchDay?.location ?? null,
-        presents: 0,
+        // Le lieu DU MATCH quand il est renseigné : celui de la soirée
+        // s'affichait sous un match programmé ailleurs. À défaut, celui de sa
+        // soirée — le formulaire laisse « Lieu » vide la plupart du temps
+        // (app/actions/schedule.ts) et rattache quand même le match à la
+        // soirée du jour, dont le gymnase est le bon. Rien à charger de plus :
+        // `matchDay.location` est déjà dans le `select`. Et les présents réels
+        // de sa convocation — la valeur était un 0 écrit en dur.
+        lieu: m.venue ?? m.matchDay?.location ?? null,
+        presents: m._count.rsvps,
+        domicile: m.isHome,
       };
     }),
 

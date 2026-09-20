@@ -67,7 +67,10 @@ export async function GET(
       },
     },
   });
-  if (!md) return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  // Pas le mot « introuvable » seul : l'app le lit comme « ce club n'est
+  // plus accessible » (lib/appel.ts). Une soirée supprimée n'est pas un club
+  // perdu.
+  if (!md) return NextResponse.json({ error: "Soirée introuvable." }, { status: 404 });
 
   const [joueurs, monJoueur] = await Promise.all([
     prisma.player.findMany({
@@ -149,6 +152,8 @@ export async function GET(
     playerId: pid,
     nom: parId.get(pid)?.name ?? "?",
     aPaye: reponses.get(pid)?.paye ?? false,
+    // Ajouté le 19 septembre 2026 : l'avatar de la rangée de la caisse.
+    photo: parId.get(pid)?.photo ?? null,
   }));
   const encaisseCents = partCents ? payeurs.filter((p) => p.aPaye).length * partCents : 0;
 
@@ -240,6 +245,9 @@ export async function GET(
       maReponse: monJoueur ? (reponses.get(monJoueur.id)?.statut ?? null) : null,
       compte: `${presences.titulaires.length} présent${presences.titulaires.length > 1 ? "s" : ""} · ${presences.absents.length} absent${presences.absents.length > 1 ? "s" : ""}`,
       phrase: phraseEtat(presences.etat),
+      // L'état brut, pour la couleur de la pastille (vert, or, gris) : la
+      // phrase seule obligeait l'app à la relire pour savoir quoi peindre.
+      etat: presences.etat.statut,
       nbPresents: presences.titulaires.length,
       nbAttente: presences.attente.length,
       nbPeutEtre: presences.peutEtre.length,

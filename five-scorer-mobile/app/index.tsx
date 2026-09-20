@@ -12,12 +12,13 @@ export default function Accueil() {
 
   // Un journal discret : au premier lancement dans Expo Go, savoir si la
   // session a été retrouvée dans le trousseau évite une demi-heure de doute.
+  //
+  // En développement SEULEMENT, et sans l'adresse : hors `__DEV__`, cette
+  // ligne partait dans la mise à jour à chaud et écrivait le courriel du
+  // propriétaire dans les journaux de l'appareil à chaque ouverture.
   useEffect(() => {
-    if (!isPending) {
-      console.log(
-        "[five-scorer] session :",
-        data?.user ? data.user.email : "aucune",
-      );
+    if (__DEV__ && !isPending) {
+      console.log("[five-scorer] session :", data?.user ? "retrouvée" : "aucune");
     }
   }, [isPending, data]);
 

@@ -78,6 +78,21 @@ export async function regenerateInviteCode(
   return { ok: true, code };
 }
 
+/// Le chemin d'invitation, pour « Inviter au club » du menu.
+///
+/// Sur un club privé, « Partager » envoyait `/c/<slug>` : le copain invité
+/// sur WhatsApp tombait sur « session expirée » ou sur l'accueil de l'app,
+/// jamais dans le club. Le seul lien qui fait entrer quelqu'un est celui de
+/// l'invitation — un secret que seuls les admins voient déjà dans les
+/// réglages, d'où la même garde.
+export async function lienInvitation(
+  slug: string,
+): Promise<{ ok: true; chemin: string } | { ok: false; error: string }> {
+  const ctx = await requireClub(slug);
+  if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
+  return { ok: true, chemin: `/join/${ctx.club.inviteCode}` };
+}
+
 // --- Membres ----------------------------------------------------------------
 
 export async function setMemberRole(

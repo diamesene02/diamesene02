@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { getLeaderboard } from "@/lib/stats";
+import { succesDuClub } from "@/lib/succes-serveur";
 import RosterClient from "./RosterClient";
 import "./player.css";
 
@@ -18,12 +19,18 @@ export default async function PlayersPage({
   const ctx = await requireClub(slug);
   const clubId = ctx.club.id;
 
-  const [roster, leaderboard] = await Promise.all([
+  const [roster, leaderboard, succes] = await Promise.all([
     prisma.player.findMany({
       where: { clubId },
       orderBy: { name: "asc" },
     }),
     getLeaderboard({ clubId }),
+    // Le niveau n'est qu'un plus, comme sur l'accueil : s'il échoue,
+    // l'effectif s'affiche sans les pastilles plutôt que pas du tout.
+    succesDuClub(clubId).catch((e: unknown) => {
+      console.error("Effectif : succès indisponibles", e);
+      return null;
+    }),
   ]);
 
   const statsById = new Map(leaderboard.map((r) => [r.playerId, r]));
@@ -41,6 +48,10 @@ export default async function PlayersPage({
     isLinked: p.userId !== null,
     matchesPlayed: statsById.get(p.id)?.matchesPlayed ?? 0,
     goals: statsById.get(p.id)?.goals ?? 0,
+    niveau: (() => {
+      const n = succes?.parJoueur.get(p.id)?.niveau;
+      return n && n.xp > 0 ? { niveau: n.niveau, titre: n.titre } : null;
+    })(),
   }));
 
   const activeCount = players.filter((p) => !p.isArchived).length;

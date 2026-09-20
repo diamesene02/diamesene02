@@ -14,29 +14,47 @@ const LIBELLES: Record<RsvpStatus, string> = {
 // « Je serai là » en un tap depuis l'accueil. Une fois répondu, le bouton
 // devient le libellé de la réponse, qui mène à la soirée où l'on peut la
 // changer — l'accueil n'est pas l'endroit pour trois boutons.
+//
+// Un abonné sans réponse est déjà compté présent (lib/presences) : lui
+// proposer « Je serai là » lui faisait croire qu'il n'était pas inscrit, sous
+// une bannière qui le comptait. Il voit donc « Présent · abonné », et c'est à
+// la soirée qu'il se désiste.
 export default function BoutonPresence({
   slug,
   matchDayId,
   playerId,
   initial,
+  abonne = false,
+  enAttente = false,
 }: {
   slug: string;
   matchDayId: string;
   playerId: string;
+  /// Sa réponse EXPLICITE, s'il en a donné une.
   initial: RsvpStatus | null;
+  abonne?: boolean;
+  /// Présent, mais au-delà des places : sur la liste d'attente.
+  enAttente?: boolean;
 }) {
   const [statut, setStatut] = useState<RsvpStatus | null>(initial);
   const [erreur, setErreur] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  if (statut) {
+  const retenu = statut ?? (abonne ? "IN" : null);
+  if (retenu) {
+    // La liste d'attente ne vaut que pour la réponse qu'on a reçue : après un
+    // tap sur « Je serai là », la place n'est pas connue avant le rechargement.
+    const attente = enAttente && retenu === "IN" && statut === initial;
     return (
       <Link
         href={`/c/${slug}/sessions/${matchDayId}`}
         className="accueil-statut"
-        data-statut={statut}
+        data-statut={attente ? "MAYBE" : retenu}
       >
-        {LIBELLES[statut]}
+        {attente ? "En attente" : LIBELLES[retenu]}
+        {/* Espace insécable : en tête d'un élément flex, une espace
+            ordinaire disparaît. */}
+        {!statut && <span className="via">{" · abonné"}</span>}
       </Link>
     );
   }

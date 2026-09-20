@@ -121,7 +121,7 @@ export default function EditMatchForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="kicker">MVP</span>
+          <span className="kicker">Homme du match</span>
           <select
             value={mvpId}
             onChange={(e) => setMvpId(e.target.value)}

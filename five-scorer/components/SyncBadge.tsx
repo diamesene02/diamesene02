@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { drainOutbox, retryBlockedOps, initSync } from "@/lib/sync";
 import { useSyncState } from "@/lib/useSyncState";
 import { cn } from "@/lib/cn";
@@ -17,7 +17,18 @@ export default function SyncBadge({
   compact?: boolean;
 }) {
   useEffect(() => initSync(), []);
-  const s = useSyncState();
+  const lu = useSyncState();
+  // Le serveur rend la pastille comme si tout allait bien — il ne connaît ni
+  // le réseau ni la file du téléphone. Le premier rendu client, lui, lisait
+  // `navigator.onLine` : hors ligne, les deux arbres divergeaient, React
+  // jetait tout l'écran (« Hydration failed ») et le reconstruisait. Au bord
+  // du terrain sans réseau, c'est précisément la page servie par le cache.
+  // On ne montre donc l'état réel qu'une fois monté.
+  const [monte, setMonte] = useState(false);
+  useEffect(() => setMonte(true), []);
+  const s = monte
+    ? lu
+    : { ...lu, online: true, pending: 0, syncing: false, blocked: 0, needsAuth: false };
 
   // Les opérations refusées par le serveur passent en premier : elles ne
   // partiront pas toutes seules, et rien ne doit laisser croire le contraire.

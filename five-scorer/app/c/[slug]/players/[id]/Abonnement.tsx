@@ -9,18 +9,24 @@ import Interrupteur from "@/components/ios/Interrupteur";
 ///
 /// L'inverse du modèle de départ : plutôt que de demander quinze réponses
 /// chaque semaine — que personne ne donne —, on ne demande que les absences.
+///
+/// Le jour n'est pas écrit ici : un club du jeudi lisait « lundis ». La fiche
+/// le lit dans les soirées du club (`libelleAbonnement`).
 export default function Abonnement({
   slug,
   playerId,
   initial,
   estMoi,
   nom,
+  libelle,
 }: {
   slug: string;
   playerId: string;
   initial: boolean;
   estMoi: boolean;
   nom: string;
+  /// « Vient tous les lundis », ou « Vient à chaque soirée ».
+  libelle: string;
 }) {
   const router = useRouter();
   const [abonne, setAbonne] = useState(initial);
@@ -45,7 +51,7 @@ export default function Abonnement({
     <>
       <div className="fiche-ligne">
         <span className="l">
-          Vient tous les lundis
+          {libelle}
           <span className="aide">
             Compté présent d&apos;office.{" "}
             {estMoi
@@ -57,7 +63,7 @@ export default function Abonnement({
           on={abonne}
           onChange={basculer}
           disabled={pending}
-          label="Vient tous les lundis"
+          label={libelle}
         />
       </div>
       {erreur && (

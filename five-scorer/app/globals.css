@@ -3254,3 +3254,107 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* ══ Ergonomie du site (lot « ergo-web ») ══════════════════════════════════
+   Ajouts seulement : attente et erreur des pages du club, menu, partage.
+   Rien ici ne redéfinit une règle existante du dessin. */
+
+/* ── L'attente entre deux écrans (app/c/[slug]/loading.tsx) ───────────── */
+.chargement {
+  padding: 18px 4px 0;
+  /* Rien pendant les 150 premières millisecondes : une navigation rapide ne
+     doit pas faire clignoter un squelette. */
+  animation: chargement-arrive 200ms ease-out 150ms both;
+}
+.chargement-titre,
+.chargement-sous {
+  border-radius: 10px;
+  background: var(--seg);
+}
+.chargement-titre {
+  width: 62%;
+  height: 34px;
+}
+.chargement-sous {
+  width: 38%;
+  height: 16px;
+  margin-top: 10px;
+}
+.chargement-carte {
+  height: 210px;
+  margin: 22px -4px 0;
+}
+.chargement-carte.courte {
+  height: 130px;
+  margin-top: 18px;
+}
+.chargement-titre,
+.chargement-sous,
+.chargement-carte {
+  animation: chargement-souffle 1.6s ease-in-out infinite;
+}
+@keyframes chargement-arrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes chargement-souffle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chargement-titre,
+  .chargement-sous,
+  .chargement-carte {
+    animation: none;
+  }
+}
+
+/* ── Une page du club qui n'a pas chargé (app/c/[slug]/error.tsx) ─────── */
+.erreur-club {
+  margin-top: 18px;
+  padding: 0 20px 20px;
+  text-align: center;
+}
+.erreur-club .texte {
+  font-size: 17px;
+  color: var(--i2);
+}
+.erreur-club .code {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--i3);
+}
+.erreur-club .actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* ── Liste des soirées : une soirée annulée ne se lit plus comme les autres */
+.ticker.annulee {
+  opacity: 0.55;
+}
+.ticker.annulee .ticker-heure {
+  text-decoration: line-through;
+}
+.ticker.annulee .ticker-score {
+  color: var(--ink-2);
+}
+
+/* ── Le menu du club : dix entrées tiennent aussi sur un petit écran ──── */
+.menu-club {
+  max-height: calc(100dvh - var(--safe-t) - 76px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* ══ fin du lot « ergo-web » ═══════════════════════════════════════════ */

@@ -552,3 +552,26 @@ export async function compterOpsDuMatch(
   );
   return l?.n ?? 0;
 }
+
+/// Combien, là-dedans, le serveur a REFUSÉES — et ne reprendra donc pas tout
+/// seul (`prochaineActive` écarte `blocked_at`).
+///
+/// `compterOpsDuMatch` ne peut pas répondre : il compte les deux ensemble, et
+/// c'est voulu (une opération refusée n'est pas partie). Mais l'écran de fin
+/// de match a besoin de la différence. Tant qu'il ne l'avait pas, il montrait
+/// le même message dans les deux cas — « la feuille part au serveur, le récap
+/// s'ouvre dès qu'elle y est » — alors que sur un refus elle ne partirait
+/// jamais, et que « Voir le récap » restait désactivé pour toujours.
+///
+/// Par match, et pas globalement : un lundi enchaîne six à huit feuilles, et
+/// c'est la chaîne de CELLE-CI qui décide de ce que son écran raconte.
+export async function compterOpsBloqueesDuMatch(
+  base: Base,
+  matchId: string,
+): Promise<number> {
+  const l = await base.premier<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM outbox WHERE match_id = ? AND blocked_at IS NOT NULL",
+    [matchId],
+  );
+  return l?.n ?? 0;
+}

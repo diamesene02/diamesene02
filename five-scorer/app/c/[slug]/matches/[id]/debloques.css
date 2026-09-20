@@ -1,0 +1,77 @@
+/* « Débloqués pendant ce match » — sur le fond du match, toujours sombre.
+   Les rangées reprennent celles de la fiche (« Derniers matchs ») : filet
+   au-dessus de chacune, 64 px, le nom d'abord. */
+
+.recap-debloques {
+  padding: 0 18px 6px;
+}
+.recap-debloques .carte-titre {
+  padding: 20px 0 8px;
+}
+.recap-debloques .debloque {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 0;
+  border-top: 1px solid var(--sep);
+  color: var(--ink);
+  text-decoration: none;
+}
+.recap-debloques a.debloque:active {
+  opacity: 0.7;
+}
+.recap-debloques .textes {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.recap-debloques .nom {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Un palier par pastille — la médaille, puis ce qu'elle dit —, qui passent
+   à la ligne quand il y en a plusieurs. */
+.recap-debloques .paliers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 4px;
+}
+.recap-debloques .palier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--i2);
+}
+
+.recap-debloques details.plus > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-top: 1px solid var(--sep);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--i2);
+  cursor: pointer;
+  list-style: none;
+}
+.recap-debloques details.plus > summary::-webkit-details-marker {
+  display: none;
+}
+.recap-debloques details.plus .fermer,
+.recap-debloques details.plus[open] .ouvrir {
+  display: none;
+}
+.recap-debloques details.plus[open] .fermer {
+  display: inline;
+}

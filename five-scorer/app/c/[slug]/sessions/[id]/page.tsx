@@ -9,12 +9,16 @@ import LigneScore from "@/components/ios/LigneScore";
 import Ecusson from "@/components/ios/Ecusson";
 import { lettre } from "@/lib/ini";
 import { nomsChasubles } from "@/lib/color";
+import { estGardienDuSoir } from "@/lib/gardien";
 import { getLeaderboard } from "@/lib/stats";
 import MoneyPanel from "./MoneyPanel";
 import SessionRsvpAdmin, { type SessionPlayerRow } from "./SessionRsvpAdmin";
 import DeleteSessionButton from "./DeleteSessionButton";
+import AnnulerSoiree from "./AnnulerSoiree";
+import EnvoyerSurLeGroupe from "./EnvoyerSurLeGroupe";
 import MotDeLaSoiree from "./MotDeLaSoiree";
 import { calculerPresences, phraseEtat } from "@/lib/presences";
+import { quandRelatif } from "@/lib/quand";
 import { motDeLaSoiree as motSoiree } from "@/lib/soiree";
 import "./soiree.css";
 
@@ -37,7 +41,10 @@ export default async function SessionDetailPage({
     where: { id, clubId },
     include: {
       rsvps: { select: { playerId: true, status: true, hasPaid: true, respondedAt: true } },
-      lineup: { select: { playerId: true, team: true } },
+      // `isGk` : le gardien DÉSIGNÉ pour cette soirée. Sans lui, l'écran
+      // affichait l'attitré du club devant la cage et l'enregistrement
+      // écrasait la désignation (cf. `estGardienDuSoir`, lib/gardien).
+      lineup: { select: { playerId: true, team: true, isGk: true } },
       matches: {
         orderBy: { playedAt: "asc" },
         include: {
@@ -191,9 +198,51 @@ export default async function SessionDetailPage({
 
   const showMoney = ctx.canManage || md.fieldCostCents != null;
   const commencee = md.matches.length > 0;
+  const maintenant = new Date();
   /// Soirée dont le jour est passé : on ne lui propose plus un coup d'envoi
   /// mais une saisie.
-  const passee = md.date.getTime() < D.minuit(new Date());
+  const passee = md.date.getTime() < D.minuit(maintenant);
+  /// Le jour même : seul moment où « Lancer un match » a un sens. Proposé le
+  /// samedi pour le lundi, il ouvrait une feuille en direct deux jours trop
+  /// tôt ; « Saisir un match joué » menait, lui, à un refus découvert au
+  /// dernier tap (« cette date est dans le futur »).
+  const jourJ = D.memeJour(md.date, maintenant);
+  const annulee = md.canceledAt != null;
+  const relatif = quandRelatif(md.date, maintenant);
+
+  // La convocation : ce que le capitaine recopiait à la main sur le groupe.
+  // La date y reste absolue — le message se lit encore le lendemain.
+  const nomDe = new Map(players.map((p) => [p.id, p]));
+  // Le gardien en tête de liste, comme sur la pelouse : celui que la compo
+  // DÉSIGNE pour ce soir-là, pas l'attitré du club.
+  const gardienDuSoir = estGardienDuSoir(md.lineup);
+  const equipeDe = (camp: "A" | "B") => {
+    const eq = md.lineup
+      .filter((l) => l.team === camp)
+      .map((l) => nomDe.get(l.playerId))
+      .filter((p): p is (typeof players)[number] => p != null);
+    const gk = eq.find((p) => gardienDuSoir(p));
+    return (gk ? [gk, ...eq.filter((p) => p !== gk)] : eq).map((p) => p.name);
+  };
+  const peutLancer = ctx.canScore && liveMatches.length === 0 && !annulee;
+  // Une soirée passée ne se « lance » pas : elle se saisit. Une soirée à venir
+  // ne se lance ni ne se saisit : elle se prépare (la compo, plus bas) et
+  // s'annonce.
+  const lancer = peutLancer && jourJ;
+  const saisir = peutLancer && (passee || jourJ);
+  const partage =
+    annulee || passee
+      ? null
+      : {
+          entete: [D.jourLong(md.date), D.heure(md.date), md.location]
+            .filter(Boolean)
+            .join(" · "),
+          etat: phraseEtat(presences.etat),
+          chemin: `/c/${slug}/sessions/${md.id}`,
+        };
+  // Le capitaine a « Envoyer sur le groupe » au pied de la compo tant que ce
+  // n'est pas le jour J ; les autres membres l'ont en tête de page.
+  const envoyer = partage != null && (jourJ || !ctx.canScore);
 
   const preparation = (
     <>
@@ -221,18 +270,25 @@ export default async function SessionDetailPage({
 
       <section className="carte soiree-carte">
         <CompoSoiree
-          // Sans identité dérivée des données serveur, « Compo précédente »
-          // écrivait bien en base mais n'apparaissait pas : router.refresh()
-          // préserve l'état client.
-          key={
-            md.lineup.map((l) => `${l.playerId}:${l.team}`).join("|") +
-            `|${md.teamAName ?? ""}|${md.teamBName ?? ""}`
-          }
+          // La compo reprend d'elle-même celle du serveur quand aucune
+          // retouche n'est en cours (cf. CompoSoiree) : la remonter à chaque
+          // enregistrement refermait « Renommer » sous les doigts.
+          key={md.id}
           slug={slug}
           matchDayId={md.id}
-          peutModifier={ctx.canScore}
-          joueurs={players}
-          compoInitiale={md.lineup.map((l) => ({ playerId: l.playerId, team: l.team as "A" | "B" }))}
+          peutModifier={ctx.canScore && !annulee}
+          jourJ={jourJ}
+          partage={partage}
+          joueurs={players.map((p) => ({
+            ...p,
+            presence: presences.lignes.get(p.id)?.statut ?? null,
+            enAttente: presences.lignes.get(p.id)?.enAttente ?? false,
+          }))}
+          compoInitiale={md.lineup.map((l) => ({
+            playerId: l.playerId,
+            team: l.team as "A" | "B",
+            isGk: l.isGk,
+          }))}
           nomAInitial={md.teamAName ?? nomsClub.a}
           nomBInitial={md.teamBName ?? nomsClub.b}
         />
@@ -376,37 +432,49 @@ export default async function SessionDetailPage({
   return (
     <main className="ecran">
       <div className="soiree-tete">
-        <div className="titre-ecran capitalize">{dateLabel}</div>
+        {/* jourLong met déjà la majuscule : « capitalize » la mettait aussi
+            au mois (« Lundi 21 Septembre »). */}
+        <div className="titre-ecran">{dateLabel}</div>
         <div className="sous-titre">
+          {relatif && <>{relatif} · </>}
           {timeLabel}
           {md.location && <> · {md.location}</>}
           {md.title && <> · {md.title}</>}
         </div>
         {md.notes && <p className="soiree-notes">{md.notes}</p>}
-        {ctx.canScore && liveMatches.length === 0 && (
-          <div className="soiree-actions">
-            {/* Une soirée passée ne se « lance » pas : elle se saisit. */}
-            {passee ? (
-              <Link
-                href={`/c/${slug}/matches/new?md=${md.id}&joue=1`}
-                className="verre"
-              >
-                Saisir un match joué
-              </Link>
-            ) : (
-              <>
+        {annulee ? (
+          <p className="soiree-annulee">
+            Soirée annulée{md.cancelReason ? ` — ${md.cancelReason}` : ""}.
+          </p>
+        ) : (
+          (lancer || saisir || envoyer) && (
+            <div className="soiree-actions">
+              {lancer && (
                 <Link href={`/c/${slug}/matches/new?md=${md.id}`} className="verre">
                   Lancer un match
                 </Link>
+              )}
+              {saisir && (
                 <Link
                   href={`/c/${slug}/matches/new?md=${md.id}&joue=1`}
                   className="verre"
                 >
                   Saisir un match joué
                 </Link>
-              </>
-            )}
-          </div>
+              )}
+              {envoyer && partage && (
+                <EnvoyerSurLeGroupe
+                  entete={partage.entete}
+                  etat={partage.etat}
+                  chemin={partage.chemin}
+                  equipes={[
+                    { nom: md.teamAName ?? nomsClub.a, joueurs: equipeDe("A") },
+                    { nom: md.teamBName ?? nomsClub.b, joueurs: equipeDe("B") },
+                  ]}
+                />
+              )}
+            </div>
+          )
         )}
       </div>
 
@@ -419,6 +487,9 @@ export default async function SessionDetailPage({
         preparation
       )}
 
+      {ctx.canManage && !commencee && (annulee || !passee) && (
+        <AnnulerSoiree slug={slug} matchDayId={md.id} annulee={annulee} />
+      )}
       {ctx.canManage && <DeleteSessionButton slug={slug} matchDayId={md.id} />}
     </main>
   );

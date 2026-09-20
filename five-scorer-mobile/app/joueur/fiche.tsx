@@ -7,13 +7,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ecran from "../../composants/Ecran";
-import { BoutonPlein, BoutonRond, BoutonVerre, Carte } from "../../composants/base";
-import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
+import { BoutonPlein, BoutonRond, BoutonVerre, Carte, Saisie } from "../../composants/base";
+import { jeton, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
+import { ini } from "../../lib/ini";
+import { messageErreur } from "../../lib/erreurs";
+import { choix as retourChoix, succes as retourSucces } from "../../lib/haptique";
 import { choisirPhoto } from "../../lib/photo/choisir";
 import { newId } from "../../lib/noyau/ids";
 import {
@@ -35,7 +37,7 @@ import {
 /// Réservé à qui gère le club. Le geste du bord du terrain — « un pote est
 /// venu ce soir » — n'est PAS celui-ci : c'est l'invité de la compo, qui ne
 /// demande qu'un prénom. Ici, c'est le joueur qui revient : il aura une fiche,
-/// une photo, un niveau, et il comptera au classement.
+/// une photo, une note, et il comptera au classement.
 export default function FicheJoueur() {
   const { clubId, id } = useLocalSearchParams<{ clubId?: string; id?: string }>();
   const edition = typeof id === "string" && id.length > 0;
@@ -76,7 +78,7 @@ export default function FicheJoueur() {
       }
     } catch (e) {
       if (e instanceof SessionExpiree) return router.replace("/connexion");
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(messageErreur(e));
     } finally {
       setOccupe(false);
     }
@@ -93,7 +95,7 @@ export default function FicheJoueur() {
       const url = await choisirPhoto(source);
       if (url) setPhoto(url);
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(messageErreur(e));
     } finally {
       setPhotoEnCours(false);
     }
@@ -131,9 +133,10 @@ export default function FicheJoueur() {
         setEnvoi(false);
         return;
       }
+      retourSucces();
       router.back();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(messageErreur(e));
       setEnvoi(false);
     }
   }
@@ -155,9 +158,9 @@ export default function FicheJoueur() {
             setArchive(true);
             void modifierJoueur(clubId, id, { archive: true })
               .then(() => router.back())
-              .catch((e: Error) => {
+              .catch((e: unknown) => {
                 setArchive(false);
-                setErreur(e.message);
+                setErreur(messageErreur(e));
               });
           },
         },
@@ -167,12 +170,8 @@ export default function FicheJoueur() {
 
   const couleurA = club?.couleurA ?? "#ffffff";
   const couleurB = club?.couleurB ?? "#111111";
-  const initiales = (nom.trim() || "?")
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((m) => m[0] ?? "")
-    .join("")
-    .toUpperCase();
+  // La règle du site (lib/ini.ts) : deux lettres, « BA » pour Bakary.
+  const initiales = ini(nom);
 
   return (
     <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
@@ -202,7 +201,7 @@ export default function FicheJoueur() {
                   onPress={() => void prendrePhoto("photothèque")}
                   disabled={photoEnCours || envoi}
                   accessibilityLabel={photo ? "Changer la photo" : "Ajouter une photo"}
-                  style={[s.apercu, { borderColor: t.cb, backgroundColor: t.seg }]}
+                  style={[s.apercu, { borderColor: jeton(t, "cb"), backgroundColor: jeton(t, "seg") }]}
                 >
                   {photo ? (
                     <Image source={{ uri: photo }} style={s.apercuImage} />
@@ -239,28 +238,30 @@ export default function FicheJoueur() {
 
             <Carte t={t} style={{ marginTop: 14 }}>
               <Champ t={t} libelle="NOM">
-                <TextInput
+                <Saisie
+                  t={t}
                   value={nom}
                   onChangeText={setNom}
                   placeholder="Kylian"
-                  placeholderTextColor={t.i3}
                   autoCapitalize="words"
-                  style={[s.saisie, { color: t.ink, backgroundColor: t.seg }]}
+                  accessibilityLabel="Nom"
                 />
               </Champ>
               <View style={{ height: 14 }} />
               <Champ t={t} libelle="SURNOM">
-                <TextInput
+                <Saisie
+                  t={t}
                   value={surnom}
                   onChangeText={setSurnom}
                   placeholder="La Flèche"
-                  placeholderTextColor={t.i3}
                   autoCapitalize="words"
-                  style={[s.saisie, { color: t.ink, backgroundColor: t.seg }]}
+                  accessibilityLabel="Surnom"
                 />
               </Champ>
               <View style={{ height: 14 }} />
-              <Champ t={t} libelle="NIVEAU">
+              {/* « Note », pas « niveau » : le niveau se gagne en jouant
+                  (les succès). Ici, c'est la note d'équilibrage du capitaine. */}
+              <Champ t={t} libelle="NOTE">
                 {/* Cinq cases égales portant le chiffre, comme le site — pas
                     des étoiles : les étoiles se LISENT bien (l'effectif en
                     met), elles se tapent mal. */}
@@ -270,10 +271,14 @@ export default function FicheJoueur() {
                     return (
                       <Pressable
                         key={n}
-                        onPress={() => setNiveau(n)}
+                        onPress={() => {
+                          retourChoix();
+                          setNiveau(n);
+                        }}
                         accessibilityRole="radio"
+                        accessibilityLabel={`Note ${n} sur 5`}
                         accessibilityState={{ selected: actif }}
-                        style={[s.case_, actif && { backgroundColor: t.gl ?? t.cdSolid }]}
+                        style={[s.case_, actif && { backgroundColor: jeton(t, "gl") }]}
                       >
                         <Text
                           style={[s.caseTexte, { color: actif ? t.ink : t.i2 }]}
@@ -289,7 +294,10 @@ export default function FicheJoueur() {
 
             <Carte t={t} style={{ marginTop: 14 }}>
               <Pressable
-                onPress={() => setGardien((g) => !g)}
+                onPress={() => {
+                  retourChoix();
+                  setGardien((g) => !g);
+                }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: gardien }}
                 style={({ pressed }) => [s.rangee, pressed && { opacity: 0.6 }]}
@@ -377,12 +385,6 @@ const s = StyleSheet.create({
   photoActions: { flex: 1, minWidth: 0, gap: 8 },
 
   champLibelle: { fontSize: 13, fontWeight: "600", letterSpacing: 0.4 },
-  saisie: {
-    minHeight: 52,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    fontSize: 17,
-  },
 
   // Cinq cases strictement égales, 44 px de haut, rayon 22 — le « segment
   // plein-large » du site.

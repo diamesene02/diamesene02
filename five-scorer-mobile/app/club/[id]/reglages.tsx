@@ -2,24 +2,44 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
+  Linking,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
-  Switch,
   Text,
-  TextInput,
   View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
 } from "react-native";
-import { router } from "expo-router";
-import { useClubId } from "../../../composants/ClubCourant";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router, useFocusEffect } from "expo-router";
+import Constants from "expo-constants";
+import * as Updates from "expo-updates";
+import { chargerMoiMemorise, useClubId, useClubMemorise } from "../../../composants/ClubCourant";
 import Ecran from "../../../composants/Ecran";
-import { Avatar, BoutonRond, EcussonChasuble, Poignee } from "../../../composants/base";
-import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import EnTeteClub from "../../../composants/EnTeteClub";
+import ErreurChargement from "../../../composants/ErreurChargement";
+import Feuille from "../../../composants/Feuille";
+import LigneScore from "../../../composants/LigneScore";
+import { useDeconnexion } from "../../../composants/MenuClub";
+import { IconeJeu } from "../../../composants/Icones";
+import {
+  Avatar,
+  BoutonPlein,
+  BoutonVerre,
+  CarteVerre,
+  EcussonChasuble,
+  Interrupteur,
+  Saisie,
+} from "../../../composants/base";
+import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import { themeTokens } from "../../../lib/noyau/theme";
+import { lettre } from "../../../lib/ini";
+import { messageErreur } from "../../../lib/erreurs";
+import { avertissement, choix as retourChoix, succes as retourSucces } from "../../../lib/haptique";
 import {
   basculerSaison,
   changerRole,
@@ -39,30 +59,34 @@ import {
 /// Le principe central est repris sans changement : IL N'Y A PAS DE BOUTON
 /// « ENREGISTRER ». Un interrupteur, un choix ou un champ qu'on quitte part au
 /// serveur tout seul. C'est le geste iOS, et c'est ce qui évite de perdre un
-/// réglage changé puis oublié. L'état de l'envoi se lit en bas de l'écran.
+/// réglage changé puis oublié. L'état de l'envoi se lit sous la vitrine,
+/// comme sur le site.
 ///
 /// Les gestes qui ne se rattrapent pas — régénérer le lien d'invitation,
 /// retirer un membre, ouvrir ou clôturer une saison — demandent tous une
 /// confirmation qui DIT ce qui va se passer. Le site en oublie la moitié ; sur
 /// un téléphone, où le doigt glisse, ce n'est pas tenable.
+///
+/// Une rangée du site manque, voulue : « Apparence » (sombre / clair). Tous
+/// les écrans de l'app sont encore peints en sombre ; un réglage qui ne
+/// changerait que celui-ci mentirait.
 export default function Reglages() {
   const id = useClubId();
+  const memo = useClubMemorise();
   const [d, setD] = useState<EcranReglages | null>(null);
   const [occupe, setOccupe] = useState(true);
-  const [erreur, setErreur] = useState<string | null>(null);
+  const [rafraichit, setRafraichit] = useState(false);
+  const [erreur, setErreur] = useState<unknown>(null);
   const [etat, setEtat] = useState<{ texte: string; erreur?: boolean } | null>(null);
-  const [chasublesOuvertes, setChasublesOuvertes] = useState(false);
-  const [membresOuverts, setMembresOuverts] = useState(false);
-  const [saisonsOuvertes, setSaisonsOuvertes] = useState(false);
-  const [invitationOuverte, setInvitationOuverte] = useState(false);
+  const [ouvert, setOuvert] = useState<Record<string, boolean>>({});
   const [nouvelleSaison, setNouvelleSaison] = useState("");
   const [feuille, setFeuille] = useState<null | "format" | "motm">(null);
-  const bas = useSafeAreaInsets().bottom;
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deconnecter = useDeconnexion();
 
   const t: Jetons = d
     ? themeTokens(d.club.couleurA, d.club.couleurB, "dark")
-    : JETONS_NEUTRES;
+    : (memo?.theme.sombre ?? JETONS_NEUTRES);
 
   const charger = useCallback(async () => {
     if (!id) return;
@@ -71,28 +95,44 @@ export default function Reglages() {
       setD(await chargerReglages(id));
     } catch (e) {
       if (e instanceof SessionExpiree) return router.replace("/connexion");
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(e);
     } finally {
       setOccupe(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    void charger();
-    return () => {
+  useFocusEffect(
+    useCallback(() => {
+      void charger();
+    }, [charger]),
+  );
+
+  useEffect(
+    () => () => {
       if (minuteur.current) clearTimeout(minuteur.current);
-    };
+    },
+    [],
+  );
+
+  const rafraichir = useCallback(async () => {
+    setRafraichit(true);
+    await charger();
+    setRafraichit(false);
   }, [charger]);
 
-  /// Enregistrer un champ, et le dire. L'écran se relit ensuite : les couleurs
-  /// changent le thème de toute l'app, et le nom la pilule du club.
+  const basculer = (cle: string) => setOuvert((o) => ({ ...o, [cle]: !o[cle] }));
+
+  /// Enregistrer un champ, et le dire. L'écran se relit ensuite, et le
+  /// « moi » gardé en mémoire aussi : les couleurs changent le thème de toute
+  /// l'app, et le nom la pilule du club.
   async function sauver(diff: ReglageAEcrire) {
     if (!id) return;
     setEtat({ texte: "Enregistrement…" });
     try {
       const r = await ecrireReglage(id, diff);
       if (!r.ok) {
-        setEtat({ texte: r.error ?? "Erreur", erreur: true });
+        avertissement();
+        setEtat({ texte: r.error ?? "Le serveur a refusé ce réglage.", erreur: true });
         return;
       }
       setEtat({ texte: "Enregistré" });
@@ -101,528 +141,594 @@ export default function Reglages() {
         () => setEtat((e) => (e?.texte === "Enregistré" ? null : e)),
         1500,
       );
-      await charger();
+      await Promise.all([charger(), chargerMoiMemorise().catch(() => null)]);
     } catch (e) {
-      setEtat({ texte: e instanceof Error ? e.message : String(e), erreur: true });
+      if (e instanceof SessionExpiree) return router.replace("/connexion");
+      avertissement();
+      setEtat({ texte: messageErreur(e), erreur: true });
     }
   }
 
   const c = d?.club;
+  const agenda = d ? `${PROD}${d.agenda.chemin}.ics` : "";
+  const nbSaisons = d?.saisons.liste.length ?? 0;
 
   return (
-    <Ecran
-      t={t}
-      chasubles={{ a: c?.couleurA ?? "#ffffff", b: c?.couleurB ?? "#111111" }}
-    >
+    <Ecran t={t} chasubles={{ a: c?.couleurA ?? "#ffffff", b: c?.couleurB ?? "#111111" }}>
       <ScrollView
         contentContainerStyle={s.contenu}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl refreshing={occupe && d != null} onRefresh={charger} tintColor={t.i2} />
+          <RefreshControl refreshing={rafraichit} onRefresh={rafraichir} tintColor={t.i2} />
         }
       >
-        <View style={s.retour}>
-          <BoutonRond
-            t={t}
-            symbole="‹"
-            etiquette="Retour"
-            onPress={() =>
-              router.canGoBack()
-                ? router.back()
-                : router.replace({ pathname: "/club/[id]", params: { id } })
-            }
-          />
-        </View>
+        <EnTeteClub t={t} titre="Réglages" sousTitre={d?.sousTitre} />
 
-        <Text style={[s.titre, { color: t.ink }]}>Réglages</Text>
-        {d && <Text style={[s.sousTitre, { color: t.i2 }]}>{d.sousTitre}</Text>}
+        <View style={s.corps}>
+          {occupe && !d && (
+            <View style={s.centre}>
+              <ActivityIndicator color={t.ink} />
+            </View>
+          )}
+          {erreur != null && (
+            <ErreurChargement t={t} erreur={erreur} onReessayer={charger} style={s.erreur} />
+          )}
 
-        {occupe && !d && (
-          <View style={s.centre}>
-            <ActivityIndicator color={t.ink} />
-          </View>
-        )}
-        {erreur && <Text style={[s.erreur, { color: t.bad }]}>{erreur}</Text>}
+          {d && c && (
+            <>
+              <Section t={t} titre="Club">
+                <Rangee t={t} libelle="Nom" premiere>
+                  <EcussonChasuble couleur={c.couleurA} lettre={lettre(c.nom)} taille={30} rayon={8} anneau={3} />
+                  <ChampTexte
+                    t={t}
+                    valeur={c.nom}
+                    etiquette="Nom du club"
+                    onValider={(v) => v.trim() !== c.nom && v.trim().length > 0 && sauver({ name: v.trim() })}
+                  />
+                </Rangee>
 
-        {d && c && (
-          <>
-            <Section t={t} titre="Club">
-              <Rangee t={t} libelle="Nom" premiere>
-                <ChampInline
+                <Rangee
                   t={t}
-                  valeur={c.nom}
-                  onValider={(v) => v.trim() !== c.nom && sauver({ name: v.trim() })}
-                />
-              </Rangee>
-
-              <Rangee
-                t={t}
-                libelle="Chasubles"
-                onPress={() => setChasublesOuvertes((o) => !o)}
-                valeur={`${c.nomChasubleA} · ${c.nomChasubleB}`}
-                chevron={chasublesOuvertes ? "⌃" : "›"}
-              >
-                <View style={s.pastilles}>
-                  <View style={[s.pastille, { backgroundColor: c.couleurA, borderColor: t.cb }]} />
-                  <View style={[s.pastille, { backgroundColor: c.couleurB, borderColor: t.cb }]} />
-                </View>
-              </Rangee>
-              {chasublesOuvertes && (
-                <View style={s.chasubles}>
-                  <Nuancier
-                    t={t}
-                    titre="Chasuble A"
-                    nom={c.nomChasubleA}
-                    courante={c.couleurA}
-                    pastilles={d.choix.pastilles}
-                    onChoisir={(hex) => sauver({ colorA: hex })}
-                  />
-                  <Nuancier
-                    t={t}
-                    titre="Chasuble B"
-                    nom={c.nomChasubleB}
-                    courante={c.couleurB}
-                    pastilles={d.choix.pastilles}
-                    onChoisir={(hex) => sauver({ colorB: hex })}
-                  />
-                  {/* L'aperçu : les deux écussons côte à côte, comme la ligne
-                      de score de la feuille. Choisir une couleur sur un
-                      nuancier ne dit pas ce qu'elle donnera sur le terrain. */}
-                  <View style={s.apercu}>
-                    <EcussonChasuble couleur={c.couleurA} lettre={c.nomChasubleA[0] ?? "A"} taille={54} />
-                    <Text style={[s.apercuScore, { color: t.ink }]}>4 – 2</Text>
-                    <EcussonChasuble couleur={c.couleurB} lettre={c.nomChasubleB[0] ?? "B"} taille={54} />
+                  libelle="Chasubles"
+                  onPress={() => basculer("chasubles")}
+                  valeur={`${c.nomChasubleA} · ${c.nomChasubleB}`}
+                  ouvert={!!ouvert.chasubles}
+                  chevron
+                >
+                  <View style={s.pastilles}>
+                    <EcussonChasuble couleur={c.couleurA} lettre="" taille={22} anneau={2} ombre={false} />
+                    <EcussonChasuble couleur={c.couleurB} lettre="" taille={22} anneau={2} ombre={false} />
                   </View>
-                </View>
-              )}
+                </Rangee>
+                {ouvert.chasubles && (
+                  <View style={[s.chasubles, { borderTopColor: jeton(t, "sep") }]}>
+                    <Nuancier
+                      t={t}
+                      titre="Chasuble A"
+                      nom={c.nomChasubleA}
+                      courante={c.couleurA}
+                      pastilles={d.choix.pastilles}
+                      onChoisir={(hex) => {
+                        retourChoix();
+                        void sauver({ colorA: hex });
+                      }}
+                    />
+                    <Nuancier
+                      t={t}
+                      titre="Chasuble B"
+                      nom={c.nomChasubleB}
+                      courante={c.couleurB}
+                      pastilles={d.choix.pastilles}
+                      onChoisir={(hex) => {
+                        retourChoix();
+                        void sauver({ colorB: hex });
+                      }}
+                    />
+                    {/* L'aperçu : la ligne de score de l'accueil, en petit.
+                        Choisir une couleur sur un nuancier ne dit pas ce
+                        qu'elle donnera sur le terrain. */}
+                    <View style={[s.apercu, { backgroundColor: jeton(t, "seg") }]}>
+                      <LigneScore
+                        t={t}
+                        nomA={c.nomChasubleA}
+                        nomB={c.nomChasubleB}
+                        couleurA={c.couleurA}
+                        couleurB={c.couleurB}
+                        scoreA={4}
+                        scoreB={2}
+                        etat="Aperçu"
+                        reduite
+                      />
+                    </View>
+                  </View>
+                )}
 
-              <Rangee
-                t={t}
-                libelle="Format"
-                valeur={c.formatLibelle}
-                chevron="›"
-                onPress={() => setFeuille("format")}
-              />
-              <Rangee t={t} libelle="Durée d'un match">
-                <ChampNombre
+                <Rangee
                   t={t}
-                  valeur={c.dureeMatchMin}
-                  onValider={(n) => n !== c.dureeMatchMin && sauver({ matchDurationMin: n })}
+                  libelle="Format"
+                  valeur={c.formatLibelle}
+                  chevron
+                  onPress={() => setFeuille("format")}
                 />
-                <Text style={[s.unite, { color: t.i2 }]}>min</Text>
-              </Rangee>
-            </Section>
+                <Rangee t={t} libelle="Durée d'un match">
+                  <ChampNombre
+                    t={t}
+                    valeur={c.dureeMatchMin}
+                    etiquette="Durée d'un match en minutes"
+                    onValider={(n) => n !== c.dureeMatchMin && sauver({ matchDurationMin: n })}
+                  />
+                  <Text style={[s.valeur, { color: t.i2 }]}>min</Text>
+                </Rangee>
+              </Section>
 
-            <Section t={t} titre="La soirée">
-              <Rangee
-                t={t}
-                libelle="Il faut au moins"
-                aide="En dessous, la soirée s'annonce comme menacée."
-                premiere
+              <Section t={t} titre="La soirée">
+                <Rangee
+                  t={t}
+                  libelle="Il faut au moins"
+                  aide="En dessous, la soirée s'annonce comme menacée."
+                  premiere
+                >
+                  <ChampNombre
+                    t={t}
+                    valeur={c.minJoueurs}
+                    etiquette="Nombre minimum de joueurs"
+                    onValider={(n) => n !== c.minJoueurs && sauver({ minJoueurs: n })}
+                  />
+                  <Text style={[s.valeur, { color: t.i2 }]}>joueurs</Text>
+                </Rangee>
+                <Rangee
+                  t={t}
+                  libelle="Le terrain tient"
+                  aide="Au-delà, les suivants passent en liste d'attente. 0 pour ne jamais limiter."
+                >
+                  <ChampNombre
+                    t={t}
+                    valeur={c.capaciteSoiree}
+                    etiquette="Capacité du terrain"
+                    onValider={(n) => n !== c.capaciteSoiree && sauver({ capaciteSoiree: n })}
+                  />
+                  <Text style={[s.valeur, { color: t.i2 }]}>joueurs</Text>
+                </Rangee>
+              </Section>
+
+              <Section t={t} titre="Match">
+                <Rangee t={t} libelle="Passes décisives" aide="Demander le passeur après un but" premiere>
+                  <Interrupteur
+                    valeur={c.suitPasses}
+                    etiquette="Passes décisives"
+                    onChange={(v) => {
+                      retourChoix();
+                      void sauver({ trackAssists: v });
+                    }}
+                  />
+                </Rangee>
+                <Rangee t={t} libelle="Cartons" aide="Jaunes et rouges dans la chronologie">
+                  <Interrupteur
+                    valeur={c.suitCartons}
+                    etiquette="Cartons"
+                    onChange={(v) => {
+                      retourChoix();
+                      void sauver({ trackCards: v });
+                    }}
+                  />
+                </Rangee>
+                <Rangee t={t} libelle="Les membres peuvent scorer" aide="Sinon, admins uniquement">
+                  <Interrupteur
+                    valeur={c.membresPeuventScorer}
+                    etiquette="Les membres peuvent scorer"
+                    onChange={(v) => {
+                      retourChoix();
+                      void sauver({ membersCanScore: v });
+                    }}
+                  />
+                </Rangee>
+                <Rangee
+                  t={t}
+                  libelle="Homme du match"
+                  valeur={c.modeHommeDuMatchLibelle}
+                  chevron
+                  onPress={() => setFeuille("motm")}
+                />
+              </Section>
+
+              <Section t={t} titre="Saison">
+                <Rangee
+                  t={t}
+                  libelle="Saison active"
+                  valeur={d.saisons.active ?? "aucune"}
+                  chevron
+                  premiere
+                  onPress={() => router.push({ pathname: "/club/[id]/saison", params: { id } })}
+                />
+                <Rangee t={t} libelle="Barème" aide="victoire · nul">
+                  <ChampNombre
+                    t={t}
+                    valeur={c.pointsVictoire}
+                    etiquette="Points par victoire"
+                    onValider={(n) => n !== c.pointsVictoire && sauver({ pointsWin: n })}
+                  />
+                  <ChampNombre
+                    t={t}
+                    valeur={c.pointsNul}
+                    etiquette="Points par nul"
+                    onValider={(n) => n !== c.pointsNul && sauver({ pointsDraw: n })}
+                  />
+                </Rangee>
+                <Rangee
+                  t={t}
+                  libelle="Calendrier automatique"
+                  valeur={`${nbSaisons} saison${nbSaisons > 1 ? "s" : ""}`}
+                  chevron
+                  onPress={() => router.push({ pathname: "/club/[id]/saison", params: { id } })}
+                />
+              </Section>
+
+              <Section t={t} titre="Vitrine">
+                <Rangee
+                  t={t}
+                  libelle="Page publique"
+                  aide={
+                    c.publique
+                      ? `${PROD}/p/${c.slug}`
+                      : "Classement et résultats en lecture seule"
+                  }
+                  premiere
+                >
+                  <Interrupteur
+                    valeur={c.publique}
+                    etiquette="Page publique"
+                    onChange={(v) => {
+                      retourChoix();
+                      void sauver({ isPublic: v });
+                    }}
+                  />
+                </Rangee>
+              </Section>
+              <Text
+                style={[s.etat, { color: etat?.erreur ? jeton(t, "bad") : jeton(t, "i3") }]}
+                accessibilityLiveRegion="polite"
               >
-                <ChampNombre
-                  t={t}
-                  valeur={c.minJoueurs}
-                  onValider={(n) => n !== c.minJoueurs && sauver({ minJoueurs: n })}
-                />
-                <Text style={[s.unite, { color: t.i2 }]}>joueurs</Text>
-              </Rangee>
-              <Rangee
-                t={t}
-                libelle="Le terrain tient"
-                aide="Au-delà, les suivants passent en liste d'attente. 0 pour ne jamais limiter."
-              >
-                <ChampNombre
-                  t={t}
-                  valeur={c.capaciteSoiree}
-                  onValider={(n) => n !== c.capaciteSoiree && sauver({ capaciteSoiree: n })}
-                />
-                <Text style={[s.unite, { color: t.i2 }]}>joueurs</Text>
-              </Rangee>
-            </Section>
+                {etat?.texte ?? " "}
+              </Text>
 
-            <Section t={t} titre="Match">
-              <Rangee t={t} libelle="Passes décisives" aide="Demander le passeur après un but" premiere>
-                <Switch
-                  value={c.suitPasses}
-                  onValueChange={(v) => sauver({ trackAssists: v })}
-                  trackColor={{ true: t.ok, false: t.seg }}
-                />
-              </Rangee>
-              <Rangee t={t} libelle="Cartons" aide="Jaunes et rouges dans la chronologie">
-                <Switch
-                  value={c.suitCartons}
-                  onValueChange={(v) => sauver({ trackCards: v })}
-                  trackColor={{ true: t.ok, false: t.seg }}
-                />
-              </Rangee>
-              <Rangee t={t} libelle="Les membres peuvent scorer" aide="Sinon, admins uniquement">
-                <Switch
-                  value={c.membresPeuventScorer}
-                  onValueChange={(v) => sauver({ membersCanScore: v })}
-                  trackColor={{ true: t.ok, false: t.seg }}
-                />
-              </Rangee>
-              <Rangee
-                t={t}
-                libelle="Homme du match"
-                valeur={c.modeHommeDuMatchLibelle}
-                chevron="›"
-                onPress={() => setFeuille("motm")}
-              />
-            </Section>
-
-            <Section t={t} titre="Saison">
-              <Rangee
-                t={t}
-                libelle="Saison active"
-                valeur={d.saisons.active ?? "aucune"}
-                chevron="›"
-                premiere
-                onPress={() =>
-                  router.push({ pathname: "/club/[id]/saison", params: { id } })
-                }
-              />
-              <Rangee t={t} libelle="Barème" aide="victoire · nul">
-                <ChampNombre
+              <Section t={t} titre="Membres">
+                <Rangee
                   t={t}
-                  valeur={c.pointsVictoire}
-                  onValider={(n) => n !== c.pointsVictoire && sauver({ pointsWin: n })}
-                />
-                <ChampNombre
-                  t={t}
-                  valeur={c.pointsNul}
-                  onValider={(n) => n !== c.pointsNul && sauver({ pointsDraw: n })}
-                />
-              </Rangee>
-              <Rangee
-                t={t}
-                libelle="Saisons"
-                valeur={String(d.saisons.liste.length)}
-                chevron={saisonsOuvertes ? "⌃" : "›"}
-                onPress={() => setSaisonsOuvertes((o) => !o)}
-              />
-              {saisonsOuvertes && (
-                <View style={s.deplie}>
-                  {d.saisons.liste.map((sn) => (
-                    <View key={sn.id} style={[s.saison, { borderTopColor: t.sep }]}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <View style={s.saisonNom}>
-                          <Text style={[s.saisonTitre, { color: t.ink }]} numberOfLines={1}>
-                            {sn.nom}
-                          </Text>
-                          {sn.active && (
-                            <Text style={[s.badge, { color: t.ok, borderColor: t.ok }]}>active</Text>
-                          )}
-                        </View>
-                        <Text style={[s.saisonPeriode, { color: t.i2 }]} numberOfLines={1}>
-                          {sn.periode}
-                        </Text>
-                      </View>
-                      <Pressable
+                  libelle="Inviter par lien"
+                  ouvert={!!ouvert.invitation}
+                  chevron
+                  premiere
+                  onPress={() => basculer("invitation")}
+                >
+                  <Text
+                    style={[s.code, { color: t.ink, backgroundColor: jeton(t, "seg") }]}
+                    numberOfLines={1}
+                  >
+                    {d.invitation.affiche}
+                  </Text>
+                </Rangee>
+                {ouvert.invitation && (
+                  <Detail t={t}>
+                    <Text style={[s.aideBloc, { color: t.i2 }]}>
+                      Qui ouvre ce lien rejoint le club. Il reste valable jusqu&apos;à ce
+                      qu&apos;on le régénère.
+                    </Text>
+                    <View style={s.deuxBoutons}>
+                      <BoutonPlein
+                        t={t}
+                        titre="Partager le lien"
+                        onPress={() =>
+                          void Share.share({
+                            message: `Rejoins notre club sur Five Scorer : ${PROD}${d.invitation.lien}`,
+                          }).catch(() => {})
+                        }
+                      />
+                      <BoutonPlein
+                        t={t}
+                        danger
+                        titre="Régénérer le code"
                         onPress={() =>
                           confirmer(
-                            sn.active ? "Clôturer cette saison ?" : "Réactiver cette saison ?",
-                            sn.active
-                              ? "Le club n'aura plus de saison en cours : les nouveaux matchs et les nouvelles soirées ne s'attacheront plus à rien."
-                              : `« ${d.saisons.active ?? "La saison en cours"} » sera clôturée au passage — un club n'a jamais deux saisons ouvertes.`,
-                            sn.active ? "Clôturer" : "Réactiver",
+                            "Régénérer le code ?",
+                            "L'ancien lien ne marchera plus. Tous ceux que tu as déjà envoyés, y compris sur WhatsApp, tomberont en panne.",
+                            "Oui, régénérer",
                             async () => {
-                              await basculerSaison(id, sn.id, !sn.active);
+                              await regenererInvitation(id);
+                              await charger();
+                            },
+                            true,
+                          )
+                        }
+                      />
+                    </View>
+                  </Detail>
+                )}
+
+                <Rangee
+                  t={t}
+                  libelle={d.membres.sousTitre}
+                  ouvert={!!ouvert.membres}
+                  chevron
+                  onPress={() => basculer("membres")}
+                />
+                {ouvert.membres && (
+                  <Detail t={t}>
+                    {d.membres.liste.map((m, i) => (
+                      <View
+                        key={m.id}
+                        style={[s.membre, i > 0 && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") }]}
+                      >
+                        <Avatar nom={m.nom} t={t} taille={34} initiales={m.initiales} />
+                        <View style={s.membreTextes}>
+                          <Text style={[s.membreNom, { color: t.ink }]} numberOfLines={1}>
+                            {m.nom}
+                            {m.estMoi && <Text style={{ color: t.i3 }}> · toi</Text>}
+                          </Text>
+                          <Text style={[s.membreSous, { color: t.i2 }]} numberOfLines={1}>
+                            {m.joueur ? `${m.joueur} · ` : ""}
+                            {m.courriel}
+                          </Text>
+                        </View>
+                        {m.estOwner ? (
+                          <Text style={[s.capitaine, { color: jeton(t, "or") }]}>Capitaine</Text>
+                        ) : (
+                          <View style={s.actionsMembre}>
+                            <PetitBouton
+                              t={t}
+                              titre={m.roleLibelle}
+                              etiquette={
+                                m.role === "admin"
+                                  ? `Retirer les droits d'admin à ${m.nom}`
+                                  : `Faire de ${m.nom} un admin`
+                              }
+                              onPress={() =>
+                                confirmer(
+                                  m.role === "admin"
+                                    ? `Retirer les droits d'admin à ${m.nom} ?`
+                                    : `Faire de ${m.nom} un admin ?`,
+                                  m.role === "admin"
+                                    ? "Cette personne ne pourra plus modifier les réglages ni gérer l'effectif."
+                                    : "Cette personne pourra modifier les réglages, l'effectif et le calendrier.",
+                                  m.role === "admin" ? "Rétrograder" : "Promouvoir",
+                                  async () => {
+                                    await changerRole(id, m.id, m.role === "admin" ? "member" : "admin");
+                                    await charger();
+                                  },
+                                )
+                              }
+                            />
+                            {!m.estMoi && (
+                              <PetitBouton
+                                t={t}
+                                titre="Retirer"
+                                danger
+                                etiquette={`Retirer ${m.nom} du club`}
+                                onPress={() =>
+                                  confirmer(
+                                    `Retirer ${m.nom} du club ?`,
+                                    "Ses matchs, ses buts et ses votes restent au club — c'est son compte qui est délié. Pour revenir, il lui faudra un nouveau lien d'invitation.",
+                                    "Retirer",
+                                    async () => {
+                                      await retirerMembre(id, m.id);
+                                      await charger();
+                                    },
+                                    true,
+                                  )
+                                }
+                              />
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                    <Text style={[s.aideBloc, { color: t.i3 }]}>
+                      Retirer quelqu&apos;un ne supprime pas son historique : son profil
+                      joueur reste au vestiaire, simplement délié de son compte.
+                    </Text>
+                  </Detail>
+                )}
+
+                <Rangee
+                  t={t}
+                  libelle="Le calendrier dans le téléphone"
+                  valeur="iCal"
+                  ouvert={!!ouvert.agenda}
+                  chevron
+                  onPress={() => basculer("agenda")}
+                />
+                {ouvert.agenda && (
+                  <Detail t={t}>
+                    <Text style={[s.aideBloc, { color: t.i2 }]}>
+                      Ajoute-le à ton agenda : tous les lundis de la saison apparaissent,
+                      et ton téléphone te les rappelle tout seul. Il se met à jour quand
+                      le calendrier du club change.
+                    </Text>
+                    <View style={s.deuxBoutons}>
+                      <BoutonPlein
+                        t={t}
+                        titre="Ajouter à mon agenda"
+                        onPress={() =>
+                          // webcal:// : l'agenda propose l'ABONNEMENT, là où un
+                          // lien https téléchargerait un fichier figé.
+                          void Linking.openURL(agenda.replace(/^https?:/, "webcal:")).catch(() =>
+                            Alert.alert(
+                              "Aucun agenda n'a répondu",
+                              "Partage plutôt le lien et colle-le dans ton application d'agenda.",
+                            ),
+                          )
+                        }
+                      />
+                      <BoutonVerre
+                        t={t}
+                        titre="Partager le lien"
+                        onPress={() => void Share.share({ message: agenda }).catch(() => {})}
+                      />
+                    </View>
+                    <Text style={[s.aideBloc, { color: t.i3 }]}>
+                      À partager avec tout le monde : le lien ne donne accès qu&apos;aux dates
+                      et au lieu, jamais aux joueurs ni aux résultats — et il ne permet pas de
+                      rejoindre le club.
+                    </Text>
+                  </Detail>
+                )}
+
+                <Rangee
+                  t={t}
+                  libelle="Saisons"
+                  valeur={String(nbSaisons)}
+                  ouvert={!!ouvert.saisons}
+                  chevron
+                  onPress={() => basculer("saisons")}
+                />
+                {ouvert.saisons && (
+                  <Detail t={t}>
+                    {d.saisons.liste.map((sn, i) => (
+                      <View
+                        key={sn.id}
+                        style={[s.saison, i > 0 && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") }]}
+                      >
+                        <View style={s.saisonTextes}>
+                          <View style={s.saisonNom}>
+                            <Text style={[s.saisonTitre, { color: t.ink }]} numberOfLines={1}>
+                              {sn.nom}
+                            </Text>
+                            {sn.active && (
+                              <Text style={[s.badge, { color: jeton(t, "ok"), borderColor: jeton(t, "ok") }]}>
+                                active
+                              </Text>
+                            )}
+                          </View>
+                          <Text style={[s.saisonPeriode, { color: t.i2 }]} numberOfLines={1}>
+                            {sn.periode}
+                          </Text>
+                        </View>
+                        <PetitBouton
+                          t={t}
+                          titre={sn.active ? "Clôturer" : "Réactiver"}
+                          etiquette={`${sn.active ? "Clôturer" : "Réactiver"} ${sn.nom}`}
+                          onPress={() =>
+                            confirmer(
+                              sn.active ? "Clôturer cette saison ?" : "Réactiver cette saison ?",
+                              sn.active
+                                ? "Le club n'aura plus de saison en cours : les nouveaux matchs et les nouvelles soirées ne s'attacheront plus à rien."
+                                : `« ${d.saisons.active ?? "La saison en cours"} » sera clôturée au passage — un club n'a jamais deux saisons ouvertes.`,
+                              sn.active ? "Clôturer" : "Réactiver",
+                              async () => {
+                                await basculerSaison(id, sn.id, !sn.active);
+                                await charger();
+                              },
+                            )
+                          }
+                        />
+                      </View>
+                    ))}
+                    <View style={[s.saison, s.nouvelle, { borderTopColor: jeton(t, "sep") }]}>
+                      <Saisie
+                        t={t}
+                        value={nouvelleSaison}
+                        onChangeText={setNouvelleSaison}
+                        placeholder="Saison 2027-2028"
+                        accessibilityLabel="Nom de la nouvelle saison"
+                        returnKeyType="done"
+                        style={s.saisieSaison}
+                      />
+                      <PetitBouton
+                        t={t}
+                        titre="Créer"
+                        disabled={nouvelleSaison.trim().length < 2}
+                        etiquette="Créer la saison"
+                        onPress={() =>
+                          confirmer(
+                            "Ouvrir une saison ?",
+                            `« ${d.saisons.active ?? "La saison en cours"} » sera clôturée : un club n'a jamais deux saisons ouvertes.`,
+                            "Ouvrir",
+                            async () => {
+                              await creerSaison(id, nouvelleSaison.trim());
+                              setNouvelleSaison("");
                               await charger();
                             },
                           )
                         }
-                        style={({ pressed }) => [
-                          s.petitBouton,
-                          { borderColor: t.cb },
-                          pressed && { opacity: 0.6 },
-                        ]}
-                      >
-                        <Text style={{ color: t.ink, fontSize: 15, fontWeight: "600" }}>
-                          {sn.active ? "Clôturer" : "Réactiver"}
-                        </Text>
-                      </Pressable>
+                      />
                     </View>
-                  ))}
-                  <View style={[s.saison, { borderTopColor: t.sep }]}>
-                    <TextInput
-                      value={nouvelleSaison}
-                      onChangeText={setNouvelleSaison}
-                      placeholder="Saison 2027-2028"
-                      placeholderTextColor={t.i3}
-                      style={[s.saisie, { color: t.ink, backgroundColor: t.seg, borderColor: t.cb }]}
-                    />
-                    <Pressable
-                      disabled={nouvelleSaison.trim().length < 2}
-                      onPress={() =>
-                        confirmer(
-                          "Ouvrir une saison ?",
-                          `« ${d.saisons.active ?? "La saison en cours"} » sera clôturée : un club n'a jamais deux saisons ouvertes.`,
-                          "Ouvrir",
-                          async () => {
-                            await creerSaison(id, nouvelleSaison.trim());
-                            setNouvelleSaison("");
-                            await charger();
-                          },
-                        )
-                      }
-                      style={({ pressed }) => [
-                        s.petitBouton,
-                        {
-                          borderColor: t.cb,
-                          opacity: nouvelleSaison.trim().length < 2 ? 0.4 : pressed ? 0.6 : 1,
-                        },
-                      ]}
-                    >
-                      <Text style={{ color: t.ink, fontSize: 15, fontWeight: "600" }}>Créer</Text>
-                    </Pressable>
-                  </View>
-                  <Text style={[s.aideBloc, { color: t.i3 }]}>
-                    Les nouveaux matchs s&apos;attachent automatiquement à la saison active.
-                  </Text>
-                </View>
-              )}
-            </Section>
+                    <Text style={[s.aideBloc, { color: t.i3 }]}>
+                      Les nouveaux matchs s&apos;attachent automatiquement à la saison active.
+                    </Text>
+                  </Detail>
+                )}
+              </Section>
+            </>
+          )}
 
-            <Section t={t} titre="Vitrine">
-              <Rangee
-                t={t}
-                libelle="Page publique"
-                aide={
-                  c.publique
-                    ? `${PROD}/p/${c.slug}`
-                    : "Classement et résultats en lecture seule"
-                }
-                premiere
-              >
-                <Switch
-                  value={c.publique}
-                  onValueChange={(v) => sauver({ isPublic: v })}
-                  trackColor={{ true: t.ok, false: t.seg }}
-                />
-              </Rangee>
-            </Section>
-
-            <Section t={t} titre="Membres">
-              <Rangee
-                t={t}
-                libelle="Inviter par lien"
-                valeur={d.invitation.affiche}
-                chevron={invitationOuverte ? "⌃" : "›"}
-                premiere
-                onPress={() => setInvitationOuverte((o) => !o)}
-              />
-              {invitationOuverte && (
-                <View style={s.deplie}>
-                  <Text style={[s.aideBloc, { color: t.i2 }]}>
-                    Qui ouvre ce lien rejoint le club. Il reste valable jusqu&apos;à ce
-                    qu&apos;on le régénère.
-                  </Text>
-                  <View style={s.deuxBoutons}>
-                    <Pressable
-                      onPress={() =>
-                        void Share.share({ message: PROD + d.invitation.lien }).catch(() => {})
-                      }
-                      style={({ pressed }) => [
-                        s.grandBouton,
-                        { borderColor: t.cb },
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Text style={{ color: t.ink, fontSize: 17, fontWeight: "600" }}>
-                        Partager le lien
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() =>
-                        confirmer(
-                          "Régénérer le code ?",
-                          "L'ancien lien ne marchera plus. Tous ceux que tu as déjà envoyés, y compris sur WhatsApp, tomberont en panne.",
-                          "Oui, régénérer",
-                          async () => {
-                            await regenererInvitation(id);
-                            await charger();
-                          },
-                        )
-                      }
-                      style={({ pressed }) => [
-                        s.grandBouton,
-                        { borderColor: t.cb },
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Text style={{ color: t.bad, fontSize: 17, fontWeight: "600" }}>
-                        Régénérer le code
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-
-              <Rangee
-                t={t}
-                libelle={d.membres.sousTitre}
-                chevron={membresOuverts ? "⌃" : "›"}
-                onPress={() => setMembresOuverts((o) => !o)}
-              />
-              {membresOuverts && (
-                <View style={s.deplie}>
-                  {d.membres.liste.map((m) => (
-                    <View key={m.id} style={[s.membre, { borderTopColor: t.sep }]}>
-                      <Avatar nom={m.nom} t={t} taille={34} />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[s.membreNom, { color: t.ink }]} numberOfLines={1}>
-                          {m.nom}
-                          {m.estMoi && <Text style={{ color: t.i3 }}> · toi</Text>}
-                        </Text>
-                        <Text style={[s.membreSous, { color: t.i2 }]} numberOfLines={1}>
-                          {m.joueur ? `${m.joueur} · ` : ""}
-                          {m.courriel}
-                        </Text>
-                      </View>
-                      {m.estOwner ? (
-                        <Text style={[s.capitaine, { color: t.or ?? "#ffd60a" }]}>Capitaine</Text>
-                      ) : (
-                        <View style={s.actionsMembre}>
-                          <Pressable
-                            onPress={() =>
-                              confirmer(
-                                m.role === "admin"
-                                  ? `Retirer les droits d'admin à ${m.nom} ?`
-                                  : `Faire de ${m.nom} un admin ?`,
-                                m.role === "admin"
-                                  ? "Cette personne ne pourra plus modifier les réglages ni gérer l'effectif."
-                                  : "Cette personne pourra modifier les réglages, l'effectif et le calendrier.",
-                                m.role === "admin" ? "Rétrograder" : "Promouvoir",
-                                async () => {
-                                  await changerRole(
-                                    id,
-                                    m.id,
-                                    m.role === "admin" ? "member" : "admin",
-                                  );
-                                  await charger();
-                                },
-                              )
-                            }
-                            style={({ pressed }) => [
-                              s.petitBouton,
-                              { borderColor: t.cb },
-                              pressed && { opacity: 0.6 },
-                            ]}
-                          >
-                            <Text style={{ color: t.ink, fontSize: 15, fontWeight: "600" }}>
-                              {m.roleLibelle}
-                            </Text>
-                          </Pressable>
-                          {!m.estMoi && (
-                            <Pressable
-                              onPress={() =>
-                                confirmer(
-                                  `Retirer ${m.nom} du club ?`,
-                                  "Ses matchs, ses buts et ses votes restent au club — c'est son compte qui est délié. Pour revenir, il lui faudra un nouveau lien d'invitation.",
-                                  "Retirer",
-                                  async () => {
-                                    await retirerMembre(id, m.id);
-                                    await charger();
-                                  },
-                                  true,
-                                )
-                              }
-                              style={({ pressed }) => [
-                                s.petitBouton,
-                                { borderColor: t.cb },
-                                pressed && { opacity: 0.6 },
-                              ]}
-                            >
-                              <Text style={{ color: t.bad, fontSize: 15, fontWeight: "600" }}>
-                                Retirer
-                              </Text>
-                            </Pressable>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                  <Text style={[s.aideBloc, { color: t.i3 }]}>
-                    Retirer quelqu&apos;un ne supprime pas son historique : son profil
-                    joueur reste au vestiaire, simplement délié de son compte.
-                  </Text>
-                </View>
-              )}
-
-              <Rangee
-                t={t}
-                libelle="Le calendrier dans le téléphone"
-                valeur="iCal"
-                chevron="›"
-                onPress={() =>
-                  void Share.share({ message: PROD + d.agenda.chemin }).catch(() => {})
-                }
-              />
-            </Section>
-
-            <Text
-              style={[
-                s.etat,
-                { color: etat?.erreur ? t.bad : t.i2 },
-              ]}
-            >
-              {etat?.texte ?? " "}
-            </Text>
-          </>
-        )}
+          {/* Le pied du site : se déconnecter, puis la version. Le même geste
+              que dans le menu, avec le même avertissement quand des buts
+              attendent encore le réseau. */}
+          <View style={s.pied}>
+            <BoutonPlein t={t} titre="Se déconnecter" danger onPress={() => void deconnecter()} />
+          </View>
+          <Text style={[s.version, { color: jeton(t, "i3") }]} selectable>
+            {version()}
+          </Text>
+        </View>
       </ScrollView>
 
       {/* Les deux choix à plus de deux valeurs passent par une feuille : un
           segment à cinq pastilles ne se tape pas au pouce. */}
-      <Modal
+      <Feuille
+        t={t}
         visible={feuille !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setFeuille(null)}
+        onClose={() => setFeuille(null)}
+        titre={feuille === "format" ? "Format" : "Homme du match"}
       >
-        <Pressable style={s.voile} onPress={() => setFeuille(null)}>
-          <Pressable
-            style={[
-              s.feuille,
-              { paddingBottom: bas + 12, backgroundColor: t.bgSolid, borderTopColor: t.ink },
-            ]}
-            onPress={() => {}}
-          >
-            <Poignee />
-            {(feuille === "format" ? d?.choix.formats : d?.choix.hommeDuMatch)?.map((o) => {
-              const actif =
-                feuille === "format" ? o.valeur === c?.format : o.valeur === c?.modeHommeDuMatch;
-              return (
-                <Pressable
-                  key={o.valeur}
-                  onPress={() => {
-                    setFeuille(null);
-                    void sauver(
-                      feuille === "format" ? { format: o.valeur } : { motmMode: o.valeur },
-                    );
-                  }}
-                  style={({ pressed }) => [
-                    s.choix,
-                    actif && { backgroundColor: t.seg },
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Text style={[s.choixTexte, { color: t.ink }]}>{o.libelle}</Text>
-                  {actif && <Text style={{ color: t.i2, fontSize: 17 }}>✓</Text>}
-                </Pressable>
-              );
-            })}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        <View style={s.choixListe}>
+          {(feuille === "format" ? d?.choix.formats : d?.choix.hommeDuMatch)?.map((o) => {
+            const actif =
+              feuille === "format" ? o.valeur === c?.format : o.valeur === c?.modeHommeDuMatch;
+            return (
+              <Pressable
+                key={o.valeur}
+                onPress={() => {
+                  setFeuille(null);
+                  if (actif) return;
+                  retourChoix();
+                  void sauver(feuille === "format" ? { format: o.valeur } : { motmMode: o.valeur });
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: actif }}
+                style={({ pressed }) => [
+                  s.choix,
+                  (actif || pressed) && { backgroundColor: jeton(t, "gl") },
+                ]}
+              >
+                <Text style={[s.choixTexte, { color: t.ink }]}>{o.libelle}</Text>
+                {actif && <IconeJeu nom="coche" couleur={jeton(t, "i2")} taille={16} />}
+              </Pressable>
+            );
+          })}
+        </View>
+      </Feuille>
     </Ecran>
   );
 }
 
+/// « Five Scorer · app 1.0.0 · mise à jour 3f2a1c9 » : ce qu'on recopie dans
+/// un message quand quelque chose cloche. L'identifiant de la mise à jour à
+/// chaud dit quel code tourne vraiment — la version du binaire, elle, ne
+/// bouge pas d'un correctif à l'autre.
+function version(): string {
+  const v = Constants.expoConfig?.version ?? "?";
+  const maj =
+    Updates.isEnabled && !Updates.isEmbeddedLaunch && Updates.updateId
+      ? ` · mise à jour ${Updates.updateId.slice(0, 7)}`
+      : Updates.isEnabled
+        ? ""
+        : " · développement";
+  return `Five Scorer · app ${v}${maj}`;
+}
+
 /// Une confirmation qui DIT ce qui va se passer. Pas « Êtes-vous sûr ? » : la
-/// conséquence, en une phrase, avant le bouton qui la déclenche.
+/// conséquence, en une phrase, avant le bouton qui la déclenche. Un refus du
+/// serveur se dit aussi, au lieu de ne rien faire.
 function confirmer(
   titre: string,
   message: string,
@@ -630,12 +736,19 @@ function confirmer(
   faire: () => Promise<void>,
   destructeur = false,
 ) {
+  if (destructeur) avertissement();
   Alert.alert(titre, message, [
     { text: "Annuler", style: "cancel" },
     {
       text: action,
       style: destructeur ? "destructive" : "default",
-      onPress: () => void faire(),
+      onPress: () =>
+        void faire()
+          .then(retourSucces)
+          .catch((e: unknown) => {
+            if (e instanceof SessionExpiree) return router.replace("/connexion");
+            Alert.alert("Ça n'a pas marché", messageErreur(e));
+          }),
     },
   ]);
 }
@@ -643,16 +756,22 @@ function confirmer(
 function Section({
   t,
   titre,
+  haut = 22,
   children,
 }: {
   t: Jetons;
   titre: string;
+  haut?: number;
   children: React.ReactNode;
 }) {
   return (
-    <View style={{ marginTop: 22 }}>
-      <Text style={[s.section, { color: t.i2 }]}>{titre.toUpperCase()}</Text>
-      <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>{children}</View>
+    <View>
+      <Text style={[s.section, { color: t.i2, paddingTop: haut }]} accessibilityRole="header">
+        {titre.toUpperCase()}
+      </Text>
+      <CarteVerre t={t} rayon={22} style={s.carte}>
+        {children}
+      </CarteVerre>
     </View>
   );
 }
@@ -663,6 +782,7 @@ function Rangee({
   aide,
   valeur,
   chevron,
+  ouvert,
   onPress,
   premiere,
   children,
@@ -671,59 +791,113 @@ function Rangee({
   libelle: string;
   aide?: string;
   valeur?: string;
-  chevron?: string;
+  /// « › », ou « ⌃ » quand la rangée est dépliée — les deux signes du site.
+  chevron?: boolean;
+  ouvert?: boolean;
   onPress?: () => void;
   premiere?: boolean;
   children?: React.ReactNode;
 }) {
   const corps = (
     <>
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={s.rangeeTextes}>
         <Text style={[s.libelle, { color: t.ink }]}>{libelle}</Text>
         {aide && <Text style={[s.aide, { color: t.i2 }]}>{aide}</Text>}
       </View>
       {children}
       {valeur !== undefined && (
-        <Text style={[s.valeur, { color: t.i2 }]} numberOfLines={1}>
+        <Text style={[s.valeur, s.valeurSouple, { color: t.i2 }]} numberOfLines={1}>
           {valeur}
         </Text>
       )}
-      {chevron && <Text style={[s.chevron, { color: t.i3 }]}>{chevron}</Text>}
+      {chevron && <Text style={[s.chevron, { color: t.i3 }]}>{ouvert ? "⌃" : "›"}</Text>}
     </>
   );
-  const style = [
+  const style: StyleProp<ViewStyle> = [
     s.rangee,
-    !premiere && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.sep },
+    aide ? s.rangeeAide : null,
+    !premiere && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") },
   ];
   if (!onPress) return <View style={style}>{corps}</View>;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [...style, pressed && { opacity: 0.6 }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={[libelle, valeur].filter(Boolean).join(", ")}
+      accessibilityState={ouvert !== undefined ? { expanded: ouvert } : undefined}
+      style={({ pressed }) => [style, pressed && { opacity: 0.6 }]}
+    >
       {corps}
+    </Pressable>
+  );
+}
+
+/// Le contenu d'une rangée dépliée (`.reg-detail`) : un filet au-dessus, de
+/// l'air en dessous.
+function Detail({ t, children }: { t: Jetons; children: React.ReactNode }) {
+  return <View style={[s.detail, { borderTopColor: jeton(t, "sep") }]}>{children}</View>;
+}
+
+/// Les petits boutons de verre des listes (rôle, retrait, saison) : 34 de
+/// haut comme le site, portés à 44 au doigt par la zone de toucher.
+function PetitBouton({
+  t,
+  titre,
+  onPress,
+  etiquette,
+  danger,
+  disabled,
+}: {
+  t: Jetons;
+  titre: string;
+  onPress: () => void;
+  etiquette?: string;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={5}
+      accessibilityRole="button"
+      accessibilityLabel={etiquette ?? titre}
+      accessibilityState={{ disabled: !!disabled }}
+      style={({ pressed }) => [
+        s.petitBouton,
+        { backgroundColor: jeton(t, "gl"), borderColor: jeton(t, "gb") },
+        { opacity: disabled ? 0.4 : pressed ? 0.6 : 1 },
+      ]}
+    >
+      <Text style={[s.petitBoutonTexte, { color: danger ? jeton(t, "bad") : t.ink }]}>{titre}</Text>
     </Pressable>
   );
 }
 
 /// Un champ texte qui part au serveur quand on le quitte, pas avant : taper
 /// « Renault Five » aurait sinon envoyé douze réglages, dont « R ».
-function ChampInline({
+function ChampTexte({
   t,
   valeur,
+  etiquette,
   onValider,
 }: {
   t: Jetons;
   valeur: string;
+  etiquette: string;
   onValider: (v: string) => void;
 }) {
   const [v, setV] = useState(valeur);
   useEffect(() => setV(valeur), [valeur]);
   return (
-    <TextInput
+    <Saisie
+      t={t}
       value={v}
       onChangeText={setV}
       onBlur={() => onValider(v)}
       returnKeyType="done"
-      onSubmitEditing={() => onValider(v)}
-      style={[s.champ, { color: t.ink, backgroundColor: t.seg, borderColor: t.cb }]}
+      accessibilityLabel={etiquette}
+      style={s.champNom}
     />
   );
 }
@@ -731,16 +905,19 @@ function ChampInline({
 function ChampNombre({
   t,
   valeur,
+  etiquette,
   onValider,
 }: {
   t: Jetons;
   valeur: number;
+  etiquette: string;
   onValider: (n: number) => void;
 }) {
   const [v, setV] = useState(String(valeur));
   useEffect(() => setV(String(valeur)), [valeur]);
   return (
-    <TextInput
+    <Saisie
+      t={t}
       value={v}
       onChangeText={(x) => setV(x.replace(/[^0-9]/g, ""))}
       onBlur={() => {
@@ -750,7 +927,8 @@ function ChampNombre({
       }}
       keyboardType="number-pad"
       returnKeyType="done"
-      style={[s.champCourt, { color: t.ink, backgroundColor: t.seg, borderColor: t.cb }]}
+      accessibilityLabel={etiquette}
+      style={s.champCourt}
     />
   );
 }
@@ -771,10 +949,10 @@ function Nuancier({
   onChoisir: (hex: string) => void;
 }) {
   return (
-    <View style={{ paddingBottom: 14 }}>
+    <View>
       <View style={s.nuancierTitre}>
-        <Text style={[s.libelle, { color: t.ink }]}>{titre}</Text>
-        <Text style={[s.valeur, { color: t.i2 }]}>{nom}</Text>
+        <Text style={[s.nuancierNom, { color: t.ink }]}>{titre}</Text>
+        <Text style={[s.nuancierSous, { color: t.i2 }]}>{nom}</Text>
       </View>
       <View style={s.nuancier}>
         {pastilles.map((hex) => {
@@ -782,11 +960,20 @@ function Nuancier({
           return (
             <Pressable
               key={hex}
-              onPress={() => onChoisir(hex)}
-              accessibilityLabel={hex}
+              onPress={() => !actif && onChoisir(hex)}
+              accessibilityRole="button"
+              accessibilityLabel={`${titre} : ${hex}`}
+              accessibilityState={{ selected: actif }}
+              hitSlop={3}
               style={[
                 s.nuance,
-                { backgroundColor: hex, borderColor: actif ? t.ink : t.cb, borderWidth: actif ? 3 : 1 },
+                { backgroundColor: hex },
+                actif
+                  ? {
+                      transform: [{ scale: 1.08 }],
+                      boxShadow: `0 0 0 3px ${jeton(t, "bgSolid")}, 0 0 0 5px ${t.ink}`,
+                    }
+                  : { boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.15)" },
               ]}
             />
           );
@@ -796,81 +983,62 @@ function Nuancier({
   );
 }
 
-const s = StyleSheet.create({
-  contenu: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 60 },
-  retour: { flexDirection: "row", paddingBottom: 8 },
-  titre: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5, paddingHorizontal: 4 },
-  sousTitre: { fontSize: 17, marginTop: 4, paddingHorizontal: 4 },
-  centre: { paddingTop: 60, alignItems: "center" },
-  erreur: { fontSize: 15, textAlign: "center", paddingTop: 24 },
+const MONO: TextStyle["fontFamily"] = Platform.select({ ios: "Menlo", default: "monospace" });
 
+const s = StyleSheet.create({
+  contenu: { paddingBottom: 60 },
+  corps: { paddingHorizontal: 14 },
+  centre: { paddingTop: 60, alignItems: "center" },
+  erreur: { marginTop: 24 },
+
+  // `.section-ios` : 13/600, capitales espacées, 22 au-dessus et 6 dessous.
   section: {
     fontSize: 13,
     fontWeight: "600",
     letterSpacing: 0.4,
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 6,
   },
-  carte: { borderRadius: 24, borderWidth: 1, paddingHorizontal: 18 },
-  rangee: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: 56,
-    paddingVertical: 10,
-  },
-  libelle: { fontSize: 17, fontWeight: "600" },
-  aide: { fontSize: 13, lineHeight: 18, marginTop: 2 },
-  valeur: { fontSize: 17, flexShrink: 1 },
-  chevron: { fontSize: 20 },
-  unite: { fontSize: 15 },
+  carte: { paddingHorizontal: 18 },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54 },
+  rangeeAide: { paddingVertical: 8 },
+  rangeeTextes: { flex: 1, minWidth: 0 },
+  libelle: { fontSize: 17 },
+  aide: { fontSize: 13, lineHeight: 17, marginTop: 2 },
+  valeur: { fontSize: 17 },
+  valeurSouple: { flexShrink: 1 },
+  chevron: { fontSize: 17 },
 
-  champ: {
-    flex: 1,
-    maxWidth: "55%",
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    fontSize: 17,
-    textAlign: "right",
-  },
-  champCourt: {
-    width: 62,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    fontSize: 17,
-    textAlign: "center",
-  },
+  champNom: { flex: 2, minWidth: 0, textAlign: "left" },
+  champCourt: { width: 84, textAlign: "right", fontVariant: ["tabular-nums"] },
 
   pastilles: { flexDirection: "row", gap: 6 },
-  pastille: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
-  chasubles: { paddingTop: 6, paddingBottom: 8 },
-  nuancierTitre: { flexDirection: "row", justifyContent: "space-between", paddingBottom: 10 },
-  nuancier: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  nuance: { width: 38, height: 38, borderRadius: 19 },
-  apercu: {
+  chasubles: { paddingTop: 4, paddingBottom: 16, borderTopWidth: 1 },
+  nuancierTitre: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 18,
-    paddingTop: 6,
-    paddingBottom: 4,
+    justifyContent: "space-between",
+    marginTop: 16,
   },
-  apercuScore: { fontSize: 28, fontWeight: "800" },
+  nuancierNom: { fontSize: 17, fontWeight: "600" },
+  nuancierSous: { fontSize: 15 },
+  nuancier: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, alignItems: "center" },
+  nuance: { width: 38, height: 38, borderRadius: 19 },
+  apercu: { marginTop: 18, borderRadius: 18, paddingVertical: 4 },
 
-  deplie: { paddingBottom: 12 },
+  etat: { fontSize: 13, textAlign: "right", paddingTop: 6, paddingHorizontal: 4, minHeight: 22 },
+  code: {
+    fontFamily: MONO,
+    fontSize: 15,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+
+  detail: { paddingTop: 8, paddingBottom: 14, borderTopWidth: 1 },
   aideBloc: { fontSize: 13, lineHeight: 18, paddingTop: 10 },
   deuxBoutons: { gap: 10, paddingTop: 12 },
-  grandBouton: {
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   petitBouton: {
     height: 34,
     borderRadius: 17,
@@ -879,29 +1047,22 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  petitBoutonTexte: { fontSize: 15, fontWeight: "600" },
 
-  membre: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
+  membre: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  membreTextes: { flex: 1, minWidth: 0 },
   membreNom: { fontSize: 17, fontWeight: "600" },
   membreSous: { fontSize: 13, marginTop: 2 },
   capitaine: { fontSize: 15, fontWeight: "700" },
   actionsMembre: { flexDirection: "row", gap: 8 },
 
-  saison: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
+  saison: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  nouvelle: { borderTopWidth: 1 },
+  saisonTextes: { flex: 1, minWidth: 0 },
   saisonNom: { flexDirection: "row", alignItems: "center", gap: 8 },
   saisonTitre: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
   saisonPeriode: { fontSize: 13, marginTop: 2 },
+  saisieSaison: { flex: 1 },
   badge: {
     fontSize: 11,
     fontWeight: "700",
@@ -911,19 +1072,11 @@ const s = StyleSheet.create({
     paddingVertical: 1,
     overflow: "hidden",
   },
-  saisie: {
-    flex: 1,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    fontSize: 17,
-  },
 
-  etat: { fontSize: 15, textAlign: "center", paddingTop: 22, minHeight: 22 },
+  pied: { paddingTop: 22 },
+  version: { fontSize: 13, textAlign: "center", paddingTop: 16 },
 
-  voile: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  feuille: { borderTopWidth: 3, paddingHorizontal: 16, paddingTop: 8 },
+  choixListe: { paddingBottom: 4 },
   choix: {
     flexDirection: "row",
     alignItems: "center",

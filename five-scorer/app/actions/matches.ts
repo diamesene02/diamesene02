@@ -227,3 +227,53 @@ export async function updateMatchDetails(
   revalidatePath(`/c/${slug}/matches/${matchId}`);
   return { ok: true };
 }
+
+/// « Abandonner ce match » — depuis la feuille en direct, tant qu'aucun but
+/// n'est marqué.
+///
+/// Un coup d'envoi donné par erreur (le mauvais jour, un tap de trop) n'avait
+/// que deux issues : « Terminer », qui inscrivait un 0–0 dans les stats de
+/// douze joueurs, ou une feuille laissée ouverte qui masquait ensuite le coup
+/// d'envoi de l'accueil. Le geste est ouvert à qui peut scorer, comme le coup
+/// d'envoi lui-même — mais seulement sur un match EN COURS et SANS BUT :
+/// au-delà, il y a quelque chose à perdre, et le retrait reste l'affaire d'un
+/// admin (`retirerMatch`). Le match passe par `annulerOuSupprimerMatch`, la
+/// même règle que partout : effacé s'il n'a rien, annulé sinon (il reste
+/// visible, hors des stats, et un admin peut le rétablir).
+///
+/// Un match que le serveur ne connaît pas (créé hors ligne, jamais envoyé)
+/// n'est pas une erreur : il n'y a rien à retirer ici.
+export async function abandonnerMatch(
+  slug: string,
+  matchId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!idsValides(matchId)) {
+    return { ok: false, error: "Identifiant invalide." };
+  }
+
+  const ctx = await requireClub(slug);
+  if (!ctx.canScore) return { ok: false, error: "Non autorisé." };
+
+  const match = await prisma.match.findFirst({
+    where: { id: matchId, clubId: ctx.club.id },
+    select: {
+      status: true,
+      _count: { select: { events: { where: { type: { in: ["GOAL", "OWN_GOAL"] } } } } },
+    },
+  });
+  if (!match) return { ok: true };
+  if (match.status !== "LIVE") {
+    return { ok: false, error: "Ce match n'est plus en cours." };
+  }
+  if (match._count.events > 0 && !ctx.canManage) {
+    return {
+      ok: false,
+      error: "Des buts sont déjà enregistrés : termine le match, un admin pourra l'annuler.",
+    };
+  }
+
+  const res = await annulerOuSupprimerMatch(ctx.club.id, matchId, "Abandonné");
+  if (!res.ok) return res;
+  revalidatePath(`/c/${slug}`, "layout");
+  return { ok: true };
+}

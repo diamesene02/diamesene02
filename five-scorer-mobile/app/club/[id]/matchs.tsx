@@ -1,21 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useClubId } from "../../../composants/ClubCourant";
+import { router, useFocusEffect } from "expo-router";
+import { chargerMoiMemorise, useClubId, useClubMemorise } from "../../../composants/ClubCourant";
 import Ecran from "../../../composants/Ecran";
-import { EcussonChasuble } from "../../../composants/base";
-import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import EnTeteClub from "../../../composants/EnTeteClub";
+import ErreurChargement from "../../../composants/ErreurChargement";
+import LigneScore from "../../../composants/LigneScore";
+import { useNoyau } from "../../../composants/Noyau";
+import { CarteGroupe, CarteProgrammes, Pilule } from "../../../composants/match/Liste";
+import { JETONS_NEUTRES, jeton, type Jetons } from "../../../lib/couleurs";
 import {
   chargerMatchs,
-  chargerMoi,
   SessionExpiree,
   type ClubDeMoi,
   type EcranMatchs,
@@ -40,42 +42,61 @@ export default function Matchs() {
   // depuis un enfant de `Tabs`, le `[id]` du dossier parent n'y est pas, et
   // l'écran restait bloqué sur son indicateur de chargement sans rien dire.
   const id = useClubId();
+  const { local } = useNoyau();
+  const memo = useClubMemorise(id);
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [donnees, setDonnees] = useState<EcranMatchs | null>(null);
   const [saison, setSaison] = useState<string>("toutes");
   const [genre, setGenre] = useState<FiltreGenre>("tous");
   const [occupe, setOccupe] = useState(true);
-  const [erreur, setErreur] = useState<string | null>(null);
+  const [rafraichit, setRafraichit] = useState(false);
+  const [erreur, setErreur] = useState<unknown>(null);
+  // Le match en direct que CE téléphone tient. Les autres se suivent : la
+  // feuille n'existe que là où elle a été lancée.
+  const [feuilleIci, setFeuilleIci] = useState<string | null>(null);
 
-  const t: Jetons = club?.theme.sombre ?? JETONS_NEUTRES;
-  const couleurA = club?.couleurA ?? "#ffffff";
-  const couleurB = club?.couleurB ?? "#111111";
+  const c = club ?? memo;
+  const t: Jetons = c?.theme.sombre ?? JETONS_NEUTRES;
+  const couleurA = c?.couleurA ?? "#ffffff";
+  const couleurB = c?.couleurB ?? "#111111";
 
   const charger = useCallback(async () => {
     if (!id) return;
-    setErreur(null);
     try {
-      const [moi, m] = await Promise.all([chargerMoi(), chargerMatchs(id)]);
-      setClub(moi.clubs.find((c) => c.id === id) ?? null);
+      const [moi, m] = await Promise.all([chargerMoiMemorise(), chargerMatchs(id)]);
+      setClub(moi.clubs.find((x) => x.id === id) ?? null);
       setDonnees(m);
+      setErreur(null);
       setSaison((s) => (s === "toutes" ? m.saisonParDefaut : s));
     } catch (e) {
       if (e instanceof SessionExpiree) return router.replace("/connexion");
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(e);
     } finally {
       setOccupe(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    void charger();
-  }, [charger]);
-
+  // Au focus seulement : il tombe aussi à la première ouverture. Un
+  // `useEffect` en plus faisait partir la même requête deux fois.
   useFocusEffect(
     useCallback(() => {
       void charger();
-    }, [charger]),
+      if (!id) return;
+      let vivant = true;
+      void local.getLiveMatchOfClub(id).then((m) => {
+        if (vivant) setFeuilleIci(m?.id ?? null);
+      });
+      return () => {
+        vivant = false;
+      };
+    }, [charger, id, local]),
   );
+
+  async function rafraichir() {
+    setRafraichit(true);
+    await charger();
+    setRafraichit(false);
+  }
 
   const garde = useCallback(
     (m: { saisonId: string | null; genre: "INTERNAL" | "EXTERNAL" }) =>
@@ -90,6 +111,11 @@ export default function Matchs() {
 
   // Le regroupement se fait APRÈS le filtre : un arbre construit côté serveur
   // redeviendrait faux dès la première pilule.
+  //
+  // Le serveur rend les matchs du plus récent au plus ancien : les soirées
+  // sortent dans le bon ordre, mais DANS une soirée, le premier match joué
+  // doit venir en haut — c'est ainsi qu'on raconte un lundi. On retourne donc
+  // chaque groupe.
   const groupes = useMemo(() => {
     const par = new Map<
       string,
@@ -105,25 +131,47 @@ export default function Matchs() {
           lignes: [m],
         });
     }
-    return Array.from(par.entries()).map(([cle, g]) => ({ cle, ...g }));
+    return Array.from(par.entries()).map(([cle, g]) => ({
+      cle,
+      ...g,
+      lignes: [...g.lignes].reverse(),
+    }));
   }, [joues]);
+
+  function ouvrirDirect(matchId: string) {
+    // La feuille si elle est sur ce téléphone ; sinon le récap, qui suit le
+    // score au serveur. La feuille sait aussi s'y renvoyer toute seule, mais
+    // passer par elle, c'est un écran d'attente de plus.
+    if (feuilleIci === matchId) {
+      router.push({ pathname: "/match/[id]", params: { id: matchId, clubId: id } });
+    } else {
+      router.push({ pathname: "/recap/[id]", params: { id: matchId, clubId: id } });
+    }
+  }
+
+  const ouvrirRecap = (matchId: string) =>
+    router.push({ pathname: "/recap/[id]", params: { id: matchId, clubId: id } });
+
+  const rien = donnees && direct.length === 0 && programmes.length === 0 && groupes.length === 0;
 
   return (
     <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
       <ScrollView
         contentContainerStyle={s.contenu}
         refreshControl={
-          <RefreshControl
-            refreshing={occupe && donnees != null}
-            onRefresh={charger}
-            tintColor={t.i2}
-          />
+          <RefreshControl refreshing={rafraichit} onRefresh={() => void rafraichir()} tintColor={t.i2} />
         }
       >
+        {/* La barre du club : il n'y a plus de barre d'onglets, c'est la
+            pilule qui mène aux autres écrans. Elle porte ses marges. */}
+        <EnTeteClub t={t} club={c} style={s.barre} />
+
         <View style={s.entete}>
           <View style={{ flex: 1 }}>
             <Text style={[s.kicker, { color: t.i2 }]}>Historique</Text>
-            <Text style={[s.titre, { color: t.ink }]}>Les matchs</Text>
+            <Text style={[s.titre, { color: t.ink }]} accessibilityRole="header">
+              Les matchs
+            </Text>
             <Text style={[s.chapeau, { color: t.i2 }]}>
               Une rencontre jouée : un score, des buteurs, un chrono.{" "}
               <Text style={{ color: t.ink }}>Dans une soirée, ou toute seule.</Text>
@@ -173,208 +221,102 @@ export default function Matchs() {
             <Text style={[s.aide, { color: t.i2 }]}>On va chercher les matchs…</Text>
           </View>
         )}
-        {erreur && <Text style={[s.erreur, { color: "#ff453a" }]}>{erreur}</Text>}
+        {erreur != null && <ErreurChargement t={t} erreur={erreur} onReessayer={charger} />}
 
-        {direct.map((m) => (
-          <View key={m.id} style={s.blocDirect}>
-            <View style={s.bandeTitre}>
-              <View style={s.etatLigne}>
-                <View style={s.point} />
-                <Text style={[s.kicker, { color: t.i2 }]}>En direct</Text>
-              </View>
-              <Text style={[s.lienDroite, { color: t.i2 }]}>Reprendre →</Text>
-            </View>
-            <Pressable
-              onPress={() => router.push({ pathname: "/match/[id]", params: { id: m.id } })}
-              style={({ pressed }) => [s.panneau, pressed && { opacity: 0.7 }]}
-            >
-              <Cote couleur={couleurA} camp={m.a} t={t} />
-              <Text style={[s.gros, { color: t.ink }]}>{m.scoreA}</Text>
-              <View style={s.milieu}>
-                <View style={s.point} />
-                <Text style={s.enDirect}>En direct</Text>
-              </View>
-              <Text style={[s.gros, { color: t.ink }]}>{m.scoreB}</Text>
-              <Cote couleur={couleurB} camp={m.b} t={t} />
-            </Pressable>
-          </View>
-        ))}
-
-        {programmes.length > 0 && (
-          <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
-            <View style={s.carteTete}>
-              <Text style={[s.kicker, { color: t.i2 }]}>Programmés</Text>
-              <Text style={[s.petitCompte, { color: t.i3 }]}>{programmes.length}</Text>
-            </View>
-            {programmes.map((m) => (
-              <View key={m.id} style={s.ticker}>
-                <Text style={[s.tickerJour, { color: t.i2 }]} numberOfLines={1}>
-                  {m.jour}
-                </Text>
-                <Text style={[s.tickerHeure, { color: t.ink }]}>{m.heure}</Text>
-                <Text style={[s.tickerReste, { color: t.i2 }]} numberOfLines={1}>
-                  {m.a.nom} <Text style={{ color: t.i3 }}>vs</Text> {m.b.nom}
-                  {m.lieu ? ` · ${m.lieu}` : ""}
-                </Text>
-              </View>
-            ))}
+        {direct.length > 0 && (
+          <View style={s.etage}>
+            {direct.map((m) => {
+              const ici = feuilleIci === m.id;
+              return (
+                <View key={m.id} style={s.blocDirect}>
+                  <View style={s.bandeTitre}>
+                    <View style={s.etatLigne}>
+                      <View style={[s.point, { backgroundColor: jeton(t, "bad") }]} />
+                      <Text style={[s.kicker, { color: t.i2 }]}>En direct</Text>
+                    </View>
+                    <Text style={[s.lienDroite, { color: t.i2 }]}>{ici ? "Reprendre →" : "Suivre →"}</Text>
+                  </View>
+                  <LigneScore
+                    t={t}
+                    nomA={m.a.nom}
+                    nomB={m.b.nom}
+                    lettreA={m.a.lettre}
+                    lettreB={m.b.lettre}
+                    couleurA={couleurA}
+                    couleurB={couleurB}
+                    scoreA={m.scoreA}
+                    scoreB={m.scoreB}
+                    etat="En direct"
+                    direct
+                    onPress={() => ouvrirDirect(m.id)}
+                  />
+                </View>
+              );
+            })}
           </View>
         )}
 
+        {programmes.length > 0 && (
+          <CarteProgrammes t={t} programmes={programmes} onOuvrir={ouvrirRecap} style={s.etage} />
+        )}
+
+        {groupes.length > 0 && (
+          <Text style={[s.kicker, s.etage, { color: t.i2 }]} accessibilityRole="header">
+            Joués
+          </Text>
+        )}
         {groupes.map((g) => (
-          <View key={g.cle} style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
-            <View style={s.carteTete}>
-              <Text style={[s.kicker, { color: t.i2 }]} numberOfLines={1}>
-                {g.titre}
-                {g.sousTitre ? ` · ${g.sousTitre}` : ""}
-              </Text>
-              <Text style={[s.petitCompte, { color: t.i3 }]}>{g.lignes.length}</Text>
-            </View>
-            {g.lignes.map((m) => (
-              <Pressable
-                key={m.id}
-                // Un match terminé n'est pas sur l'appareil : son récap se lit
-                // au serveur. La feuille en direct, elle, lit la base locale.
-                onPress={() =>
-                  router.push({ pathname: "/recap/[id]", params: { id: m.id, clubId: id } })
-                }
-                style={({ pressed }) => [s.ticker, pressed && { opacity: 0.7 }]}
-              >
-                <Text style={[s.tickerJour, { color: t.i2 }]}>{m.heure}</Text>
-                <Text style={[s.tickerHeure, { color: t.ink }]}>
-                  <Text style={m.vainqueur === "B" ? { color: t.i3 } : undefined}>{m.scoreA}</Text>
-                  {" – "}
-                  <Text style={m.vainqueur === "A" ? { color: t.i3 } : undefined}>{m.scoreB}</Text>
-                </Text>
-                <Text style={[s.tickerReste, { color: t.i2 }]} numberOfLines={1}>
-                  {m.adversaire ? `vs ${m.adversaire}` : ""}
-                  {m.adversaire && m.hommeDuMatch ? " · " : ""}
-                  {m.hommeDuMatch ? `★ ${m.hommeDuMatch}` : ""}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          // Un match terminé n'est pas sur l'appareil : son récap se lit au
+          // serveur. La feuille en direct, elle, lit la base locale.
+          <CarteGroupe
+            key={g.cle}
+            t={t}
+            titre={g.titre}
+            sousTitre={g.sousTitre}
+            lignes={g.lignes}
+            onOuvrir={ouvrirRecap}
+          />
         ))}
 
-        {donnees && direct.length === 0 && programmes.length === 0 && groupes.length === 0 && (
-          <Text style={[s.vide, { color: t.i2 }]}>Aucun match pour ce filtre.</Text>
+        {rien && (
+          <Text style={[s.vide, { color: t.ink }]}>
+            Aucun match pour ces filtres. Le terrain attend.
+          </Text>
         )}
       </ScrollView>
     </Ecran>
   );
 }
 
-function Cote({
-  couleur,
-  camp,
-  t,
-}: {
-  couleur: string;
-  camp: { nom: string; lettre: string };
-  t: Jetons;
-}) {
-  return (
-    <View style={s.cote}>
-      <EcussonChasuble couleur={couleur} lettre={camp.lettre} taille={60} />
-      <Text style={[s.nomCote, { color: t.i2 }]} numberOfLines={1}>
-        {camp.nom}
-      </Text>
-    </View>
-  );
-}
-
-function Pilule({
-  t,
-  libelle,
-  actif,
-  onPress,
-}: {
-  t: Jetons;
-  libelle: string;
-  actif: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        s.pilule,
-        actif
-          ? { backgroundColor: t.bt ?? "#ffffff", borderColor: "transparent" }
-          : { backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.16)" },
-      ]}
-    >
-      <Text style={[s.piluleTexte, { color: actif ? (t.bf ?? "#111111") : t.ink }]}>{libelle}</Text>
-    </Pressable>
-  );
-}
-
 const s = StyleSheet.create({
-  contenu: { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 40, gap: 18 },
+  contenu: { paddingHorizontal: 14, paddingBottom: 40, gap: 18 },
+  // La barre porte ses 14 de marge : on les lui rend.
+  barre: { marginHorizontal: -14 },
   entete: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
     gap: 12,
+    paddingTop: 4,
   },
   kicker: { fontSize: 15, fontWeight: "600" },
   titre: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4, marginTop: 4 },
   chapeau: { fontSize: 14, lineHeight: 20, marginTop: 6, maxWidth: 293 },
   compteur: { fontSize: 14, fontWeight: "700" },
 
-  filtres: { gap: 8 },
+  // 24 sous l'en-tête (`mt-6`), 32 avant chaque étage (`mt-8`) : le gap de
+  // 18 plus ce qui manque.
+  filtres: { gap: 8, marginTop: 6 },
+  etage: { marginTop: 14 },
   rangeeFiltres: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pilule: {
-    height: 44,
-    paddingHorizontal: 16,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  piluleTexte: { fontSize: 13, fontWeight: "600" },
 
   centre: { paddingTop: 60, alignItems: "center", gap: 12 },
   aide: { fontSize: 15 },
-  erreur: { fontSize: 15, textAlign: "center" },
-  vide: { fontSize: 15, textAlign: "center", paddingVertical: 40 },
+  vide: { fontSize: 14, marginTop: 22 },
 
   blocDirect: { gap: 10 },
   bandeTitre: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   etatLigne: { flexDirection: "row", alignItems: "center", gap: 8 },
-  point: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ff453a" },
+  point: { width: 8, height: 8, borderRadius: 4 },
   lienDroite: { fontSize: 13, fontWeight: "600" },
-  panneau: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 14,
-    gap: 4,
-  },
-  cote: { width: 88, alignItems: "center", gap: 8 },
-  nomCote: { fontSize: 16, fontWeight: "500" },
-  gros: { flex: 1, fontSize: 52, fontWeight: "800", letterSpacing: -2.6, textAlign: "center" },
-  milieu: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 18 },
-  enDirect: { fontSize: 17, fontWeight: "600", color: "#ff453a" },
-
-  carte: {
-    borderRadius: 28,
-    borderWidth: 1,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 20,
-  },
-  carteTete: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    gap: 10,
-  },
-  petitCompte: { fontSize: 13 },
-  ticker: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
-  tickerJour: { width: 64, fontSize: 15 },
-  tickerHeure: { fontSize: 17, fontWeight: "600" },
-  tickerReste: { flex: 1, fontSize: 15 },
 });

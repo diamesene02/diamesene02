@@ -1,0 +1,446 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LES SUCCÈS — médaille, barre, niveau, tuile, ligne du fil, annonce.
+   Vocabulaire du système « natif » (app/globals.css) : cartes de verre à
+   28 px, police système, jetons du club posés par ClubTheme. Les mêmes
+   mesures sont reprises par five-scorer-mobile/composants/succes/.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── La médaille ──────────────────────────────────────────────────────── */
+.medaille {
+  --t: 56px;
+  width: var(--t);
+  height: var(--t);
+  flex: none;
+  display: inline-grid;
+  border-radius: 50%;
+  padding: calc(var(--t) * 0.085);
+  background: linear-gradient(145deg, var(--m-clair) 0%, var(--m) 45%, var(--m-sombre) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.28);
+}
+.medaille.legende {
+  background: linear-gradient(145deg, var(--taR, var(--ta)) 0%, var(--tbR, var(--tb)) 100%);
+}
+.medaille-coeur {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  color: var(--m-encre);
+  background: radial-gradient(circle at 35% 28%, var(--m-coeur-clair), var(--m-coeur) 72%);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+/* Verrouillée : les jetons du thème, sans ombre portée — elle ne doit pas
+   se lire comme un objet qu'on possède. */
+.medaille.verrouillee {
+  background: var(--gb);
+  box-shadow: none;
+}
+.medaille.verrouillee .medaille-coeur {
+  background: var(--seg);
+  color: var(--i3);
+  box-shadow: none;
+}
+
+/* ── La barre ─────────────────────────────────────────────────────────── */
+.barre-succes {
+  --h: 5px;
+  display: block;
+  height: var(--h);
+  border-radius: calc(var(--h) / 2);
+  background: var(--sep);
+  overflow: hidden;
+}
+.barre-succes > i {
+  display: block;
+  height: 100%;
+  min-width: var(--h);
+  border-radius: inherit;
+  background-image: linear-gradient(90deg, var(--taR, var(--ta)), var(--tbR, var(--tb)));
+  background-repeat: no-repeat;
+  transform-origin: left center;
+  animation: fsBarre 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes fsBarre {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ── La carte du niveau ───────────────────────────────────────────────── */
+.carte-niveau {
+  padding: 18px 18px 16px;
+}
+.niveau-tete {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.niveau-textes {
+  min-width: 0;
+}
+.niveau-titre {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.niveau-sous {
+  margin-top: 2px;
+  font-size: 15px;
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+}
+.niveau-barre {
+  margin-top: 16px;
+}
+.niveau-reste {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+}
+.niveau-reste b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.niveau-detail {
+  margin-top: 8px;
+  border-top: 1px solid var(--sep);
+}
+.niveau-detail > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--i2);
+  cursor: pointer;
+  list-style: none;
+}
+.niveau-detail > summary::-webkit-details-marker {
+  display: none;
+}
+.niveau-detail > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-right: 2px solid var(--i3);
+  border-bottom: 2px solid var(--i3);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 200ms;
+}
+.niveau-detail[open] > summary::after {
+  transform: rotate(-135deg) translateY(-2px);
+}
+.niveau-detail ul {
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+}
+.niveau-detail li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+.niveau-detail li .xp {
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+}
+.niveau-detail li .xp::before {
+  content: "+";
+}
+
+/* ── La tuile d'un badge ──────────────────────────────────────────────── */
+.tuile-badge {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 10px 14px;
+  border-radius: 22px;
+  background: var(--seg);
+  box-shadow: inset 0 0 0 1px var(--gb);
+  color: var(--ink);
+  text-align: center;
+  text-decoration: none;
+}
+a.tuile-badge:active {
+  opacity: 0.7;
+}
+.tuile-badge .medaille {
+  margin-bottom: 6px;
+}
+.tuile-nom {
+  max-width: 100%;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tuile-sous {
+  font-size: 13px;
+  line-height: 1.25;
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+}
+.tuile-badge.verrouillee .tuile-nom {
+  color: var(--i2);
+}
+.tuile-nouveau {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bt);
+  color: var(--bf);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ── Une ligne du fil ─────────────────────────────────────────────────── */
+.ligne-exploit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+.ligne-exploit + .ligne-exploit {
+  border-top: 1px solid var(--sep);
+}
+a.ligne-exploit:active {
+  opacity: 0.7;
+}
+.exploit-textes {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.exploit-l1 {
+  font-size: 15px;
+  color: var(--i2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exploit-l1 b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.exploit-l2 {
+  font-size: 13px;
+  color: var(--i3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── L'annonce ────────────────────────────────────────────────────────── */
+.annonce-cadre {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--safe-t, 0px) + 16px) 16px calc(var(--safe-b, 0px) + 16px);
+}
+.annonce-fond {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  animation: fsFondu 240ms ease-out both;
+}
+.annonce {
+  position: relative;
+  width: min(100%, 380px);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 26px 20px 20px;
+  border-radius: 28px;
+  /* Le verre du menu, posé sur le fond uni du club : opaque. Une annonce
+     qu'on doit lire d'un coup d'œil ne laisse pas transparaître la page —
+     et là où le flou d'arrière-plan manque, c'est la page qu'on lirait. */
+  background: linear-gradient(var(--mn), var(--mn)), var(--bgSolid);
+  border: 1px solid var(--cb);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 30px 60px rgba(0, 0, 0, 0.5);
+  color: var(--ink);
+  text-align: center;
+  animation: fsAnnonce 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.annonce-fermer {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+}
+.annonce-scene {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 150px;
+  margin: 4px 0 10px;
+}
+.annonce-halo {
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--halo) 0%, transparent 65%);
+  opacity: 0.35;
+  animation: fsFondu 600ms ease-out 120ms both;
+}
+.annonce-eclats {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+.annonce-eclats > i {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--c);
+  opacity: 0;
+  /* Deux animations : la course, freinée ; l'éclat, qui reste plein les
+     deux tiers du trajet. Une seule courbe les éteignait avant qu'on les
+     voie. */
+  animation:
+    fsEclat 900ms cubic-bezier(0.15, 0.7, 0.3, 1) both,
+    fsEclatFondu 900ms linear both;
+}
+.annonce-medaille {
+  position: relative;
+  animation: fsMedaille 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.annonce-sur {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--i2);
+}
+.annonce-nom {
+  margin: 4px 0 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  line-height: 1.15;
+}
+.annonce-libelle {
+  margin: 6px 0 0;
+  font-size: 17px;
+  color: var(--i2);
+}
+.annonce-autres {
+  margin: 16px 0 0;
+  padding: 4px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--sep);
+  text-align: left;
+}
+.annonce-autres li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 2px;
+  font-size: 15px;
+  color: var(--i2);
+}
+.annonce-autres li b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.annonce-autres li.plus {
+  padding-left: 44px;
+  color: var(--i3);
+}
+.annonce-voir {
+  width: 100%;
+  margin-top: 20px;
+}
+
+@keyframes fsFondu {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fsAnnonce {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+}
+@keyframes fsMedaille {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes fsEclat {
+  from {
+    transform: rotate(var(--a)) translateX(20px) scale(1);
+  }
+  to {
+    transform: rotate(var(--a)) translateX(var(--d)) scale(0.5);
+  }
+}
+@keyframes fsEclatFondu {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barre-succes > i,
+  .annonce,
+  .annonce-fond,
+  .annonce-halo,
+  .annonce-medaille {
+    animation: none;
+  }
+  .annonce-eclats {
+    display: none;
+  }
+}

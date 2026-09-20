@@ -11,21 +11,29 @@ function toLocalInput(d: Date) {
   )}:${pad(d.getMinutes())}`;
 }
 
-export default function NewSessionForm({ slug }: { slug: string }) {
+export default function NewSessionForm({
+  slug,
+  dateProposee,
+  lieuParDefaut = "",
+}: {
+  slug: string;
+  /// Le prochain jour de jeu du club sans soirée, à son heure (ISO).
+  dateProposee: string;
+  lieuParDefaut?: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [date, setDate] = useState("");
   const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState(lieuParDefaut);
   const [error, setError] = useState<string | null>(null);
 
-  // Défaut : demain 19h00 — calculé côté client (fuseau du navigateur).
+  // La valeur du champ s'écrit dans le fuseau du navigateur : au montage,
+  // jamais au rendu serveur (qui tourne en UTC).
   useEffect(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(19, 0, 0, 0);
-    setDate(toLocalInput(d));
-  }, []);
+    const d = new Date(dateProposee);
+    if (!Number.isNaN(d.getTime())) setDate(toLocalInput(d));
+  }, [dateProposee]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,8 +52,11 @@ export default function NewSessionForm({ slug }: { slug: string }) {
       if (!res.ok) {
         setError(res.error ?? "Erreur");
       } else {
-        router.push(`/c/${slug}`);
-        router.refresh();
+        // Sur la soirée créée, pas sur l'accueil : c'est là que le capitaine
+        // enchaîne — la compo, l'envoi sur le groupe.
+        router.push(
+          res.matchDayId ? `/c/${slug}/sessions/${res.matchDayId}` : `/c/${slug}`,
+        );
       }
     });
   }

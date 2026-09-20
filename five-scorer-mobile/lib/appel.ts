@@ -106,11 +106,47 @@ export type DependancesAppel = {
   fetch?: typeof globalThis.fetch;
 };
 
-/// Fabrique la fonction d'appel authentifié de l'app.
+/// Les en-têtes d'une requête authentifiée.
 ///
 /// React Native n'a pas de bocal à cookies : `credentials: "include"` ne fait
 /// RIEN ici. Il faut lire le cookie dans le trousseau et le poser à la main —
 /// et poser `credentials: "omit"` pour que rien ne s'en mêle.
+function entetesAuthentifiees(
+  cookie: string | null,
+  options: RequestInit,
+  accept: string,
+): Record<string, string> {
+  const entetes: Record<string, string> = {
+    accept,
+    // La version du CONTRAT, pas celle de l'app. Le serveur s'en sert pour
+    // rendre un avis, jamais pour refuser (spec 0004, Q4).
+    [ENTETE_PROTOCOLE]: String(PROTOCOLE_COURANT),
+  };
+  if (options.body) entetes["content-type"] = "application/json";
+  if (cookie) entetes.cookie = cookie;
+  // L'appelant a le dernier mot : il peut viser un autre `accept` sans qu'on
+  // ait à rouvrir ce fichier.
+  Object.assign(entetes, (options.headers ?? {}) as Record<string, string>);
+  return entetes;
+}
+
+/// Le verdict de version, lu sur TOUTES les réponses, y compris un 401 : c'est
+/// une métadonnée de transport, et la lire avant de lever nous évite de rater
+/// l'avis le jour où la session expire en même temps qu'une divergence de
+/// version.
+///
+/// Une GARDE, pas un « as » : la valeur traverse la frontière HTTP, et un
+/// `as` laisserait n'importe quoi devenir le verdict courant — le bandeau
+/// afficherait alors une bande d'or SANS TEXTE, posée en permanence sur le
+/// haut de tous les écrans, sans moyen de la faire partir.
+function noterVerdict(res: Response): void {
+  const v = res.headers.get(ENTETE_VERDICT);
+  if (v === "ok" || v === "trop-vieux" || v === "trop-recent") {
+    definirVerdict(v as VerdictProtocole);
+  }
+}
+
+/// Fabrique la fonction d'appel authentifié de l'app.
 export function creerAppel(deps: DependancesAppel) {
   const appeler: typeof globalThis.fetch =
     deps.fetch ?? ((u, o) => globalThis.fetch(u, o));
@@ -125,17 +161,7 @@ export function creerAppel(deps: DependancesAppel) {
     // serveur voyait une requête anonyme, donc un 401 incompréhensible.
     const cookie = await deps.cookie();
 
-    const entetes: Record<string, string> = {
-      accept: "application/json",
-      // La version du CONTRAT, pas celle de l'app. Le serveur s'en sert pour
-      // rendre un avis, jamais pour refuser (spec 0004, Q4).
-      [ENTETE_PROTOCOLE]: String(PROTOCOLE_COURANT),
-    };
-    if (options.body) entetes["content-type"] = "application/json";
-    if (cookie) entetes.cookie = cookie;
-    // L'appelant a le dernier mot : il peut viser un autre `accept` (le CSV de
-    // `export`, un jour) sans qu'on ait à rouvrir ce fichier.
-    Object.assign(entetes, (options.headers ?? {}) as Record<string, string>);
+    const entetes = entetesAuthentifiees(cookie, options, "application/json");
 
     const res = await joindre(
       deps.api + chemin,
@@ -143,18 +169,7 @@ export function creerAppel(deps: DependancesAppel) {
       appeler,
     );
 
-    // Le verdict arrive sur TOUTES les réponses, y compris un 401 : c'est une
-    // métadonnée de transport, et la lire avant de lever nous évite de rater
-    // l'avis le jour où la session expire en même temps qu'une divergence de
-    // version.
-    // Une GARDE, pas un « as » : la valeur traverse la frontière HTTP, et un
-    // `as` laisserait n'importe quoi devenir le verdict courant — le bandeau
-    // afficherait alors une bande d'or SANS TEXTE, posée en permanence sur le
-    // haut de tous les écrans, sans moyen de la faire partir.
-    const v = res.headers.get(ENTETE_VERDICT);
-    if (v === "ok" || v === "trop-vieux" || v === "trop-recent") {
-      definirVerdict(v as VerdictProtocole);
-    }
+    noterVerdict(res);
 
     if (res.status === 401) throw new SessionExpiree();
 
@@ -223,3 +238,41 @@ export function creerAppel(deps: DependancesAppel) {
 }
 
 export type Appel = ReturnType<typeof creerAppel>;
+
+/// Le même appel, mais qui rend le corps en TEXTE.
+///
+/// Pour l'export CSV, seule route de l'app qui ne parle pas JSON. Elle passe
+/// par ici plutôt que de se poser son cookie dans son coin : la session se lit
+/// au même endroit pour tout le monde, et le jour où le trousseau change, il
+/// n'y a qu'un fichier à rouvrir.
+///
+/// Sans le rattrapage du 404 « introuvable » de `creerAppel` : il coûte un
+/// aller-retour sur `/api/me` pour écrire une belle phrase, et un export qui
+/// échoue se dit déjà tout seul — le club vient d'être lu par l'écran qui
+/// affiche le bouton.
+export function creerAppelTexte(deps: DependancesAppel) {
+  const appeler: typeof globalThis.fetch =
+    deps.fetch ?? ((u, o) => globalThis.fetch(u, o));
+
+  return async function appelTexte(
+    chemin: string,
+    options: RequestInit = {},
+  ): Promise<string> {
+    const cookie = await deps.cookie();
+    const entetes = entetesAuthentifiees(cookie, options, "text/csv");
+
+    const res = await joindre(
+      deps.api + chemin,
+      { ...options, credentials: "omit", headers: entetes },
+      appeler,
+    );
+
+    noterVerdict(res);
+
+    if (res.status === 401) throw new SessionExpiree();
+    if (!res.ok) throw new ErreurServeur(res.status, await detailDeLErreur(res));
+    return res.text();
+  };
+}
+
+export type AppelTexte = ReturnType<typeof creerAppelTexte>;

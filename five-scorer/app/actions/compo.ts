@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
-import { ecrireCompo, type JoueurCompo } from "@/lib/compo";
-import { idsValides } from "@/lib/ids";
+import { ecrireCompo, reprendreCompo, type JoueurCompo } from "@/lib/compo";
 
-// Réexporté : les composants du site l'importaient déjà d'ici.
-export type { JoueurCompo };
+// Le type N'EST PLUS réexporté d'ici. Dans ce fichier « use server », le
+// chargeur d'actions de Next (Turbopack, 16.2) laissait `export type { … }`
+// à l'exécution : « ReferenceError: JoueurCompo is not defined » à
+// l'évaluation du module, et « Enregistrer la compo » répondait 500
+// (constaté en développement le 19 septembre 2026). Personne ne l'importait
+// plus d'ici : on le prend dans lib/compo.
 
 // La composition préparée d'une soirée.
 //
@@ -45,53 +47,17 @@ export async function reprendreCompoPrecedente(
   slug: string,
   matchDayId: string,
 ): Promise<{ ok: boolean; error?: string; reprises?: number }> {
-  if (!idsValides(matchDayId)) {
-    return { ok: false, error: "Identifiant invalide." };
-  }
   const ctx = await requireClub(slug);
   if (!ctx.canScore) return { ok: false, error: "Droits insuffisants." };
 
-  const soiree = await prisma.matchDay.findFirst({
-    where: { id: matchDayId, clubId: ctx.club.id },
-    select: { id: true, date: true },
-  });
-  if (!soiree) return { ok: false, error: "Soirée introuvable." };
-
-  const precedente = await prisma.matchDay.findFirst({
-    where: {
-      clubId: ctx.club.id,
-      date: { lt: soiree.date },
-      lineup: { some: {} },
-    },
-    orderBy: { date: "desc" },
-    select: {
-      teamAName: true,
-      teamBName: true,
-      lineup: {
-        select: { playerId: true, team: true, isGk: true },
-        // Les joueurs archivés depuis ne sont pas reconduits.
-        where: { player: { isArchived: false } },
-      },
-    },
-  });
-  if (!precedente || precedente.lineup.length === 0) {
-    return { ok: false, error: "Aucune compo précédente à reprendre." };
-  }
-
-  await prisma.$transaction([
-    prisma.matchDayLineup.deleteMany({ where: { matchDayId } }),
-    prisma.matchDayLineup.createMany({
-      data: precedente.lineup.map((l) => ({ matchDayId, ...l })),
-    }),
-    prisma.matchDay.update({
-      where: { id: matchDayId },
-      data: {
-        teamAName: precedente.teamAName,
-        teamBName: precedente.teamBName,
-      },
-    }),
-  ]);
+  // Même règle que la route que l'app appelle : elle vit dans lib/compo.ts.
+  // Le corps était recopié ici à l'identique ; la première correction faite
+  // d'un seul côté (ne pas reconduire un ancien invité, remonter plus loin
+  // que la soirée juste avant) aurait donné deux compos différentes selon
+  // que le capitaine touche le bouton sur le site ou dans l'app.
+  const r = await reprendreCompo(ctx.club.id, matchDayId);
+  if (!r.ok) return { ok: false, error: r.error };
 
   revalidatePath(`/c/${slug}`, "layout");
-  return { ok: true, reprises: precedente.lineup.length };
+  return { ok: true, reprises: r.reprises };
 }

@@ -1,12 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { idsValides } from "@/lib/ids";
 import { requireClub } from "@/lib/guard";
+import { ecrirePrixTerrain, marquerPaye } from "@/lib/terrain";
 
-/// Plafond : 100 000 € en centimes — personne ne loue un terrain plus cher.
-const MAX_COST_CENTS = 100000_00;
+// La caisse de la soirée vue du site.
+//
+// Les RÈGLES vivent dans lib/terrain.ts, partagées avec les routes que l'app
+// appelle. Ici il ne reste que la garde du site (`requireClub` + `canManage`)
+// et la revalidation. Tant que les deux moitiés étaient écrites séparément,
+// cocher « payé » ne faisait pas la même chose selon l'appareil : le site
+// refusait un abonné qui n'avait rien répondu, et repoussait `respondedAt`
+// (un `@updatedAt`), ce qui faisait reculer un titulaire dans la file des
+// présents. L'app, elle, avait déjà les deux corrections.
 
 /// Prix du terrain de la soirée (en centimes). null = pas de suivi.
 export async function setFieldCost(
@@ -14,30 +20,11 @@ export async function setFieldCost(
   matchDayId: string,
   costCents: number | null,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Identifiants venus du client : refuser tout ce qui n'est pas une
-  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
-  if (!idsValides(matchDayId)) {
-    return { ok: false, error: "Identifiant invalide." };
-  }
-
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 
-  let value: number | null = null;
-  if (costCents !== null) {
-    if (!Number.isFinite(costCents)) {
-      return { ok: false, error: "Montant invalide." };
-    }
-    value = Math.min(Math.max(Math.round(costCents), 0), MAX_COST_CENTS);
-  }
-
-  const updated = await prisma.matchDay
-    .update({
-      where: { id: matchDayId, clubId: ctx.club.id },
-      data: { fieldCostCents: value },
-    })
-    .catch(() => null);
-  if (!updated) return { ok: false, error: "Session introuvable." };
+  const r = await ecrirePrixTerrain(ctx.club.id, matchDayId, costCents);
+  if (!r.ok) return { ok: false, error: r.error };
 
   revalidatePath(`/c/${slug}/sessions/${matchDayId}`);
   return { ok: true };
@@ -50,28 +37,11 @@ export async function setRsvpPaid(
   playerId: string,
   paid: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Identifiants venus du client : refuser tout ce qui n'est pas une
-  // chaîne, sinon un objet passe pour un filtre Prisma (cf. lib/ids.ts).
-  if (!idsValides(matchDayId, playerId)) {
-    return { ok: false, error: "Identifiant invalide." };
-  }
-
   const ctx = await requireClub(slug);
   if (!ctx.canManage) return { ok: false, error: "Réservé aux admins." };
 
-  const md = await prisma.matchDay.findFirst({
-    where: { id: matchDayId, clubId: ctx.club.id },
-    select: { id: true },
-  });
-  if (!md) return { ok: false, error: "Session introuvable." };
-
-  const res = await prisma.rsvp.updateMany({
-    where: { matchDayId, playerId },
-    data: { hasPaid: paid },
-  });
-  if (res.count === 0) {
-    return { ok: false, error: "Pas de réponse de ce joueur." };
-  }
+  const r = await marquerPaye(ctx.club.id, matchDayId, playerId, paid);
+  if (!r.ok) return { ok: false, error: r.error };
 
   revalidatePath(`/c/${slug}/sessions/${matchDayId}`);
   return { ok: true };

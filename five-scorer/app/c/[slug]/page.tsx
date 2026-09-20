@@ -1,9 +1,12 @@
 import Link from "next/link";
 import * as D from "@/lib/dates";
-import { calculerPresences, phraseEtat } from "@/lib/presences";
+import { calculerPresences, phraseEtat, type Presences } from "@/lib/presences";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import { getLeaderboard } from "@/lib/stats";
+import { chargerHistorique, succesDuClub } from "@/lib/succes-serveur";
+import type { SuccesJoueur } from "@/lib/succes";
+import { ecartJours, quandRelatif } from "@/lib/quand";
 import Icon from "@/components/Icon";
 import RematchButton from "@/components/RematchButton";
 import ReprendreLocal from "@/components/ReprendreLocal";
@@ -12,7 +15,9 @@ import Onglets from "@/components/ios/Onglets";
 import Ecusson from "@/components/ios/Ecusson";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import LigneScore from "@/components/ios/LigneScore";
-import { nomsChasubles, DEFAULT_BIB_B } from "@/lib/color";
+import AnnonceSucces from "@/components/succes/AnnonceSucces";
+import { dateRelative } from "@/components/succes/textes";
+import { nomsChasubles } from "@/lib/color";
 import { ini, lettre } from "@/lib/ini";
 import { estRetro } from "@/lib/retro";
 import { orphelinsParJour, soireeReclame, SIX_SEMAINES_MS } from "@/lib/matches";
@@ -20,6 +25,10 @@ import EnteteCollante from "./_accueil/EnteteCollante";
 import Banniere from "./_accueil/Banniere";
 import BoutonPresence from "./_accueil/BoutonPresence";
 import HorlogeDirect from "./_accueil/HorlogeDirect";
+import Evolution from "./_accueil/Evolution";
+import MaSaison from "./_accueil/MaSaison";
+import ExploitsDuClub from "./_accueil/ExploitsDuClub";
+import { bilanDuJoueur } from "./_accueil/ma-saison";
 import "./_accueil/accueil.css";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +83,8 @@ const jourLong = D.jourLong;
 const jourAbrege = D.jourAbrege;
 const minuit = D.minuit;
 
+const capitale = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export default async function ClubHomePage({
   params,
 }: {
@@ -82,6 +93,15 @@ export default async function ClubHomePage({
   const { slug } = await params;
   const ctx = await requireClub(slug);
   const clubId = ctx.club.id;
+  const maintenant = new Date();
+
+  // Les succès se chargent en parallèle de tout le reste (huit requêtes, un
+  // calcul) et une seule fois par requête (cache). Ils ne sont qu'un plus :
+  // s'ils échouent, l'accueil s'affiche sans eux plutôt que pas du tout.
+  const succesP = succesDuClub(clubId).catch((e: unknown) => {
+    console.error("Accueil : succès indisponibles", e);
+    return null;
+  });
 
   const debutDeCeJour = D.debutDuJour();
 
@@ -99,7 +119,7 @@ export default async function ClubHomePage({
   });
 
   const [
-    liveMatch,
+    feuillesOuvertes,
     prochainesSoirees,
     upcomingMatches,
     myPlayer,
@@ -107,9 +127,13 @@ export default async function ClubHomePage({
     classement,
     vivier,
   ] = await Promise.all([
-    prisma.match.findFirst({
+    // Toutes les feuilles ouvertes, pas seulement la plus récente : une
+    // feuille oubliée un mercredi et le match qui se joue ce soir sont deux
+    // choses différentes, et la seconde masquait la première.
+    prisma.match.findMany({
       where: { clubId, status: "LIVE" },
       orderBy: { playedAt: "desc" },
+      take: 5,
       include: { opponent: { select: { name: true } } },
     }),
     // Les deux prochaines soirées : celle du jour, s'il y en a une, et la
@@ -165,7 +189,7 @@ export default async function ClubHomePage({
     }),
     prisma.player.findFirst({
       where: { clubId, userId: ctx.user.id },
-      select: { id: true },
+      select: { id: true, abonne: true },
     }),
     // La dernière composition réellement jouée. C'est la matière du coup
     // d'envoi en un tap : à l'heure du match, la feuille n'est pas faite et
@@ -204,6 +228,16 @@ export default async function ClubHomePage({
     }),
   ]);
 
+  // Une feuille ouverte depuis plus de six heures n'est plus « en direct » :
+  // c'est une feuille oubliée (lib/retro). Elle ne fait pas exister l'onglet
+  // « Ce soir » — le samedi, un match laissé ouvert le 9 ouvrait par défaut
+  // un onglet vide, et cachait « À venir » derrière lui — ni ne bloque le
+  // coup d'envoi du soir. Elle reste signalée par sa propre carte. Le seuil
+  // est celui de cette carte : chaque feuille ouverte est à un endroit, et un
+  // seul.
+  const liveMatch = feuillesOuvertes.find((m) => !estRetro(m.playedAt)) ?? null;
+  const feuillesOubliees = feuillesOuvertes.filter((m) => estRetro(m.playedAt));
+
   const nextMatchDay = prochainesSoirees[0] ?? null;
   const soireeDuJour =
     nextMatchDay && nextMatchDay.date < finDeCeJour ? nextMatchDay : null;
@@ -216,7 +250,7 @@ export default async function ClubHomePage({
   // par définition, calendrier ou pas.
   const ceSoirExiste = soireeDuJour != null || liveMatch != null;
 
-  const [matchsCeSoir, dernierFini, soireesSansResultat] = await Promise.all([
+  const [matchsCeSoirBruts, dernierFini, soireesSansResultat] = await Promise.all([
     ceSoirExiste
       ? prisma.match.findMany({
           where: {
@@ -225,6 +259,8 @@ export default async function ClubHomePage({
             OR: [
               ...(soireeDuJour ? [{ matchDayId: soireeDuJour.id }] : []),
               { playedAt: { gte: debutDeCeJour } },
+              // Lancé à 23 h 30, il est encore en direct à minuit passé.
+              ...(liveMatch ? [{ id: liveMatch.id }] : []),
             ],
           },
           orderBy: { playedAt: "asc" },
@@ -268,26 +304,33 @@ export default async function ClubHomePage({
       select: { id: true, date: true },
     }),
   ]);
+  // Une feuille oubliée rattachée à la soirée du jour reste dans sa carte.
+  const matchsCeSoir = matchsCeSoirBruts.filter(
+    (m) => m.status !== "LIVE" || !estRetro(m.playedAt),
+  );
 
   // La dernière soirée jouée : la soirée du calendrier à laquelle le dernier
   // match est rattaché, sinon tous les matchs de ce jour-là — un club qui
   // n'a pas encore posé son calendrier a quand même joué.
-  const matchsDerniereSoiree = dernierFini
-    ? await prisma.match.findMany({
-        where: dernierFini.matchDayId
-          ? { matchDayId: dernierFini.matchDayId, status: "FINISHED" }
-          : {
-              clubId,
-              status: "FINISHED",
-              playedAt: {
-                gte: new Date(minuit(dernierFini.playedAt)),
-                lt: new Date(minuit(dernierFini.playedAt) + 86_400_000),
+  const [matchsDerniereSoiree, succes] = await Promise.all([
+    dernierFini
+      ? prisma.match.findMany({
+          where: dernierFini.matchDayId
+            ? { matchDayId: dernierFini.matchDayId, status: "FINISHED" }
+            : {
+                clubId,
+                status: "FINISHED",
+                playedAt: {
+                  gte: new Date(minuit(dernierFini.playedAt)),
+                  lt: new Date(minuit(dernierFini.playedAt) + 86_400_000),
+                },
               },
-            },
-        orderBy: { playedAt: "asc" },
-        include: { opponent: { select: { name: true } } },
-      })
-    : [];
+          orderBy: { playedAt: "asc" },
+          include: { opponent: { select: { name: true } } },
+        })
+      : Promise.resolve([]),
+    succesP,
+  ]);
   const dateDerniereSoiree = dernierFini
     ? (dernierFini.matchDay?.date ?? dernierFini.playedAt)
     : null;
@@ -313,20 +356,28 @@ export default async function ClubHomePage({
   // d'être juste tout seul : si la soirée n'est pas passée, le serveur la
   // retrouvera (spec 0007).
   const soireeEnCours =
-    nextMatchDay && D.memeJour(nextMatchDay.date, new Date())
+    nextMatchDay && D.memeJour(nextMatchDay.date, maintenant)
       ? nextMatchDay
       : null;
+
+  // Le jour où l'on joue : celui d'une soirée du calendrier, ou n'importe
+  // quel jour pour un club qui n'a rien au calendrier. Le grand « Coup
+  // d'envoi » n'existe que ce jour-là. Affiché le samedi pour la soirée du
+  // lundi, un tap distrait ouvrait une feuille en direct deux jours trop tôt
+  // — et un 0–0 de plus dans les stats de tout le monde. Les autres jours,
+  // on peut toujours lancer un match, mais par l'écran de composition.
+  const jourDeJeu = soireeEnCours != null || nextMatchDay == null;
+  // Les liens vers la composition emportent la soirée du jour : sa compo,
+  // préparée trois jours avant, arrive toute faite. Jamais celle d'un autre
+  // jour — le match s'y rangerait.
+  const hrefNouveau = `/c/${slug}/matches/new${soireeEnCours ? `?md=${soireeEnCours.id}` : ""}`;
 
   // D'où vient la compo du coup d'envoi, dans l'ordre :
   //   1. celle PRÉPARÉE pour la soirée du jour — le club connaît ses équipes
   //      trois à quatre jours avant, c'est la seule source qui soit juste ;
   //   2. à défaut, celle du dernier match joué, clairement annoncée comme telle.
   // Les joueurs archivés depuis ne sont jamais reconduits.
-  // La compo à utiliser et le rattachement à la soirée sont deux questions
-  // distinctes. On prend la compo dès qu'elle est préparée pour la prochaine
-  // soirée — c'est l'intention la plus à jour du club, même la veille. On ne
-  // RATTACHE le match à cette soirée, en revanche, que si on est dedans.
-  const compoSoiree = (nextMatchDay?.lineup ?? []).map((l) => ({
+  const compoSoiree = (soireeEnCours?.lineup ?? []).map((l) => ({
     id: l.player.id,
     name: l.player.name,
     nickname: l.player.nickname,
@@ -355,14 +406,19 @@ export default async function ClubHomePage({
   const compoB = compoPrete.filter((p) => p.team === "B").length;
   const coupDEnvoiPret = compoA > 0 && compoB > 0;
   const nomA = sourcePreparee
-    ? (nextMatchDay?.teamAName ?? nomsClub.a)
+    ? (soireeEnCours?.teamAName ?? nomsClub.a)
     : (lastLineup?.teamAName ?? nomsClub.a);
   const nomB = sourcePreparee
-    ? (nextMatchDay?.teamBName ?? nomsClub.b)
+    ? (soireeEnCours?.teamBName ?? nomsClub.b)
     : (lastLineup?.teamBName ?? nomsClub.b);
-  // La chasuble de chacun dans la dernière compo connue : c'est l'anneau
-  // de son avatar dans le tableau.
-  const chasubleDe = new Map(compoPrete.map((p) => [p.id, p.team]));
+
+  // La chasuble de chacun dans la compo connue la plus récente — préparée
+  // pour la prochaine soirée, sinon celle du dernier match : c'est l'anneau
+  // de son avatar dans le tableau et dans le fil des exploits.
+  const campRecent = nextMatchDay && nextMatchDay.lineup.length > 0
+    ? nextMatchDay.lineup.map((l) => [l.player.id, l.team as "A" | "B"] as const)
+    : compoDernierMatch.map((p) => [p.id, p.team] as const);
+  const chasubleDe = new Map<string, "A" | "B">(campRecent);
 
   // La compo se décide trois à quatre jours avant. À partir de cinq jours, si
   // elle n'est pas faite, on le dit — c'est l'oubli qui coûtait le temps au
@@ -372,16 +428,8 @@ export default async function ClubHomePage({
   // 20 h, Math.ceil sur l'écart donnait 1 et le rappel annonçait « Demain »
   // au-dessus de la date du jour même.
   const joursAvant = nextMatchDay
-    ? Math.round((minuit(nextMatchDay.date) - minuit(new Date())) / 86_400_000)
+    ? Math.round((minuit(nextMatchDay.date) - minuit(maintenant)) / 86_400_000)
     : null;
-  // « ce soir », « demain », ou le jour nommé : le bouton dit de quelle soirée
-  // vient la compo qu'il s'apprête à utiliser.
-  const quandCourt =
-    joursAvant == null || joursAvant <= 0
-      ? "ce soir"
-      : joursAvant === 1
-        ? "demain"
-        : (nextMatchDay ? D.jourSemaineLong(nextMatchDay.date) : "la prochaine soirée");
   const compoAFaire =
     nextMatchDay != null &&
     nextMatchDay.lineup.length === 0 &&
@@ -389,16 +437,12 @@ export default async function ClubHomePage({
     joursAvant <= 5 &&
     ctx.canScore;
 
-  // ── La bannière : ce soir, sinon la prochaine soirée ───────────────────
-  const soireeBanniere = soireeDuJour ?? prochaineSoiree;
+  // ── Qui vient ──────────────────────────────────────────────────────────
   // L'état d'une soirée se calcule d'un seul endroit (lib/presences) : le
   // compte brut des « IN » ignorait les abonnés, et affichait « 1 présent »
   // pour une soirée à laquelle onze habitués venaient.
-  const etatDe = (md: {
-    createdAt: Date;
-    canceledAt: Date | null;
-    rsvps: { playerId: string; status: "IN" | "MAYBE" | "OUT"; respondedAt: Date }[];
-  }) =>
+  type Soiree = (typeof prochainesSoirees)[number];
+  const presencesDe = (md: Soiree): Presences =>
     calculerPresences({
       entrees: vivier.map((j) => {
         const r = md.rsvps.find((x) => x.playerId === j.id);
@@ -413,17 +457,95 @@ export default async function ClubHomePage({
       minJoueurs: ctx.club.minJoueurs,
       capacite: ctx.club.capaciteSoiree,
       annulee: md.canceledAt != null,
-    }).etat;
-  const presents = (md: { rsvps: { status: string }[] }) =>
-    md.rsvps.filter((r) => r.status === "IN").length;
-  const maReponse = (md: { rsvps: { playerId: string; status: "IN" | "MAYBE" | "OUT" }[] }) =>
-    myPlayer ? (md.rsvps.find((r) => r.playerId === myPlayer.id)?.status ?? null) : null;
+    });
+  // Ce que la bannière dit au joueur de SA place. Un abonné est compté
+  // présent sans avoir répondu : « Touchez pour répondre » sous « 8
+  // présents » lui laissait croire qu'il n'en faisait pas partie.
+  const maPlace = (p: Presences) => {
+    if (!myPlayer) return "Touche pour la soirée.";
+    const l = p.lignes.get(myPlayer.id);
+    if (!l?.statut) return "Touche pour répondre.";
+    if (l.statut === "OUT") return "Tu as dit absent.";
+    if (l.statut === "MAYBE") return "Tu as dit peut-être.";
+    if (l.enAttente) return "Tu es sur la liste d'attente.";
+    return l.source === "abonnement" ? "Tu es compté présent." : "Tu es inscrit.";
+  };
+
+  // « Ce soir 19:00 », « Demain 19:00 », « Lundi 19:00 » dans la semaine, la
+  // date au-delà. Le samedi, « Lun. 21 sept. » obligeait à compter.
+  const quandSoiree = (d: Date) => {
+    const n = ecartJours(d, maintenant);
+    const jour =
+      n <= 1
+        ? (quandRelatif(d, maintenant) ?? jourAbrege(d))
+        : n <= 6
+          ? capitale(D.jourSemaineLong(d))
+          : jourAbrege(d);
+    return `${jour} ${heureFr(d)}`;
+  };
+
   // ── Les onglets de la carte des matchs ─────────────────────────────────
   const nomAdverse = (m: {
     kind: "INTERNAL" | "EXTERNAL";
     teamBName: string;
     opponent: { name: string } | null;
   }) => (m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName);
+
+  // La prochaine soirée : écusson · heure et lieu · écusson, puis qui vient
+  // et « Je serai là ». Dans « À venir », et dans « Ce soir » tant qu'aucun
+  // match n'y est joué — le lundi après-midi, c'est ce qu'on vient voir.
+  const blocSoiree = (md: Soiree) => {
+    const p = presencesDe(md);
+    const moi = myPlayer ? p.lignes.get(myPlayer.id) : undefined;
+    const compoFaite = md.lineup.length > 0;
+    const nA = md.teamAName ?? nomsClub.a;
+    const nB = md.teamBName ?? nomsClub.b;
+    const cA = md.lineup.filter((l) => l.team === "A").length;
+    const cB = md.lineup.filter((l) => l.team === "B").length;
+    // Les présents plutôt que les réponses : les abonnés comptent sans
+    // répondre, et « 0 réponse » sous une bannière « 8 présents » se
+    // contredisait (même choix que l'app).
+    const presents = p.etat.statut === "annulee" ? 0 : p.etat.presents;
+    return (
+      <>
+        <Link
+          href={`/c/${slug}/sessions/${md.id}`}
+          className="accueil-prochaine"
+        >
+          <span className="camp">
+            <Ecusson camp="A" lettre={lettre(nA)} />
+            <span className="nom">{nA}</span>
+          </span>
+          <span className="milieu">
+            <span className="heure">{heureFr(md.date)}</span>
+            {md.location && <span className="lieu">{md.location}</span>}
+          </span>
+          <span className="camp">
+            <Ecusson camp="B" lettre={lettre(nB)} />
+            <span className="nom">{nB}</span>
+          </span>
+        </Link>
+        <div className="accueil-reponses">
+          <span className="truncate">
+            {presents} présent{presents > 1 ? "s" : ""} ·{" "}
+            {/* « Blanc 5 contre 5 Noir » se faisait couper à côté du bouton
+                de présence, et les deux noms sont déjà sous les écussons. */}
+            {compoFaite ? `${cA} contre ${cB}` : "équipes à préparer"}
+          </span>
+          {myPlayer && (
+            <BoutonPresence
+              slug={slug}
+              matchDayId={md.id}
+              playerId={myPlayer.id}
+              initial={md.rsvps.find((r) => r.playerId === myPlayer.id)?.status ?? null}
+              abonne={myPlayer.abonne}
+              enAttente={moi?.enAttente ?? false}
+            />
+          )}
+        </div>
+      </>
+    );
+  };
 
   // Les matchs programmés pour ce soir vont dans « Ce soir » ; les autres
   // dans « À venir ».
@@ -526,9 +648,13 @@ export default async function ClubHomePage({
               />
             </div>
           ))}
-          {joues === 0 && programmesCeSoir.length === 0 && (
-            <p className="accueil-vide">Aucun match joué pour l&apos;instant.</p>
-          )}
+          {joues === 0 &&
+            programmesCeSoir.length === 0 &&
+            (soireeDuJour ? (
+              blocSoiree(soireeDuJour)
+            ) : (
+              <p className="accueil-vide">Aucun match joué pour l&apos;instant.</p>
+            ))}
         </>
       ),
     });
@@ -536,12 +662,7 @@ export default async function ClubHomePage({
 
   if (prochaineSoiree || programmesPlusTard.length > 0) {
     const md = prochaineSoiree;
-    const reponse = md ? maReponse(md) : null;
-    const compoFaite = md ? md.lineup.length > 0 : false;
-    const nA = md ? (md.teamAName ?? nomsClub.a) : nomsClub.a;
-    const nB = md ? (md.teamBName ?? nomsClub.b) : nomsClub.b;
-    const cA = md ? md.lineup.filter((l) => l.team === "A").length : 0;
-    const cB = md ? md.lineup.filter((l) => l.team === "B").length : 0;
+    const relatif = md ? quandRelatif(md.date, maintenant) : null;
     onglets.push({
       id: "a-venir",
       label: "À venir",
@@ -550,40 +671,10 @@ export default async function ClubHomePage({
           {md && (
             <>
               <LigneSoiree
-                texte={jourLong(md.date)}
+                texte={relatif ? `${relatif} · ${jourLong(md.date)}` : jourLong(md.date)}
                 href={`/c/${slug}/sessions/${md.id}`}
               />
-              <Link
-                href={`/c/${slug}/sessions/${md.id}`}
-                className="accueil-prochaine"
-              >
-                <span className="camp">
-                  <Ecusson camp="A" lettre={lettre(nA)} />
-                  <span className="nom">{nA}</span>
-                </span>
-                <span className="milieu">
-                  <span className="heure">{heureFr(md.date)}</span>
-                  {md.location && <span className="lieu">{md.location}</span>}
-                </span>
-                <span className="camp">
-                  <Ecusson camp="B" lettre={lettre(nB)} />
-                  <span className="nom">{nB}</span>
-                </span>
-              </Link>
-              <div className="accueil-reponses">
-                <span className="truncate">
-                  {md.rsvps.length} réponse{md.rsvps.length > 1 ? "s" : ""} ·{" "}
-                  {compoFaite ? `${nA} ${cA} contre ${cB} ${nB}` : "équipes à préparer"}
-                </span>
-                {myPlayer && (
-                  <BoutonPresence
-                    slug={slug}
-                    matchDayId={md.id}
-                    playerId={myPlayer.id}
-                    initial={reponse}
-                  />
-                )}
-              </div>
+              {blocSoiree(md)}
             </>
           )}
           {programmesPlusTard.map((m, i) => {
@@ -607,7 +698,8 @@ export default async function ClubHomePage({
                   </span>
                   <span className="milieu">
                     <span className="quand">
-                      {jourAbrege(quand)} · {heureFr(quand)}
+                      {quandRelatif(quand, maintenant) ?? jourAbrege(quand)} ·{" "}
+                      {heureFr(quand)}
                     </span>
                     <span className="lieu">
                       {externe
@@ -648,7 +740,7 @@ export default async function ClubHomePage({
 
   // ── Le tableau : les six premiers, aux points du club ──────────────────
   const { pointsWin, pointsDraw } = ctx.club;
-  const tableau = classement
+  const classementTrie = classement
     .map((r) => ({ ...r, pts: r.wins * pointsWin + r.draws * pointsDraw }))
     .sort(
       (x, y) =>
@@ -656,25 +748,138 @@ export default async function ClubHomePage({
         y.wins - x.wins ||
         y.goals - x.goals ||
         x.name.localeCompare(y.name),
-    )
-    .slice(0, 6);
+    );
+  const tableau = classementTrie.slice(0, 6);
+  // Le joueur se cherche dans le tableau : sa ligne est marquée, et s'il est
+  // au-delà du sixième, elle vient s'ajouter en bas, à sa vraie place.
+  const monIndex = myPlayer
+    ? classementTrie.findIndex((r) => r.playerId === myPlayer.id)
+    : -1;
+  const evolutions = succes?.club.evolutions ?? {};
+  const rangeeTableau = (r: (typeof classementTrie)[number], rang: number) => (
+    <Link
+      key={r.playerId}
+      href={`/c/${slug}/players/${r.playerId}`}
+      className={`tableau-rangee${r.playerId === myPlayer?.id ? " moi" : ""}`}
+      aria-current={r.playerId === myPlayer?.id ? "true" : undefined}
+    >
+      <span className="rang">
+        {rang}
+        <Evolution places={evolutions[r.playerId]} />
+      </span>
+      <AvatarAnneau
+        nom={r.name}
+        photo={r.photo}
+        camp={chasubleDe.get(r.playerId) ?? null}
+        taille={30}
+      />
+      <span>{r.name}</span>
+      <span>{r.matchesPlayed}</span>
+      <span>{r.wins}</span>
+      <span>{r.draws}</span>
+      <span>{r.losses}</span>
+      <span>{r.goals}</span>
+      <span>{r.pts}</span>
+    </Link>
+  );
+
+  // ── Ma saison : le joueur connecté, s'il a déjà joué ───────────────────
+  const moiSucces =
+    myPlayer && succes ? succes.parJoueur.get(myPlayer.id) : undefined;
+  // Ce que l'annonce reçoit : le plus haut palier de chaque famille (le plus
+  // récent, les déblocages arrivent du plus récent au plus ancien). Avoir vu
+  // « 10 buts » vaut avoir vu « 5 buts » (components/succes/vus.ts) : le reste
+  // ne changerait rien à l'annonce, et partirait quand même au navigateur —
+  // une soixantaine de lignes pour un habitué de trois saisons.
+  let annoncables: SuccesJoueur["deblocages"] | null = null;
+  if (moiSucces) {
+    const parFamille = new Map<string, SuccesJoueur["deblocages"][number]>();
+    for (const d of moiSucces.deblocages) {
+      if (!parFamille.has(d.badgeId)) parFamille.set(d.badgeId, d);
+    }
+    annoncables = [...parFamille.values()];
+  }
+  let maSaison: React.ReactNode = null;
+  if (myPlayer && moiSucces && moiSucces.niveau.xp > 0) {
+    // Ce qu'il a fait à la dernière soirée : celle de ce soir dès qu'un
+    // match y est terminé, sinon la précédente. L'historique est celui que
+    // le moteur vient de charger (cache) : aucune requête de plus.
+    const finisCeSoir = matchsCeSoir.filter((m) => m.status === "FINISHED");
+    const soiree = finisCeSoir.length > 0 ? finisCeSoir : matchsDerniereSoiree;
+    const ids = new Set(soiree.map((m) => m.id));
+    const historique = await chargerHistorique(clubId);
+    const b = bilanDuJoueur(
+      historique.matchs.filter((m) => ids.has(m.id)),
+      myPlayer.id,
+    );
+    const quand =
+      finisCeSoir.length > 0
+        ? "Ce soir"
+        : dateDerniereSoiree
+          ? capitale(dateRelative(dateDerniereSoiree.toISOString(), maintenant))
+          : "";
+    const voisin = (i: number) => {
+      const r = classementTrie[i];
+      return r
+        ? {
+            nom: r.name,
+            points: r.pts,
+            victoires: r.wins,
+            buts: r.goals,
+            camp: chasubleDe.get(r.playerId) ?? null,
+          }
+        : null;
+    };
+    maSaison = (
+      <MaSaison
+        slug={slug}
+        playerId={myPlayer.id}
+        succes={moiSucces}
+        rang={monIndex >= 0 ? monIndex + 1 : null}
+        total={classementTrie.length}
+        moi={voisin(monIndex) ?? { nom: moiSucces.joueur.nom, points: 0, victoires: 0, buts: 0 }}
+        evolution={evolutions[myPlayer.id] ?? null}
+        devant={monIndex > 0 ? voisin(monIndex - 1) : null}
+        derriere={monIndex >= 0 ? voisin(monIndex + 1) : null}
+        bilan={b && quand ? { quand, bilan: b } : null}
+        avecPasses={ctx.club.trackAssists}
+      />
+    );
+  }
+
+  // ── La bannière : ce soir, sinon la prochaine soirée ───────────────────
+  const soireeBanniere = soireeDuJour ?? prochaineSoiree;
+  const presencesBanniere = soireeBanniere ? presencesDe(soireeBanniere) : null;
+  const joursBanniere = soireeBanniere ? ecartJours(soireeBanniere.date, maintenant) : 0;
 
   return (
     <main className="ecran">
       <EnteteCollante />
 
-      {soireeBanniere && (
+      {/* Les succès neufs du joueur connecté — une fois par appareil, jamais
+          au premier passage (components/succes/vus.ts). Monté ici et sur sa
+          fiche seulement : dans le layout, il s'ouvrirait en double. */}
+      {myPlayer && annoncables && (
+        <AnnonceSucces
+          clubId={clubId}
+          playerId={myPlayer.id}
+          slug={slug}
+          deblocages={annoncables}
+        />
+      )}
+
+      {soireeBanniere && presencesBanniere && (
         <Banniere
           cle={soireeBanniere.id}
           href={`/c/${slug}/sessions/${soireeBanniere.id}`}
-          titre={
-            soireeDuJour
-              ? `Ce soir ${heureFr(soireeDuJour.date)}${soireeDuJour.location ? ` — ${soireeDuJour.location}` : ""}.`
-              : `${jourAbrege(soireeBanniere.date)} ${heureFr(soireeBanniere.date)}${soireeBanniere.location ? ` — ${soireeBanniere.location}` : ""}.`
-          }
-          aide={`${phraseEtat(etatDe(soireeBanniere))} · ${
-            maReponse(soireeBanniere) ? "Touchez pour la soirée." : "Touchez pour répondre."
-          }`}
+          titre={`${quandSoiree(soireeBanniere.date)}${soireeBanniere.location ? ` — ${soireeBanniere.location}` : ""}.`}
+          aide={[
+            joursBanniere >= 2 && joursBanniere <= 6 ? `Dans ${joursBanniere} jours` : null,
+            phraseEtat(presencesBanniere.etat),
+            maPlace(presencesBanniere),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         />
       )}
 
@@ -707,14 +912,16 @@ export default async function ClubHomePage({
         </Link>
       )}
 
-      {/* Aucun calendrier : la cause racine de tout le reste. */}
+      {/* Aucun calendrier : la cause racine de tout le reste. Le jour de jeu
+          se choisit en posant la saison — « tous les lundis » était faux pour
+          un club du jeudi. */}
       {!nextMatchDay && ctx.canManage && (
         <Link href={`/c/${slug}/saison`} className="rappel mt-[18px]">
           <span className="rappel-pastille" style={{ background: "var(--i3)" }} />
           <span className="rappel-corps">
             <span className="rappel-titre">Aucune soirée au calendrier</span>
             <span className="rappel-aide">
-              Pose la saison d&apos;un coup — tous les lundis, fériés exclus
+              Pose la saison d&apos;un coup — une soirée par semaine, fériés exclus
             </span>
           </span>
           <Icon name="chevron" size={16} />
@@ -723,30 +930,39 @@ export default async function ClubHomePage({
 
       {/* Le match en cours que le SERVEUR ne connaît pas encore (lancé hors-
           ligne, ou onglet tué) : il est dans Dexie, et c'est ici qu'on le
-          retrouve. */}
-      {!liveMatch && <ReprendreLocal slug={slug} clubId={clubId} />}
+          retrouve. Pas quand le serveur a déjà une feuille ouverte : ce serait
+          la même, annoncée deux fois. */}
+      {feuillesOuvertes.length === 0 && (
+        <ReprendreLocal slug={slug} clubId={clubId} />
+      )}
 
       {/* La feuille qu'on a oublié de fermer.
           Un match reste LIVE tant que personne n'a sifflé la fin — et une
           soirée se termine rarement par un tap sur « Terminer » : on range le
           téléphone, on rentre. Le lendemain ce match n'apparaissait NULLE PART
-          sur l'accueil (il n'est ni de ce soir, ni terminé), tout en bloquant
-          le coup d'envoi suivant et en gardant ses buts hors des
-          statistiques. Il fallait le dire. */}
-      {ctx.canScore && liveMatch && estRetro(liveMatch.playedAt) && (
+          sur l'accueil (il n'est ni de ce soir, ni terminé), tout en gardant
+          ses buts hors des statistiques. Il fallait le dire. */}
+      {ctx.canScore && feuillesOubliees.length > 0 && (
         <section className="accueil-rattrapage">
-          <div className="titre">Feuille restée ouverte</div>
-          <Link
-            href={`/c/${slug}/matches/${liveMatch.id}/live`}
-            className="rangee"
-          >
-            <span className="quand">
-              {jourLong(liveMatch.playedAt)} · {liveMatch.scoreA}–
-              {liveMatch.scoreB}
-            </span>
-            <span className="acte">Terminer</span>
-            <Icon name="chevron" size={16} />
-          </Link>
+          <div className="titre">
+            {feuillesOubliees.length > 1
+              ? `${feuillesOubliees.length} feuilles restées ouvertes`
+              : "Feuille restée ouverte"}
+          </div>
+          {feuillesOubliees.map((m) => (
+            <Link
+              key={m.id}
+              href={`/c/${slug}/matches/${m.id}/live`}
+              className="rangee"
+            >
+              <span className="quand">
+                {quandRelatif(m.playedAt, maintenant) ?? jourLong(m.playedAt)} ·{" "}
+                {m.scoreA}–{m.scoreB}
+              </span>
+              <span className="acte">Terminer</span>
+              <Icon name="chevron" size={16} />
+            </Link>
+          ))}
         </section>
       )}
 
@@ -803,11 +1019,12 @@ export default async function ClubHomePage({
         )}
       </Carte>
 
-      {/* Le coup d'envoi, sous la carte des matchs, tant qu'aucun match
-          n'est en cours. */}
+      {/* Le coup d'envoi, sous la carte des matchs, tant qu'aucun match de
+          ce soir n'est en cours. Une feuille oubliée un autre jour ne le
+          bloque pas : elle a sa carte, et la soirée doit pouvoir commencer. */}
       {!liveMatch && ctx.canScore && (
         <div className="accueil-lancer">
-          {coupDEnvoiPret ? (
+          {jourDeJeu && coupDEnvoiPret ? (
             <>
               <RematchButton
                 clubId={clubId}
@@ -821,24 +1038,26 @@ export default async function ClubHomePage({
                 label="Coup d'envoi"
                 hint={`${nomA} ${compoA} vs ${compoB} ${nomB} — ${
                   sourcePreparee
-                    ? `la compo préparée pour ${quandCourt}`
+                    ? "la compo préparée pour ce soir"
                     : "la compo de la dernière fois"
                 }`}
                 players={compoPrete}
               />
-              <Link href={`/c/${slug}/matches/new`} className="verre grand">
+              <Link href={hrefNouveau} className="verre grand">
                 Composer les équipes
                 <Icon name="chevron" size={16} />
               </Link>
             </>
           ) : (
-            <Link href={`/c/${slug}/matches/new`} className="plein">
+            <Link href={hrefNouveau} className={jourDeJeu ? "plein" : "verre grand"}>
               Lancer un match
               <Icon name="chevron" size={16} />
             </Link>
           )}
         </div>
       )}
+
+      {maSaison}
 
       {/* LE TABLEAU : les six premiers, et le lien vers le classement
           complet. */}
@@ -855,32 +1074,30 @@ export default async function ClubHomePage({
             <span>B</span>
             <span>PTS</span>
           </div>
-          {tableau.map((r, i) => (
-            <Link
-              key={r.playerId}
-              href={`/c/${slug}/players/${r.playerId}`}
-              className="tableau-rangee"
-            >
-              <span>{i + 1}</span>
-              <AvatarAnneau
-                nom={r.name}
-                photo={r.photo}
-                camp={chasubleDe.get(r.playerId) ?? null}
-                taille={30}
-              />
-              <span>{r.name}</span>
-              <span>{r.matchesPlayed}</span>
-              <span>{r.wins}</span>
-              <span>{r.draws}</span>
-              <span>{r.losses}</span>
-              <span>{r.goals}</span>
-              <span>{r.pts}</span>
-            </Link>
-          ))}
+          {tableau.map((r, i) => rangeeTableau(r, i + 1))}
+          {monIndex >= tableau.length && (
+            <>
+              <div className="tableau-saut" aria-hidden>
+                ···
+              </div>
+              {rangeeTableau(classementTrie[monIndex], monIndex + 1)}
+            </>
+          )}
           <Link href={`/c/${slug}/stats`} className="tableau-pied">
             Tableau complet ›
           </Link>
         </Carte>
+      )}
+
+      {/* Les derniers paliers franchis dans le club, après le tableau : on y
+          descend le mardi, on ne le cherche pas au bord du terrain. */}
+      {succes && (
+        <ExploitsDuClub
+          slug={slug}
+          fil={succes.club.fil}
+          campDe={chasubleDe}
+          maintenant={maintenant}
+        />
       )}
     </main>
   );

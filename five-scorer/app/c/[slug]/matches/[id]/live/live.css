@@ -597,3 +597,51 @@
   display: grid;
   place-items: center;
 }
+
+/* ── « Annuler » dit ce qu'il retire, « Rétablir » le rend ──────────────── */
+.live-annuler {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+.live-annuler .quoi {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+/* Une pastille posée AU-DESSUS du pied, pas une barre qui le couvre : on
+   doit pouvoir terminer le match sans attendre qu'elle s'efface. */
+.live-invite.live-retour {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  inset-inline: 14px;
+  bottom: calc(var(--safe-b) + 84px);
+  padding: 6px 6px 6px 18px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.live-retour .phrase {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-retour .verre {
+  flex: none;
+}
+
+/* ── Abandonner un match lancé par erreur ───────────────────────────────── */
+.live-confirm-aide {
+  margin: -4px 0 14px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.62);
+}
+.live-abandon {
+  width: 100%;
+  margin-top: 10px;
+}

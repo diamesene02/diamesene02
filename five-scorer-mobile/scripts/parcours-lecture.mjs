@@ -236,7 +236,10 @@ async function main() {
   ok(rJ.ok, "GET joueurs/[id] répond", `HTTP ${rJ.status}`);
   ok(fj.joueur.id === "joueur-essai-1", "c'est bien lui", fj.joueur.id);
   ok(
-    /Niveau 3/.test(fj.joueur.sousTitre),
+    // « Note », pas « Niveau » : le mot « Niveau » est réservé au niveau
+    // d'expérience. Seul le LIBELLÉ change — le champ `niveau` de la réponse
+    // ne bouge pas, une app déjà installée le lit.
+    /Note 3/.test(fj.joueur.sousTitre),
     "le sous-titre est assemblé côté serveur",
     fj.joueur.sousTitre,
   );
@@ -569,6 +572,9 @@ async function main() {
     `${C}/stats`,
     `${C}/saison`,
     `${C}/reglages`,
+    `${C}/accueil`,
+    `${C}/matchs/match-essai-fini`,
+    `${C}/adversaires`,
   ];
   const nom = (c) => c.split("/").slice(4).join("/");
 
@@ -1006,6 +1012,312 @@ async function main() {
     "…et on n'a laissé qu'un seul match ouvert derrière nous",
     `${ouvertsApres.matches.length}`,
   );
+
+  // --- 3 bis⁷. Ce que l'app aligne sur le site (19 septembre 2026) ----------
+  //
+  // L'app redessine ses écrans sur ceux du site. Il lui manquait des données
+  // (le lieu de la soirée, le match resté ouvert, la compo prête au coup
+  // d'envoi…) et des gestes que seul le site savait faire (voter, payer,
+  // reprendre la compo précédente). Chaque écriture est remise en état
+  // derrière elle : ce parcours se rejoue sans repeupler.
+
+  console.log("\n— l'accueil, aligné sur le site —");
+  const [, acc2] = await lire(`${C}/accueil`);
+  const so = acc2.soiree;
+  ok(so == null || so.annulee === false, "la prochaine soirée n'est jamais une soirée annulée");
+  ok(
+    so != null &&
+      /^\d{2}:\d{2}$/.test(so.heure) &&
+      /^[A-Z]/.test(so.jourAbrege) &&
+      /^[A-Z]/.test(so.jourLong) &&
+      "lieu" in so,
+    "…elle arrive avec son lieu, son heure et ses dates déjà écrites",
+    so ? `${so.jourAbrege} ${so.heure} — ${so.lieu}` : "aucune",
+  );
+  ok(
+    Number.isInteger(so?.joursAvant) && so.joursAvant >= 0 && so.ceSoir === (so.joursAvant === 0),
+    "…les jours avant elle sont comptés en jours civils",
+    `${so?.joursAvant} jour(s), ceSoir=${so?.ceSoir}`,
+  );
+  ok(
+    ["confirmee", "en-attente", "annulee"].includes(so?.etat),
+    "…et son état brut vient avec la phrase",
+    `${so?.etat} — ${so?.phrase}`,
+  );
+  ok(
+    so?.maPresence?.statut === "IN" && (so.maReponse != null || so.maPresence.viaAbonnement),
+    "un abonné qui n'a rien dit est compté présent, ET l'app le sait",
+    JSON.stringify(so?.maPresence),
+  );
+  ok(
+    acc2.enDirect?.id === "match-essai-live" && typeof acc2.enDirect.retro === "boolean",
+    "le match LIVE du serveur est rendu, quelle que soit sa date",
+    acc2.enDirect ? `${acc2.enDirect.jourLong} · retro=${acc2.enDirect.retro}` : "aucun",
+  );
+  const coup = acc2.coupDEnvoi;
+  ok(
+    coup?.source === "preparee" && coup.compoA === 5 && coup.compoB === 5 && coup.joueurs.length === 10,
+    "le coup d'envoi reprend la compo PRÉPARÉE de la prochaine soirée",
+    coup ? coup.indice : "aucun",
+  );
+  ok(
+    coup?.soireeId === null && /la compo préparée pour/.test(coup.indice),
+    "…sans la rattacher à une soirée qui n'est pas aujourd'hui",
+  );
+  ok(
+    coup?.joueurs.every(
+      (j) => typeof j.niveau === "number" && typeof j.gardienCeMatch === "boolean" && (j.camp === "A" || j.camp === "B"),
+    ),
+    "…et chaque joueur porte de quoi écrire le match hors ligne",
+  );
+  ok(
+    acc2.classement.every((l) => l.camp === null || l.camp === "A" || l.camp === "B") &&
+      acc2.classement.some((l) => l.camp !== null),
+    "chaque ligne du tableau porte sa chasuble",
+  );
+  ok(
+    acc2.aVenir.soiree == null || "maReponse" in acc2.aVenir.soiree,
+    "« À venir » dit ma réponse, pour « Je serai là »",
+    String(acc2.aVenir.soiree?.maReponse),
+  );
+  ok(
+    acc2.aVenir.matchs.every((m) => typeof m.domicile === "boolean" && typeof m.ceSoir === "boolean"),
+    "les matchs programmés disent domicile ou extérieur",
+  );
+  ok(
+    Array.isArray(acc2.sansResultat) &&
+      acc2.sansResultat.every((s) => s.jourLong && ("rangerMatchId" in s)),
+    "les soirées sans résultat sont une liste, chacune avec son geste",
+    `${acc2.sansResultat?.length} soirée(s)`,
+  );
+
+  console.log("\n— le récap, aligné sur le site —");
+  const [, r2] = await lire(RECAP);
+  ok(/^\d{1,2} \S+$/.test(r2.dateCourte), "la date courte est celle du site", r2.dateCourte);
+  ok(/^[a-zé]/.test(r2.dateLongue), "…et la date de la barre est en minuscules", r2.dateLongue);
+  ok(
+    /^Corrigé le \d{2} \S+ \d{4} à \d{2}:\d{2}/.test(r2.corrige ?? ""),
+    "« Corrigé le » porte la date complète, année comprise",
+    r2.corrige ?? "null",
+  );
+  const csc = r2.statistiques.find((s) => s.libelle === "Contre son camp");
+  ok(
+    csc?.a === 0 && csc?.b === 1,
+    "le contre son camp se range du côté de l'équipe qui l'a COMMIS",
+    csc ? `${csc.a} · ${csc.b}` : "absent",
+  );
+  ok(
+    !r2.statistiques.some((s) => /^Cartons (jaunes|rouges)$/.test(s.libelle)),
+    "les cartons tiennent sur une seule ligne",
+    r2.statistiques.map((s) => s.libelle).join(" / "),
+  );
+  ok(
+    r2.rejouer === null,
+    "pas de « On rejoue » tant qu'un match tourne dans le club",
+  );
+  ok(r2.genre === "INTERNAL" && r2.convocation === null, "le genre est dit, et un match joué n'a pas de convocation");
+
+  const [, rattache] = await lire(`${C}/matchs/match-essai-rattache`);
+  ok(
+    /^Soirée du \d{1,2} \S+ · Match \d+$/.test(rattache.contexte ?? ""),
+    "la barre dit « Soirée du … · Match n »",
+    rattache.contexte ?? "null",
+  );
+  const [, isole2] = await lire(`${C}/matchs/match-essai-isole`);
+  ok(
+    isole2.camps.every((c) => c.bilan === null),
+    "un bilan sur un seul match entre ces deux équipes ne s'affiche pas",
+  );
+  ok(
+    rattache.camps.every((c) => c.bilan === null || /^\d+-\d+-\d+$/.test(c.bilan)),
+    "…et il ne compte que les matchs entre ces deux mêmes équipes",
+    rattache.camps.map((c) => c.bilan).join(" / "),
+  );
+
+  // La chronologie se lit dans l'ordre du MATCH. Un but rattrapé à la
+  // première minute passe en bas, avec le bon score courant.
+  const rTot = await envoyer(`${FINI}/events`, "POST", {
+    type: "GOAL",
+    team: "B",
+    playerId: f.participants.find((p) => p.team === "B")?.playerId,
+    minute: 1,
+  });
+  const tot = rTot.ok ? await rTot.json() : null;
+  const [, rChrono] = await lire(RECAP);
+  const premier = rChrono.chronologie.at(-1);
+  ok(
+    premier?.minute === 1 && premier.scoreA === 0 && premier.scoreB === 1,
+    "un but rattrapé à la 1re minute ouvre la chronologie, score 0-1",
+    `${premier?.minute}′ ${premier?.scoreA}-${premier?.scoreB}`,
+  );
+  ok(
+    rChrono.chronologie[0]?.scoreA === 2 && rChrono.chronologie[0]?.scoreB === 2,
+    "…et le dernier but porte le score final",
+    `${rChrono.chronologie[0]?.scoreA}-${rChrono.chronologie[0]?.scoreB}`,
+  );
+  if (tot?.event?.id) {
+    await fetch(`${BASE}${FINI}/events?eventId=${encodeURIComponent(tot.event.id)}`, {
+      method: "DELETE",
+      headers: h,
+    });
+  }
+
+  // Ranger dans la soirée : on détache le match rattaché, le récap propose
+  // de le ranger, et le geste de l'app le range.
+  const RATTACHE = `${C}/matches/match-essai-rattache`;
+  const rDetache = await envoyer(RATTACHE, "PATCH", { matchDayId: null });
+  const [, orphelin] = await lire(`${C}/matchs/match-essai-rattache`);
+  ok(
+    rDetache.ok && orphelin.soireeARanger?.id === compo.matchDay.id,
+    "un match sans soirée, un jour de soirée : le récap propose de le ranger",
+    orphelin.soireeARanger?.libelle ?? "rien",
+  );
+  const rRange = await envoyer(RATTACHE, "PATCH", { matchDayId: orphelin.soireeARanger?.id ?? compo.matchDay.id });
+  const [, range] = await lire(`${C}/matchs/match-essai-rattache`);
+  ok(
+    rRange.ok && range.soireeId === compo.matchDay.id && range.soireeARanger === null,
+    "…et une fois rangé, il ne le propose plus",
+  );
+
+  console.log("\n— voter pour l'homme du match —");
+  const VOTE = `${C}/matchs/match-essai-fini/vote`;
+  const hommeAvant = r2.homme?.playerId;
+  const autre = r2.vote?.candidats.find((c) => c.playerId !== hommeAvant)?.playerId;
+  const rVote = await envoyer(VOTE, "POST", { playerId: autre });
+  const vote = rVote.ok ? await rVote.json() : null;
+  ok(rVote.ok && vote?.hommeDuMatch === autre, "mon vote déplacé fait un autre homme du match", `HTTP ${rVote.status}`);
+  const [, apresVote] = await lire(RECAP);
+  ok(
+    apresVote.vote?.monVote === autre && apresVote.homme?.playerId === autre,
+    "…et le récap relu le dit",
+    apresVote.homme?.nom,
+  );
+  await envoyer(VOTE, "POST", { playerId: hommeAvant });
+  const [, voteRemis] = await lire(RECAP);
+  ok(voteRemis.homme?.playerId === hommeAvant, "…on remet sa voix où elle était", voteRemis.homme?.nom);
+  const rVoteLive = await envoyer(`${C}/matchs/match-essai-live/vote`, "POST", { playerId: hommeAvant });
+  ok(rVoteLive.status === 409, "voter sur un match en cours : 409, le vote ouvre à la fin", `HTTP ${rVoteLive.status}`);
+  const rVoteHors = await envoyer(VOTE, "POST", { playerId: "joueur-qui-nexiste-pas" });
+  ok(rVoteHors.status === 400, "voter pour quelqu'un qui n'a pas joué : 400", `HTTP ${rVoteHors.status}`);
+  const rVoteObjet = await envoyer(VOTE, "POST", { playerId: { in: [hommeAvant] } });
+  ok(rVoteObjet.status === 400, "un identifiant qui est un objet : 400, pas un filtre Prisma", `HTTP ${rVoteObjet.status}`);
+  const rConvoc = await envoyer(`${C}/matchs/match-essai-fini/convocation`, "POST", { playerId: hommeAvant, statut: "IN" });
+  ok(rConvoc.status === 409, "répondre à la convocation d'un match joué : 409, c'est clos", `HTTP ${rConvoc.status}`);
+
+  console.log("\n— la soirée : pastille, caisse, compo précédente —");
+  const SOIREE = `${C}/soirees/${compo.matchDay.id}`;
+  const [, fs1] = await lire(SOIREE);
+  ok(
+    ["confirmee", "en-attente", "annulee"].includes(fs1.presences.etat),
+    "la pastille a son état, pas seulement sa phrase",
+    `${fs1.presences.etat} — ${fs1.presences.phrase}`,
+  );
+  ok(fs1.terrain.payeurs.every((p) => "photo" in p), "chaque payeur a son avatar");
+  const prixAvant = fs1.terrain.prixCents;
+  const rPrix = await envoyer(`${SOIREE}/terrain`, "PUT", { prixCents: 6000 });
+  const [, fs2] = await lire(SOIREE);
+  ok(rPrix.ok && fs2.terrain.prix === "60 €", "le prix du terrain s'écrit depuis l'app", fs2.terrain.resume ?? "");
+  const rPrixTordu = await envoyer(`${SOIREE}/terrain`, "PUT", { prixCents: "60" });
+  ok(rPrixTordu.status === 400, "un prix qui n'est pas un nombre : 400", `HTTP ${rPrixTordu.status}`);
+
+  const payeur = fs2.terrain.payeurs.find((p) => !p.aPaye)?.playerId;
+  const rPaye = await envoyer(`${SOIREE}/paye`, "POST", { playerId: payeur, paye: true });
+  const [, fs3] = await lire(SOIREE);
+  const coche = fs3.terrain.payeurs.find((p) => p.playerId === payeur);
+  ok(rPaye.ok && coche?.aPaye === true, "« a payé » se coche depuis l'app", coche?.nom);
+  ok(
+    fs3.terrain.payeurs.findIndex((p) => p.playerId === payeur) ===
+      fs2.terrain.payeurs.findIndex((p) => p.playerId === payeur),
+    "…sans faire reculer le joueur dans la file",
+  );
+  ok(fs3.terrain.encaisse !== "0 €", "…et l'encaissé suit", fs3.terrain.encaisse);
+  await envoyer(`${SOIREE}/paye`, "POST", { playerId: payeur, paye: false });
+  const rPayeTordu = await envoyer(`${SOIREE}/paye`, "POST", { playerId: payeur, paye: "oui" });
+  ok(rPayeTordu.status === 400, "« paye » qui n'est pas un booléen : 400", `HTTP ${rPayeTordu.status}`);
+  await envoyer(`${SOIREE}/terrain`, "PUT", { prixCents: prixAvant });
+  const [, fs4] = await lire(SOIREE);
+  ok(fs4.terrain.prixCents === prixAvant, "…la caisse est remise comme on l'a trouvée", String(fs4.terrain.prixCents));
+
+  const SUIVANTE = `${C}/matchdays/soiree-essai-suivante/lineup`;
+  const [, compoAvant] = await lire(SUIVANTE);
+  const rPrec = await envoyer(`${SUIVANTE}/precedente`, "POST", {});
+  const prec = rPrec.ok ? await rPrec.json() : null;
+  const [, compoReprise] = await lire(SUIVANTE);
+  ok(
+    rPrec.ok && prec.reprises > 0 && compoReprise.lineup.length === prec.reprises,
+    "« Compo précédente » reprend les équipes de la dernière soirée préparée",
+    `${prec?.reprises} joueur(s)`,
+  );
+  await envoyer(SUIVANTE, "PUT", {
+    joueurs: compoAvant.lineup,
+    teamAName: compoAvant.matchDay.teamAName,
+    teamBName: compoAvant.matchDay.teamBName,
+  });
+  const [, compoRemise] = await lire(SUIVANTE);
+  ok(compoRemise.lineup.length === compoAvant.lineup.length, "…et la compo d'essai est remise", `${compoRemise.lineup.length}`);
+  const rPrecFantome = await envoyer(`${C}/matchdays/zzz-inexistant/lineup/precedente`, "POST", {});
+  ok(rPrecFantome.status === 404, "« Compo précédente » d'une soirée inconnue : 404", `HTTP ${rPrecFantome.status}`);
+
+  console.log("\n— les adversaires —");
+  const rAdv = await envoyer(`${C}/adversaires`, "POST", { nom: "  FC Essai Voisin  " });
+  const adv = rAdv.ok ? await rAdv.json() : null;
+  ok(rAdv.ok && adv?.adversaire?.nom === "FC Essai Voisin", "un adversaire s'ajoute depuis l'app, nom ébarbé", adv?.adversaire?.nom);
+  const rAdv2 = await envoyer(`${C}/adversaires`, "POST", { nom: "FC Essai Voisin" });
+  const adv2 = rAdv2.ok ? await rAdv2.json() : null;
+  ok(adv2?.adversaire?.id === adv?.adversaire?.id, "…le même nom rend le même adversaire, pas un doublon");
+  const [, advs] = await lire(`${C}/adversaires`);
+  ok(
+    advs.adversaires.filter((a) => a.nom === "FC Essai Voisin").length === 1 && advs.peutCreer === true,
+    "la liste le rend une seule fois",
+    `${advs.adversaires.length} adversaire(s)`,
+  );
+  const rAdvCourt = await envoyer(`${C}/adversaires`, "POST", { nom: "x" });
+  ok(rAdvCourt.status === 400, "un nom d'une lettre : 400", `HTTP ${rAdvCourt.status}`);
+
+  console.log("\n— stats et fiche, aligné sur le site —");
+  const [, st2] = await lire(`${C}/stats`);
+  ok(
+    st2.palmares.titres.every((t) => typeof t.nombre === "number" && (t.unite === null || typeof t.unite === "string")),
+    "le palmarès sépare le nombre de son unité",
+    st2.palmares.titres.map((t) => `${t.nombre}${t.unite ? " " + t.unite : ""}`).join(" / "),
+  );
+  const [, fj2] = await lire(`${C}/joueurs/joueur-essai-1`);
+  ok(
+    fj2.paliers.every((p) => typeof p.unite === "string" && p.libelle.includes(` ${p.reste} ${p.unite} `)),
+    "chaque palier dit son unité, accordée au reste",
+    fj2.paliers[0] ? `${fj2.paliers[0].reste} ${fj2.paliers[0].unite}` : "aucun",
+  );
+
+  // Les écritures neuves sont gardées comme les autres : un étranger au club
+  // reçoit 404, un membre ordinaire ne touche pas à la caisse.
+  if (intrus.ok) {
+    const hIntrus = { cookie: cookies(intrus), origin: ORIGINE, "content-type": "application/json" };
+    for (const [chemin, methode, corps] of [
+      [VOTE, "POST", { playerId: hommeAvant }],
+      [`${SOIREE}/terrain`, "PUT", { prixCents: 100 }],
+      [`${SOIREE}/paye`, "POST", { playerId: payeur, paye: true }],
+      [`${SUIVANTE}/precedente`, "POST", {}],
+      [`${C}/adversaires`, "POST", { nom: "Intrus FC" }],
+    ]) {
+      const res = await fetch(`${BASE}${chemin}`, { method: methode, headers: hIntrus, body: JSON.stringify(corps) });
+      ok(res.status === 404, `${methode} ${nom(chemin)} par un étranger : 404, pas 403`, `HTTP ${res.status}`);
+    }
+  }
+  if (membre.ok) {
+    const hMembre = { cookie: cookies(membre), origin: ORIGINE, "content-type": "application/json" };
+    const rMembrePrix = await fetch(`${BASE}${SOIREE}/terrain`, {
+      method: "PUT",
+      headers: hMembre,
+      body: JSON.stringify({ prixCents: 100 }),
+    });
+    ok(rMembrePrix.status === 403, "un membre ordinaire ne fixe pas le prix : 403", `HTTP ${rMembrePrix.status}`);
+    const rMembrePaye = await fetch(`${BASE}${SOIREE}/paye`, {
+      method: "POST",
+      headers: hMembre,
+      body: JSON.stringify({ playerId: payeur, paye: true }),
+    });
+    ok(rMembrePaye.status === 403, "…ni ne coche qui a payé : 403", `HTTP ${rMembrePaye.status}`);
+  }
 
   // --- 3 bis⁴. Rejoindre un club --------------------------------------------
   //

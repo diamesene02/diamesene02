@@ -24,6 +24,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   creerAppel,
+  creerAppelTexte,
   joindre,
   ErreurServeur,
   SessionExpiree,
@@ -470,5 +471,75 @@ describe("le 404 d'un club : l'app tranche au lieu de décrire", () => {
     const appel = creerAppel({ api: API, cookie: async () => COOKIE, fetch: s.faux });
     const e = (await appel(chemin).catch((x) => x)) as Error;
     expect(e.message).toMatch(/membre d'aucun club/);
+  });
+});
+
+describe("l'appel qui rend du texte (l'export CSV)", () => {
+  // L'export est la seule route de l'app qui ne parle pas JSON. Elle a
+  // longtemps posé son cookie dans son coin, dans `lib/api.ts` : le test
+  // « lib/api.ts délègue » ci-dessus l'interdit, celui-ci vérifie que ce
+  // qu'on a mis à la place fait bien le même travail.
+  const csv = "﻿Rang;Joueur\n1;Bakary\n";
+
+  it("pose le cookie, omet credentials, et demande du CSV", async () => {
+    const s = serveur(() => new Response(csv, { status: 200 }));
+    const appel = creerAppelTexte({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+
+    await appel("/api/clubs/c1/export?type=leaderboard&saison=all");
+
+    expect(s.recus[0].init?.credentials).toBe("omit");
+    expect(entetes(s.recus[0]).cookie).toBe(COOKIE);
+    expect(entetes(s.recus[0]).accept).toBe("text/csv");
+  });
+
+  it("rend le corps SANS le parser", async () => {
+    // Un `res.json()` ici lèverait sur le BOM : c'est tout l'intérêt d'avoir
+    // un appel à part plutôt qu'un drapeau sur celui du JSON.
+    //
+    // Le BOM, lui, n'arrive PAS jusqu'ici : `Response.text()` le mange (la
+    // spec fetch décode l'UTF-8 en retirant la marque d'ordre). C'est
+    // `chargerExportCsv` qui le repose — sans quoi Excel en français lit le
+    // fichier en latin-1. Ce test fige le fait que la couche transport ne le
+    // rend pas, pour que personne ne retire ce rattrapage en le croyant
+    // inutile.
+    const s = serveur(() => new Response(csv, { status: 200 }));
+    const appel = creerAppelTexte({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+
+    await expect(appel("/api/clubs/c1/export")).resolves.toBe(csv.replace("﻿", ""));
+  });
+
+  it("annonce la version du contrat comme l'appel JSON", async () => {
+    const s = serveur(() => new Response(csv, { status: 200 }));
+    const appel = creerAppelTexte({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+
+    await appel("/api/clubs/c1/export");
+
+    expect(entetes(s.recus[0])[ENTETE_PROTOCOLE]).toBe(String(PROTOCOLE_COURANT));
+  });
+
+  it("distingue la session finie des autres refus", async () => {
+    const s401 = serveur(() => new Response("", { status: 401 }));
+    const a401 = creerAppelTexte({ api: API, cookie: async () => COOKIE, fetch: s401.faux });
+    await expect(a401("/api/clubs/c1/export")).rejects.toBeInstanceOf(SessionExpiree);
+
+    // Un club où l'export est réservé aux gérants : c'est un refus, pas une
+    // déconnexion — l'écran doit le dire sans renvoyer au formulaire.
+    const s403 = serveur(() => new Response(JSON.stringify({ error: "forbidden" }), { status: 403 }));
+    const a403 = creerAppelTexte({ api: API, cookie: async () => COOKIE, fetch: s403.faux });
+    const e = (await a403("/api/clubs/c1/export").catch((x) => x)) as ErreurServeur;
+    expect(e).toBeInstanceOf(ErreurServeur);
+    expect(e.status).toBe(403);
+    expect(e.message).toContain("forbidden");
+  });
+
+  it("nomme l'adresse quand le serveur est injoignable", async () => {
+    const s = serveur(() => {
+      throw new Error("Network request failed");
+    });
+    const appel = creerAppelTexte({ api: API, cookie: async () => COOKIE, fetch: s.faux });
+    const e = (await appel("/api/clubs/c1/export").catch((x) => x)) as Error;
+
+    expect(e).not.toBeInstanceOf(SessionExpiree);
+    expect(e.message).toContain(API + "/api/clubs/c1/export");
   });
 });

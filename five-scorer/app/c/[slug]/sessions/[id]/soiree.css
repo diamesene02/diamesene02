@@ -500,3 +500,120 @@
 .soiree-rangee .statut.attente {
   color: var(--or);
 }
+
+/* ── Ergonomie : cibles tactiles, présences dans la compo, partage ──────── */
+
+/* Les cibles de moins de 44 px s'agrandissent sans changer le dessin : la
+   zone de tap déborde du segment, pas le segment de la carte. */
+.soiree-reponse-tete .segment > button,
+.soiree-compo .segment.plein-large > button {
+  position: relative;
+}
+.soiree-reponse-tete .segment > button::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+.soiree-compo .segment.plein-large > button::after {
+  content: "";
+  position: absolute;
+  inset: -3px 0;
+}
+.soiree-jeton {
+  height: 44px;
+  border-radius: 22px;
+  padding: 0 14px 0 8px;
+}
+.soiree-liens button {
+  min-height: 44px;
+}
+
+/* Qui vient, sur les jetons du « hors compo » et sur la pelouse. */
+.soiree-jeton.absent,
+.soiree-pelouse .pelouse-joueur.absent {
+  opacity: 0.45;
+}
+.soiree-pastille {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--i3);
+}
+.soiree-pastille.in {
+  background: var(--ok);
+  box-shadow: none;
+}
+.soiree-pastille.maybe {
+  background: var(--or);
+  box-shadow: none;
+}
+.soiree-pastille.out {
+  background: var(--bad);
+  box-shadow: none;
+}
+.soiree-hors .legende {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+}
+.soiree-placer {
+  min-height: 44px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.soiree-placer:active {
+  opacity: 0.7;
+}
+
+/* « Enregistrée » sous le titre, dans son padding : rien ne saute quand la
+   compo part toute seule. */
+.soiree-compo-titre {
+  position: relative;
+}
+.soiree-sauvegarde {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--i3);
+}
+
+.soiree-partage-etat {
+  width: 100%;
+  margin-top: 6px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--i2);
+}
+
+/* La soirée annulée, dite en tête plutôt que devinée. */
+.soiree-annulee {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--seg);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--i2);
+}
+.soiree-danger + .soiree-danger {
+  margin-top: 12px;
+}
+.soiree-danger .soiree-motif {
+  width: 100%;
+  margin-top: 10px;
+}

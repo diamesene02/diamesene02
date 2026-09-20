@@ -53,6 +53,10 @@ export default function Classement({
   /// La chasuble de chacun (celle de son dernier match) : elle colore
   /// l'anneau de l'avatar. Sans elle, l'anneau reste neutre.
   camps,
+  /// Le joueur du compte connecté : sa rangée porte « · toi ». Le mardi, on
+  /// ouvre les stats pour se trouver, pas pour lire le podium. La vitrine
+  /// publique et la soirée ne le passent pas : personne n'y est « toi ».
+  moi = null,
 }: {
   slug: string;
   lignes: LigneClassement[];
@@ -64,6 +68,7 @@ export default function Classement({
   pointsWin?: number;
   pointsDraw?: number;
   camps?: Record<string, "A" | "B" | undefined>;
+  moi?: string | null;
 }) {
   const ordre = trierParPoints(lignes, pointsWin, pointsDraw);
 
@@ -81,15 +86,23 @@ export default function Classement({
         <span>PTS</span>
       </div>
       {ordre.map((r, i) => {
+        const estMoi = moi != null && r.playerId === moi;
         const cellules = (
           <>
             <span>{i + 1}</span>
             <AvatarAnneau nom={r.name} photo={r.photo} camp={camps?.[r.playerId] ?? null} taille={30} />
+            {/* Le nom rogne à l'ellipse (la colonne fait ~104 px sur un
+                téléphone), « · toi » jamais : c'est le repère qu'on cherche
+                du regard. Ils sont donc deux éléments, pas un `::after` sur
+                la cellule tronquée. */}
             <span>
-              {r.name}
-              {r.isGuest && (
-                <span className="text-[color:var(--i3)]"> (inv.)</span>
-              )}
+              <span className="tableau-nom">
+                {r.name}
+                {r.isGuest && (
+                  <span className="text-[color:var(--i3)]"> (inv.)</span>
+                )}
+              </span>
+              {estMoi && <span className="toi"> · toi</span>}
             </span>
             <span>{r.matchesPlayed}</span>
             <span>{r.wins}</span>
@@ -99,16 +112,17 @@ export default function Classement({
             <span>{points(r, pointsWin, pointsDraw)}</span>
           </>
         );
+        const classe = estMoi ? "tableau-rangee moi" : "tableau-rangee";
         return avecFiches ? (
           <Link
             key={r.playerId}
             href={`/c/${slug}/players/${r.playerId}`}
-            className="tableau-rangee"
+            className={classe}
           >
             {cellules}
           </Link>
         ) : (
-          <div key={r.playerId} className="tableau-rangee">
+          <div key={r.playerId} className={classe}>
             {cellules}
           </div>
         );

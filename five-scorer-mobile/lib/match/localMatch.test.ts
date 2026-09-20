@@ -1209,6 +1209,37 @@ describe("pendingOpsForMatch", () => {
   });
 });
 
+describe("blockedOpsForMatch", () => {
+  it("sépare les refusées de CE match de ce qui attend encore", async () => {
+    const d = await decor();
+    const m1 = await matchDuSoir(d);
+    await d.local.addEvent(m1, { type: "GOAL", team: "A", playerId: "j1" });
+    const m2 = await d.local.launchScheduledMatch({
+      id: "m2",
+      clubId: CLUB,
+      kind: "INTERNAL",
+      teamAName: "Rouges",
+      teamBName: "Bleus",
+      teamA: [{ playerId: "j1", isGk: false }],
+      teamB: [{ playerId: "j3", isGk: false }],
+    });
+    // Le serveur refuse une opération du premier match : `bloquerChaine` met
+    // toute SA chaîne de côté, et seulement la sienne.
+    await d.base.executer("UPDATE outbox SET blocked_at = ? WHERE match_id = ?", [
+      COUP_ENVOI,
+      m1,
+    ]);
+
+    // C'est cette différence que l'écran de fin de match attendait : sans
+    // elle, il promettait « le récap s'ouvre dès qu'elle y est » sur une
+    // feuille qui ne partirait jamais.
+    expect(await d.local.pendingOpsForMatch(m1)).toBe(2);
+    expect(await d.local.blockedOpsForMatch(m1)).toBe(2);
+    expect(await d.local.blockedOpsForMatch(m2)).toBe(0);
+    expect(await d.local.pendingOpsForMatch(m2)).toBe(1);
+  });
+});
+
 describe("getLocalMatch", () => {
   it("rend la chronologie dans l'ordre, avec les noms", async () => {
     const d = await decor();

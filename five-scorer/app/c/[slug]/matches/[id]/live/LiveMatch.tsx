@@ -11,6 +11,13 @@ import Icon from "@/components/Icon";
 import Ecusson from "@/components/ios/Ecusson";
 import { lettre } from "@/lib/ini";
 import { estRetro } from "@/lib/retro";
+import { abandonnerMatch } from "@/app/actions/matches";
+import {
+  amorcerDepuisServeur,
+  creationEnAttente,
+  oublierMatchLocal,
+  type Amorce,
+} from "./feuilleLocale";
 import "./live.css";
 import {
   addEvent,
@@ -23,7 +30,6 @@ import {
   setEventAssist,
   saveRoster,
   setEventScorer,
-  undoLastGoalOf,
   type LivePlayer,
 } from "@/lib/localMatch";
 import { kickSync } from "@/lib/sync";
@@ -66,6 +72,44 @@ type Invite =
   | { kind: "csc"; eventId: string; conceding: "A" | "B" };
 
 const DUREE_INVITE_MS = 15000;
+
+/// Le temps de revenir sur un « Annuler » de trop.
+const DUREE_RETOUR_MS = 5000;
+
+type EvenementAffiche = {
+  id: string;
+  type: "GOAL" | "OWN_GOAL" | "YELLOW_CARD" | "RED_CARD" | "HALF_TIME";
+  team: "A" | "B";
+  playerId: string | null;
+  assistPlayerId?: string | null;
+  minute: number | null;
+  playerName: string | null;
+};
+
+/// Ce que retire le bouton « Annuler » du pied, en deux mots sous le verbe.
+function quoiAnnuler(e: EvenementAffiche | undefined): string | null {
+  if (!e) return null;
+  if (e.type === "GOAL" || e.type === "OWN_GOAL") return "le but";
+  if (e.type === "HALF_TIME") return "la mi-temps";
+  return "le carton";
+}
+
+/// La phrase de la barre « … retiré · Rétablir ».
+function phraseRetrait(e: EvenementAffiche, nomCamp: string): string {
+  const qui = e.playerName ?? nomCamp;
+  const min = e.minute != null ? ` (${e.minute}′)` : "";
+  if (e.type === "GOAL") return `But de ${qui}${min} retiré`;
+  if (e.type === "OWN_GOAL") {
+    return `Csc${e.playerName ? ` de ${e.playerName}` : ""}${min} retiré`;
+  }
+  if (e.type === "HALF_TIME") return "Mi-temps retirée";
+  return `Carton ${e.type === "YELLOW_CARD" ? "jaune" : "rouge"} de ${qui}${min} retiré`;
+}
+
+type VerrouEcran = { release: () => Promise<void> };
+type NavigateurVerrou = Navigator & {
+  wakeLock?: { request: (type: "screen") => Promise<VerrouEcran> };
+};
 
 type FicheJoueur = {
   id: string;
@@ -125,6 +169,13 @@ export default function LiveMatch({
   // Le retardataire : les joueurs du club absents de la feuille de ce match.
   const [vivier, setVivier] = useState<{ id: string; name: string }[]>([]);
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
+  // Le dernier événement retiré, le temps de le rétablir.
+  const [retire, setRetire] = useState<EvenementAffiche | null>(null);
+  const retourTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // La feuille absente de ce téléphone : on va la chercher au serveur.
+  const [amorce, setAmorce] = useState<Amorce | "encours" | null>(null);
+  const [abandonEnCours, setAbandonEnCours] = useState(false);
+  const abandonne = useRef(false);
 
   useEffect(() => {
     setSoundOn(isSoundEnabled());
@@ -139,9 +190,56 @@ export default function LiveMatch({
     () => () => {
       if (inviteTimer.current) clearTimeout(inviteTimer.current);
       if (moveTimer.current) clearTimeout(moveTimer.current);
+      if (retourTimer.current) clearTimeout(retourTimer.current);
     },
     []
   );
+
+  // L'écran reste allumé tant que le match est en cours. Sur iPhone, il se
+  // verrouillait au bout de trente secondes : celui qui tient la feuille
+  // déverrouillait à chaque but. Le verrou tombe quand l'onglet passe en
+  // arrière-plan — on le redemande au retour. Sans l'API (vieux navigateur,
+  // batterie faible), rien ne se passe, et rien ne doit le dire.
+  const enCours = data?.match?.status === "LIVE";
+  useEffect(() => {
+    const nav = navigator as NavigateurVerrou;
+    if (!enCours || !nav.wakeLock) return;
+    let actif = true;
+    let verrou: VerrouEcran | null = null;
+    const demander = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const v = await nav.wakeLock!.request("screen");
+        if (actif) verrou = v;
+        else void v.release().catch(() => {});
+      } catch {
+        /* refusé : on n'insiste pas */
+      }
+    };
+    void demander();
+    const auRetour = () => void demander();
+    document.addEventListener("visibilitychange", auRetour);
+    return () => {
+      actif = false;
+      document.removeEventListener("visibilitychange", auRetour);
+      void verrou?.release().catch(() => {});
+    };
+  }, [enCours]);
+
+  // Lancée sur un autre téléphone (ou dans l'app), la feuille n'est pas dans
+  // la mémoire de celui-ci : on la fait descendre, une fois.
+  const chercherFeuille = useCallback(async () => {
+    setAmorce("encours");
+    const r = await amorcerDepuisServeur(clubId, matchId);
+    if (r === "terminee") {
+      router.replace(`/c/${slug}/matches/${matchId}`);
+      return;
+    }
+    setAmorce(r);
+  }, [clubId, matchId, router, slug]);
+  useEffect(() => {
+    if (data === null && amorce === null && !abandonne.current) void chercherFeuille();
+  }, [data, amorce, chercherFeuille]);
 
   // --- Chrono persistant ---------------------------------------------------
   // Source de vérité : les champs clock* de la ligne Dexie du match (arrivent
@@ -292,6 +390,10 @@ export default function LiveMatch({
   /// l'ancienne : une seule barre peut exister à la fois.
   const ouvrirInvite = useCallback((i: Invite) => {
     if (inviteTimer.current) clearTimeout(inviteTimer.current);
+    // Une seule barre en bas : la question du nouveau but chasse le
+    // « Rétablir » de l'annulation précédente.
+    if (retourTimer.current) clearTimeout(retourTimer.current);
+    setRetire(null);
     setInvite(i);
     // Assez long pour célébrer le but avant de répondre.
     inviteTimer.current = setTimeout(() => setInvite(null), DUREE_INVITE_MS);
@@ -330,20 +432,68 @@ export default function LiveMatch({
     [matchId, ouvrirInvite, fermerInvite, settings.trackAssists, liveMinute]
   );
 
-  const removeGoal = useCallback(
-    async (playerId: string) => {
+  /// Le seul chemin qui retire un événement : il dit ce qui part, et laisse
+  /// cinq secondes pour le rétablir. Un tap de trop faisait disparaître un but
+  /// sans trace — et sur iPhone, pas même une vibration.
+  const retirer = useCallback(
+    async (e: EvenementAffiche) => {
       try {
-        const removedId = await undoLastGoalOf(matchId, playerId);
-        if (!removedId) setError("Aucun but à annuler pour ce joueur");
-        else {
-          setInvite((i) => (i?.eventId === removedId ? null : i));
-          void kickSync();
+        const ok = await removeEvent(matchId, e.id);
+        if (!ok) return;
+        if (e.type === "HALF_TIME") {
+          await getDb().matches.update(matchId, { period: 1 });
+          setHalftimeJustSet(false);
         }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erreur");
+        if (navigator.vibrate) navigator.vibrate(30);
+        fermerInvite();
+        if (retourTimer.current) clearTimeout(retourTimer.current);
+        setRetire(e);
+        retourTimer.current = setTimeout(() => setRetire(null), DUREE_RETOUR_MS);
+        void kickSync();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erreur");
       }
     },
-    [matchId]
+    [matchId, fermerInvite]
+  );
+
+  /// Rétablir : l'événement revient tel quel — même camp, même joueur, même
+  /// passe, même minute. Il porte un nouvel identifiant : l'ancien est déjà
+  /// parti au serveur comme supprimé.
+  async function retablir() {
+    const e = retire;
+    if (!e) return;
+    if (retourTimer.current) clearTimeout(retourTimer.current);
+    setRetire(null);
+    try {
+      await addEvent(matchId, {
+        type: e.type,
+        team: e.team,
+        playerId: e.playerId,
+        assistPlayerId: e.assistPlayerId ?? null,
+        minute: e.minute,
+      });
+      if (e.type === "HALF_TIME") {
+        await getDb().matches.update(matchId, { period: 2 });
+      }
+      void kickSync();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    }
+  }
+
+  const removeGoal = useCallback(
+    async (playerId: string) => {
+      const dernier = [...(data?.events ?? [])]
+        .reverse()
+        .find((e) => e.playerId === playerId && e.type === "GOAL");
+      if (!dernier) {
+        setError("Aucun but à annuler pour ce joueur");
+        return;
+      }
+      await retirer(dernier);
+    },
+    [data, retirer]
   );
 
   const addOpponentGoal = useCallback(async () => {
@@ -383,10 +533,8 @@ export default function LiveMatch({
       setError("Aucun but adverse à annuler");
       return;
     }
-    await removeEvent(matchId, last.id);
-    setInvite((i) => (i?.eventId === last.id ? null : i));
-    void kickSync();
-  }, [data, matchId]);
+    await retirer(last);
+  }, [data, retirer]);
 
   /// Contre son camp : le score d'abord, le nom ensuite.
   ///
@@ -524,18 +672,42 @@ export default function LiveMatch({
   /// long sur un joueur reste le chemin précis pour SON dernier but.
   async function annulerDernier() {
     if (!data || data.events.length === 0) return;
-    const e = data.events[data.events.length - 1];
+    await retirer(data.events[data.events.length - 1]);
+  }
+
+  /// « Abandonner ce match » : il ne comptera nulle part.
+  ///
+  /// Si sa création n'est jamais partie (lancé hors ligne), tout se règle sur
+  /// le téléphone. Sinon c'est le serveur qui tranche d'abord — la feuille
+  /// locale n'est effacée qu'une fois l'abandon accepté, pour ne jamais
+  /// laisser au serveur un match en cours que plus personne n'a en main.
+  async function abandonner() {
+    setAbandonEnCours(true);
+    setError(null);
     try {
-      await removeEvent(matchId, e.id);
-      setInvite((i) => (i?.eventId === e.id ? null : i));
-      if (e.type === "HALF_TIME") {
-        await getDb().matches.update(matchId, { period: 1 });
-        setHalftimeJustSet(false);
+      const jamaisEnvoye = await creationEnAttente(matchId);
+      if (!jamaisEnvoye) {
+        const res = await abandonnerMatch(slug, matchId);
+        if (!res.ok) {
+          setAbandonEnCours(false);
+          setConfirmOpen(false);
+          setError(res.error);
+          return;
+        }
       }
-      if (navigator.vibrate) navigator.vibrate(30);
+      abandonne.current = true;
+      await oublierMatchLocal(matchId);
+      // Filet : une création en vol au moment du tap arrive quand même au
+      // serveur. Sans réseau, l'appel échoue et il n'y a rien à rattraper.
+      if (jamaisEnvoye) void abandonnerMatch(slug, matchId).catch(() => {});
       void kickSync();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
+      router.replace(`/c/${slug}`);
+    } catch {
+      setAbandonEnCours(false);
+      setConfirmOpen(false);
+      setError(
+        "Pas de réseau : ce match est déjà parti au serveur, il faut du réseau pour l'abandonner.",
+      );
     }
   }
 
@@ -547,22 +719,46 @@ export default function LiveMatch({
     );
   }
   if (data === null) {
+    if (amorce === null || amorce === "encours" || amorce === "amorcee" || abandonne.current) {
+      return (
+        <main className="live fond-match" style={{ display: "grid", placeItems: "center", color: "rgba(255,255,255,.6)" }}>
+          Chargement…
+        </main>
+      );
+    }
+    const injoignable = amorce === "injoignable";
     return (
       <main className="live fond-match" style={{ display: "grid", placeItems: "center" }}>
         <div className="mx-auto max-w-md p-6 text-center">
-          <h1 className="mb-2 text-[22px] font-semibold">Match introuvable</h1>
+          <h1 className="mb-2 text-[22px] font-semibold">
+            {injoignable ? "Pas de réseau" : "Match introuvable"}
+          </h1>
           <p className="mb-6 text-[15px] text-[rgba(255,255,255,.62)]">
-            Ce match n&apos;existe pas dans la mémoire locale de cet appareil.
+            {injoignable
+              ? "Cette feuille n'est pas sur ce téléphone : elle a été ouverte sur un autre. Il faut du réseau pour la reprendre ici."
+              : "Ce match n'existe plus. Il a peut-être été abandonné ou supprimé."}
           </p>
-          <button onClick={() => router.replace(`/c/${slug}`)} className="plein">
-            Retour
-          </button>
+          <div className="flex flex-col gap-2.5">
+            {injoignable && (
+              <button type="button" onClick={() => void chercherFeuille()} className="plein">
+                Réessayer
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => router.replace(`/c/${slug}`)}
+              className={injoignable ? "verre grand" : "plein"}
+            >
+              Accueil du club
+            </button>
+          </div>
         </div>
       </main>
     );
   }
 
   const { match, teamA, teamB, events } = data;
+  const dernier: EvenementAffiche | undefined = events[events.length - 1];
   // Même raison : tant que le slate est à l'écran, le composant doit rester
   // monté pour le rendre.
   if (match.status === "FINISHED" && !tempsPlein) return null;
@@ -572,6 +768,8 @@ export default function LiveMatch({
   /// Feuille d'un match déjà joué : pas de chrono, pas de mi-temps, pas de
   /// pause — il ne reste que les buts et le bouton d'enregistrement.
   const retro = estRetro(match.playedAt);
+  /// Tant qu'aucun but n'est marqué, abandonner ne fait rien perdre.
+  const sansBut = !events.some((e) => e.type === "GOAL" || e.type === "OWN_GOAL");
   const aLead = match.scoreA > match.scoreB;
   const bLead = match.scoreB > match.scoreA;
   const sheetPlayers: LivePlayer[] =
@@ -879,11 +1077,26 @@ export default function LiveMatch({
       </div>
 
       <div className="live-pied">
-        <button type="button" onClick={annulerDernier} className="verre grand" disabled={events.length === 0} aria-label="Annuler le dernier événement">
+        {/* « Annuler » seul se lisait « annuler le match » : le bouton dit ce
+            qu'il retire, en petit sous le verbe pour garder sa largeur. */}
+        <button
+          type="button"
+          onClick={annulerDernier}
+          className="verre grand"
+          disabled={events.length === 0}
+          aria-label={
+            dernier
+              ? `Annuler ${quoiAnnuler(dernier)}${dernier.playerName ? ` de ${dernier.playerName}` : ""}`
+              : "Rien à annuler"
+          }
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M4 9h11a5 5 0 0 1 0 10H8" /><path d="M8 4.5L3.5 9 8 13.5" />
           </svg>
-          Annuler
+          <span className="live-annuler">
+            Annuler
+            {quoiAnnuler(dernier) && <span className="quoi">{quoiAnnuler(dernier)}</span>}
+          </span>
         </button>
         {!retro && (
           <button type="button" onClick={toggleClock} className="verre grand pause">
@@ -898,6 +1111,17 @@ export default function LiveMatch({
       {/* Une seule barre d'invite, jamais deux : passe décisive ou auteur d'un
           csc. Non bloquante — elle s'efface toute seule si personne ne répond,
           et le score n'a jamais attendu la réponse. */}
+      {retire && !invite && (
+        <div className="live-invite live-retour" role="status" aria-live="polite">
+          <span className="phrase">
+            {phraseRetrait(retire, retire.team === "B" ? match.teamBName : match.teamAName)}
+          </span>
+          <button type="button" onClick={retablir} className="verre">
+            Rétablir
+          </button>
+        </div>
+      )}
+
       {invite && inviteCandidats.length > 0 && (
         <div className="live-invite">
           <div className="titre">{inviteTitre}</div>
@@ -954,15 +1178,7 @@ export default function LiveMatch({
                   <button
                     type="button"
                     className="annuler"
-                    onClick={async () => {
-                      await removeEvent(matchId, e.id);
-                      setInvite((i) => (i?.eventId === e.id ? null : i));
-                      if (e.type === "HALF_TIME") {
-                        await getDb().matches.update(matchId, { period: 1 });
-                        setHalftimeJustSet(false);
-                      }
-                      void kickSync();
-                    }}
+                    onClick={() => void retirer(e)}
                   >
                     Annuler
                   </button>
@@ -998,6 +1214,12 @@ export default function LiveMatch({
         <div className="live-voile centre" onClick={(e) => { if (e.target === e.currentTarget) setConfirmOpen(false); }}>
           <div className="live-confirm">
             <h2>{retro ? "Enregistrer cette feuille ?" : "Terminer ce match ?"}</h2>
+            {sansBut && (
+              <p className="live-confirm-aide">
+                Aucun but : un 0–0 comptera dans les stats de chacun. Lancé par
+                erreur ? Abandonne-le, il ne comptera nulle part.
+              </p>
+            )}
             <div className="boutons">
               <button type="button" onClick={() => setConfirmOpen(false)} className="verre grand">
                 Pas encore
@@ -1006,6 +1228,16 @@ export default function LiveMatch({
                 {retro ? "Enregistrer" : "Terminer"}
               </button>
             </div>
+            {sansBut && (
+              <button
+                type="button"
+                onClick={() => void abandonner()}
+                disabled={abandonEnCours}
+                className="plein danger live-abandon"
+              >
+                {abandonEnCours ? "…" : "Abandonner ce match"}
+              </button>
+            )}
           </div>
         </div>
       )}

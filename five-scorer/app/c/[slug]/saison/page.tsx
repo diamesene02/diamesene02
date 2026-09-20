@@ -73,6 +73,9 @@ export default async function SaisonPage({
 
   const noms = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
   const now = Date.now();
+  // Un abonné est compté présent sans rien dire : lui afficher « Répondre »
+  // lui faisait croire qu'il n'était pas inscrit.
+  const moiAbonne = moi ? (vivier.find((j) => j.id === moi.id)?.abonne ?? false) : false;
 
   // Les matchs sans soirée des six dernières semaines, en une requête pour
   // tout le calendrier (spec 0007).
@@ -101,7 +104,6 @@ export default async function SaisonPage({
       (m) => m.status === "FINISHED" || m.status === "LIVE",
     ).length;
     const direct = md.matches.some((m) => m.status === "LIVE");
-    const reponses = md.rsvps.filter((r) => r.status !== null).length;
     const maReponse = moi ? md.rsvps.find((r) => r.playerId === moi.id) : null;
     const passee = md.date.getTime() < now - 6 * 3600_000 && !direct;
     let sous = md.location ?? md.title ?? "";
@@ -168,7 +170,7 @@ export default async function SaisonPage({
       // calendrier de quarante lundis, le même mot répété jusqu'en juillet ne
       // dit plus rien.
       const bientot = md.date.getTime() - now < 15 * 86400_000;
-      if (moi && !maReponse && bientot) {
+      if (moi && !maReponse && !moiAbonne && bientot) {
         etiquette = "Répondre";
         ton = "appel";
       } else {

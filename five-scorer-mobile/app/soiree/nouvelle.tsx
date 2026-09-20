@@ -1,57 +1,78 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ecran from "../../composants/Ecran";
-import { BoutonPlein, BoutonRond, Carte, Champ } from "../../composants/base";
-import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
-import {
-  chargerMoi,
-  creerSoiree,
-  SessionExpiree,
-  type ClubDeMoi,
-} from "../../lib/api";
+import EnTeteClub from "../../composants/EnTeteClub";
+import { BoutonPlein, CarteVerre, Saisie } from "../../composants/base";
+import { chargerMoiMemorise, useClubMemorise } from "../../composants/ClubCourant";
+import ChampDate from "../../composants/soiree/ChampDate";
+import { cleLocale, prochaineDateDeJeu, quandRelatif } from "../../composants/soiree/logique";
+import { jeton, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
+import { avertissement, succes } from "../../lib/haptique";
+import { messageErreur } from "../../lib/erreurs";
+import { chargerSoirees, creerSoiree, SessionExpiree, type ClubDeMoi } from "../../lib/api";
 
-/// « Ajouter une soirée » — un lundi de plus au calendrier.
+/// « Programmer une soirée » — un créneau de plus au calendrier.
 ///
 /// Le geste courant n'est pas celui-ci : un club qui joue toutes les semaines
-/// pose sa saison entière d'un coup (« Poser toute la saison »). Cet écran
-/// sert au lundi en trop — un tournoi, un rattrapage, un vendredi de fin
-/// d'année. D'où sa brièveté : la date, le lieu, un titre facultatif.
+/// pose sa saison entière d'un coup. Cet écran sert au soir en plus — un
+/// tournoi, un rattrapage, un vendredi de fin d'année.
+///
+/// La date proposée est celle du site : le prochain jour de jeu du club, à
+/// son heure habituelle, sans doubler une soirée déjà posée ; le lieu est
+/// celui de la dernière soirée. L'écran partait du « prochain lundi 20 h » et
+/// d'un lieu vide, quel que soit le club : on corrigeait les deux à chaque
+/// fois.
 export default function NouvelleSoiree() {
   const { clubId, lieu: lieuInitial } = useLocalSearchParams<{
     clubId?: string;
     lieu?: string;
   }>();
+  const memo = useClubMemorise(clubId);
   const [club, setClub] = useState<ClubDeMoi | null>(null);
-  const [date, setDate] = useState(prochainLundi);
-  const [ouvrePicker, setOuvrePicker] = useState(false);
+  const [date, setDate] = useState(() =>
+    prochaineDateDeJeu({ modele: null, prises: [], maintenant: new Date() }),
+  );
   const [lieu, setLieu] = useState(lieuInitial ?? "");
   const [titre, setTitre] = useState("");
-  const [occupe, setOccupe] = useState(true);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  // Ce que la personne a déjà touché ne se fait pas écraser par la
+  // proposition qui arrive du réseau une seconde plus tard.
+  const touche = useRef({ date: false, lieu: Boolean(lieuInitial) });
 
-  const t: Jetons = club?.theme.sombre ?? JETONS_NEUTRES;
+  const c = club ?? memo;
+  const t: Jetons = c?.theme.sombre ?? JETONS_NEUTRES;
 
   const charger = useCallback(async () => {
     if (!clubId) return;
     try {
-      const moi = await chargerMoi();
-      setClub(moi.clubs.find((c) => c.id === clubId) ?? null);
+      const [moi, soirees] = await Promise.all([
+        chargerMoiMemorise().catch(() => null),
+        chargerSoirees(clubId).catch(() => null),
+      ]);
+      if (moi) setClub(moi.clubs.find((x) => x.id === clubId) ?? null);
+      if (!soirees) return;
+      const toutes = [...soirees.prochaines, ...soirees.reste, ...soirees.passees].flatMap(
+        (g) => g.soirees,
+      );
+      const valides = toutes.filter((so) => !so.annulee);
+      const derniere = valides.reduce<(typeof valides)[number] | null>(
+        (d, so) => (!d || so.date > d.date ? so : d),
+        null,
+      );
+      if (!touche.current.date) {
+        setDate(
+          prochaineDateDeJeu({
+            modele: derniere ? new Date(derniere.date) : null,
+            prises: toutes.filter((so) => so.aVenir).map((so) => cleLocale(new Date(so.date))),
+            maintenant: new Date(),
+          }),
+        );
+      }
+      if (!touche.current.lieu && derniere?.lieu) setLieu(derniere.lieu);
     } catch (e) {
-      if (e instanceof SessionExpiree) return router.replace("/connexion");
-      setErreur(e instanceof Error ? e.message : String(e));
-    } finally {
-      setOccupe(false);
+      if (e instanceof SessionExpiree) router.replace("/connexion");
     }
   }, [clubId]);
 
@@ -60,7 +81,7 @@ export default function NouvelleSoiree() {
   }, [charger]);
 
   async function creer() {
-    if (!clubId) return;
+    if (!clubId || envoi) return;
     setEnvoi(true);
     setErreur(null);
     try {
@@ -69,126 +90,107 @@ export default function NouvelleSoiree() {
         lieu: lieu.trim() || undefined,
         titre: titre.trim() || undefined,
       });
-      // On part droit sur la soirée créée : c'est là qu'on répond présent et
-      // qu'on prépare la compo, et c'est pour ça qu'on vient de la créer.
+      succes();
+      // Sur la soirée créée : c'est là que le capitaine enchaîne — la compo,
+      // l'envoi sur le groupe.
       router.replace({ pathname: "/soiree/[id]", params: { id: r.soireeId, clubId } });
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : String(e));
+      if (e instanceof SessionExpiree) return router.replace("/connexion");
+      avertissement();
+      setErreur(messageErreur(e));
       setEnvoi(false);
     }
   }
 
-  const couleurA = club?.couleurA ?? "#ffffff";
-  const couleurB = club?.couleurB ?? "#111111";
+  const relatif = quandRelatif(date);
 
   return (
-    <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
-      <ScrollView contentContainerStyle={s.contenu} keyboardShouldPersistTaps="handled">
-        <View style={s.barre}>
-          <BoutonRond t={t} symbole="‹" etiquette="Retour" onPress={() => router.back()} />
-        </View>
+    <Ecran t={t} chasubles={c ? { a: c.couleurA, b: c.couleurB } : undefined}>
+      <ScrollView contentContainerStyle={s.defile} keyboardShouldPersistTaps="handled">
+        <EnTeteClub t={t} club={c} clubId={clubId} />
 
-        <Text style={[s.titre, { color: t.ink }]}>Ajouter une soirée</Text>
-
-        {occupe && (
-          <View style={s.centre}>
-            <ActivityIndicator color={t.ink} />
+        <View style={s.contenu}>
+          <View style={s.tete}>
+            <Text style={[s.kicker, { color: jeton(t, "i2") }]}>Organisation</Text>
+            <Text style={[s.titre, { color: t.ink }]} accessibilityRole="header">
+              Programmer une soirée
+            </Text>
+            <Text style={[s.chapeau, { color: t.ink }]}>
+              La soirée five : une date, un lieu, et chacun répond présent.
+            </Text>
           </View>
-        )}
 
-        {!occupe && (
-          <>
-            <Carte t={t} style={{ marginTop: 18 }}>
-              <Text style={[s.libelle, { color: t.i2 }]}>QUAND</Text>
-              <Pressable onPress={() => setOuvrePicker(true)}>
-                <Text style={[s.dateChoisie, { color: t.ink, borderColor: t.cb }]}>
-                  {date.toLocaleDateString("fr-FR", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                  })}
-                  {" · "}
-                  {date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                </Text>
-              </Pressable>
-              {(ouvrePicker || Platform.OS === "ios") && (
-                <DateTimePicker
-                  value={date}
-                  mode="datetime"
-                  display={Platform.OS === "ios" ? "compact" : "default"}
-                  themeVariant="dark"
-                  locale="fr-FR"
-                  onChange={(_, d) => {
-                    setOuvrePicker(Platform.OS === "ios");
-                    if (d) setDate(d);
-                  }}
-                />
-              )}
-            </Carte>
+          <CarteVerre t={t} style={s.carte}>
+            <Text style={[s.kicker, s.libelle, { color: jeton(t, "i2") }]}>Date &amp; heure</Text>
+            <ChampDate
+              t={t}
+              valeur={date}
+              etiquette="Date et heure de la soirée"
+              onChange={(d) => {
+                touche.current.date = true;
+                setDate(d);
+              }}
+            />
+            {relatif && (
+              <Text style={[s.relatif, { color: jeton(t, "i2") }]}>{relatif}</Text>
+            )}
 
-            <Carte t={t} style={{ marginTop: 14 }}>
-              <Champ
-                t={t}
-                libelle="OÙ"
-                value={lieu}
-                onChangeText={setLieu}
-                placeholder="Urban Soccer, terrain 3…"
-                autoCapitalize="sentences"
-              />
-              <View style={{ height: 14 }} />
-              <Champ
-                t={t}
-                libelle="TITRE (FACULTATIF)"
-                value={titre}
-                onChangeText={setTitre}
-                placeholder="Tournoi de fin d'année…"
-                autoCapitalize="sentences"
-              />
-            </Carte>
+            <Text style={[s.kicker, s.libelle, s.suivant, { color: jeton(t, "i2") }]}>Titre</Text>
+            <Saisie
+              t={t}
+              value={titre}
+              onChangeText={setTitre}
+              placeholder="Five du jeudi"
+              autoCapitalize="sentences"
+              accessibilityLabel="Titre de la soirée"
+            />
 
-            {erreur && <Text style={[s.erreur, { color: t.bad }]}>{erreur}</Text>}
+            <Text style={[s.kicker, s.libelle, s.suivant, { color: jeton(t, "i2") }]}>Lieu</Text>
+            <Saisie
+              t={t}
+              value={lieu}
+              onChangeText={(v) => {
+                touche.current.lieu = true;
+                setLieu(v);
+              }}
+              placeholder="Urban Soccer…"
+              autoCapitalize="sentences"
+              returnKeyType="done"
+              accessibilityLabel="Lieu de la soirée"
+            />
 
-            <View style={{ height: 18 }} />
+            {erreur && <Text style={[s.erreur, { color: jeton(t, "bad") }]}>{erreur}</Text>}
+
             <BoutonPlein
               t={t}
-              titre={envoi ? "On ajoute…" : "Ajouter au calendrier"}
-              onPress={creer}
-              disabled={envoi}
+              grand
+              titre={envoi ? "Création…" : "Programmer la soirée"}
+              occupe={envoi}
+              onPress={() => void creer()}
+              style={{ marginTop: 22 }}
             />
-          </>
-        )}
+            <Text style={[s.note, { color: jeton(t, "i2") }]}>
+              Les membres répondront présent depuis l&apos;accueil ; au lancement du match, le
+              générateur reprend les présents.
+            </Text>
+          </CarteVerre>
+        </View>
       </ScrollView>
     </Ecran>
   );
 }
 
-/// Le prochain lundi à 20 h — le modèle du club. Si on est déjà lundi mais
-/// avant l'heure, c'est aujourd'hui ; sinon la semaine prochaine.
-function prochainLundi(): Date {
-  const d = new Date();
-  d.setSeconds(0, 0);
-  const jours = (1 - d.getDay() + 7) % 7;
-  const cible = new Date(d);
-  cible.setDate(d.getDate() + jours);
-  cible.setHours(20, 0, 0, 0);
-  if (cible.getTime() <= Date.now()) cible.setDate(cible.getDate() + 7);
-  return cible;
-}
-
 const s = StyleSheet.create({
-  contenu: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 60 },
-  barre: { flexDirection: "row", paddingBottom: 12 },
-  titre: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5, paddingHorizontal: 4 },
-  centre: { paddingTop: 60, alignItems: "center" },
-  libelle: { fontSize: 13, fontWeight: "600", letterSpacing: 0.4, paddingBottom: 8 },
-  dateChoisie: {
-    fontSize: 17,
-    fontWeight: "600",
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    textTransform: "capitalize",
-  },
-  erreur: { fontSize: 15, textAlign: "center", paddingTop: 16 },
+  defile: { paddingBottom: 60 },
+  contenu: { paddingHorizontal: 14 },
+  tete: { paddingHorizontal: 4, paddingTop: 16 },
+  kicker: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },
+  titre: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4, lineHeight: 31, marginTop: 4 },
+  chapeau: { fontSize: 14, lineHeight: 20, marginTop: 12 },
+  carte: { marginTop: 24, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20 },
+  libelle: { marginBottom: 8 },
+  suivant: { marginTop: 20 },
+  relatif: { fontSize: 13, marginTop: 6 },
+  erreur: { fontSize: 15, marginTop: 14 },
+  note: { fontSize: 13, lineHeight: 18, marginTop: 14 },
 });

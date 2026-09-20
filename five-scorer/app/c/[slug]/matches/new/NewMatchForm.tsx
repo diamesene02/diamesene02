@@ -149,7 +149,10 @@ export default function NewMatchForm({
     // Une soirée est stockée à la date du jour, souvent à minuit : l'heure de
     // coup d'envoi du club est plus juste que 00:00 pour trier les matchs.
     if (d.getHours() === 0 && d.getMinutes() === 0) d.setHours(20, 0, 0, 0);
-    setQuand(valeurLocale(d));
+    // Le jour même, avant l'heure de la soirée : l'heure prévue est encore
+    // devant nous, et le formulaire la refuserait au dernier tap.
+    const maintenant = new Date();
+    setQuand(valeurLocale(d.getTime() > maintenant.getTime() ? maintenant : d));
   }, [dateSoiree]);
 
   const sortedPlayers = useMemo(
@@ -432,7 +435,8 @@ export default function NewMatchForm({
                   {p.isGuest && <span style={{ color: "var(--i3)" }}> (inv.)</span>}
                   {p.isGk && <span style={{ color: "var(--i3)" }}> · gardien</span>}
                 </span>
-                <span className="aide">Niveau {p.skill ?? 3}</span>
+                {/* « Note » : « Niveau » est réservé au niveau d'expérience. */}
+                <span className="aide">Note {p.skill ?? 3}</span>
               </span>
               <span className="valeur" style={{ fontWeight: 600, color: a === "none" ? "var(--i3)" : "var(--ink)" }}>
                 {a === "none" ? "—" : mode === "EXTERNAL" ? "Joue" : a === "A" ? teamAName : teamBName}
@@ -448,11 +452,11 @@ export default function NewMatchForm({
             <div className="min-w-0">
               <div className="text-[17px] font-semibold">Équipes équilibrées</div>
               <div className="text-[13px]" style={{ color: "var(--i2)" }}>
-                Répartit les {selected.length} sélectionnés selon leur niveau, gardiens séparés.
+                Répartit les {selected.length} sélectionnés selon leur note, gardiens séparés.
               </div>
             </div>
             <button onClick={() => generateTeams()} className="verre grand">
-              {drawn ? "Retirer au sort" : "Équilibrer"}
+              {drawn ? "Autre tirage" : "Équilibrer"}
             </button>
           </div>
           {teamA.length > 0 && teamB.length > 0 && (

@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import Ecran from "../composants/Ecran";
-import { BoutonPlein, BoutonRond, Carte, Champ, Segment } from "../composants/base";
-import { JETONS_NEUTRES, type Jetons } from "../lib/couleurs";
+import EnTeteClub, { TitreEcran } from "../composants/EnTeteClub";
+import { BoutonPlein, Carte, CarteVerre, Champ } from "../composants/base";
+import { IconeJeu } from "../composants/Icones";
+import { chargerMoiMemorise, useClubMemorise } from "../composants/ClubCourant";
+import { jeton, JETONS_NEUTRES, type Jetons } from "../lib/couleurs";
+import { avertissement, choix, succes } from "../lib/haptique";
+import { messageErreur } from "../lib/erreurs";
 import {
   cle,
   genererCalendrier,
@@ -20,12 +17,7 @@ import {
   type JourSemaine,
   type Occurrence,
 } from "../lib/calendrier";
-import {
-  chargerMoi,
-  poserCalendrier,
-  SessionExpiree,
-  type ClubDeMoi,
-} from "../lib/api";
+import { poserCalendrier, SessionExpiree, type ClubDeMoi } from "../lib/api";
 
 /// « Poser toute la saison » — quarante-quatre lundis d'un coup.
 ///
@@ -55,8 +47,8 @@ export default function Calendrier() {
     clubId?: string;
     lieu?: string;
   }>();
+  const memo = useClubMemorise(clubId);
   const [club, setClub] = useState<ClubDeMoi | null>(null);
-  const [occupe, setOccupe] = useState(true);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -77,18 +69,18 @@ export default function Calendrier() {
   // exclusions automatiques. La liste doit rester la sienne.
   const [bascules, setBascules] = useState<Record<string, boolean>>({});
 
-  const t: Jetons = club?.theme.sombre ?? JETONS_NEUTRES;
+  // Le formulaire ne dépend du réseau que pour les couleurs : il s'affiche
+  // tout de suite, aux couleurs du dernier `/api/me`.
+  const c = club ?? memo;
+  const t: Jetons = c?.theme.sombre ?? JETONS_NEUTRES;
 
   const charger = useCallback(async () => {
     if (!clubId) return;
     try {
-      const moi = await chargerMoi();
-      setClub(moi.clubs.find((c) => c.id === clubId) ?? null);
+      const moi = await chargerMoiMemorise();
+      setClub(moi.clubs.find((x) => x.id === clubId) ?? null);
     } catch (e) {
-      if (e instanceof SessionExpiree) return router.replace("/connexion");
-      setErreur(e instanceof Error ? e.message : String(e));
-    } finally {
-      setOccupe(false);
+      if (e instanceof SessionExpiree) router.replace("/connexion");
     }
   }, [clubId]);
 
@@ -125,7 +117,10 @@ export default function Calendrier() {
 
   async function soumettre() {
     if (!clubId) return;
-    if (retenues.length === 0) return setErreur("Aucune date retenue.");
+    if (retenues.length === 0) {
+      avertissement();
+      return setErreur("Aucune date retenue : touche une date pour la rétablir.");
+    }
     setEnvoi(true);
     setErreur(null);
     try {
@@ -136,223 +131,225 @@ export default function Calendrier() {
         lieu: lieu.trim() || undefined,
       });
       if (!r.ok) {
-        setErreur(r.error ?? "Erreur");
+        avertissement();
+        setErreur(r.error ?? "La saison n'a pas été posée. Réessaie.");
         setEnvoi(false);
         return;
       }
+      succes();
       router.back();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : String(e));
+      if (e instanceof SessionExpiree) return router.replace("/connexion");
+      avertissement();
+      setErreur(messageErreur(e));
       setEnvoi(false);
     }
   }
 
-  const couleurA = club?.couleurA ?? "#ffffff";
-  const couleurB = club?.couleurB ?? "#111111";
+  const couleurA = c?.couleurA ?? "#ffffff";
+  const couleurB = c?.couleurB ?? "#111111";
   const dateLongue = (d: Date) =>
     d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
-      <ScrollView contentContainerStyle={s.contenu} keyboardShouldPersistTaps="handled">
-        <View style={s.barre}>
-          <BoutonRond t={t} symbole="‹" etiquette="Retour" onPress={() => router.back()} />
-        </View>
+    <Ecran t={t} chasubles={c ? { a: couleurA, b: couleurB } : undefined}>
+      <ScrollView contentContainerStyle={s.defile} keyboardShouldPersistTaps="handled">
+        <EnTeteClub t={t} club={c} clubId={clubId} />
+        <TitreEcran
+          t={t}
+          titre="Poser toute la saison"
+          sousTitre="Les fériés et la trêve de Noël sont écartés d'office. Tu peux rétablir ou retirer n'importe quelle date."
+        />
 
-        <Text style={[s.titre, { color: t.ink }]}>Poser toute la saison</Text>
-        <Text style={[s.sousTitre, { color: t.i2 }]}>
-          Les fériés et la trêve de Noël sont écartés d&apos;office. Tu peux
-          rétablir ou retirer n&apos;importe quelle date.
-        </Text>
+        <View style={s.contenu}>
+          <Carte t={t} style={{ marginTop: 18 }}>
+            <Champ
+              t={t}
+              libelle="NOM DE LA SAISON"
+              value={nom}
+              onChangeText={setNom}
+              autoCapitalize="sentences"
+            />
+            <View style={{ height: 14 }} />
+            <Text style={[s.libelle, { color: t.i2 }]}>ON JOUE LE</Text>
+            <View style={s.jours}>
+              {JOURS.map((j) => {
+                const actif = j.jour === jour;
+                return (
+                  <Pressable
+                    key={j.valeur}
+                    onPress={() => {
+                      if (!actif) choix();
+                      setJour(j.jour);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: actif }}
+                    style={[
+                      s.jourPastille,
+                      actif
+                        ? { backgroundColor: jeton(t, "bt"), borderColor: "transparent" }
+                        : { backgroundColor: jeton(t, "gl"), borderColor: jeton(t, "gb") },
+                    ]}
+                  >
+                    <Text style={{ color: actif ? t.bf : t.i2, fontWeight: "600", fontSize: 15 }}>
+                      {j.libelle}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Carte>
 
-        {occupe && (
-          <View style={s.centre}>
-            <ActivityIndicator color={t.ink} />
-          </View>
-        )}
-
-        {!occupe && (
-          <>
-            <Carte t={t} style={{ marginTop: 18 }}>
-              <Champ
-                t={t}
-                libelle="NOM DE LA SAISON"
-                value={nom}
-                onChangeText={setNom}
-                autoCapitalize="sentences"
+          <Carte t={t} style={{ marginTop: 14 }}>
+            <Ligne
+              t={t}
+              libelle="Du"
+              valeur={dateLongue(debut)}
+              onPress={() => setQuelPicker("debut")}
+              premiere
+            />
+            <Ligne
+              t={t}
+              libelle="Au"
+              valeur={dateLongue(fin)}
+              onPress={() => setQuelPicker("fin")}
+            />
+            <Ligne
+              t={t}
+              libelle="À"
+              valeur={heure.toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              onPress={() => setQuelPicker("heure")}
+            />
+            {quelPicker && (
+              <DateTimePicker
+                value={quelPicker === "debut" ? debut : quelPicker === "fin" ? fin : heure}
+                mode={quelPicker === "heure" ? "time" : "date"}
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                themeVariant="dark"
+                locale="fr-FR"
+                onChange={(_, d) => {
+                  if (Platform.OS !== "ios") setQuelPicker(null);
+                  if (!d) return;
+                  if (quelPicker === "debut") setDebut(d);
+                  else if (quelPicker === "fin") setFin(d);
+                  else setHeure(d);
+                }}
               />
-              <View style={{ height: 14 }} />
-              <Text style={[s.libelle, { color: t.i2 }]}>ON JOUE LE</Text>
-              <View style={s.jours}>
-                {JOURS.map((j) => {
-                  const actif = j.jour === jour;
+            )}
+            {quelPicker && Platform.OS === "ios" && (
+              <Pressable onPress={() => setQuelPicker(null)} style={s.fermerPicker}>
+                <Text style={{ color: t.i2, fontSize: 15, fontWeight: "600" }}>OK</Text>
+              </Pressable>
+            )}
+          </Carte>
+
+          <Carte t={t} style={{ marginTop: 14 }}>
+            <Champ
+              t={t}
+              libelle="OÙ"
+              value={lieu}
+              onChangeText={setLieu}
+              placeholder="Urban Soccer, terrain 3…"
+              autoCapitalize="sentences"
+            />
+            <View style={{ height: 14 }} />
+            <Champ
+              t={t}
+              libelle="TITRE DE CHAQUE SOIRÉE (FACULTATIF)"
+              value={titre}
+              onChangeText={setTitre}
+              placeholder="Le five du lundi…"
+              autoCapitalize="sentences"
+            />
+          </Carte>
+
+          <Text style={[s.compte, { color: t.ink }]}>
+            {retenues.length} date{retenues.length > 1 ? "s" : ""} retenue
+            {retenues.length > 1 ? "s" : ""}
+            {occurrences.length !== retenues.length
+              ? ` sur ${occurrences.length}`
+              : ""}
+          </Text>
+
+          {parMois.map(([mois, liste]) => (
+            <View key={mois} style={{ marginTop: 10 }}>
+              <Text style={[s.mois, { color: t.i2 }]}>{mois.toUpperCase()}</Text>
+              <CarteVerre t={t} rayon={20} style={s.carteListe}>
+                {liste.map((o, i) => {
+                  const k = cle(o.date);
+                  const prise = retenue(o);
                   return (
                     <Pressable
-                      key={j.valeur}
-                      onPress={() => setJour(j.jour)}
-                      style={[
-                        s.jourPastille,
-                        { borderColor: t.cb, backgroundColor: actif ? t.bt : "transparent" },
+                      key={k}
+                      onPress={() => {
+                        choix();
+                        setBascules((b) => ({ ...b, [k]: !prise }));
+                      }}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: prise }}
+                      style={({ pressed }) => [
+                        s.rangee,
+                        i > 0 && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") },
+                        pressed && { opacity: 0.6 },
                       ]}
                     >
-                      <Text style={{ color: actif ? t.bf : t.i2, fontWeight: "600", fontSize: 15 }}>
-                        {j.libelle}
+                      <View
+                        style={[
+                          s.coche,
+                          {
+                            borderColor: prise ? t.ok : t.i3,
+                            backgroundColor: prise ? t.ok : "transparent",
+                          },
+                        ]}
+                      >
+                        {prise && <Text style={s.cocheTexte}>✓</Text>}
+                      </View>
+                      <Text
+                        style={[
+                          s.rangeeDate,
+                          { color: prise ? t.ink : t.i3 },
+                          !prise && s.rature,
+                        ]}
+                      >
+                        {o.date.toLocaleDateString("fr-FR", {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                        })}
                       </Text>
+                      {o.exclu && (
+                        <Text style={[s.motif, { color: t.i3 }]} numberOfLines={1}>
+                          {o.exclu}
+                        </Text>
+                      )}
                     </Pressable>
                   );
                 })}
-              </View>
-            </Carte>
+              </CarteVerre>
+            </View>
+          ))}
 
-            <Carte t={t} style={{ marginTop: 14 }}>
-              <Ligne
-                t={t}
-                libelle="Du"
-                valeur={dateLongue(debut)}
-                onPress={() => setQuelPicker("debut")}
-                premiere
-              />
-              <Ligne
-                t={t}
-                libelle="Au"
-                valeur={dateLongue(fin)}
-                onPress={() => setQuelPicker("fin")}
-              />
-              <Ligne
-                t={t}
-                libelle="À"
-                valeur={heure.toLocaleTimeString("fr-FR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                onPress={() => setQuelPicker("heure")}
-              />
-              {quelPicker && (
-                <DateTimePicker
-                  value={quelPicker === "debut" ? debut : quelPicker === "fin" ? fin : heure}
-                  mode={quelPicker === "heure" ? "time" : "date"}
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  themeVariant="dark"
-                  locale="fr-FR"
-                  onChange={(_, d) => {
-                    if (Platform.OS !== "ios") setQuelPicker(null);
-                    if (!d) return;
-                    if (quelPicker === "debut") setDebut(d);
-                    else if (quelPicker === "fin") setFin(d);
-                    else setHeure(d);
-                  }}
-                />
-              )}
-              {quelPicker && Platform.OS === "ios" && (
-                <Pressable onPress={() => setQuelPicker(null)} style={s.fermerPicker}>
-                  <Text style={{ color: t.i2, fontSize: 15, fontWeight: "600" }}>OK</Text>
-                </Pressable>
-              )}
-            </Carte>
+          {erreur && <Text style={[s.erreur, { color: t.bad }]}>{erreur}</Text>}
 
-            <Carte t={t} style={{ marginTop: 14 }}>
-              <Champ
-                t={t}
-                libelle="OÙ"
-                value={lieu}
-                onChangeText={setLieu}
-                placeholder="Urban Soccer, terrain 3…"
-                autoCapitalize="sentences"
-              />
-              <View style={{ height: 14 }} />
-              <Champ
-                t={t}
-                libelle="TITRE DE CHAQUE SOIRÉE (FACULTATIF)"
-                value={titre}
-                onChangeText={setTitre}
-                placeholder="Le five du lundi…"
-                autoCapitalize="sentences"
-              />
-            </Carte>
-
-            <Text style={[s.compte, { color: t.ink }]}>
-              {retenues.length} date{retenues.length > 1 ? "s" : ""} retenue
-              {retenues.length > 1 ? "s" : ""}
-              {occurrences.length !== retenues.length
-                ? ` sur ${occurrences.length}`
-                : ""}
-            </Text>
-
-            {parMois.map(([mois, liste]) => (
-              <View key={mois} style={{ marginTop: 10 }}>
-                <Text style={[s.mois, { color: t.i2 }]}>{mois.toUpperCase()}</Text>
-                <View style={[s.carteListe, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
-                  {liste.map((o, i) => {
-                    const k = cle(o.date);
-                    const prise = retenue(o);
-                    return (
-                      <Pressable
-                        key={k}
-                        onPress={() => setBascules((b) => ({ ...b, [k]: !prise }))}
-                        style={({ pressed }) => [
-                          s.rangee,
-                          i > 0 && {
-                            borderTopWidth: StyleSheet.hairlineWidth,
-                            borderTopColor: t.sep,
-                          },
-                          pressed && { opacity: 0.6 },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            s.coche,
-                            {
-                              borderColor: prise ? t.ok : t.i3,
-                              backgroundColor: prise ? t.ok : "transparent",
-                            },
-                          ]}
-                        >
-                          {prise && <Text style={s.cocheTexte}>✓</Text>}
-                        </View>
-                        <Text
-                          style={[
-                            s.rangeeDate,
-                            { color: prise ? t.ink : t.i3 },
-                            !prise && s.rature,
-                          ]}
-                        >
-                          {o.date.toLocaleDateString("fr-FR", {
-                            weekday: "short",
-                            day: "numeric",
-                            month: "short",
-                          })}
-                        </Text>
-                        {o.exclu && (
-                          <Text style={[s.motif, { color: t.i3 }]} numberOfLines={1}>
-                            {o.exclu}
-                          </Text>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-
-            {erreur && <Text style={[s.erreur, { color: t.bad }]}>{erreur}</Text>}
-
-            <View style={{ height: 18 }} />
-            <BoutonPlein
-              t={t}
-              titre={
-                envoi
-                  ? "On pose la saison…"
-                  : `Créer ${retenues.length} soirée${retenues.length > 1 ? "s" : ""}`
-              }
-              onPress={soumettre}
-              disabled={envoi || retenues.length === 0}
-            />
-            <Text style={[s.note, { color: t.i3 }]}>
-              Les lundis déjà au calendrier ne sont pas recréés, et les compos
-              déjà préparées ne sont pas touchées.
-            </Text>
-          </>
-        )}
+          <View style={{ height: 18 }} />
+          <BoutonPlein
+            t={t}
+            titre={
+              envoi
+                ? "On pose la saison…"
+                : `Créer ${retenues.length} soirée${retenues.length > 1 ? "s" : ""}`
+            }
+            onPress={soumettre}
+            disabled={envoi || retenues.length === 0}
+          />
+          <Text style={[s.note, { color: t.i3 }]}>
+            Les lundis déjà au calendrier ne sont pas recréés, et les compos
+            déjà préparées ne sont pas touchées.
+          </Text>
+        </View>
       </ScrollView>
     </Ecran>
   );
@@ -376,7 +373,7 @@ function Ligne({
       onPress={onPress}
       style={({ pressed }) => [
         s.ligne,
-        !premiere && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.sep },
+        !premiere && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") },
         pressed && { opacity: 0.6 },
       ]}
     >
@@ -384,25 +381,22 @@ function Ligne({
       <Text style={[s.ligneValeur, { color: t.i2 }]} numberOfLines={1}>
         {valeur}
       </Text>
-      <Text style={[s.chevron, { color: t.i3 }]}>›</Text>
+      <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={16} />
     </Pressable>
   );
 }
 
 const s = StyleSheet.create({
-  contenu: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 60 },
-  barre: { flexDirection: "row", paddingBottom: 12 },
-  titre: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5, paddingHorizontal: 4 },
-  sousTitre: { fontSize: 15, lineHeight: 21, paddingHorizontal: 4, paddingTop: 6 },
-  centre: { paddingTop: 60, alignItems: "center" },
+  defile: { paddingBottom: 60 },
+  contenu: { paddingHorizontal: 14 },
   libelle: { fontSize: 13, fontWeight: "600", letterSpacing: 0.4, paddingBottom: 8 },
 
   jours: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   jourPastille: {
     borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    height: 36,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -410,7 +404,6 @@ const s = StyleSheet.create({
   ligne: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52 },
   ligneLibelle: { fontSize: 17, fontWeight: "600", width: 40 },
   ligneValeur: { fontSize: 17, flex: 1, textAlign: "right" },
-  chevron: { fontSize: 20 },
   fermerPicker: { alignItems: "flex-end", paddingTop: 4 },
 
   compte: { fontSize: 17, fontWeight: "700", paddingTop: 20, paddingHorizontal: 4 },
@@ -421,8 +414,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 6,
   },
-  carteListe: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14 },
-  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 46 },
+  carteListe: { paddingHorizontal: 14 },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 48 },
   coche: {
     width: 22,
     height: 22,

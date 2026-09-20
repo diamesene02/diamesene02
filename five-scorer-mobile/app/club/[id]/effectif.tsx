@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -8,72 +9,102 @@ import {
   Text,
   View,
 } from "react-native";
-import { Alert } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import { useClubId } from "../../../composants/ClubCourant";
+import { chargerMoiMemorise, useClubId, useClubMemorise } from "../../../composants/ClubCourant";
 import Ecran from "../../../composants/Ecran";
-import { Avatar, BoutonRond, BoutonVerre } from "../../../composants/base";
+import EnTeteClub from "../../../composants/EnTeteClub";
+import ErreurChargement from "../../../composants/ErreurChargement";
+import { Avatar, BoutonVerre, CarteVerre } from "../../../composants/base";
 import Etoiles from "../../../composants/Etoiles";
-import { JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import { IconeJeu } from "../../../composants/Icones";
+import PastilleNiveau from "../../../composants/joueur/PastilleNiveau";
+import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import { succes as retourSucces } from "../../../lib/haptique";
+import { messageErreur } from "../../../lib/erreurs";
+import { chargerSuccesClub } from "../../../lib/succes";
 import {
   chargerEcranEffectif,
-  chargerMoi,
   modifierJoueur,
   rattacherJoueur,
   SessionExpiree,
   type ClubDeMoi,
   type EcranEffectif,
 } from "../../../lib/api";
-import { toucheFranche } from "../../../lib/vibrer";
+
+type Niveaux = Map<string, { niveau: number; titre: string }>;
 
 /// « Effectif » — le vestiaire du club.
 ///
-/// Une carte, une rangée par joueur : l'avatar, le nom, les cinq étoiles du
-/// niveau, ses matchs et ses buts. Les chiffres sont ceux de TOUTES les
-/// saisons — le vestiaire raconte une carrière, pas un exercice.
+/// Une carte, une rangée par joueur : l'avatar, le nom et son niveau, les
+/// cinq étoiles de sa note, ses matchs et ses buts. Les chiffres sont ceux de
+/// TOUTES les saisons — le vestiaire raconte une carrière, pas un exercice.
 ///
-/// Les archivés vivent sous un repli, avec leurs rangées plus basses et leur
-/// encre atténuée : ce sont ceux qui ne jouent plus, ils ne doivent pas
-/// encombrer la liste de ceux qui viennent lundi.
+/// Deux chiffres se suivent ici, et ils ne disent pas la même chose : les
+/// étoiles sont la NOTE (1 à 5) que le capitaine donne pour équilibrer les
+/// équipes, la pastille est le NIVEAU gagné en jouant (les succès). Le mot
+/// « niveau » est réservé au second — VoiceOver annonçait « niveau 7,
+/// Taulier » puis « Niveau 3 sur 5 » à une seconde d'intervalle. La pastille
+/// manque pour les invités, que les succès du club ne classent pas.
+///
+/// Les archivés vivent sous un repli : ce sont ceux qui ne jouent plus, ils
+/// ne doivent pas encombrer la liste de ceux qui viennent lundi.
 export default function Effectif() {
   const id = useClubId();
+  const memo = useClubMemorise();
   const [club, setClub] = useState<ClubDeMoi | null>(null);
   const [donnees, setDonnees] = useState<EcranEffectif | null>(null);
+  const [niveaux, setNiveaux] = useState<Niveaux | null>(null);
   const [archivesOuverts, setArchivesOuverts] = useState(false);
   const [occupe, setOccupe] = useState(true);
-  const [erreur, setErreur] = useState<string | null>(null);
+  const [rafraichit, setRafraichit] = useState(false);
+  const [erreur, setErreur] = useState<unknown>(null);
   /// L'identifiant du joueur en cours de revendication : il désarme les autres
   /// boutons pendant l'aller-retour. Deux « C'est moi » tapés coup sur coup
   /// sur deux rangées voisines, et le second gagne — ce n'est pas ce qu'on
   /// voulait dire.
   const [revendique, setRevendique] = useState<string | null>(null);
 
-  const t: Jetons = club?.theme.sombre ?? JETONS_NEUTRES;
+  const c = club ?? memo;
+  const t: Jetons = c?.theme.sombre ?? JETONS_NEUTRES;
 
   const charger = useCallback(async () => {
     if (!id) return;
     setErreur(null);
     try {
-      const [moi, e] = await Promise.all([chargerMoi(), chargerEcranEffectif(id)]);
-      setClub(moi.clubs.find((c) => c.id === id) ?? null);
+      const [moi, e, sc] = await Promise.all([
+        chargerMoiMemorise(),
+        chargerEcranEffectif(id),
+        // Les niveaux sont un plus : sans eux, le vestiaire s'affiche quand
+        // même, sans pastille.
+        chargerSuccesClub(id).catch(() => undefined),
+      ]);
+      setClub(moi.clubs.find((x) => x.id === id) ?? null);
       setDonnees(e);
+      if (sc) {
+        setNiveaux(new Map(sc.niveaux.map((n) => [n.playerId, { niveau: n.niveau, titre: n.titre }])));
+      }
     } catch (e) {
       if (e instanceof SessionExpiree) return router.replace("/connexion");
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(e);
     } finally {
       setOccupe(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    void charger();
-  }, [charger]);
-
+  // Au focus seulement : le premier affichage en est un aussi. Un `useEffect`
+  // en plus faisait partir les trois requêtes deux fois à l'ouverture, dont
+  // deux fois les succès du club, qui recalculent tout l'historique.
   useFocusEffect(
     useCallback(() => {
       void charger();
     }, [charger]),
   );
+
+  const rafraichir = useCallback(async () => {
+    setRafraichit(true);
+    await charger();
+    setRafraichit(false);
+  }, [charger]);
 
   /// « C'est moi » : je récupère mon historique de joueur.
   ///
@@ -90,13 +121,12 @@ export default function Effectif() {
     async (joueurId: string) => {
       if (!id || revendique) return;
       setRevendique(joueurId);
-      setErreur(null);
       try {
         await rattacherJoueur(id, joueurId);
-        toucheFranche();
+        retourSucces();
       } catch (e) {
         if (e instanceof SessionExpiree) return router.replace("/connexion");
-        setErreur(e instanceof Error ? e.message : String(e));
+        Alert.alert("Ce profil n'a pas pu être rattaché", messageErreur(e));
       } finally {
         setRevendique(null);
         await charger();
@@ -111,21 +141,20 @@ export default function Effectif() {
   /// lui, une fiche rangée par erreur ne ressort plus depuis le téléphone.
   const reactiver = (joueurId: string, nom: string) => {
     if (!id) return;
-    Alert.alert(
-      `Réactiver ${nom} ?`,
-      "Il revient dans la liste de ceux qui viennent lundi.",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Réactiver",
-          onPress: () => {
-            void modifierJoueur(id, joueurId, { archive: false })
-              .then(charger)
-              .catch((e: Error) => setErreur(e.message));
-          },
+    Alert.alert(`Réactiver ${nom} ?`, "Il revient dans la liste de ceux qui viennent lundi.", [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Réactiver",
+        onPress: () => {
+          void modifierJoueur(id, joueurId, { archive: false })
+            .then(() => {
+              retourSucces();
+              return charger();
+            })
+            .catch((e: unknown) => Alert.alert("La réactivation n'est pas passée", messageErreur(e)));
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const actifs = (donnees?.joueurs ?? []).filter((j) => !j.archive);
@@ -135,125 +164,107 @@ export default function Effectif() {
   /// pas (il n'a pas de compte à lui), un profil déjà pris non plus — c'est un
   /// arbitrage d'admin, il se fait sur le site.
   const peutRevendiquer = donnees != null && !donnees.aDejaUnProfil;
+  const couleurA = c?.couleurA ?? "#ffffff";
 
   return (
-    <Ecran t={t} chasubles={{ a: club?.couleurA ?? "#fff", b: club?.couleurB ?? "#111" }}>
+    <Ecran t={t} chasubles={{ a: couleurA, b: c?.couleurB ?? "#111111" }}>
       <ScrollView
         contentContainerStyle={s.contenu}
         refreshControl={
-          <RefreshControl
-            refreshing={occupe && donnees != null}
-            onRefresh={charger}
-            tintColor={t.i2}
-          />
+          <RefreshControl refreshing={rafraichit} onRefresh={rafraichir} tintColor={t.i2} />
         }
       >
-        {/* Le retour, comme sur la barre du site : cet écran s'atteint par le
-            menu, pas par un onglet — sans lui on ne saurait pas d'où on vient
-            ni comment revenir. */}
-        <View style={s.retour}>
-          <BoutonRond
-            t={t}
-            symbole="‹"
-            etiquette="Retour"
-            onPress={() =>
-              router.canGoBack()
-                ? router.back()
-                : router.replace({ pathname: "/club/[id]", params: { id } })
-            }
-          />
-        </View>
-        <Text style={[s.titre, { color: t.ink }]}>Effectif</Text>
-        {donnees && <Text style={[s.sousTitre, { color: t.i2 }]}>{donnees.sousTitre}</Text>}
+        <EnTeteClub t={t} club={c} titre="Effectif" sousTitre={donnees?.sousTitre} />
 
-        {occupe && !donnees && (
-          <View style={s.centre}>
-            <ActivityIndicator color={t.ink} />
-            <Text style={[s.aide, { color: t.i2 }]}>On va chercher le vestiaire…</Text>
-          </View>
-        )}
-        {erreur && <Text style={[s.erreur, { color: "#ff453a" }]}>{erreur}</Text>}
+        <View style={s.corps}>
+          {occupe && !donnees && (
+            <View style={s.centre}>
+              <ActivityIndicator color={t.ink} />
+              <Text style={[s.aide, { color: t.i2 }]}>On va chercher le vestiaire…</Text>
+            </View>
+          )}
+          {erreur != null && (
+            <ErreurChargement t={t} erreur={erreur} onReessayer={charger} style={s.erreur} />
+          )}
 
-        {donnees?.peutGerer && (
-          <View style={{ paddingTop: 4 }}>
+          {/* Un seul « Ajouter un joueur », au-dessus de la liste, comme le
+              site. Réservé aux gérants — c'est le serveur qui tranche, l'écran
+              ne fait que ne pas mentir. */}
+          {donnees?.peutGerer && (
             <BoutonVerre
               t={t}
               titre="Ajouter un joueur"
-              onPress={() =>
-                router.push({ pathname: "/joueur/fiche", params: { clubId: id } })
-              }
+              icone={<IconeJeu nom="plus" couleur={t.ink} taille={15} />}
+              onPress={() => router.push({ pathname: "/joueur/fiche", params: { clubId: id } })}
+              style={s.ajouter}
             />
-          </View>
-        )}
+          )}
 
-        {actifs.length > 0 && (
-          <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
-            {actifs.map((j, i) => (
-              <Rangee
-                key={j.id}
-                j={j}
-                t={t}
-                premiere={i === 0}
-                clubId={id}
-                // « C'est moi » ne s'affiche que sur une fiche revendiquable :
-                // libre, pas un invité, et seulement si je n'ai pas déjà la
-                // mienne. Le serveur porte la même règle et tranche en dernier
-                // ressort ; ici c'est pour ne pas proposer un bouton qui sera
-                // refusé.
-                revendiquable={peutRevendiquer && !j.compteLie && !j.invite}
-                onRevendiquer={() => void revendiquer(j.id)}
-                occupe={revendique != null}
-                enCours={revendique === j.id}
-              />
-            ))}
-          </View>
-        )}
+          {actifs.length > 0 && (
+            <CarteVerre t={t} style={s.carte}>
+              {actifs.map((j, i) => (
+                <Rangee
+                  key={j.id}
+                  j={j}
+                  t={t}
+                  premiere={i === 0}
+                  clubId={id}
+                  niveau={niveaux?.get(j.id)}
+                  couleurA={couleurA}
+                  // « C'est moi » ne s'affiche que sur une fiche revendiquable :
+                  // libre, pas un invité, et seulement si je n'ai pas déjà la
+                  // mienne. Le serveur porte la même règle et tranche en
+                  // dernier ressort ; ici c'est pour ne pas proposer un bouton
+                  // qui sera refusé.
+                  revendiquable={peutRevendiquer && !j.compteLie && !j.invite}
+                  onRevendiquer={() => void revendiquer(j.id)}
+                  occupe={revendique != null}
+                  enCours={revendique === j.id}
+                />
+              ))}
+            </CarteVerre>
+          )}
 
-        {/* « + Ajouter un joueur » vit SOUS la liste, pas dans la barre du
-            haut : le geste courant ici est de consulter, et un nouveau arrive
-            deux ou trois fois par saison. Réservé aux gérants — c'est le
-            serveur qui tranche, l'écran ne fait que ne pas mentir. */}
-        {donnees?.peutGerer && (
-          <Pressable
-            onPress={() =>
-              router.push({ pathname: "/joueur/fiche", params: { clubId: id } })
-            }
-            style={({ pressed }) => [
-              s.ajouter,
-              { borderColor: t.cb },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={[s.ajouterTexte, { color: t.ink }]}>+ Ajouter un joueur</Text>
-          </Pressable>
-        )}
-
-        {archives.length > 0 && (
-          <>
-            <Pressable onPress={() => setArchivesOuverts((o) => !o)} style={s.deplier}>
-              <Text style={[s.deplierTexte, { color: t.i2 }]}>
-                {archivesOuverts ? "Masquer les archivés" : `Archivés (${archives.length})`}
+          {donnees && actifs.length === 0 && (
+            <View style={s.vide}>
+              <Text style={[s.videTexte, { color: t.i2 }]}>
+                Personne dans le vestiaire pour l&apos;instant.
               </Text>
-            </Pressable>
-            {archivesOuverts && (
-              <View style={[s.carte, { borderColor: t.cb, backgroundColor: t.cdSolid }]}>
-                {archives.map((j, i) => (
-                  <Rangee
-                    key={j.id}
-                    j={j}
-                    t={t}
-                    premiere={i === 0}
-                    clubId={id}
-                    petite
-                    onReactiver={
-                      donnees?.peutGerer ? () => reactiver(j.id, j.nom) : undefined
-                    }
-                  />
-                ))}
-              </View>
-            )}
-          </>
-        )}
+              {donnees.peutGerer && (
+                <Text style={[s.videTexte, { color: t.i2 }]}>Ajoute tes premiers joueurs.</Text>
+              )}
+            </View>
+          )}
+
+          {archives.length > 0 && (
+            <>
+              <Pressable
+                onPress={() => setArchivesOuverts((o) => !o)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: archivesOuverts }}
+                style={({ pressed }) => [s.deplier, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={[s.deplierTexte, { color: t.i2 }]}>Archivés ({archives.length})</Text>
+              </Pressable>
+              {archivesOuverts && (
+                <CarteVerre t={t} style={[s.carte, s.carteArchives]}>
+                  {archives.map((j, i) => (
+                    <Rangee
+                      key={j.id}
+                      j={j}
+                      t={t}
+                      premiere={i === 0}
+                      clubId={id}
+                      couleurA={couleurA}
+                      petite
+                      onReactiver={donnees?.peutGerer ? () => reactiver(j.id, j.nom) : undefined}
+                    />
+                  ))}
+                </CarteVerre>
+              )}
+            </>
+          )}
+        </View>
       </ScrollView>
     </Ecran>
   );
@@ -264,6 +275,8 @@ function Rangee({
   t,
   premiere,
   clubId,
+  niveau,
+  couleurA,
   petite,
   revendiquable,
   onRevendiquer,
@@ -275,6 +288,9 @@ function Rangee({
   t: Jetons;
   premiere: boolean;
   clubId: string;
+  /// Le niveau gagné en jouant (les succès). Absent : pas de pastille.
+  niveau?: { niveau: number; titre: string };
+  couleurA: string;
   petite?: boolean;
   /// C'est l'écran qui décide qui est revendicable ; la rangée ne fait que
   /// peindre.
@@ -287,41 +303,58 @@ function Rangee({
   enCours?: boolean;
 }) {
   const encre = petite ? t.i2 : t.ink;
+  const chiffres = `${j.matchs} match${j.matchs > 1 ? "s" : ""} · ${j.buts} but${j.buts > 1 ? "s" : ""}`;
   return (
-    <View
-      style={[
-        !premiere && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.sep },
-      ]}
-    >
+    <View style={!premiere && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") }}>
       <Pressable
         onPress={() => router.push({ pathname: "/joueur/[id]", params: { id: j.id, clubId } })}
-        style={({ pressed }) => [s.rangee, petite && s.rangeePetite, pressed && { opacity: 0.7 }]}
+        accessibilityRole="button"
+        accessibilityLabel={[
+          j.nom,
+          j.estMoi ? "toi" : null,
+          niveau ? `niveau ${niveau.niveau}, ${niveau.titre}` : null,
+          !petite && j.gardien ? "gardien" : null,
+          chiffres,
+        ]
+          .filter(Boolean)
+          .join(", ")}
+        style={({ pressed }) => [
+          s.rangee,
+          petite && s.rangeePetite,
+          j.estMoi && !petite && [s.moi, { backgroundColor: jeton(t, "gl") }],
+          pressed && { opacity: 0.7 },
+        ]}
       >
-        <Avatar nom={j.nom} photo={j.photo} t={t} taille={petite ? 34 : 44} />
-        <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+        <Avatar
+          nom={j.nom}
+          photo={j.photo}
+          t={t}
+          taille={petite ? 34 : 44}
+          initiales={j.initiales}
+        />
+        <View style={s.textes}>
           <View style={s.ligneNom}>
-            <Text style={[s.nom, { color: encre }]} numberOfLines={1}>
+            <Text style={[s.nom, { color: encre }, j.estMoi && s.nomMoi]} numberOfLines={1}>
               {j.nom}
             </Text>
-            {/* Un archivé ne montre ni son poste, ni son niveau, ni ses
-                chiffres, ni de chevron : il ne joue plus. Le site le dépouille
-                pareil — une rangée archivée qui garde tout n'est qu'une
-                rangée grisée, et l'œil la relit comme les autres. */}
-            {!petite && j.gardien && <Text style={[s.gant, { color: t.i3 }]}>· gardien</Text>}
-            {!petite && j.compteLie && <View style={s.pointLie} />}
+            {/* Un archivé ne montre ni son poste, ni sa note, ni de
+                chevron : il ne joue plus. Ses chiffres restent — c'est ce
+                qu'on vient y chercher quand on le réactive. */}
+            {!petite && niveau && (
+              <PastilleNiveau niveau={niveau.niveau} titre={niveau.titre} couleur={couleurA} />
+            )}
+            {!petite && j.gardien && <IconeJeu nom="gant" couleur={jeton(t, "i3")} taille={13} />}
+            {!petite && j.compteLie && <View style={[s.pointLie, { backgroundColor: jeton(t, "ok") }]} />}
           </View>
-          {!petite && (
-            <View style={s.sousLigne}>
-              <Etoiles niveau={j.niveau} couleur={t.i2} />
-              <Text style={[s.chiffres, { color: t.i2 }]} numberOfLines={1}>
-                {j.matchs} match{j.matchs > 1 ? "s" : ""} · {j.buts} but
-                {j.buts > 1 ? "s" : ""}
-                {j.invite ? " · invité" : ""}
-              </Text>
-            </View>
-          )}
+          <View style={s.sousLigne}>
+            {!petite && <Etoiles note={j.niveau} couleur={t.i2} />}
+            <Text style={[s.chiffres, { color: t.i2 }]} numberOfLines={1}>
+              {chiffres}
+              {!petite && j.invite ? " · invité" : ""}
+            </Text>
+          </View>
         </View>
-        {!petite && <Text style={[s.chevron, { color: t.i3 }]}>›</Text>}
+        {!petite && <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={15} />}
       </Pressable>
 
       {/* Les outils sous la rangée, alignés sur le texte : ce sont des gestes
@@ -336,9 +369,14 @@ function Rangee({
               // autre rangée : deux courses lancées en même temps, c'est un
               // profil pris par le second appui et un refus incompréhensible.
               disabled={occupe}
+              accessibilityRole="button"
+              accessibilityLabel={`C'est moi : ${j.nom}`}
+              accessibilityState={{ disabled: !!occupe, busy: !!enCours }}
+              hitSlop={5}
               style={({ pressed }) => [
                 s.outil,
-                { borderColor: t.cb, opacity: occupe && !enCours ? 0.4 : pressed ? 0.6 : 1 },
+                { backgroundColor: jeton(t, "gl"), borderColor: jeton(t, "gb") },
+                { opacity: occupe && !enCours ? 0.4 : pressed ? 0.6 : 1 },
               ]}
             >
               {enCours ? (
@@ -351,7 +389,14 @@ function Rangee({
           {onReactiver && (
             <Pressable
               onPress={onReactiver}
-              style={({ pressed }) => [s.outil, { borderColor: t.cb }, pressed && { opacity: 0.6 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Réactiver ${j.nom}`}
+              hitSlop={5}
+              style={({ pressed }) => [
+                s.outil,
+                { backgroundColor: jeton(t, "gl"), borderColor: jeton(t, "gb") },
+                pressed && { opacity: 0.6 },
+              ]}
             >
               <Text style={[s.outilTexte, { color: t.ink }]}>Réactiver</Text>
             </Pressable>
@@ -363,49 +408,48 @@ function Rangee({
 }
 
 const s = StyleSheet.create({
-  contenu: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 40 },
-  retour: { flexDirection: "row", paddingBottom: 12 },
-  titre: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5, paddingHorizontal: 4 },
-  sousTitre: { fontSize: 17, marginTop: 6, paddingHorizontal: 4, paddingBottom: 14 },
+  contenu: { paddingBottom: 40 },
+  corps: { paddingHorizontal: 14 },
   centre: { paddingTop: 60, alignItems: "center", gap: 12 },
   aide: { fontSize: 15 },
-  erreur: { fontSize: 15, textAlign: "center" },
+  erreur: { marginTop: 24 },
 
-  carte: { borderRadius: 28, borderWidth: 1, paddingHorizontal: 16, marginTop: 16 },
+  ajouter: { marginTop: 16 },
+  carte: { paddingHorizontal: 16, marginTop: 16 },
+  carteArchives: { marginTop: 12 },
   rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64 },
   rangeePetite: { minHeight: 52 },
-  outils: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingLeft: 56, paddingBottom: 12 },
-  outil: { height: 34, borderRadius: 17, borderWidth: 1, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" },
-  outilTexte: { fontSize: 15, fontWeight: "600" },
+  // Ma ligne, surlignée comme dans les tableaux des stats : le verre des
+  // pilules, débordant de 8 de chaque côté pour que le texte ne bouge pas.
+  moi: { marginHorizontal: -8, paddingHorizontal: 8, borderRadius: 14 },
+  textes: { flex: 1, minWidth: 0, gap: 3 },
   ligneNom: { flexDirection: "row", alignItems: "center", gap: 6 },
   nom: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
-  gant: { fontSize: 13 },
-  pointLie: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#30d158" },
+  nomMoi: { fontWeight: "700" },
+  pointLie: { width: 7, height: 7, borderRadius: 3.5 },
   sousLigne: { flexDirection: "row", alignItems: "center", gap: 10 },
   chiffres: { fontSize: 13, flexShrink: 1 },
-  chevron: { fontSize: 20 },
-  revendiquer: {
+  outils: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingLeft: 56, paddingBottom: 12 },
+  outil: {
     height: 34,
-    minWidth: 88,
-    paddingHorizontal: 12,
     borderRadius: 17,
     borderWidth: 1,
+    paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
   },
-  revendiquerTexte: { fontSize: 14, fontWeight: "600" },
+  outilTexte: { fontSize: 15, fontWeight: "600" },
 
-  ajouter: {
-    marginTop: 16,
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    alignItems: "center",
+  vide: { marginTop: 24, gap: 4, paddingHorizontal: 4 },
+  videTexte: { fontSize: 15 },
+
+  // « Archivés (36) » : le kicker du site, à gauche, 32 sous la carte.
+  deplier: {
+    alignSelf: "flex-start",
     justifyContent: "center",
+    minHeight: 44,
+    marginTop: 20,
+    paddingHorizontal: 4,
   },
-  ajouterTexte: { fontSize: 16, fontWeight: "600" },
-
-  deplier: { paddingVertical: 14, alignItems: "center" },
-  deplierTexte: { fontSize: 15, fontWeight: "600" },
+  deplierTexte: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },
 });

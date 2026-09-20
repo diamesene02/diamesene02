@@ -12,18 +12,32 @@
   position: relative;
   margin-top: 18px;
 }
+/* `.texte` est un <span> : sans display block, les 22 px de marge intérieure
+   de globals.css ne s'appliquaient ni à gauche ni à droite, et le titre
+   touchait le bord de la carte. */
+.accueil-banniere .banniere .texte {
+  display: block;
+}
+/* Le ✕ : une vraie cible de 44 px, l'icône centrée dedans. Posée à 23×26,
+   elle se ratait, et le tap tombait sur la bannière — qui ouvre la soirée. */
 .accueil-fermer {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
   border: 0;
+  border-radius: 22px;
   background: none;
-  padding: 0 0 6px 8px;
-  font-size: 20px;
-  line-height: 1;
+  padding: 0;
   color: var(--i3);
   cursor: pointer;
   font-family: inherit;
+}
+.accueil-fermer:active {
+  background: var(--gl);
 }
 
 .accueil-carte {
@@ -36,6 +50,8 @@
   align-items: center;
   gap: 10px;
   width: 100%;
+  /* 42 px sans elle : c'est un lien vers la soirée, il lui faut une cible. */
+  min-height: 44px;
   padding: 16px 16px 4px;
   border: 0;
   background: none;
@@ -154,18 +170,26 @@
   min-width: 0;
 }
 .accueil-reponses .plein {
-  height: 40px;
+  height: 44px;
   padding: 0 18px;
-  border-radius: 20px;
+  border-radius: 22px;
   font-size: 15px;
   box-shadow: none;
 }
+/* Le statut est un lien vers la soirée : il lui faut la hauteur d'une cible. */
 .accueil-statut {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   font-size: 15px;
   font-weight: 600;
   color: var(--ok);
   text-decoration: none;
   white-space: nowrap;
+}
+.accueil-statut .via {
+  font-weight: 400;
+  color: var(--i2);
 }
 .accueil-statut[data-statut="OUT"] {
   color: var(--bad);
@@ -196,8 +220,10 @@
 }
 
 /* ── Le rattrapage : une soirée jouée dont la feuille n'a jamais été faite ─ */
+/* Alignée sur les autres cartes : la marge de 14 px de chaque côté venait
+   d'un conteneur sans marge, et s'ajoutait à celle du layout. */
 .accueil-rattrapage {
-  margin: 0 14px 14px;
+  margin: 18px 0 0;
   padding: 14px 16px 6px;
   border-radius: 22px;
   border: 1px solid var(--cb);
@@ -239,4 +265,186 @@
 .accueil-rattrapage .rangee > svg {
   flex: none;
   color: var(--i3);
+}
+
+/* ── Le tableau : la ligne du joueur, les places gagnées ──────────────── */
+/* Préfixées par .accueil-carte : globals.css pose le filet entre deux lignes
+   avec la même spécificité, et l'ordre des feuilles n'est pas garanti. */
+.accueil-carte .tableau-rangee > .rang {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  line-height: 1.1;
+}
+.accueil-carte .tableau-rangee.moi {
+  border-top-color: transparent;
+  border-radius: 14px;
+  background: var(--gl);
+}
+.accueil-carte .tableau-rangee.moi + .tableau-rangee {
+  border-top-color: transparent;
+}
+/* Le joueur au-delà du sixième : sa ligne vient après une coupure. */
+.tableau-saut {
+  padding: 2px 0 4px;
+  border-top: 1px solid var(--sep);
+  color: var(--i3);
+  font-size: 13px;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+/* « ▲2 », « ▼1 », « = » */
+.evolution {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.evolution.haut {
+  color: var(--ok);
+}
+.evolution.bas {
+  color: var(--bad);
+}
+.evolution.egal {
+  color: var(--i3);
+}
+
+/* ── Ma saison ────────────────────────────────────────────────────────── */
+.ma-saison {
+  padding: 0 18px;
+}
+.saison-tete {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.saison-niveau {
+  flex: 1;
+  min-width: 0;
+}
+.saison-niveau .titre {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.15;
+}
+.saison-niveau .sous,
+.saison-rang .sous {
+  margin-top: 2px;
+  font-size: 15px;
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+}
+.saison-rang .sous {
+  white-space: nowrap;
+}
+.saison-rang {
+  flex: none;
+  text-align: right;
+}
+.saison-rang .rang {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.saison-rang .evolution {
+  font-size: 14px;
+}
+.saison-barre {
+  margin-top: 16px;
+}
+.saison-reste {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+}
+.saison-reste b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.saison-lignes {
+  margin-top: 12px;
+}
+.saison-ligne {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px 0;
+  border-top: 1px solid var(--sep);
+}
+.saison-ligne > .textes {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.saison-ligne .l1,
+.saison-ligne .l2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saison-ligne .l1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.saison-ligne .l2 {
+  font-size: 13px;
+  color: var(--i2);
+  font-variant-numeric: tabular-nums;
+}
+.saison-pastille {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--seg);
+  box-shadow: inset 0 0 0 1px var(--gb);
+  color: var(--ink);
+}
+.saison-palier-barre {
+  margin-top: 7px;
+}
+
+/* ── Les exploits du club ─────────────────────────────────────────────── */
+.accueil-exploits {
+  padding: 0 16px 6px;
+}
+/* Plusieurs joueurs, un même palier le même jour : deux avatars qui se
+   chevauchent dans la place d'un seul, pour que les textes restent alignés. */
+.exploit-groupe {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+}
+.exploit-groupe > .avatar-anneau {
+  position: absolute;
+}
+.exploit-groupe > .avatar-anneau:first-child {
+  top: 0;
+  left: 0;
+}
+.exploit-groupe > .avatar-anneau:last-child {
+  right: 0;
+  bottom: 0;
+  /* Opaque : l'anneau du premier ne doit pas se voir à travers. */
+  background: linear-gradient(var(--av), var(--av)), var(--bgSolid);
 }

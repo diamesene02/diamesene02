@@ -135,7 +135,7 @@ export default async function MatchesPage({
             </span>
           </p>
         </div>
-        <span className="text-sm font-bold tabular-nums text-[color:var(--ink-2)]">
+        <span className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-[color:var(--ink-2)]">
           {finished.length} joué{finished.length > 1 ? "s" : ""}
         </span>
       </div>
