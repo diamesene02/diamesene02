@@ -577,7 +577,6 @@ export default async function StatsPage({
             <SuccesClub
               slug={slug}
               club={succes.club}
-              badgesDe={(id) => succes.parJoueur.get(id)?.badges}
               moi={moi}
               photos={photos}
               camps={camps}

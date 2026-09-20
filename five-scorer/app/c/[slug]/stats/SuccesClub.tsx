@@ -9,7 +9,7 @@ import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Medaille from "@/components/succes/Medaille";
 import { dateRelative, nombre } from "@/components/succes/textes";
 import "@/components/succes/succes.css";
-import { grouperFil, nommer, plusRares } from "./succes-club";
+import { grouperFil, nommer } from "./succes-club";
 
 // La carte « Succès » des stats : ce que le club a débloqué ces dernières
 // semaines, les niveaux de chacun, et ce que presque personne n'a.
@@ -21,7 +21,6 @@ import { grouperFil, nommer, plusRares } from "./succes-club";
 export default function SuccesClub({
   slug,
   club,
-  badgesDe,
   moi,
   photos,
   camps,
@@ -29,7 +28,6 @@ export default function SuccesClub({
 }: {
   slug: string;
   club: Club;
-  badgesDe: (playerId: string) => readonly Badge[] | undefined;
   /// Le joueur lié au compte connecté : sa ligne ressort.
   moi: string | null;
   photos: Record<string, string | null | undefined>;
@@ -39,7 +37,9 @@ export default function SuccesClub({
   if (club.niveaux.length === 0) return null;
   const fiche = (id: string) => `/c/${slug}/players/${id}`;
   const fil = grouperFil(club.fil);
-  const rares = plusRares(club.niveaux, badgesDe);
+  // La rareté est calculée par le moteur (lib/succes.ts) : l'app lit la même
+  // liste. La recalculer ici, c'était deux définitions pour un seul mot.
+  const rares = club.raretes;
 
   const exploits = (
     <div>
