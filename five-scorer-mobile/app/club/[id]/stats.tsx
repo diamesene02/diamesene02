@@ -27,6 +27,7 @@ import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import { messageErreur } from "../../../lib/erreurs";
 import { leger } from "../../../lib/haptique";
 import { chargerSuccesClub, type SuccesClub } from "../../../lib/succes";
+import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
 import {
   chargerExportCsv,
   chargerStats,
@@ -862,7 +863,7 @@ const colonneG = (i: number) => ({
 });
 
 const s = StyleSheet.create({
-  contenu: { paddingBottom: 40 },
+  contenu: { paddingBottom: ESPACE_BARRE },
   corps: { paddingHorizontal: 14 },
 
   centre: { paddingTop: 60, alignItems: "center", gap: 12 },

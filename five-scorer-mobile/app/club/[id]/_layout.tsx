@@ -1,15 +1,26 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Tabs, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { chargerMoi } from "../../../lib/api";
-import { FournisseurClub, memoriserMoi } from "../../../composants/ClubCourant";
+import {
+  FournisseurClub,
+  memoriserMoi,
+  useClubMemorise,
+} from "../../../composants/ClubCourant";
+import BarreOnglets from "../../../composants/BarreOnglets";
+import FeuilleCreer from "../../../composants/FeuilleCreer";
+import { JETONS_NEUTRES } from "../../../lib/couleurs";
 
 /// Le cadre des écrans du club.
 ///
-/// Plus de barre d'onglets en bas : comme sur le site (app/c/[slug]/layout.tsx,
-/// « le menu en verre porte toute la navigation »), on passe d'un écran à
-/// l'autre par la pilule du club, en haut à droite de chaque écran
-/// (composants/EnTeteClub.tsx). La feuille « Créer » du « + » central vit
-/// maintenant dans composants/FeuilleCreer.tsx, ouverte depuis l'accueil.
+/// Deux navigations, et c'est voulu. La barre du bas porte les quatre écrans
+/// qu'on ouvre vingt fois par soirée, plus le « + » qui crée ; la pilule du
+/// club, en haut à droite (composants/EnTeteClub.tsx), porte le reste —
+/// effectif, saison, réglages, partage, changement de club.
+///
+/// La barre avait été retirée pour coller au site, où le menu en verre porte
+/// tout. Sur un téléphone, c'était une perte sèche : deux gestes au lieu d'un
+/// pour les écrans du lundi soir. Elle est revenue le 20 septembre 2026, en
+/// verre flottant au-dessus du contenu (composants/BarreOnglets.tsx).
 ///
 /// Les écrans restent déclarés dans un `Tabs`, barre masquée, plutôt que dans
 /// une pile : un écran visité reste monté, on y revient sans le recharger ni
@@ -19,6 +30,8 @@ import { FournisseurClub, memoriserMoi } from "../../../composants/ClubCourant";
 /// l'accueil.
 export default function DispositionClub() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const club = useClubMemorise(id);
+  const [creer, setCreer] = useState(false);
 
   // Le club de la route peut ne plus être un club de l'utilisateur.
   //
@@ -75,7 +88,17 @@ export default function DispositionClub() {
   return (
     <FournisseurClub value={id}>
       <Tabs
-        tabBar={() => null}
+        tabBar={({ state, navigation }) => (
+          <BarreOnglets
+            t={club?.theme.sombre ?? JETONS_NEUTRES}
+            couleurA={club?.couleurA ?? "#ff6b2c"}
+            actif={state.routes[state.index]?.name ?? "index"}
+            onChoisir={(nom) => {
+              if (nom === "creer") return setCreer(true);
+              navigation.navigate(nom);
+            }}
+          />
+        )}
         backBehavior="history"
         screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}
       >
@@ -87,6 +110,17 @@ export default function DispositionClub() {
         <Tabs.Screen name="effectif" />
         <Tabs.Screen name="reglages" />
       </Tabs>
+
+      {id && (
+        <FeuilleCreer
+          visible={creer}
+          onClose={() => setCreer(false)}
+          clubId={id}
+          t={club?.theme.sombre ?? JETONS_NEUTRES}
+          peutScorer={club?.peutScorer ?? true}
+          peutGerer={club?.peutGerer ?? false}
+        />
+      )}
     </FournisseurClub>
   );
 }

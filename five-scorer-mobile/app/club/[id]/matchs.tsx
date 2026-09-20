@@ -16,6 +16,7 @@ import LigneScore from "../../../composants/LigneScore";
 import { useNoyau } from "../../../composants/Noyau";
 import { CarteGroupe, CarteProgrammes, Pilule } from "../../../composants/match/Liste";
 import { JETONS_NEUTRES, jeton, type Jetons } from "../../../lib/couleurs";
+import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
 import {
   chargerMatchs,
   SessionExpiree,
@@ -289,7 +290,7 @@ export default function Matchs() {
 }
 
 const s = StyleSheet.create({
-  contenu: { paddingHorizontal: 14, paddingBottom: 40, gap: 18 },
+  contenu: { paddingHorizontal: 14, paddingBottom: ESPACE_BARRE, gap: 18 },
   // La barre porte ses 14 de marge : on les lui rend.
   barre: { marginHorizontal: -14 },
   entete: {

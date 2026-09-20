@@ -9,6 +9,7 @@ import SelecteurSaison from "../../../composants/SelecteurSaison";
 import { BoutonVerre, CarteVerre, Ecusson, Onglets } from "../../../composants/base";
 import { IconeCalendrier } from "../../../composants/Icones";
 import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
 import {
   chargerSaison,
   SessionExpiree,
@@ -352,7 +353,7 @@ export default function Saison() {
 }
 
 const s = StyleSheet.create({
-  defile: { paddingBottom: 48 },
+  defile: { paddingBottom: ESPACE_BARRE },
   contenu: { paddingHorizontal: 14 },
   vide: { padding: 20, fontSize: 15 },
   squelette: { marginTop: 18, height: 360, opacity: 0.6 },

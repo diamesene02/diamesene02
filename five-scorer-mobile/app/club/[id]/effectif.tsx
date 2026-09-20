@@ -22,6 +22,7 @@ import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import { succes as retourSucces } from "../../../lib/haptique";
 import { messageErreur } from "../../../lib/erreurs";
 import { chargerSuccesClub } from "../../../lib/succes";
+import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
 import {
   chargerEcranEffectif,
   modifierJoueur,
@@ -408,7 +409,7 @@ function Rangee({
 }
 
 const s = StyleSheet.create({
-  contenu: { paddingBottom: 40 },
+  contenu: { paddingBottom: ESPACE_BARRE },
   corps: { paddingHorizontal: 14 },
   centre: { paddingTop: 60, alignItems: "center", gap: 12 },
   aide: { fontSize: 15 },

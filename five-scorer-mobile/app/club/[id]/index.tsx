@@ -44,6 +44,7 @@ import { JETONS_NEUTRES, jeton, type Jetons } from "../../../lib/couleurs";
 import { messageErreur } from "../../../lib/erreurs";
 import { leger, succes as vibrerSucces } from "../../../lib/haptique";
 import type { LocalMatch } from "../../../lib/outbox/types";
+import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
 import {
   chargerSucces,
   chargerSuccesClub,
@@ -524,7 +525,7 @@ export default function ClubAccueil() {
 }
 
 const s = StyleSheet.create({
-  defile: { paddingBottom: 48 },
+  defile: { paddingBottom: ESPACE_BARRE },
   // Les marges du site : 14 sur les côtés, comme la barre du haut. En
   // hauteur, 16 de contenu puis 18 avant la première carte — sous une barre
   // qui prend 64, la bannière tombe à 98 de la zone du statut, la mesure du

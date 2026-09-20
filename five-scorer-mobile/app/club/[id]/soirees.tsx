@@ -9,6 +9,7 @@ import { BoutonPlein, CarteVerre } from "../../../composants/base";
 import { IconeCalendrier, IconeJeu, IconePlus } from "../../../composants/Icones";
 import { quandRelatif } from "../../../composants/soiree/logique";
 import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
+import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
 import {
   chargerSoirees,
   SessionExpiree,
@@ -316,7 +317,7 @@ function capitale(x: string): string {
 }
 
 const s = StyleSheet.create({
-  defile: { paddingBottom: 48 },
+  defile: { paddingBottom: ESPACE_BARRE },
   contenu: { paddingHorizontal: 14 },
   tete: { paddingHorizontal: 4, paddingTop: 16 },
   kicker: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },

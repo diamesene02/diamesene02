@@ -40,6 +40,7 @@ import { themeTokens } from "../../../lib/noyau/theme";
 import { lettre } from "../../../lib/ini";
 import { messageErreur } from "../../../lib/erreurs";
 import { avertissement, choix as retourChoix, succes as retourSucces } from "../../../lib/haptique";
+import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
 import {
   basculerSaison,
   changerRole,
@@ -986,7 +987,7 @@ function Nuancier({
 const MONO: TextStyle["fontFamily"] = Platform.select({ ios: "Menlo", default: "monospace" });
 
 const s = StyleSheet.create({
-  contenu: { paddingBottom: 60 },
+  contenu: { paddingBottom: ESPACE_BARRE },
   corps: { paddingHorizontal: 14 },
   centre: { paddingTop: 60, alignItems: "center" },
   erreur: { marginTop: 24 },
