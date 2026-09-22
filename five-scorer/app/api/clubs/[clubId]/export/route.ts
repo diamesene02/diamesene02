@@ -56,7 +56,8 @@ export async function GET(
   const suffix = seasonId ? `saison-${seasonId}` : "toutes-saisons";
 
   if (type === "leaderboard") {
-    const rows = await getLeaderboard({ clubId, seasonId });
+    // Un CSV n'a pas de visages : inutile de faire venir les photos.
+    const rows = await getLeaderboard({ clubId, seasonId, avecPhotos: false });
     const lines: (string | number)[][] = [
       [
         "Joueur",

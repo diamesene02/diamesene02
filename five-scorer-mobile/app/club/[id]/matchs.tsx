@@ -1,12 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { chargerMoiMemorise, useClubId, useClubMemorise } from "../../../composants/ClubCourant";
 import Ecran from "../../../composants/Ecran";
@@ -14,6 +7,10 @@ import EnTeteClub from "../../../composants/EnTeteClub";
 import ErreurChargement from "../../../composants/ErreurChargement";
 import LigneScore from "../../../composants/LigneScore";
 import { useNoyau } from "../../../composants/Noyau";
+import { BoutonVerre } from "../../../composants/base";
+import { Bloc, CarteSquelette, Squelette } from "../../../composants/Squelette";
+import { useSommet } from "../../../composants/RetourEnHaut";
+import { leger } from "../../../lib/haptique";
 import { CarteGroupe, CarteProgrammes, Pilule } from "../../../composants/match/Liste";
 import { JETONS_NEUTRES, jeton, type Jetons } from "../../../lib/couleurs";
 import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
@@ -150,21 +147,34 @@ export default function Matchs() {
     }
   }
 
-  const ouvrirRecap = (matchId: string) =>
-    router.push({ pathname: "/recap/[id]", params: { id: matchId, clubId: id } });
+  // Stable : c'est la prop que reçoivent les trente cartes de soirée, qui
+  // sont mémoïsées. Une fonction refaite à chaque rendu les réveillerait
+  // toutes, et le `memo` n'aurait servi à rien.
+  const ouvrirRecap = useCallback(
+    (matchId: string) =>
+      router.push({ pathname: "/recap/[id]", params: { id: matchId, clubId: id } }),
+    [id],
+  );
 
   const rien = donnees && direct.length === 0 && programmes.length === 0 && groupes.length === 0;
+  /// Vide à cause des filtres, et non parce que le club n'a rien joué : le
+  /// club a des matchs, ils sont ailleurs.
+  const filtre =
+    rien &&
+    (donnees.direct.length > 0 || donnees.programmes.length > 0 || donnees.joues.length > 0);
 
   return (
     <Ecran t={t} chasubles={{ a: couleurA, b: couleurB }}>
       <ScrollView
+        ref={useSommet("matchs")}
         contentContainerStyle={s.contenu}
         refreshControl={
           <RefreshControl refreshing={rafraichit} onRefresh={() => void rafraichir()} tintColor={t.i2} />
         }
       >
-        {/* La barre du club : il n'y a plus de barre d'onglets, c'est la
-            pilule qui mène aux autres écrans. Elle porte ses marges. */}
+        {/* La barre du club : le retour, et la pilule qui mène aux écrans que
+            la barre du bas ne porte pas (vestiaire, saison, réglages). Elle
+            porte ses marges. */}
         <EnTeteClub t={t} club={c} style={s.barre} />
 
         <View style={s.entete}>
@@ -216,11 +226,19 @@ export default function Matchs() {
           </View>
         )}
 
+        {/* La forme de la page — les filtres, puis deux cartes de soirée —
+            plutôt qu'un rond au milieu du vide : l'écran ne saute plus quand
+            la liste arrive. */}
         {occupe && !donnees && (
-          <View style={s.centre}>
-            <ActivityIndicator color={t.ink} />
-            <Text style={[s.aide, { color: t.i2 }]}>On va chercher les matchs…</Text>
-          </View>
+          <Squelette etiquette="On va chercher les matchs" style={s.etage}>
+            <View style={s.rangeeFiltres}>
+              <Bloc t={t} l={112} h={36} r={18} />
+              <Bloc t={t} l={86} h={36} r={18} />
+              <Bloc t={t} l={64} h={36} r={18} />
+            </View>
+            <CarteSquelette t={t} rangees={3} entete avatar={false} style={s.etage} />
+            <CarteSquelette t={t} rangees={2} entete avatar={false} style={s.etage} />
+          </Squelette>
         )}
         {erreur != null && <ErreurChargement t={t} erreur={erreur} onReessayer={charger} />}
 
@@ -279,10 +297,46 @@ export default function Matchs() {
           />
         ))}
 
+        {/* Un écran vide doit porter la sortie, pas seulement le constat.
+            Deux vides très différents :
+            — le club a des matchs, mais pas dans CES filtres. Le cas de tous
+              les mois de septembre : la saison par défaut vient de changer
+              (`saisonParDefaut`), et l'historique entier disparaît derrière
+              une pilule qu'on n'a pas vue. Le bouton remet tout.
+            — le club n'a joué aucun match : c'est le coup d'envoi qu'il
+              faut, pas un filtre. */}
         {rien && (
-          <Text style={[s.vide, { color: t.ink }]}>
-            Aucun match pour ces filtres. Le terrain attend.
-          </Text>
+          <View style={s.vide}>
+            <Text style={[s.videTexte, { color: t.ink }]}>
+              {filtre
+                ? "Aucun match pour ces filtres."
+                : "Aucun match joué pour l'instant. Le terrain attend."}
+            </Text>
+            {filtre ? (
+              <BoutonVerre
+                t={t}
+                taille="normal"
+                titre="Voir tous les matchs du club"
+                onPress={() => {
+                  leger();
+                  setSaison("toutes");
+                  setGenre("tous");
+                }}
+                style={s.videBouton}
+              />
+            ) : c?.peutScorer ? (
+              <BoutonVerre
+                t={t}
+                taille="normal"
+                titre="Lancer le premier match"
+                onPress={() => {
+                  leger();
+                  router.push({ pathname: "/compo", params: { clubId: id } });
+                }}
+                style={s.videBouton}
+              />
+            ) : null}
+          </View>
         )}
       </ScrollView>
     </Ecran>
@@ -311,9 +365,9 @@ const s = StyleSheet.create({
   etage: { marginTop: 14 },
   rangeeFiltres: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 
-  centre: { paddingTop: 60, alignItems: "center", gap: 12 },
-  aide: { fontSize: 15 },
-  vide: { fontSize: 14, marginTop: 22 },
+  vide: { marginTop: 22, gap: 14, alignItems: "flex-start" },
+  videTexte: { fontSize: 15, lineHeight: 21 },
+  videBouton: { alignSelf: "flex-start" },
 
   blocDirect: { gap: 10 },
   bandeTitre: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

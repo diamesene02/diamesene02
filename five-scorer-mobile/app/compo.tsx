@@ -1,26 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ecran from "../composants/Ecran";
 import EnTeteClub, { TitreEcran } from "../composants/EnTeteClub";
 import ErreurChargement from "../composants/ErreurChargement";
 import LigneScore from "../composants/LigneScore";
-import {
-  Avatar,
-  BoutonPlein,
-  BoutonVerre,
-  CarteVerre,
-  Saisie,
-  Segment,
-} from "../composants/base";
+import { BoutonPlein, BoutonVerre, CarteVerre, Saisie, Segment } from "../composants/base";
+import RangeeCompo from "../composants/compo/Rangee";
+import { Bloc, Squelette } from "../composants/Squelette";
 import { IconePlus } from "../composants/Icones";
 import { useNoyau } from "../composants/Noyau";
 import { chargerMoiMemorise, useClubMemorise } from "../composants/ClubCourant";
 import ChampDate from "../composants/soiree/ChampDate";
 import { useGarderBrouillon } from "../composants/soiree/useGarderBrouillon";
 import { avecDelai } from "../composants/soiree/logique";
-import { jeton, JETONS_NEUTRES, type Jetons } from "../lib/couleurs";
-import { themeTokens } from "../lib/noyau/theme";
+import { jeton, jetonsDuClub, JETONS_NEUTRES, type Jetons } from "../lib/couleurs";
 import { nomsChasubles } from "../lib/noyau/color";
 import { balanceTeams, type BalanceInput } from "../lib/noyau/balance";
 import { joursEntre } from "../lib/datesRelatives";
@@ -131,7 +125,7 @@ export default function Compo() {
   const couleurB = c?.couleurB ?? couleursLocales?.b ?? "#111111";
   const t: Jetons =
     c?.theme.sombre ??
-    (couleursLocales ? themeTokens(couleursLocales.a, couleursLocales.b, "dark") : JETONS_NEUTRES);
+    (couleursLocales ? jetonsDuClub(couleursLocales.a, couleursLocales.b, "dark") : JETONS_NEUTRES);
 
   const poserNoms = (a: string, b: string) => {
     if (nomsTouches.current) return;
@@ -314,23 +308,34 @@ export default function Compo() {
     setErreur(null);
   };
 
-  function tourner(id: string) {
-    toucher();
-    retourChoix();
-    setChoix((c) => {
-      const actuel = c[id] ?? "aucun";
-      const suivant: Choix = externe
-        ? actuel === "aucun"
-          ? "A"
-          : "aucun"
-        : actuel === "aucun"
-          ? "A"
-          : actuel === "A"
-            ? "B"
-            : "aucun";
-      return { ...c, [id]: suivant };
-    });
-  }
+  /// Stable, et c'est la condition du reste : c'est la prop `onTourner` des
+  /// vingt rangées mémoïsées. Refaite à chaque rendu, elle les réveillerait
+  /// toutes à chaque tap, et le `memo` n'aurait servi à rien.
+  ///
+  /// `setChoix` prend la forme fonctionnelle et `setTouche`/`setErreur` sont
+  /// des poseurs d'état — stables eux aussi : il ne reste que `externe` en
+  /// dépendance.
+  const tourner = useCallback(
+    (id: string) => {
+      setTouche(true);
+      setErreur(null);
+      retourChoix();
+      setChoix((c) => {
+        const actuel = c[id] ?? "aucun";
+        const suivant: Choix = externe
+          ? actuel === "aucun"
+            ? "A"
+            : "aucun"
+          : actuel === "aucun"
+            ? "A"
+            : actuel === "A"
+              ? "B"
+              : "aucun";
+        return { ...c, [id]: suivant };
+      });
+    },
+    [externe],
+  );
 
   function tousOuAucun() {
     toucher();
@@ -438,6 +443,19 @@ export default function Compo() {
     ? equipeA.length > 0 && Boolean(adversaireId)
     : equipeA.length > 0 && equipeB.length > 0;
 
+  /// Ce qui manque pour partir, en une ligne, SOUS LES YEUX du bouton éteint.
+  /// Un bouton à moitié effacé sans un mot, c'est une impasse : on le tape,
+  /// il ne répond pas, et on remonte la page au hasard.
+  const manque = externe
+    ? equipeA.length === 0
+      ? "Tape les joueurs qui viennent"
+      : "Choisis l'équipe adverse"
+    : equipeA.length === 0 && equipeB.length === 0
+      ? `Tape un joueur : une fois pour ${nomA || "A"}, deux pour ${nomB || "B"}`
+      : equipeB.length === 0
+        ? `Personne en ${nomB || "B"}`
+        : `Personne en ${nomA || "A"}`;
+
   return (
     <Ecran t={t} chasubles={c || couleursLocales ? { a: couleurA, b: couleurB } : undefined}>
       <ScrollView contentContainerStyle={s.defile} keyboardShouldPersistTaps="handled">
@@ -475,7 +493,7 @@ export default function Compo() {
           )}
 
           {occupe && effectif.length === 0 && erreurChargement == null && (
-            <CarteVerre t={t} style={s.squelette} />
+            <SqueletteVestiaire t={t} />
           )}
 
           {effectif.length > 0 && (
@@ -646,54 +664,36 @@ export default function Compo() {
                         : `Tout le monde en ${nomA || "A"}`}
                   </Text>
                 </Pressable>
+                {/* La rangée vit dans composants/compo/Rangee.tsx, mémoïsée.
+                    Écrite ici, en ligne, elle se refaisait vingt fois à
+                    chaque tap et à chaque frappe. Compté au banc (20 joueurs,
+                    20 taps) : 400 rangées re-rendues, 20 maintenant — une
+                    seule par tap. Et taper le nom d'un invité, qui ne
+                    concerne aucune rangée : 140 re-rendues, 0 maintenant.
+                    On ne lui passe que des valeurs simples — dont `valeur`,
+                    déjà calculée : taper le nom de l'équipe ne réveille ainsi
+                    que les rangées qui l'affichent, pas les vingt. */}
                 {listeTriee.map((f, i) => {
                   const cc = choix[f.id] ?? "aucun";
                   const pris = cc !== "aucun";
-                  const camp = externe ? (pris ? "A" : null) : cc === "aucun" ? null : cc;
-                  const valeur = !pris ? "—" : externe ? "Joue" : cc === "A" ? nomA : nomB;
                   return (
-                    <Pressable
+                    <RangeeCompo
                       key={f.id}
-                      onPress={() => tourner(f.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${f.name}, note ${f.skill}${gardien(f) ? ", gardien" : ""} : ${pris ? valeur : "ne joue pas"}`}
-                      style={({ pressed }) => [
-                        s.rangee,
-                        i > 0 && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") },
-                        pressed && { opacity: 0.7 },
-                      ]}
-                    >
-                      <Avatar nom={f.name} photo={f.photo} t={t} camp={camp} taille={36} />
-                      <View style={s.libelle}>
-                        <Text
-                          style={[
-                            s.nom,
-                            {
-                              color: pris ? t.ink : jeton(t, "i2"),
-                              fontWeight: pris ? "600" : "400",
-                            },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {f.name}
-                          {f.isGuest ? (
-                            <Text style={[s.suffixe, { color: jeton(t, "i3") }]}> (inv.)</Text>
-                          ) : null}
-                          {gardien(f) ? (
-                            <Text style={[s.suffixe, { color: jeton(t, "i3") }]}> · gardien</Text>
-                          ) : null}
-                        </Text>
-                        {/* « Note », pas « niveau » : le niveau est celui qu'on gagne en
-                            jouant (les succès). Ici c'est la note d'équilibrage, de 1 à 5. */}
-                        <Text style={[s.sousNom, { color: jeton(t, "i2") }]}>Note {f.skill}</Text>
-                      </View>
-                      <Text
-                        style={[s.valeur, { color: pris ? t.ink : jeton(t, "i3") }]}
-                        numberOfLines={1}
-                      >
-                        {valeur}
-                      </Text>
-                    </Pressable>
+                      t={t}
+                      id={f.id}
+                      nom={f.name}
+                      photo={f.photo}
+                      note={f.skill}
+                      invite={f.isGuest}
+                      gardien={gardien(f)}
+                      // Contre un adversaire extérieur, il n'y a qu'une
+                      // équipe : un joueur resté en « B » d'un premier essai
+                      // « entre nous » joue quand même, et du bon côté.
+                      choix={externe ? (pris ? "A" : "aucun") : cc}
+                      valeur={!pris ? "—" : externe ? "Joue" : cc === "A" ? nomA : nomB}
+                      separateur={i > 0}
+                      onTourner={tourner}
+                    />
                   );
                 })}
               </CarteVerre>
@@ -752,31 +752,98 @@ export default function Compo() {
                 </View>
               </CarteVerre>
 
-              <Text style={[s.recap, { color: t.ink }]}>
-                {externe
-                  ? `${equipeA.length} joueur${equipeA.length > 1 ? "s" : ""}`
-                  : `${nomA} : ${equipeA.length} · ${nomB} : ${equipeB.length}`}
-              </Text>
-
-              {erreur && (
-                <Text style={[s.erreur, { color: jeton(t, "bad") }]} accessibilityLiveRegion="polite">
-                  {erreur}
-                </Text>
-              )}
-
-              <BoutonPlein
-                t={t}
-                grand
-                titre={envoi ? "Création…" : quand === "deja" ? "Ouvrir la feuille" : "Coup d'envoi"}
-                occupe={envoi}
-                onPress={() => void coupDEnvoi()}
-                disabled={!pret}
-              />
+              {/* La place que la barre du bas occupe : sans elle, la dernière
+                  rangée de joueur se cache derrière. */}
+              <View style={{ height: 8 }} />
             </>
           )}
         </View>
       </ScrollView>
+
+      {/* Le coup d'envoi, posé sur l'écran et non au bout de la page.
+          Avec vingt joueurs au vestiaire, cette page mesure environ 2 200
+          points pour une fenêtre de 760 : le bouton était à 1 450 points sous
+          le pli — deux écrans de défilement, au pouce, debout, pour lancer le
+          match qui commence. Il ne bouge plus, et il dit ce qui manque quand
+          il ne peut pas partir. */}
+      {effectif.length > 0 && (
+        <BarreCoupDEnvoi
+          t={t}
+          etat={
+            erreur
+              ? { texte: erreur, ton: "erreur" }
+              : pret
+                ? {
+                    texte: externe
+                      ? `${equipeA.length} joueur${equipeA.length > 1 ? "s" : ""}`
+                      : `${nomA} ${equipeA.length} · ${equipeB.length} ${nomB}`,
+                    ton: "ok",
+                  }
+                : { texte: manque, ton: "attente" }
+          }
+          titre={envoi ? "Création…" : quand === "deja" ? "Ouvrir la feuille" : "Coup d'envoi"}
+          occupe={envoi}
+          pret={pret}
+          onPress={() => void coupDEnvoi()}
+        />
+      )}
     </Ecran>
+  );
+}
+
+/// La barre d'action du bas de la compo : ce qu'on a sous les yeux (les
+/// effectifs, ou ce qui manque) et le bouton qui lance.
+///
+/// Même matière que la barre d'onglets (verre sombre, rayon large, ombre
+/// portée) : c'est le même objet flottant, à un autre étage de l'app. Pas de
+/// `expo-blur` — l'app se livre par mise à jour à chaud, aucun module natif
+/// nouveau.
+function BarreCoupDEnvoi({
+  t,
+  etat,
+  titre,
+  occupe,
+  pret,
+  onPress,
+}: {
+  t: Jetons;
+  etat: { texte: string; ton: "ok" | "attente" | "erreur" };
+  titre: string;
+  occupe: boolean;
+  pret: boolean;
+  onPress: () => void;
+}) {
+  const couleur =
+    etat.ton === "erreur" ? jeton(t, "bad") : etat.ton === "ok" ? t.ink : jeton(t, "i2");
+  // Pas de marge de sécurité ici : `Ecran` enveloppe déjà ses enfants dans
+  // une `SafeAreaView`, le bas de cette barre EST le haut de la barre
+  // d'accueil de l'appareil. L'ajouter une seconde fois laissait un vide.
+  return (
+    <View style={s.barreBas} pointerEvents="box-none">
+      <View
+        style={[
+          s.barreVerre,
+          { backgroundColor: t.mn ?? "rgba(24,24,28,0.92)", borderColor: jeton(t, "cb") },
+        ]}
+      >
+        <Text
+          style={[s.barreEtat, { color: couleur }]}
+          numberOfLines={2}
+          accessibilityLiveRegion="polite"
+        >
+          {etat.texte}
+        </Text>
+        <BoutonPlein
+          t={t}
+          grand
+          titre={titre}
+          occupe={occupe}
+          onPress={onPress}
+          disabled={!pret}
+          style={s.barreBouton}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -789,11 +856,69 @@ function veille(): Date {
   return d;
 }
 
+/// L'attente du vestiaire, à la forme de la page qui arrive : la carte
+/// « Quand ? », la ligne de score des deux équipes, puis les rangées de
+/// joueurs qu'on va taper.
+///
+/// Mesuré le 22 septembre 2026 sur le serveur de développement (machine
+/// chargée) : médiane 751 ms pour `/roster`, et c'est le premier appel de la
+/// page, jamais servi par le cache local au tout premier lancement. Un pavé
+/// gris de 420 points ne disait pas combien de joueurs allaient tomber, ni
+/// où : à l'arrivée, la page changeait de hauteur sous le pouce.
+function SqueletteVestiaire({ t }: { t: Jetons }) {
+  return (
+    <Squelette etiquette="On ouvre le vestiaire" style={sq.cadre}>
+      <CarteVerre t={t} style={sq.carte}>
+        <Bloc t={t} l="32%" h={17} />
+        <Bloc t={t} l="72%" h={13} />
+        <Bloc t={t} l="100%" h={44} r={14} style={sq.pleine} />
+      </CarteVerre>
+
+      <CarteVerre t={t} style={sq.carteScore}>
+        <View style={sq.score}>
+          <Bloc t={t} l={54} h={54} r={16} />
+          <Bloc t={t} l={72} h={30} r={10} />
+          <Bloc t={t} l={54} h={54} r={16} />
+        </View>
+      </CarteVerre>
+
+      <CarteVerre t={t} style={sq.carte}>
+        <View style={sq.entete}>
+          <Bloc t={t} l="66%" h={15} />
+          <Bloc t={t} l={22} h={15} />
+        </View>
+        {/* Huit rangées : l'effectif d'un lundi tient entre huit et vingt, et
+            huit remplissent déjà l'écran. */}
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <View key={i} style={sq.rangee}>
+            <Bloc t={t} l={34} h={34} r={17} />
+            <Bloc t={t} l={["56%", "42%", "64%", "48%", "60%", "44%", "52%", "58%"][i] as `${number}%`} h={15} />
+            <View style={sq.pousse} />
+            <Bloc t={t} l={38} h={15} />
+          </View>
+        ))}
+      </CarteVerre>
+    </Squelette>
+  );
+}
+
+const sq = StyleSheet.create({
+  cadre: { gap: 16 },
+  carte: { paddingVertical: 16, paddingHorizontal: 18, gap: 10 },
+  carteScore: { paddingVertical: 16, paddingHorizontal: 18 },
+  pleine: { alignSelf: "stretch", marginTop: 4 },
+  score: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20 },
+  entete: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 48 },
+  pousse: { flex: 1 },
+});
+
 const s = StyleSheet.create({
-  defile: { paddingBottom: 48 },
+  // La barre d'action flotte au-dessus : 6 + 56 + 6 de barre, 10 de marge,
+  // plus 14 pour que la dernière rangée ne la frôle pas.
+  defile: { paddingBottom: 92 },
   contenu: { paddingHorizontal: 14, paddingTop: 16, gap: 16 },
   avis: { fontSize: 13, lineHeight: 18, paddingHorizontal: 4 },
-  squelette: { height: 420, opacity: 0.6 },
   carte: { paddingVertical: 16, paddingHorizontal: 18 },
   carteScore: { paddingTop: 6, paddingBottom: 14 },
   carteListe: { paddingHorizontal: 18, paddingBottom: 6 },
@@ -830,20 +955,42 @@ const s = StyleSheet.create({
   // fois sur deux sur la rangée — et faisait changer ce joueur d'équipe.
   tous: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
   tousTexte: { fontSize: 15, fontWeight: "600" },
-  rangee: {
+  // Les styles de la rangée de joueur sont partis avec elle, dans
+  // composants/compo/Rangee.tsx.
+
+  force: { fontSize: 12, marginTop: 12, fontVariant: ["tabular-nums"] },
+  // La barre d'action, sur le modèle de la barre d'onglets : posée sur le
+  // contenu, pas collée au bord.
+  barreBas: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+  },
+  barreVerre: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    minHeight: 56,
-    paddingVertical: 8,
+    borderRadius: 30,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingLeft: 18,
+    paddingRight: 6,
+    paddingVertical: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.45,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+      },
+      android: { elevation: 12 },
+      default: {},
+    }),
   },
-  libelle: { flex: 1, minWidth: 0 },
-  nom: { fontSize: 17 },
-  suffixe: { fontWeight: "400" },
-  sousNom: { fontSize: 13 },
-  valeur: { fontSize: 17, fontWeight: "600", maxWidth: "40%" },
-
-  force: { fontSize: 12, marginTop: 12, fontVariant: ["tabular-nums"] },
-  recap: { fontSize: 14, paddingHorizontal: 4, fontVariant: ["tabular-nums"] },
-  erreur: { fontSize: 15, paddingHorizontal: 4 },
+  barreEtat: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 18, fontVariant: ["tabular-nums"] },
+  // Le bouton ne s'étire pas sur toute la barre : le compte des deux équipes
+  // doit rester lisible à côté, c'est lui qu'on relit avant de lancer.
+  barreBouton: { paddingHorizontal: 22 },
 });

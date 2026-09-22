@@ -115,11 +115,11 @@ export default async function SaisonPage({
       etiquette = "Annulée";
       ton = "muet";
     } else if (direct) {
-      sous = [md.location, `${joues} match${joues > 1 ? "s" : ""} joué${joues > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
+      sous = [md.location, `${joues} match${joues > 1 ? "s" : ""} joué${joues > 1 ? "s" : ""}`].filter(Boolean).join("\u00a0· ");
       etiquette = "En cours";
       ton = "direct";
     } else if (passee) {
-      sous = [md.location, joues ? `${joues} match${joues > 1 ? "s" : ""} joué${joues > 1 ? "s" : ""}` : "aucun match"].filter(Boolean).join(" · ");
+      sous = [md.location, joues ? `${joues} match${joues > 1 ? "s" : ""} joué${joues > 1 ? "s" : ""}` : "aucun match"].filter(Boolean).join("\u00a0· ");
       etiquette = joues ? "Jouée" : "";
       ton = "muet";
       // Une soirée jouée sans feuille ne disparaît pas en silence. Mais on
@@ -138,7 +138,7 @@ export default async function SaisonPage({
           ton = "appel";
           sous = [md.location, "un match de ce jour n'a pas de soirée"]
             .filter(Boolean)
-            .join(" · ");
+            .join("\u00a0· ");
           href = `/c/${slug}/matches/${r.matchId}`;
         } else if (r.quoi === "saisir") {
           etiquette = "Saisir";
@@ -165,7 +165,7 @@ export default async function SaisonPage({
       }).etat;
       sous = [md.location, phraseEtat(etat), md.lineup.length ? "équipes prêtes" : "équipes à préparer"]
         .filter(Boolean)
-        .join(" · ");
+        .join("\u00a0· ");
       // « Répondre » n'appelle que pour les deux prochaines semaines : sur un
       // calendrier de quarante lundis, le même mot répété jusqu'en juillet ne
       // dit plus rien.
@@ -174,7 +174,10 @@ export default async function SaisonPage({
         etiquette = "Répondre";
         ton = "appel";
       } else {
-        etiquette = heure;
+        // L'heure est déjà dans le titre de la rangée. La répéter à droite
+        // prenait 62 px à la ligne d'état — celle qui dit où on joue et si
+        // la soirée tient — et faisait lire deux fois la même chose.
+        etiquette = "";
       }
     }
     entrees.push({
@@ -197,8 +200,10 @@ export default async function SaisonPage({
       date: quand,
       href: fini || m.status === "LIVE" ? `/c/${slug}/matches/${m.id}` : `/c/${slug}/matches/${m.id}`,
       titre: `${m.opponent?.name ?? m.teamBName} — ${ctx.org.name}`,
-      sous: [m.isHome ? "domicile" : "extérieur", m.venue, fini ? `${m.scoreA} – ${m.scoreB}` : heure].filter(Boolean).join(" · "),
-      etiquette: m.status === "LIVE" ? "En cours" : fini ? (m.scoreA > m.scoreB ? "Victoire" : m.scoreA < m.scoreB ? "Défaite" : "Nul") : heure,
+      sous: [m.isHome ? "domicile" : "extérieur", m.venue, fini ? `${m.scoreA} – ${m.scoreB}` : heure].filter(Boolean).join("\u00a0· "),
+      // Même règle que les soirées : la colonne de droite dit l'ÉTAT, pas
+      // l'heure — l'heure se lit déjà sur la ligne d'en dessous.
+      etiquette: m.status === "LIVE" ? "En cours" : fini ? (m.scoreA > m.scoreB ? "Victoire" : m.scoreA < m.scoreB ? "Défaite" : "Nul") : "",
       ton: m.status === "LIVE" ? "direct" : fini ? "muet" : "neutre",
       annulee: false,
     });
@@ -256,7 +261,7 @@ export default async function SaisonPage({
   const sousTitre = [
     `${soireesJouees} soirée${soireesJouees > 1 ? "s" : ""} jouée${soireesJouees > 1 ? "s" : ""}`,
     `${soirees.length} au calendrier`,
-  ].join(" · ");
+  ].join("\u00a0· ");
 
   const calendrier = (
     <>

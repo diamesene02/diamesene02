@@ -312,6 +312,27 @@ export default async function SessionDetailPage({
 
   const resultats = (
     <>
+      {/* LA FEUILLE OUVERTE PASSE DEVANT.
+          Tant qu'un match tourne, c'est la seule chose qu'on vient chercher
+          sur cette page : on est debout, au bord du terrain, et on veut
+          reprendre le chrono. Elle arrivait en troisième position, derrière
+          le bilan et le pavé de texte du mot de la soirée — deux blocs qui
+          ne servent qu'une fois tout fini. */}
+      {liveMatches.map((m) => (
+        <section key={m.id} className="carte soiree-carte soiree-matchs">
+          <LigneScore
+            nomA={m.teamAName}
+            nomB={opponentOr(m)}
+            scoreA={m.scoreA}
+            scoreB={m.scoreB}
+            etat="En direct"
+            direct
+            heure="Reprendre ›"
+            href={`/c/${slug}/matches/${m.id}/live`}
+          />
+        </section>
+      ))}
+
       {/* Le bilan de la soirée — un COMPTE de matchs gagnés, pas un score.
           Il empruntait la ligne de score : deux écussons, deux gros chiffres
           face à face et « Terminé » au milieu. Une soirée gagnée un match à
@@ -362,28 +383,6 @@ export default async function SessionDetailPage({
         </section>
       )}
 
-      {motDeLaSoiree && (
-        <section className="carte soiree-carte">
-          <div className="carte-titre">Le mot de la soirée</div>
-          <MotDeLaSoiree texte={motDeLaSoiree} />
-        </section>
-      )}
-
-      {liveMatches.map((m) => (
-        <section key={m.id} className="carte soiree-carte soiree-matchs">
-          <LigneScore
-            nomA={m.teamAName}
-            nomB={opponentOr(m)}
-            scoreA={m.scoreA}
-            scoreB={m.scoreB}
-            etat="En direct"
-            direct
-            heure="Reprendre ›"
-            href={`/c/${slug}/matches/${m.id}/live`}
-          />
-        </section>
-      ))}
-
       {autresMatchs.length > 0 && (
         <section className="carte soiree-carte soiree-matchs">
           <div className="carte-titre">Les matchs</div>
@@ -407,6 +406,17 @@ export default async function SessionDetailPage({
               />
             );
           })}
+        </section>
+      )}
+
+      {/* Le mot de la soirée se recopie sur le groupe QUAND C'EST FINI. Il
+          occupait la deuxième place de la page — un pavé de cinq lignes et
+          deux boutons devant les matchs — alors qu'il ne sert qu'une fois,
+          après. Il se range donc après les résultats qu'il résume. */}
+      {motDeLaSoiree && (
+        <section className="carte soiree-carte">
+          <div className="carte-titre">Le mot de la soirée</div>
+          <MotDeLaSoiree texte={motDeLaSoiree} />
         </section>
       )}
 

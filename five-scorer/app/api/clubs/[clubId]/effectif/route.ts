@@ -40,7 +40,10 @@ export async function GET(
         userId: true,
       },
     }),
-    getLeaderboard({ clubId }),
+    // Le classement n'apporte ici que des chiffres : la photo affichée vient
+    // de la requête ci-dessus. Les charger deux fois, c'était faire traverser
+    // l'album du club en double sur l'écran du vestiaire.
+    getLeaderboard({ clubId, avecPhotos: false }),
   ]);
 
   const chiffres = new Map(classement.map((r) => [r.playerId, r]));

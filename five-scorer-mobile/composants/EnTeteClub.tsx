@@ -12,10 +12,14 @@ import type { ClubDeMoi } from "../lib/api";
 ///
 /// La barre : le bouton retour en verre à gauche — ou la marque « Five
 /// Scorer » sur l'accueil — et la pilule du club à droite, précédée de la
-/// pastille de synchro quand quelque chose attend. C'est par la pilule qu'on
-/// navigue : il n'y a plus de barre d'onglets en bas, comme sur le site. Il
-/// faut donc la poser sur CHAQUE écran du club, sinon l'écran est un
-/// cul-de-sac.
+/// pastille de synchro quand quelque chose attend.
+///
+/// Deux navigations se partagent le téléphone depuis le 20 septembre 2026 :
+/// la barre du bas (composants/BarreOnglets.tsx) porte les quatre écrans du
+/// lundi soir et le « + » ; la pilule porte TOUT LE RESTE — vestiaire,
+/// saison, réglages, partage, changement de club. Il faut donc la poser sur
+/// CHAQUE écran du club, y compris ceux que la barre dessert : sans elle, on
+/// ne sort plus des écrans qui ne sont pas des onglets.
 ///
 /// À placer en tête du contenu qui défile (le site la fait défiler avec la
 /// page), dans un conteneur SANS marge horizontale : elle porte ses 14

@@ -40,8 +40,11 @@ export default function BarreClub(props: {
 
   return (
     <div className="barre-haut" style={{ padding: "calc(var(--safe-t) + 14px) 14px 0" }}>
+      {/* L'écusson fait 34 px : le lien vers l'accueil ne se touchait donc
+          que sur 34 de haut. Il en prend 44, sans bouger d'un pixel à
+          l'écran — la barre fait déjà plus haut que ça. */}
       {accueil ? (
-        <Link href={base} className="flex min-w-0 flex-1 items-center gap-2">
+        <Link href={base} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2">
           <Ecusson camp="A" lettre="F" taille={34} style={{ borderRadius: 9 }} />
           <span className="truncate text-[26px] font-bold leading-none tracking-[-.5px] text-[color:var(--ink)]">
             Five Scorer

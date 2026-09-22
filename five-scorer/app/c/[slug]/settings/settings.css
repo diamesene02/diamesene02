@@ -46,7 +46,10 @@
 }
 .reg-select select {
   position: absolute;
-  inset: 0;
+  /* Le choix natif ne répondait que sur la ligne de texte — 22 px de haut.
+     Il couvre maintenant toute la hauteur de la rangée (54 px), comme sur
+     iOS où l'on touche la rangée, pas le mot. */
+  inset: -16px 0;
   opacity: 0;
   min-height: 0;
   width: 100%;

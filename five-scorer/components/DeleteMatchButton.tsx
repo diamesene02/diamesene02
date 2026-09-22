@@ -31,7 +31,7 @@ export default function DeleteMatchButton({
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="rounded-[2px] px-4 py-2 text-sm font-bold text-[color:var(--loss)] hover:bg-[color:var(--pitch-2)]"
+        className="inline-flex min-h-[44px] items-center rounded-[2px] px-4 text-sm font-bold text-[color:var(--loss)] hover:bg-[color:var(--pitch-2)]"
       >
         Supprimer
       </button>
@@ -59,13 +59,13 @@ export default function DeleteMatchButton({
             }
           })
         }
-        className="rounded-[2px] bg-[color:var(--loss)] px-4 py-2 text-sm font-bold text-[color:var(--pitch-0)] disabled:opacity-50"
+        className="inline-flex min-h-[44px] min-w-[64px] items-center justify-center rounded-[2px] bg-[color:var(--loss)] px-4 text-sm font-bold text-[color:var(--pitch-0)] disabled:opacity-50"
       >
         {pending ? "…" : "Oui"}
       </button>
       <button
         onClick={() => setConfirming(false)}
-        className="rounded-[2px] px-3 py-2 text-sm font-bold text-[color:var(--ink-1)]"
+        className="inline-flex min-h-[44px] min-w-[64px] items-center justify-center rounded-[2px] px-3 text-sm font-bold text-[color:var(--ink-1)]"
       >
         Non
       </button>

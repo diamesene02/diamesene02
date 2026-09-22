@@ -32,53 +32,87 @@ export async function GET(
   const ctx = await getClubApiContext(clubId);
   if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
 
-  const md = await prisma.matchDay.findFirst({
-    where: { id: matchDayId, clubId },
-    select: {
-      id: true,
-      date: true,
-      title: true,
-      location: true,
-      notes: true,
-      canceledAt: true,
-      createdAt: true,
-      fieldCostCents: true,
-      teamAName: true,
-      teamBName: true,
-      rsvps: { select: { playerId: true, status: true, respondedAt: true, hasPaid: true } },
-      lineup: { select: { playerId: true, team: true, isGk: true } },
-      matches: {
-        orderBy: { playedAt: "asc" },
-        select: {
-          id: true,
-          status: true,
-          kind: true,
-          playedAt: true,
-          teamAName: true,
-          teamBName: true,
-          scoreA: true,
-          scoreB: true,
-          opponent: { select: { name: true } },
-          events: {
-            where: { type: { in: ["GOAL", "OWN_GOAL"] } },
-            select: { team: true, type: true, player: { select: { name: true } } },
+  // Tout part ENSEMBLE. Rien ici n'attend rien : la soirée, l'effectif et le
+  // classement du soir ne dépendent que de `clubId` et `matchDayId`, connus
+  // depuis l'URL. Avant, la route les enchaînait — soirée, puis effectif,
+  // puis classement — et payait trois fois le trajet cdg1 → Francfort pour
+  // des requêtes qui n'avaient rien à se dire. C'est l'écran du lundi soir :
+  // on l'ouvre debout, au bord du terrain, une main sur le téléphone.
+  //
+  // Le classement part même quand la soirée n'a aucun match terminé : il ne
+  // rend alors rien du tout, et l'attendre pour le savoir coûtait plus cher
+  // que de le lancer pour rien.
+  const [md, effectif, classementDuSoir] = await Promise.all([
+    prisma.matchDay.findFirst({
+      where: { id: matchDayId, clubId },
+      select: {
+        id: true,
+        date: true,
+        title: true,
+        location: true,
+        notes: true,
+        canceledAt: true,
+        createdAt: true,
+        fieldCostCents: true,
+        teamAName: true,
+        teamBName: true,
+        rsvps: { select: { playerId: true, status: true, respondedAt: true, hasPaid: true } },
+        lineup: { select: { playerId: true, team: true, isGk: true } },
+        matches: {
+          orderBy: { playedAt: "asc" },
+          select: {
+            id: true,
+            status: true,
+            kind: true,
+            playedAt: true,
+            teamAName: true,
+            teamBName: true,
+            scoreA: true,
+            scoreB: true,
+            opponent: { select: { name: true } },
+            events: {
+              where: { type: { in: ["GOAL", "OWN_GOAL"] } },
+              select: { team: true, type: true, player: { select: { name: true } } },
+            },
           },
         },
       },
-    },
-  });
+    }),
+    // TOUT l'effectif, archivés compris, en une seule lecture. La compo
+    // n'affiche que les actifs — on filtre plus bas — mais les cracks du soir
+    // peuvent contenir quelqu'un qui a quitté le club depuis : sans lui ici,
+    // sa tête disparaîtrait du podium. Une requête de plus large plutôt que
+    // deux requêtes qui rapportent chacune l'album photo du club.
+    prisma.player.findMany({
+      where: { clubId },
+      orderBy: { id: "asc" },
+      select: {
+        id: true,
+        name: true,
+        photo: true,
+        skill: true,
+        isGk: true,
+        isGuest: true,
+        abonne: true,
+        isArchived: true,
+        // `userId` ici plutôt qu'un `findFirst` séparé : « mon joueur » est
+        // dans cette liste, le chercher en mémoire coûte zéro trajet.
+        userId: true,
+      },
+    }),
+    // `avecPhotos: false` : les visages des cracks sont ceux de l'effectif
+    // ci-dessus, on les recolle en mémoire. Sans ce drapeau, l'album du club
+    // traversait Francfort → Paris deux fois pour une seule fiche de soirée.
+    getLeaderboard({ clubId, matchDayId, avecPhotos: false }),
+  ]);
   // Pas le mot « introuvable » seul : l'app le lit comme « ce club n'est
   // plus accessible » (lib/appel.ts). Une soirée supprimée n'est pas un club
   // perdu.
   if (!md) return NextResponse.json({ error: "Soirée introuvable." }, { status: 404 });
 
-  const [joueurs, monJoueur] = await Promise.all([
-    prisma.player.findMany({
-      where: { clubId, isArchived: false },
-      select: { id: true, name: true, photo: true, skill: true, isGk: true, isGuest: true, abonne: true },
-    }),
-    prisma.player.findFirst({ where: { clubId, userId: ctx.user.id }, select: { id: true } }),
-  ]);
+  const joueurs = effectif.filter((j) => !j.isArchived);
+  const monJoueur = effectif.find((j) => j.userId === ctx.user.id) ?? null;
+  const photoDe = new Map(effectif.map((j) => [j.id, j.photo]));
 
   // --- Présences ------------------------------------------------------------
   const reponses = new Map(
@@ -177,9 +211,7 @@ export async function GET(
   const buts = termines.reduce((n, m) => n + m.scoreA + m.scoreB, 0);
 
   const classementSoir =
-    termines.length > 0
-      ? (await getLeaderboard({ clubId, matchDayId })).filter((r) => r.matchesPlayed > 0)
-      : [];
+    termines.length > 0 ? classementDuSoir.filter((r) => r.matchesPlayed > 0) : [];
   const buteurDuSoir = [...classementSoir].filter((r) => r.goals > 0).sort((a, b) => b.goals - a.goals)[0];
   const mvpDuSoir = [...classementSoir].filter((r) => r.mvpCount > 0).sort((a, b) => b.mvpCount - a.mvpCount)[0];
 
@@ -328,7 +360,9 @@ export async function GET(
         rang: i + 1,
         playerId: r.playerId,
         nom: r.name,
-        photo: r.photo,
+        // Le visage vient de l'effectif déjà en mémoire, pas d'une seconde
+        // lecture de la colonne `photo`. Même valeur, un trajet de moins.
+        photo: photoDe.get(r.playerId) ?? null,
         invite: r.isGuest,
         matchs: r.matchesPlayed,
         victoires: r.wins,

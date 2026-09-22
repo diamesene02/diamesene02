@@ -236,9 +236,29 @@ a.ligne-exploit:active {
   flex-direction: column;
   gap: 1px;
 }
+/* « Bakary, Cédric et 10 autres · Premiers pas » : sur 402 px, l'ellipse
+   emportait 42 px — soit le nom de l'exploit, la seule information neuve de
+   la ligne. Les deux morceaux sont donc deux boîtes : celle des joueurs
+   rétrécit, celle de l'exploit jamais. */
 .exploit-l1 {
+  display: flex;
+  align-items: baseline;
   font-size: 15px;
   color: var(--i2);
+  min-width: 0;
+  overflow: hidden;
+}
+.exploit-l1 .qui {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Plafonné aux deux tiers : un exploit au nom long (« Premier match aux
+   cages ») rétrécit à son tour plutôt que d'effacer tous les joueurs. */
+.exploit-l1 .quoi {
+  flex: none;
+  max-width: 66%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

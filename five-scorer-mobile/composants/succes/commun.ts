@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
-import { AccessibilityInfo } from "react-native";
 import type { Jetons } from "../../lib/couleurs";
+
+// « Réduire les animations » ne vit plus ici : c'est un réglage de l'app
+// entière, pas des succès. Il est dans composants/base.tsx, avec la table
+// des durées — un seul abonnement au système pour tous les écrans, au lieu
+// d'un par composant. Réexporté pour ne rien casser de ce qui l'importait.
+export { useMouvementReduit } from "../base";
 
 /// Les chasubles par défaut du site (lib/color.ts) : ce que montre une barre
 /// quand ni les jetons du club ni ses couleurs ne sont encore là.
@@ -18,25 +22,4 @@ export function couleursClub(t: Jetons, chasubles?: { a: string; b: string }): {
     a: t.taR ?? t.ta ?? chasubles?.a ?? DEFAUT_A,
     b: t.tbR ?? t.tb ?? chasubles?.b ?? DEFAUT_B,
   };
-}
-
-/// « Réduire les animations », réglage du téléphone. Faux tant qu'on ne sait
-/// pas : la première animation d'une barre part peut-être pour rien, pas
-/// l'annonce, qui redemande au moment de s'ouvrir.
-export function useMouvementReduit(): boolean {
-  const [reduit, setReduit] = useState(false);
-  useEffect(() => {
-    let vivant = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((v) => {
-        if (vivant) setReduit(v);
-      })
-      .catch(() => {});
-    const abonnement = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduit);
-    return () => {
-      vivant = false;
-      abonnement.remove();
-    };
-  }, []);
-  return reduit;
 }

@@ -7,6 +7,7 @@ import EnTeteClub from "../../../composants/EnTeteClub";
 import ErreurChargement from "../../../composants/ErreurChargement";
 import SelecteurSaison from "../../../composants/SelecteurSaison";
 import { BoutonVerre, CarteVerre, Ecusson, Onglets } from "../../../composants/base";
+import { CarteSquelette, Squelette } from "../../../composants/Squelette";
 import { IconeCalendrier } from "../../../composants/Icones";
 import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import { ESPACE_BARRE } from "../../../composants/BarreOnglets";
@@ -134,6 +135,7 @@ export default function Saison() {
                 t={t}
                 choix={d.saisons.choix}
                 valeur={d.saisons.choisie}
+                occupe={occupe}
                 onChange={(saisonId) => {
                   setOccupe(true);
                   setSaison(saisonId);
@@ -148,7 +150,14 @@ export default function Saison() {
             <ErreurChargement t={t} erreur={erreur} onReessayer={charger} style={{ marginTop: 18 }} />
           )}
 
-          {occupe && !d && <CarteVerre t={t} style={s.squelette} />}
+          {/* Le squelette prend la forme de la carte de saison : les onglets,
+              puis les rangées de dates. Un pavé gris de 360 disait seulement
+              « quelque chose arrivera là ». */}
+          {occupe && !d && (
+            <Squelette etiquette="On ouvre la saison" style={s.squelette}>
+              <CarteSquelette t={t} rangees={6} hauteurRangee={48} entete avatar={false} />
+            </Squelette>
+          )}
 
           {d && (
             <CarteVerre t={t} style={s.carte}>
@@ -356,7 +365,7 @@ const s = StyleSheet.create({
   defile: { paddingBottom: ESPACE_BARRE },
   contenu: { paddingHorizontal: 14 },
   vide: { padding: 20, fontSize: 15 },
-  squelette: { marginTop: 18, height: 360, opacity: 0.6 },
+  squelette: { marginTop: 18 },
 
   carte: { marginTop: 18, paddingBottom: 8 },
 

@@ -173,9 +173,16 @@
   --t-fast: 120ms;
   --t-mid: 180ms;
   --t-slow: 320ms;
-  /* Une seule courbe. --ease-pop est supprimé : un dépassement élastique est
-     une signature datée, et il coûte du temps à quelqu'un qui compte un but. */
+  /* Deux courbes, et deux seulement. --ease-pop est supprimé : un dépassement
+     élastique est une signature datée, et il coûte du temps à quelqu'un qui
+     compte un but.
+       --ease        la cérémonie du match : sèche, elle freine fort à la fin
+       --ease-natif  tout le reste — le système « natif » (maquette tour 4)
+     --ease-natif était recopiée telle quelle dans le bloc « natif », dans
+     components/succes/succes.css et dans six fichiers de l'app sans jamais
+     avoir de nom. Les deux ne se mélangent pas. */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-natif: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -2074,7 +2081,10 @@
   }
 }
 .ecran {
-  animation: fsIn 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* 320 ms et la courbe du système natif : --t-slow et --ease-natif (voir le
+     budget de mouvement en tête de fichier). Les valeurs ne changent pas,
+     elles cessent d'être des nombres que personne n'ose toucher. */
+  animation: fsIn var(--t-slow) var(--ease-natif) both;
 }
 
 /* ── La carte ─────────────────────────────────────────────────────────── */
@@ -2372,7 +2382,9 @@
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 200ms;
+  /* Le retour au doigt (retrait, voile, fond) vient de la règle de famille
+     du lot « mouvement », en fin de fichier : une seule table de durées
+     pour les huit familles de commandes. */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2413,14 +2425,17 @@
   padding: 2px;
   background: rgba(120, 120, 128, 0.4);
   display: flex;
+  /* Le pouce ne saute plus d'un bord à l'autre : `justify-content` ne
+     s'anime pas. Il est translaté — 51 de large, 2 de marge, 27 de pouce,
+     donc vingt points de course — et la piste change de couleur à la même
+     vitesse, celle d'une réponse au doigt. */
   justify-content: flex-start;
-  transition: background 200ms;
+  transition: background-color var(--t-touch) var(--ease-natif);
   cursor: pointer;
   flex: none;
 }
 .interrupteur.on {
   background: #34c759;
-  justify-content: flex-end;
 }
 .interrupteur > span {
   width: 27px;
@@ -2428,6 +2443,10 @@
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  transition: transform var(--t-touch) var(--ease-natif);
+}
+.interrupteur.on > span {
+  transform: translateX(20px);
 }
 
 .grabber {
@@ -2484,7 +2503,8 @@
   border-bottom: 1px solid var(--sep);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 200ms;
+  /* L'en-tête qui se colle apparaît à la vitesse d'une entrée, --t-enter. */
+  transition: opacity var(--t-enter) var(--ease-natif);
   font-size: 17px;
   font-weight: 600;
   color: var(--ink);
@@ -2902,7 +2922,10 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 30px 60px rgba(0, 0, 0, 0.5);
   padding: 18px 12px 12px;
-  animation: fsMenu 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Le menu du club est le geste le plus répété du site — la pilule en haut
+     à droite porte toute la navigation. Il s'ouvre à la vitesse d'une
+     entrée : --t-enter (200 ms ; c'était 260 écrits à la main). */
+  animation: fsMenu var(--t-enter) var(--ease-natif) both;
   transform-origin: top right;
 }
 .menu-club-tete {
@@ -3358,3 +3381,446 @@
   overscroll-behavior: contain;
 }
 /* ══ fin du lot « ergo-web » ═══════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════
+   LOT « ERGO-SITE » — le pouce, debout, au bord du terrain
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. La zone sensible, pas le dessin ────────────────────────────────
+   Mesure à 402 px : vingt-deux commandes répondaient sur moins de 44 pt.
+   Plusieurs se dessinent petites exprès — l'interrupteur d'iOS fait
+   51 × 31, un onglet de segment 32 px de haut — et les agrandir défigure
+   le dessin que le site donne à l'app. On agrandit donc la surface qui
+   répond, sans toucher au rendu : même image, 44 pt sous le doigt. */
+.interrupteur {
+  position: relative;
+}
+.interrupteur::after {
+  content: "";
+  position: absolute;
+  /* 31 + 2 × 7 = 45 pt de haut ; les 51 de large suffisent déjà. */
+  inset: -7px 0;
+}
+/* Les onglets d'un segment se touchent bord à bord : on n'étire que la
+   hauteur, sinon la zone d'un onglet mordrait sur celle de son voisin et
+   « Absent » répondrait à la place de « Présent ». */
+.segment > button,
+.segment > a {
+  position: relative;
+}
+.segment > button::after,
+.segment > a::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+.segment.plein-large > button::after,
+.segment.plein-large > a::after {
+  inset: -3px 0;
+}
+
+/* Un repli (« Archivés (42) », « Le reste de la saison ») est une ligne de
+   11 px qu'on vise au pouce : il lui faut la hauteur d'une rangée. */
+details > summary.kicker {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* ── 2. Rien d'utile ne se coupe au pouce ──────────────────────────────
+   La troisième colonne du ticker porte ce qui fait venir : « dans 2 jours
+   · 8 présents · Five Renault ». Sur 402 px elle perdait 54 px — le nom du
+   terrain, c'est-à-dire où aller. Elle passe donc sur deux lignes AU
+   BESOIN : les rangées qui tiennent (une heure, un buteur, six matchs de
+   la même soirée) gardent leurs 56 px, seules celles qui débordent
+   grandissent. */
+[data-club-theme] .ticker-buteurs {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.3;
+}
+[data-club-theme] .ticker {
+  /* Deux lignes de 15 px au lieu d'une : la rangée respire au lieu de
+     coller ses bords au texte. */
+  padding-block: 6px;
+}
+
+/* ── 3. Un nul n'est pas un match éteint ───────────────────────────────
+   Le score d'une rangée grisait le camp qui ne gagne pas. Sur un 0–0, les
+   deux nombres partaient donc en gris de second plan : la ligne se lisait
+   comme désactivée. Le nul reprend l'encre pleine, seul le perdant recule.
+   (La classe est posée côté rendu ; ici on ne fait que la documenter.) */
+
+/* ── 4. La pression répond ─────────────────────────────────────────────
+   Une rangée qui ne bouge pas sous le doigt, sur un réseau lent, se
+   retape. Toutes les rangées cliquables du site accusent réception tout de
+   suite, avant même la navigation. */
+.ticker,
+.ligne-exploit,
+.tableau-rangee,
+.roster-rangee .lien,
+.saison-rangee {
+  transition: opacity 120ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.ticker:active {
+  opacity: 0.6;
+}
+@media (hover: hover) {
+  a.ticker:hover .ticker-score,
+  a.ticker:hover .ticker-heure {
+    color: var(--ink);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker,
+  .ligne-exploit,
+  .tableau-rangee,
+  .roster-rangee .lien,
+  .saison-rangee {
+    transition: none;
+  }
+}
+/* ── 5. Un squelette qui annonce la page, pas une page au hasard ───────
+   Le même squelette servait pour les onze écrans : deux cartes pleines de
+   210 px, puis la vraie page — une liste de rangées fines — les remplaçait
+   et tout sautait. Les pièces reprennent maintenant les mesures réelles
+   (rangée de 54 à 64 px, pastilles de filtre, en-tête de groupe) : ce qui
+   arrive se pose là où le squelette l'annonçait. */
+.chargement-puces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+.chargement-puces > span {
+  height: 44px;
+  border-radius: 22px;
+  background: var(--seg);
+}
+.chargement-liste {
+  margin: 18px 0 0;
+  padding: 6px 20px 8px;
+  border-radius: 28px;
+  background: var(--cd);
+  border: 1px solid var(--cb);
+}
+.chargement-liste-titre {
+  width: 42%;
+  height: 13px;
+  margin: 14px 0 6px;
+  border-radius: 7px;
+  background: var(--seg);
+}
+.chargement-rangee {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--sep);
+}
+.chargement-liste-titre + .chargement-rangee {
+  border-top: 0;
+}
+.chargement-rangee .d {
+  flex: none;
+  width: 40px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--seg);
+}
+.chargement-rangee .d.rond {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.chargement-rangee .c {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.chargement-rangee .c > i {
+  display: block;
+  height: 13px;
+  border-radius: 7px;
+  background: var(--seg);
+}
+.chargement-puces > span,
+.chargement-liste-titre,
+.chargement-rangee .d,
+.chargement-rangee .c > i {
+  animation: chargement-souffle 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chargement-puces > span,
+  .chargement-liste-titre,
+  .chargement-rangee .d,
+  .chargement-rangee .c > i {
+    animation: none;
+  }
+}
+/* ══ fin du lot « ergo-site » ══════════════════════════════════════════ */
+
+/* ══ Mouvement et finition (lot « mouvement ») ═════════════════════════════
+   Le budget de mouvement était déjà écrit en haut de ce fichier — « le wow
+   est un événement, pas un état ; au repos, rien ne bouge » — avec ses
+   jetons --t-*. Ce qui manquait, c'est qu'on l'applique : dix durées et
+   deux courbes étaient écrites en clair dans le bloc « natif », trois
+   jetons ne servaient à rien, et l'app recopiait tout ça à la main.
+
+   Ici : chaque durée redevient un jeton, la courbe du système natif prend
+   un nom (--ease-natif, déclaré avec les autres en tête de fichier), et les
+   gestes qui n'avaient aucun retour en ont un. La même table vit côté app
+   dans five-scorer-mobile/composants/base.tsx (MOUVEMENT) — une valeur qui
+   change d'un côté doit changer de l'autre.
+
+   Les règles déjà écrites ailleurs dans ce fichier ont été corrigées SUR
+   PLACE (.ecran, .menu-club, .entete-collante, .interrupteur) : une seconde
+   règle en fin de fichier qui en écrase une première laisse la valeur en
+   dur là où on la lit, et le prochain qui touche à l'interrupteur ne verra
+   pas qu'on la neutralise mille lignes plus bas. Ne restent ici que les
+   gestes qui n'existaient pas du tout.
+
+   Rien ici n'a besoin d'être neutralisé pour « Réduire les animations » :
+   la règle prefers-reduced-motion de @layer base porte des !important, qui
+   l'emportent sur tout ce qui suit. Les délais, eux, ne sont pas couverts —
+   d'où le garde-fou en fin de bloc.
+
+   Ce qui reste en dur, sciemment : les deux animations de la tuile de la
+   feuille de match (.fs-tile, 320 et 220 ms) — c'est l'écran qui ne doit
+   rien risquer, et 220 n'a pas de jeton. Et --t-fin (1000 ms, le coup de
+   sifflet final) reste déclaré sans emploi : le site n'a pas encore la
+   cérémonie de fin que l'app a. */
+
+/* ── La carte qui arrive ──────────────────────────────────────────────── */
+/* Une carte entre en fondu et de six points plus bas — moins que l'écran,
+   qui monte de dix : posée dessus, elle avance un peu moins vite que lui.
+   Ça vaut surtout quand elle arrive SEULE : un onglet qu'on change, une
+   liste qui finit de charger. L'écran, lui, n'entre qu'une fois. */
+@keyframes fsCarte {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.ecran .carte {
+  animation: fsCarte var(--t-enter) var(--ease-natif) both;
+}
+
+/* ── La réponse au doigt ──────────────────────────────────────────────── */
+/* Avant : trois familles de commandes sur huit s'éteignaient d'un coup sec
+   à l'appui, et se rallumaient de même. Les cinq autres ne répondaient pas
+   du tout — sur un téléphone tenu à bout de bras au bord du terrain, on
+   retape parce qu'on n'est pas sûr d'avoir tapé.
+
+   Maintenant : un point de retrait et un voile, en --t-touch (140 ms), à
+   l'aller comme au retour, sur tout ce qui se tape. Deux propriétés que le
+   compositeur sait animer seul : le geste n'attend jamais la page.
+
+   Les rangées de liste (.ticker, .ligne-exploit, .tableau-rangee…) ne sont
+   PAS ici : le lot « ergo-site » leur a donné leur propre retour juste
+   au-dessus, et deux règles qui se disputent la même opacité valent moins
+   qu'une seule qui tient. */
+.plein,
+.verre,
+.onglet,
+.ligne-score.tape,
+.menu-club-item,
+.segment > button,
+.segment > a,
+a.rangee-ios,
+button.rangee-ios {
+  transition:
+    transform var(--t-touch) var(--ease-natif),
+    opacity var(--t-touch) var(--ease-natif),
+    background-color var(--t-enter) var(--ease-natif),
+    color var(--t-mid) var(--ease-natif);
+}
+.plein:not(:disabled):active,
+.verre:not(:disabled):active,
+.ligne-score.tape:active,
+.menu-club-item:active,
+.segment > button:active,
+.segment > a:active,
+a.rangee-ios:active,
+button.rangee-ios:active {
+  transform: translateY(1px);
+}
+.menu-club-item:active,
+.segment > button:active,
+.segment > a:active,
+a.rangee-ios:active,
+button.rangee-ios:active {
+  opacity: 0.8;
+}
+/* Un onglet ne s'enfonce pas : il est dans une carte, pas posé dessus. Il
+   se voile, et son trait part vers lui. */
+.onglet:active {
+  opacity: 0.6;
+}
+
+/* ── Le trait qui suit l'onglet actif ─────────────────────────────────── */
+/* Changer d'onglet ne faisait que changer la couleur de deux mots. Sur
+   « Mardi 15 · Ce soir · À venir », trois libellés de même longueur, on
+   relisait les titres pour savoir où on était. Un trait de deux points le
+   dit d'un coup d'œil, et le fait de le voir GLISSER dit d'où l'on vient.
+
+   Pas d'élément en plus dans le DOM : la largeur d'une colonne vient de
+   --n (le nombre d'onglets), la position de --i (l'index de l'actif), tous
+   deux posés par components/ios/Onglets.tsx. Les valeurs par défaut
+   couvrent le squelette des stats, qui écrit ses trois onglets à la main. */
+.onglets {
+  position: relative;
+}
+.onglets::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: calc(100% / var(--n, 3));
+  /* Le trait ne prend pas toute la colonne : un filet de la largeur d'un
+     onglet se lit comme une bordure, pas comme un repère. */
+  background: linear-gradient(var(--ink), var(--ink)) center / 56% 100% no-repeat;
+  border-radius: 1px;
+  transform: translateX(calc(var(--i, 0) * 100%));
+  transition: transform var(--t-mid) var(--ease-natif);
+}
+
+/* Le contenu de l'onglet, lui, BASCULE : un fondu de 120 ms et quatre
+   points, pas un glissement. Un panneau qui se déplace sous le doigt fait
+   croire qu'on l'a fait défiler. */
+@keyframes fsPanneau {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.onglet-panneau {
+  animation: fsPanneau var(--t-fast) var(--ease-natif) both;
+}
+
+/* ── « Réduire les animations » ───────────────────────────────────────── */
+/* La règle globale de @layer base met les DURÉES à 0,01 ms, pas les
+   délais : une carte en `both` resterait invisible le temps du sien. Ici
+   on n'en pose aucun, mais la règle vaut garde-fou pour la suite. */
+@media (prefers-reduced-motion: reduce) {
+  .ecran,
+  .ecran .carte,
+  .onglet-panneau,
+  .menu-club {
+    animation-delay: 0ms !important;
+  }
+  .onglets::after {
+    transition: none;
+  }
+}
+/* ══ fin du lot « mouvement » ══════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════
+   LOT « ATTENTE 2 » — le squelette PORTE la page, il ne la dessine pas
+   ══════════════════════════════════════════════════════════════════════
+
+   Mesuré à 402 px, entre le squelette et la page qui le remplace : le
+   premier bloc sautait de 99 px sur la saison, 114 px sur la soirée,
+   55 px sur les stats. Ces trois écrans n'avaient pas de squelette à eux
+   et récupéraient celui du club — un titre et une grosse carte — qui
+   n'annonce ni un calendrier, ni un tableau, ni une feuille de soirée.
+
+   Les squelettes précédents redessinaient les mesures à la main
+   (.chargement-rangee fait 56 px « comme .ticker »). Deux chiffres qui
+   doivent rester égaux dans deux fichiers finissent toujours par diverger.
+   Ceux-ci REPRENNENT les classes de la vraie page — .saison-rangee,
+   .tableau-rangee, .onglets — et n'y changent qu'une chose : le texte perd
+   son encre et reçoit une barre à la place. La géométrie est donc la même
+   par construction, et le jour où une rangée change de hauteur, les deux
+   changent ensemble. */
+
+/* L'écran d'attente est un écran comme un autre — d'où .ecran et sa mise en
+   page — mais il garde la retenue de .chargement : rien pendant 150 ms,
+   pour qu'une navigation rapide ne fasse pas clignoter un squelette.
+   Posée ici, après .ecran, la règle l'emporte sur son animation d'entrée. */
+.attente {
+  animation: chargement-arrive 200ms ease-out 150ms both;
+}
+
+/* L'os : un vrai mot de la page, dont l'encre devient une barre. La largeur
+   et la hauteur de ligne restent celles du texte qu'il remplace — c'est ce
+   qui fait qu'on ne le voit pas sauter quand la page arrive. Le conteneur
+   porte aria-hidden : ces mots-là ne sont pas à lire. */
+.os {
+  color: transparent;
+  background: var(--seg);
+  border-radius: 6px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  animation: chargement-souffle 1.6s ease-in-out infinite;
+}
+/* Un pavé, quand ce qui manque n'est pas du texte : une ligne de score, un
+   panneau de chiffres. La hauteur est donnée sur place, au plus près de la
+   carte qu'il remplace. */
+.os-pave {
+  display: block;
+  border-radius: 18px;
+  background: var(--seg);
+  animation: chargement-souffle 1.6s ease-in-out infinite;
+}
+/* Un rond : un écusson, un avatar de tableau. */
+.os-rond {
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--seg);
+  animation: chargement-souffle 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .os,
+  .os-pave,
+  .os-rond {
+    animation: none;
+  }
+}
+/* Une rangée de squelette ne se touche pas : elle n'est pas encore là. Sans
+   ça, le doigt posé pendant l'attente allumait le retrait de .saison-rangee
+   ou de .tableau-rangee, et on croyait avoir ouvert quelque chose. */
+.attente .saison-rangee,
+.attente .tableau-rangee,
+.attente .ticker {
+  pointer-events: none;
+}
+/* ══ fin du lot « attente 2 » ══════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════
+   LES DERNIÈRES CAPITALES TRACÉES
+   ══════════════════════════════════════════════════════════════════════
+
+   Plus haut dans ce fichier, .kicker et .section-title ont abandonné les
+   capitales tracées de 11 px — « la signature n°1 d'une interface générée,
+   et la seule règle que les deux corpus de référence qualifient
+   d'interdiction sans exception ». Trois étiquettes avaient été oubliées et
+   portaient encore la même recette (13 px, 600, tracking 0.4, uppercase) :
+
+     .section-ios                     « CLUB », « LA SOIRÉE », « MATCH »…
+                                      (six fois sur l'écran des réglages)
+     .saison-mois                     « SEPTEMBRE 2026 »
+     .roster-champ > span             « NOM », « SURNOM », « NOTE »
+
+   Les deux dernières vivent dans leur propre feuille (saison.css,
+   player.css) et y sont corrigées ; .section-ios est définie ici, plus
+   haut, d'où cette reprise en fin de fichier.
+
+   Le texte source est déjà écrit en bas de casse (« Club », « septembre
+   2026 ») : on enlève la transformation, pas le mot. La taille, la graisse
+   et la couleur ne bougent pas — rien ne se déplace, la ligne se lit juste
+   comme un petit titre au lieu d'une étiquette d'inventaire. Et « septembre
+   2026 » retrouve au passage la minuscule que le français lui donne.
+
+   La seule majuscule tracée qui reste est celle que ce fichier autorise :
+   .contexte, une ligne par écran, tout en haut. */
+.section-ios {
+  text-transform: none;
+  letter-spacing: 0;
+}
+/* ══ fin ══════════════════════════════════════════════════════════════ */

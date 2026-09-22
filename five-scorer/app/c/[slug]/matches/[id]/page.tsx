@@ -447,7 +447,7 @@ export default async function MatchRecapPage({
               <Link href={`/c/${slug}/matches/${match.id}/corriger`} className="verre">
                 Corriger
               </Link>
-              <Link href={`/c/${slug}/matches/${match.id}/edit`} className="text-sm text-[color:var(--ink-2)] hover:text-white">
+              <Link href={`/c/${slug}/matches/${match.id}/edit`} className="inline-flex min-h-[44px] items-center text-sm text-[color:var(--ink-2)] hover:text-white">
                 Modifier les infos
               </Link>
             </span>

@@ -17,8 +17,10 @@ import { jeton, type Jetons } from "../../lib/couleurs";
 /// jour.
 ///
 /// Dessous, une ligne ouvre la feuille « Créer » : la saisie d'un match déjà
-/// joué et la soirée à programmer vivaient derrière le « + » de l'ancienne
-/// barre du bas, et n'avaient plus d'autre porte sur l'accueil.
+/// joué et la soirée à programmer. Le « + » de la barre du bas y mène aussi
+/// depuis son retour ; cette ligne reste parce qu'on la LIT — le « + » se
+/// devine, la phrase se lit, et c'est elle qui apprend que ces deux gestes
+/// existent.
 export default function BlocLancement({
   t,
   indice,

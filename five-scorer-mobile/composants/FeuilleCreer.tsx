@@ -6,9 +6,13 @@ import { jeton, JETONS_NEUTRES, type Jetons } from "../lib/couleurs";
 
 /// La feuille « Créer » : tout ce qu'on lance, en un endroit.
 ///
-/// Elle vivait derrière le « + » de l'ancienne barre du bas. La barre est
-/// partie (la navigation passe par la pilule, comme sur le site) ; la feuille
-/// reste, et s'ouvre depuis le bloc de lancement de l'accueil.
+/// Elle s'ouvre de deux endroits, et c'est voulu : le « + » central de la
+/// barre du bas (le geste du lundi, un pouce, n'importe quel onglet) et la
+/// ligne « Match déjà joué, soirée à programmer… » du bloc de lancement de
+/// l'accueil (la porte qu'on trouve en lisant l'écran). Deux instances
+/// montées, donc, l'une dans le layout du club, l'autre sur l'accueil : ce
+/// sont deux `Modal` fermées, elles ne coûtent rien tant qu'on ne les ouvre
+/// pas, et chacune reste maîtresse de son état.
 ///
 /// Le libellé porte l'action, avec une ligne d'aide dessous et pas d'icône
 /// par ligne — c'est le choix du site (components/BottomNav.tsx) : le texte

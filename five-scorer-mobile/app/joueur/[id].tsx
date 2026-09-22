@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -23,11 +22,11 @@ import {
   EcussonChasuble,
   Interrupteur,
 } from "../../composants/base";
+import { Bloc, Squelette } from "../../composants/Squelette";
 import AnnonceSucces from "../../composants/succes/AnnonceSucces";
 import SectionSucces from "../../composants/joueur/SectionSucces";
 import { sousTitreFiche } from "../../composants/joueur/affichage";
-import { arretsDeCrete, jeton, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
-import { themeTokens } from "../../lib/noyau/theme";
+import { arretsDeCrete, jeton, jetonsDuClub, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { choix as retourChoix, succes as retourSucces } from "../../lib/haptique";
 import { messageErreur } from "../../lib/erreurs";
 import { chargerSucces, type SuccesJoueur } from "../../lib/succes";
@@ -123,7 +122,7 @@ export default function Joueur() {
   const couleurA = fiche?.chasubles.a ?? "#ffffff";
   const couleurB = fiche?.chasubles.b ?? "#111111";
   const chasubles = { a: couleurA, b: couleurB };
-  const t: Jetons = fiche ? themeTokens(couleurA, couleurB, "dark") : JETONS_NEUTRES;
+  const t: Jetons = fiche ? jetonsDuClub(couleurA, couleurB, "dark") : JETONS_NEUTRES;
   const j = fiche?.joueur;
   const bilan = fiche?.bilan ?? null;
   const peutAbonner = !!(fiche?.droits.peutReglerAbonnement && club);
@@ -197,12 +196,7 @@ export default function Joueur() {
             </View>
           ) : null}
 
-          {occupe && !fiche && (
-            <View style={s.centre}>
-              <ActivityIndicator color={t.ink} />
-              <Text style={[s.aide, { color: t.i2 }]}>Un instant…</Text>
-            </View>
-          )}
+          {occupe && !fiche && <SqueletteFiche t={t} />}
           {erreur != null && (
             <ErreurChargement t={t} erreur={erreur} onReessayer={charger} style={s.erreur} />
           )}
@@ -684,12 +678,67 @@ function nombre(n: number, min = 0, max = min): string {
   });
 }
 
+/// L'attente de la fiche, à la forme de la fiche : le grand visage de 128,
+/// le nom, la ligne de niveau, puis la rangée des quatre chiffres.
+///
+/// La fiche demande DEUX choses au serveur (le bilan du joueur et ses
+/// succès) : elle est, avec le récap, l'écran le plus long à venir. Il
+/// affichait « Un instant… » au milieu du vide, puis basculait d'un coup.
+function SqueletteFiche({ t }: { t: Jetons }) {
+  return (
+    <Squelette etiquette="On ouvre la fiche" style={sq.cadre}>
+      <View style={sq.tete}>
+        <Bloc t={t} l={128} h={128} r={64} />
+        <Bloc t={t} l={172} h={34} r={10} style={sq.nom} />
+        <Bloc t={t} l={124} h={17} style={sq.sous} />
+      </View>
+      <CarteVerre t={t} style={sq.chiffres}>
+        {[0, 1, 2, 3].map((i) => (
+          <View key={i} style={sq.chiffre}>
+            <Bloc t={t} l={38} h={28} r={8} />
+            <Bloc t={t} l={52} h={11} />
+          </View>
+        ))}
+      </CarteVerre>
+      <CarteVerre t={t} style={sq.carte}>
+        <View style={sq.ligne}>
+          <Bloc t={t} l="44%" h={15} />
+          <Bloc t={t} l={54} h={15} />
+        </View>
+        <Bloc t={t} l="100%" h={10} r={5} style={sq.barre} />
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={sq.ligne}>
+            <Bloc t={t} l={["52%", "40%", "60%"][i] as `${number}%`} h={15} />
+            <Bloc t={t} l={42} h={15} />
+          </View>
+        ))}
+      </CarteVerre>
+    </Squelette>
+  );
+}
+
+const sq = StyleSheet.create({
+  cadre: { paddingTop: 10 },
+  tete: { alignItems: "center", paddingHorizontal: 18 },
+  nom: { marginTop: 16 },
+  sous: { marginTop: 8 },
+  chiffres: {
+    marginTop: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  chiffre: { alignItems: "center", gap: 8 },
+  carte: { marginTop: 14, paddingHorizontal: 20, paddingVertical: 18, gap: 14 },
+  ligne: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  barre: { alignSelf: "stretch" },
+});
+
 const s = StyleSheet.create({
   contenu: { paddingBottom: 40 },
   corps: { paddingHorizontal: 14 },
   ligneModifier: { flexDirection: "row", justifyContent: "flex-end", paddingTop: 12 },
-  centre: { paddingTop: 60, alignItems: "center", gap: 12 },
-  aide: { fontSize: 15 },
   erreur: { marginTop: 24 },
 
   tete: { alignItems: "center", paddingTop: 10, paddingHorizontal: 18 },

@@ -7,12 +7,15 @@
   margin-top: 18px;
   padding-bottom: 8px;
 }
+/* Le séparateur de mois se lit comme un petit titre, pas comme une étiquette
+   d'inventaire : globals.css range les capitales tracées de 13 px parmi les
+   choses à ne pas faire, et .kicker les a déjà abandonnées. Le texte source
+   est « septembre 2026 » — sans la transformation, il retrouve la minuscule
+   que le français donne aux mois. */
 .saison-mois {
   padding: 14px 20px 4px;
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
   color: var(--i2);
 }
 .saison-rangee {
@@ -70,19 +73,30 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* La ligne d'état — le terrain, les présents, les places, « équipes prêtes »
+   — perdait 131 px sur un écran de 402. C'est là que se lit s'il faut
+   répondre et où aller : elle prend deux lignes quand elle déborde, et une
+   seule quand elle tient. */
 .saison-corps .sous {
-  display: block;
-  font-size: 15px;
-  color: var(--i2);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 15px;
+  line-height: 1.3;
+  color: var(--i2);
 }
 .saison-etiquette {
   font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
   color: var(--i2);
+}
+/* La colonne de droite ne dit plus que l'état (« Répondre », « En cours »,
+   « Victoire »). Quand il n'y en a pas, elle ne prend pas non plus son
+   écart : sans ça la rangée gardait 12 px de vide à droite. */
+.saison-etiquette:empty {
+  display: none;
 }
 .saison-etiquette.direct {
   color: var(--bad);

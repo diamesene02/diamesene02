@@ -17,9 +17,20 @@ export default function Onglets({
 }) {
   const [actif, setActif] = useState(initial ?? onglets[0]?.id);
   const courant = onglets.find((o) => o.id === actif) ?? onglets[0];
+  const index = Math.max(
+    0,
+    onglets.findIndex((o) => o.id === courant?.id),
+  );
   return (
     <div className={className}>
-      <div className="onglets" role="tablist">
+      {/* --n et --i portent le trait qui suit l'onglet choisi (globals.css,
+          lot « mouvement »). Le compter en CSS évite un élément de plus et
+          une mesure au rendu : les colonnes sont égales, l'index suffit. */}
+      <div
+        className="onglets"
+        role="tablist"
+        style={{ "--n": onglets.length, "--i": index } as React.CSSProperties}
+      >
         {onglets.map((o) => (
           <button
             key={o.id}
@@ -34,7 +45,12 @@ export default function Onglets({
         ))}
       </div>
       <div className="filet" />
-      <div role="tabpanel">{courant?.contenu}</div>
+      {/* La clé remonte le panneau à chaque changement : le fondu court
+          rejoue, et surtout deux panneaux de même forme ne se recyclent
+          plus l'un dans l'autre en gardant l'état du précédent. */}
+      <div key={courant?.id} role="tabpanel" className="onglet-panneau">
+        {courant?.contenu}
+      </div>
     </div>
   );
 }

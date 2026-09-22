@@ -1,9 +1,10 @@
-import { useMemo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { lisible, type Jetons } from "../lib/couleurs";
 import { leger } from "../lib/haptique";
+import { duree, MOUVEMENT, Touche, useMouvementReduit } from "./base";
 
 /// La barre du bas, en verre flottant.
 ///
@@ -17,6 +18,24 @@ import { leger } from "../lib/haptique";
 /// contenu, sinon la dernière ligne se cache derrière.
 export const HAUTEUR_BARRE = 62;
 export const ESPACE_BARRE = HAUTEUR_BARRE + 26;
+
+// La géométrie du creux, écrite une fois : l'indicateur qui suit l'onglet
+// actif n'est plus dessiné par chaque onglet, c'est UNE vue qui glisse. Pour
+// qu'elle tombe au bon endroit sans qu'on aille mesurer chaque onglet, la
+// colonne d'un onglet a une hauteur connue — d'où l'interligne fixé sur le
+// libellé, et le `stretch` de la barre.
+const CREUX_L = 44;
+const CREUX_H = 26;
+const LIBELLE_H = 13;
+const ECART = 2;
+/// Le haut du creux dans la barre : le bloc icône + libellé, centré.
+const CREUX_Y = Math.round(((HAUTEUR_BARRE - (CREUX_H + ECART + LIBELLE_H)) / 2) * 10) / 10;
+/// La barre n'a PLUS de marge intérieure : une vue posée en absolu et une
+/// colonne en `flex` ne comptent pas forcément la marge du parent de la même
+/// façon, et un creux décalé de six points sous la mauvaise icône se voit.
+/// Les colonnes font donc exactement un cinquième de la barre, et le creux
+/// de 44 se centre dedans — il reste quinze points de chaque côté.
+const MARGE = 0;
 
 export type Onglet = {
   nom: string;
@@ -82,6 +101,41 @@ export default function BarreOnglets({
 }) {
   const bas = useSafeAreaInsets().bottom;
   const encre = useMemo(() => lisible(couleurA), [couleurA]);
+  const reduit = useMouvementReduit();
+  const [largeur, setLargeur] = useState(0);
+
+  // L'onglet montré par le creux. « creer » n'en est pas un : quand la
+  // feuille de création est ouverte, le creux reste où il était et s'efface.
+  const index = ONGLETS.findIndex((o) => o.nom === actif && o.icone !== "plus");
+  const visible = index >= 0;
+  const glisse = useRef(new Animated.Value(Math.max(index, 0))).current;
+  const voile = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  useEffect(() => {
+    const d = duree(reduit, MOUVEMENT.bascule);
+    Animated.parallel([
+      // On ne déplace le creux que vers un onglet réel ; sinon il resterait
+      // planté sur le « + », qui n'est pas une destination.
+      ...(visible
+        ? [
+            Animated.timing(glisse, {
+              toValue: index,
+              duration: d,
+              easing: MOUVEMENT.courbe,
+              useNativeDriver: true,
+            }),
+          ]
+        : []),
+      Animated.timing(voile, {
+        toValue: visible ? 1 : 0,
+        duration: d,
+        easing: MOUVEMENT.courbe,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [glisse, index, reduit, visible, voile]);
+
+  const colonne = largeur > 0 ? (largeur - MARGE * 2) / ONGLETS.length : 0;
+  const depart = MARGE + colonne / 2 - CREUX_L / 2;
 
   return (
     <View
@@ -89,6 +143,7 @@ export default function BarreOnglets({
       style={[s.zone, { paddingBottom: Math.max(bas - 6, 10) }]}
     >
       <View
+        onLayout={(e) => setLargeur(e.nativeEvent.layout.width)}
         style={[
           s.barre,
           {
@@ -98,12 +153,33 @@ export default function BarreOnglets({
           },
         ]}
       >
+        {colonne > 0 && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              s.creuxGlissant,
+              {
+                opacity: voile,
+                transform: [
+                  {
+                    // Une colonne d'écart par cran ; au-delà du premier,
+                    // l'extrapolation linéaire d'Animated suffit.
+                    translateX: glisse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [depart, depart + colonne],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
         {ONGLETS.map((o) => {
           const estActif = o.nom === actif;
           const central = o.icone === "plus";
           const couleur = central ? encre : estActif ? t.ink : "rgba(255,255,255,0.45)";
           return (
-            <Pressable
+            <Touche
               key={o.nom}
               accessibilityRole="button"
               accessibilityLabel={central ? "Créer un match ou une soirée" : o.libelle}
@@ -112,6 +188,9 @@ export default function BarreOnglets({
                 void leger();
                 onChoisir(o.nom);
               }}
+              // Le « + » est un bouton plein : il se voile comme un bouton.
+              // Un onglet déjà choisi ne se voile pas, il confirme du point.
+              voile={central ? 0.85 : estActif ? 1 : 0.6}
               style={s.onglet}
             >
               {central ? (
@@ -120,7 +199,7 @@ export default function BarreOnglets({
                 </View>
               ) : (
                 <>
-                  <View style={[s.creux, estActif && { backgroundColor: "rgba(255,255,255,0.12)" }]}>
+                  <View style={s.creux}>
                     <Icone nom={o.icone} couleur={couleur} />
                   </View>
                   <Text style={[s.libelle, { color: couleur }]} numberOfLines={1}>
@@ -128,7 +207,7 @@ export default function BarreOnglets({
                   </Text>
                 </>
               )}
-            </Pressable>
+            </Touche>
           );
         })}
       </View>
@@ -146,10 +225,12 @@ const s = StyleSheet.create({
   },
   barre: {
     flexDirection: "row",
-    alignItems: "center",
+    // « stretch » et non « center » : chaque onglet fait toute la hauteur de
+    // la barre, donc le creux tombe toujours à CREUX_Y. Avec « center », sa
+    // hauteur dépendait de l'interligne du libellé, qu'on ne connaît pas.
+    alignItems: "stretch",
     borderRadius: 31,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 6,
     // L'ombre porte la barre au-dessus du contenu : sans elle, le verre se
     // confond avec une carte qui passe dessous.
     ...Platform.select({
@@ -172,13 +253,23 @@ const s = StyleSheet.create({
     minHeight: 48,
   },
   creux: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
+    width: CREUX_L,
+    height: CREUX_H,
     alignItems: "center",
     justifyContent: "center",
   },
-  libelle: { fontSize: 11, fontWeight: "600" },
+  /// Le creux de l'onglet actif : UNE vue qui glisse derrière les icônes, au
+  /// lieu d'un fond qui s'allume ici et s'éteint là.
+  creuxGlissant: {
+    position: "absolute",
+    left: 0,
+    top: CREUX_Y,
+    width: CREUX_L,
+    height: CREUX_H,
+    borderRadius: CREUX_H / 2,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  libelle: { fontSize: 11, fontWeight: "600", lineHeight: LIBELLE_H },
   pastille: {
     width: 46,
     height: 46,

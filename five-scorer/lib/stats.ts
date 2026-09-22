@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { computeElo } from "@/lib/elo";
 
@@ -12,6 +13,14 @@ export type StatsScope = {
   clubId: string;
   seasonId?: string | null; // undefined/null = toutes saisons
   matchDayId?: string | null; // classement d'une seule soirée
+  /// Charger la photo des joueurs (data-URL d'environ 20 ko chacune).
+  ///
+  /// Par défaut oui : l'accueil, les stats et le récap d'une soirée peignent
+  /// des visages. Mais la fiche d'un joueur, le vestiaire et l'export n'en
+  /// affichent aucun depuis le classement — ils lisent leur propre requête,
+  /// ou n'affichent que des chiffres. Les charger là, c'était faire traverser
+  /// Francfort → Paris à tout l'album du club pour le jeter à l'arrivée.
+  avecPhotos?: boolean;
 };
 
 type LoadedMatch = {
@@ -45,47 +54,152 @@ type LoadedMatch = {
   }[];
 };
 
-async function loadFinishedMatches(scope: StatsScope): Promise<LoadedMatch[]> {
-  const matches = await prisma.match.findMany({
-    where: {
-      clubId: scope.clubId,
-      status: "FINISHED",
-      ...(scope.seasonId ? { seasonId: scope.seasonId } : {}),
-      ...(scope.matchDayId ? { matchDayId: scope.matchDayId } : {}),
-    },
-    orderBy: { playedAt: "asc" },
-    include: {
-      opponent: { select: { name: true } },
-      participants: {
-        select: { playerId: true, team: true, initialTeam: true, isGk: true },
-      },
-      events: {
+/// L'historique terminé d'une portée, chargé UNE FOIS par requête serveur.
+///
+/// Deux choses ici, et aucune n'est cosmétique.
+///
+/// 1. `cache()`. Un écran de stats appelle cinq fonctions sur la MÊME portée
+///    (classement, records, derby, gardiens, bilan externe) ; la fiche d'un
+///    joueur en appelle quatre. Chacune rechargeait tout l'historique du
+///    club : cinq fois les mêmes lignes, cinq fois le trajet. La clé est
+///    faite de chaînes, pas de l'objet `scope` : `cache()` compare ses
+///    arguments par identité, et un objet fabriqué à l'appel manque le cache
+///    à tous les coups. Rien ne survit d'une requête HTTP à l'autre — une
+///    feuille corrigée se voit au rafraîchissement suivant, sans étiquette de
+///    cache à invalider.
+///
+/// 2. Trois requêtes LANCÉES ENSEMBLE plutôt qu'un `include`. Prisma 5 sans
+///    `relationJoins` résout un `include` en requêtes enchaînées : les
+///    matchs, PUIS leurs participants, PUIS leurs événements, chacune
+///    attendant la précédente. Trois trajets vers Francfort au lieu d'un.
+///    C'est la même correction que `lib/succes-serveur.ts`, faite ici avec
+///    des `findMany` typés : le filtre par relation (`where: { match }`) tient
+///    en une seule requête SQL, et une colonne renommée casserait la
+///    compilation au lieu de casser la page.
+const chargerMatchsTermines = cache(
+  async (
+    clubId: string,
+    seasonId: string | null,
+    matchDayId: string | null,
+  ): Promise<LoadedMatch[]> => {
+    const ou = {
+      clubId,
+      status: "FINISHED" as const,
+      ...(seasonId ? { seasonId } : {}),
+      ...(matchDayId ? { matchDayId } : {}),
+    };
+    const [matchs, participants, evenements, adversaires] = await Promise.all([
+      prisma.match.findMany({
+        where: ou,
+        orderBy: { playedAt: "asc" },
         select: {
+          id: true,
+          playedAt: true,
+          matchDayId: true,
+          teamAName: true,
+          teamBName: true,
+          kind: true,
+          opponentId: true,
+          isHome: true,
+          scoreA: true,
+          scoreB: true,
+          mvpId: true,
+        },
+      }),
+      // `orderBy` : sans lui Postgres rend les lignes dans l'ordre du tas, qui
+      // change dès qu'une ligne est mise à jour. Aucun agrégat n'en dépend
+      // aujourd'hui, mais un ordre stable coûte zéro sur un index déjà trié.
+      prisma.matchParticipant.findMany({
+        where: { match: ou },
+        orderBy: [{ matchId: "asc" }, { playerId: "asc" }],
+        select: {
+          matchId: true,
+          playerId: true,
+          team: true,
+          initialTeam: true,
+          isGk: true,
+        },
+      }),
+      prisma.matchEvent.findMany({
+        where: { match: ou },
+        orderBy: { id: "asc" },
+        select: {
+          matchId: true,
           type: true,
           team: true,
           playerId: true,
           assistPlayerId: true,
         },
-      },
+      }),
+      // Les adversaires du club tiennent en quelques lignes : les charger tous
+      // coûte moins qu'une jointure par match, et sert tous les matchs
+      // externes de la portée d'un coup.
+      prisma.opponent.findMany({ where: { clubId }, select: { id: true, name: true } }),
+    ]);
+
+    const nomAdversaire = new Map(adversaires.map((a) => [a.id, a.name]));
+    const parId = new Map<string, LoadedMatch>();
+    const rendu: LoadedMatch[] = [];
+    for (const m of matchs) {
+      const l: LoadedMatch = {
+        id: m.id,
+        playedAt: m.playedAt,
+        matchDayId: m.matchDayId,
+        teamAName: m.teamAName,
+        teamBName: m.teamBName,
+        kind: m.kind,
+        opponentId: m.opponentId,
+        opponentName: m.opponentId ? (nomAdversaire.get(m.opponentId) ?? null) : null,
+        isHome: m.isHome,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        mvpId: m.mvpId,
+        participants: [],
+        events: [],
+      };
+      parId.set(m.id, l);
+      rendu.push(l);
+    }
+    // Une ligne fille dont le match manque (terminé entre deux requêtes de la
+    // vague) est ignorée : elle sera là au chargement suivant.
+    for (const { matchId, ...p } of participants) parId.get(matchId)?.participants.push(p);
+    for (const { matchId, ...e } of evenements) parId.get(matchId)?.events.push(e);
+    return rendu;
+  },
+);
+
+async function loadFinishedMatches(scope: StatsScope): Promise<LoadedMatch[]> {
+  return chargerMatchsTermines(
+    scope.clubId,
+    scope.seasonId ?? null,
+    scope.matchDayId ?? null,
+  );
+}
+
+/// L'effectif du club, chargé une fois par requête et par choix de photos.
+///
+/// Deux fonctions de ce module lisaient la table `player` chacune de leur
+/// côté (`getLeaderboard`, `getGardiens`) avec deux `select` différents. Sur
+/// l'écran des stats, cela faisait deux trajets et deux fois l'album photo du
+/// club. Une seule requête, l'union des colonnes, et le choix d'emporter ou
+/// non les photos.
+const chargerJoueurs = cache(async (clubId: string, avecPhotos: boolean) => {
+  const joueurs = await prisma.player.findMany({
+    where: { clubId },
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      isGuest: true,
+      ...(avecPhotos ? { photo: true } : {}),
     },
   });
-  return matches.map((m) => ({
-    id: m.id,
-    playedAt: m.playedAt,
-    matchDayId: m.matchDayId,
-    teamAName: m.teamAName,
-    teamBName: m.teamBName,
-    kind: m.kind,
-    opponentId: m.opponentId,
-    opponentName: m.opponent?.name ?? null,
-    isHome: m.isHome,
-    scoreA: m.scoreA,
-    scoreB: m.scoreB,
-    mvpId: m.mvpId,
-    participants: m.participants,
-    events: m.events,
+  return joueurs.map((j) => ({
+    ...j,
+    photo: "photo" in j ? ((j as { photo: string | null }).photo ?? null) : null,
   }));
-}
+});
 
 export type Result = "W" | "D" | "L";
 
@@ -137,10 +251,7 @@ export async function getLeaderboard(
 ): Promise<LeaderboardRow[]> {
   const [matches, players] = await Promise.all([
     loadFinishedMatches(scope),
-    prisma.player.findMany({
-      where: { clubId: scope.clubId },
-      select: { id: true, name: true, nickname: true, photo: true, isGuest: true },
-    }),
+    chargerJoueurs(scope.clubId, scope.avecPhotos !== false),
   ]);
   const byId = new Map(players.map((p) => [p.id, p]));
 
@@ -396,61 +507,61 @@ export async function getPlayerDetail(
   });
   if (!player) return null;
 
-  const [allRows, seasons, appearances] = await Promise.all([
-    getLeaderboard({ clubId }),
+  // `avecPhotos: false` : ni `allTime` ni `bySeason` n'affichent de visage —
+  // la fiche peint celui de `player`, qui arrive de la requête ci-dessus. Sans
+  // ce drapeau, ouvrir une fiche faisait traverser l'album photo du club une
+  // fois par saison.
+  const [allRows, seasons, historique] = await Promise.all([
+    getLeaderboard({ clubId, avecPhotos: false }),
     prisma.season.findMany({
       where: { clubId },
       orderBy: { startsAt: "desc" },
       select: { id: true, name: true },
     }),
-    prisma.matchParticipant.findMany({
-      where: { playerId, match: { clubId, status: "FINISHED" } },
-      include: {
-        match: {
-          select: {
-            id: true,
-            playedAt: true,
-            teamAName: true,
-            teamBName: true,
-            scoreA: true,
-            scoreB: true,
-            mvpId: true,
-            kind: true,
-            opponent: { select: { name: true } },
-            events: { select: { type: true, playerId: true } },
-          },
-        },
-      },
-      orderBy: { match: { playedAt: "desc" } },
-      take: 10,
-    }),
+    // Les dix derniers matchs se lisent dans l'historique déjà chargé par le
+    // classement ci-dessus (`cache()` le partage) : une requête de moins, et
+    // surtout trois trajets de moins — son `include` imbriqué les enchaînait.
+    loadFinishedMatches({ clubId }),
   ]);
 
+  // Les saisons ENSEMBLE : la boucle `for/await` payait un aller-retour par
+  // saison, l'un après l'autre. `cache()` rend même ces chargements gratuits
+  // quand la portée a déjà été vue dans la requête.
+  const parSaison = await Promise.all(
+    seasons.map(async (s) => ({
+      s,
+      row: (await getLeaderboard({ clubId, seasonId: s.id, avecPhotos: false })).find(
+        (r) => r.playerId === playerId,
+      ),
+    })),
+  );
   const bySeason: PlayerDetail["bySeason"] = [];
-  for (const s of seasons) {
-    const rows = await getLeaderboard({ clubId, seasonId: s.id });
-    const row = rows.find((r) => r.playerId === playerId);
+  for (const { s, row } of parSaison) {
     if (row) bySeason.push({ seasonId: s.id, seasonName: s.name, row });
   }
 
-  const recentMatches = appearances.map((ap) => {
-    const m = ap.match;
-    const label =
-      m.kind === "EXTERNAL" && m.opponent
-        ? `vs ${m.opponent.name}`
-        : `${m.teamAName} vs ${m.teamBName}`;
-    return {
-      id: m.id,
-      playedAt: m.playedAt.toISOString(),
-      label,
-      score: `${m.scoreA}-${m.scoreB}`,
-      result: resultFor(ap.initialTeam, m),
-      goals: m.events.filter(
-        (e) => e.type === "GOAL" && e.playerId === playerId,
-      ).length,
-      wasMvp: m.mvpId === playerId,
-    };
-  });
+  const recentMatches = historique
+    .filter((m) => m.participants.some((p) => p.playerId === playerId))
+    .slice(-10)
+    .reverse()
+    .map((m) => {
+      const camp = m.participants.find((p) => p.playerId === playerId)!.initialTeam;
+      const label =
+        m.kind === "EXTERNAL" && m.opponentName
+          ? `vs ${m.opponentName}`
+          : `${m.teamAName} vs ${m.teamBName}`;
+      return {
+        id: m.id,
+        playedAt: m.playedAt.toISOString(),
+        label,
+        score: `${m.scoreA}-${m.scoreB}`,
+        result: resultFor(camp, m),
+        goals: m.events.filter(
+          (e) => e.type === "GOAL" && e.playerId === playerId,
+        ).length,
+        wasMvp: m.mvpId === playerId,
+      };
+    });
 
   return {
     player,
@@ -656,10 +767,11 @@ const PAIRE_SEUIL_PCT = 60;
 export async function getClubRecords(scope: StatsScope): Promise<ClubRecords> {
   const [tous, players] = await Promise.all([
     loadFinishedMatches(scope),
-    prisma.player.findMany({
-      where: { clubId: scope.clubId },
-      select: { id: true, name: true, photo: true },
-    }),
+    // Le même effectif que le classement et les gardiens, par le chargeur
+    // partagé : sur l'écran des stats, ces trois-là tournaient chacun leur
+    // propre `findMany` sur `player`, donc l'album photo du club traversait
+    // Francfort → Paris deux fois pour une seule page.
+    chargerJoueurs(scope.clubId, scope.avecPhotos !== false),
   ]);
   const byId = new Map(players.map((p) => [p.id, p]));
   // Les records sont ceux des matchs ENTRE NOUS : un match contre un
@@ -1095,10 +1207,7 @@ export type StatsGardien = {
 export async function getGardiens(scope: StatsScope): Promise<StatsGardien[]> {
   const [matches, players] = await Promise.all([
     loadFinishedMatches(scope),
-    prisma.player.findMany({
-      where: { clubId: scope.clubId },
-      select: { id: true, name: true, photo: true },
-    }),
+    chargerJoueurs(scope.clubId, scope.avecPhotos !== false),
   ]);
   const byId = new Map(players.map((p) => [p.id, p]));
   const acc = new Map<string, StatsGardien>();

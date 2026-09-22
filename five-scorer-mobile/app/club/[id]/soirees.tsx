@@ -6,6 +6,8 @@ import Ecran from "../../../composants/Ecran";
 import EnTeteClub from "../../../composants/EnTeteClub";
 import ErreurChargement from "../../../composants/ErreurChargement";
 import { BoutonPlein, CarteVerre } from "../../../composants/base";
+import { CarteSquelette, Squelette } from "../../../composants/Squelette";
+import { useSommet } from "../../../composants/RetourEnHaut";
 import { IconeCalendrier, IconeJeu, IconePlus } from "../../../composants/Icones";
 import { quandRelatif } from "../../../composants/soiree/logique";
 import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
@@ -77,6 +79,7 @@ export default function Soirees() {
   return (
     <Ecran t={t} chasubles={c ? { a: c.couleurA, b: c.couleurB } : undefined}>
       <ScrollView
+        ref={useSommet("soirees")}
         contentContainerStyle={s.defile}
         refreshControl={
           <RefreshControl
@@ -138,11 +141,20 @@ export default function Soirees() {
           )}
 
           {occupe && !donnees && (
-            // La forme de la page, pour que rien ne saute quand elle arrive.
-            <View style={s.section}>
-              <CarteVerre t={t} style={[s.squelette, { height: 150 }]} />
-              <CarteVerre t={t} style={[s.squelette, { height: 110, marginTop: 18 }]} />
-            </View>
+            // La forme de la page — deux cartes de mois et leurs rangées de
+            // dates — plutôt que deux pavés gris : les lignes sont là avant
+            // les mots, rien ne saute quand la liste arrive.
+            <Squelette etiquette="On ouvre le calendrier" style={s.section}>
+              <CarteSquelette t={t} rangees={3} hauteurRangee={56} entete avatar={false} />
+              <CarteSquelette
+                t={t}
+                rangees={2}
+                hauteurRangee={56}
+                entete
+                avatar={false}
+                style={s.squelette}
+              />
+            </Squelette>
           )}
 
           {donnees?.vide && (
@@ -349,7 +361,7 @@ const s = StyleSheet.create({
   saisonTexte: { fontSize: 14, fontWeight: "700" },
 
   section: { marginTop: 32 },
-  squelette: { opacity: 0.6 },
+  squelette: { marginTop: 18 },
 
   vide: { padding: 32, alignItems: "center" },
   videTitre: { fontSize: 18, fontWeight: "900", textAlign: "center" },

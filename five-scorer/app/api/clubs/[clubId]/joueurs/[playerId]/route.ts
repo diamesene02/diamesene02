@@ -24,15 +24,36 @@ export async function GET(
   const ctx = await getClubApiContext(clubId);
   if (!ctx) return NextResponse.json({ error: "introuvable" }, { status: 404 });
 
-  const detail = await getPlayerDetail(clubId, playerId);
+  // Première vague : tout ce qui ne dépend que du club et du joueur. La fiche,
+  // la saison en cours, les gardiens, les trophées. Elles étaient enchaînées —
+  // fiche, PUIS saison, PUIS le reste — et la saison, une ligne à deux
+  // colonnes, coûtait à elle seule un aller-retour vers Francfort au milieu.
+  //
+  // Les quatre traversent le même historique de club : `loadFinishedMatches`
+  // est mémoïsé par requête et partage la MÊME promesse, donc partir ensemble
+  // ne le charge qu'une fois — c'est même ce qui rend le parallèle gratuit.
+  //
+  // `avecPhotos: false` sur les deux classements de cette fiche : le seul
+  // visage de la réponse est celui du joueur, et il vient de
+  // `getPlayerDetail`. Sans ce drapeau, ouvrir une fiche faisait traverser
+  // Francfort → Paris à l'album photo du club — vingt kilo-octets par
+  // joueur — pour n'en garder aucun.
+  const [detail, saison, gardiens, trophees] = await Promise.all([
+    getPlayerDetail(clubId, playerId),
+    prisma.season.findFirst({
+      where: { clubId, isActive: true },
+      select: { id: true },
+    }),
+    // Toutes saisons, comme le reste de la fiche : le bilan, les paliers et
+    // les trophées sont des carrières. Le limiter à la saison en cours faisait
+    // disparaître la carte « Dans les buts » d'un gardien qui n'a pas encore
+    // gardé depuis septembre.
+    getGardiens({ clubId, avecPhotos: false }),
+    getTropheesJoueur(clubId, playerId),
+  ]);
   if (!detail) return NextResponse.json({ error: "introuvable" }, { status: 404 });
 
-  const saison = await prisma.season.findFirst({
-    where: { clubId, isActive: true },
-    select: { id: true },
-  });
-
-  const [participations, gardiens, trophees, classement] = await Promise.all([
+  const [participations, classement] = await Promise.all([
     // La chasuble habituelle : la majorité de ses apparitions cette saison.
     prisma.matchParticipant.findMany({
       where: {
@@ -41,16 +62,10 @@ export async function GET(
       },
       select: { initialTeam: true },
     }),
-    // Toutes saisons, comme le reste de la fiche : le bilan, les paliers et
-    // les trophées sont des carrières. Le limiter à la saison en cours faisait
-    // disparaître la carte « Dans les buts » d'un gardien qui n'a pas encore
-    // gardé depuis septembre.
-    getGardiens({ clubId }),
-    getTropheesJoueur(clubId, playerId),
     // Le rang au tableau, dans l'ordre du tableau — pas celui des buteurs.
     (async () => {
       const { getLeaderboard } = await import("@/lib/stats");
-      return getLeaderboard({ clubId, seasonId: saison?.id ?? null });
+      return getLeaderboard({ clubId, seasonId: saison?.id ?? null, avecPhotos: false });
     })(),
   ]);
 

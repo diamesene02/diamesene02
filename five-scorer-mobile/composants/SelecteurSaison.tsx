@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { styleLueur } from "./base";
 import { IconeJeu } from "./Icones";
 import PopoverVerre, { mesurer, type Ancre } from "./PopoverVerre";
@@ -17,11 +17,17 @@ export default function SelecteurSaison({
   choix,
   valeur,
   onChange,
+  occupe = false,
 }: {
   t: Jetons;
   choix: { id: string; libelle: string }[];
   valeur: string | null;
   onChange: (id: string) => void;
+  /// Le nouveau classement est en route. La flèche laisse la place au rond :
+  /// c'est le seul endroit où le geste a eu lieu, c'est là qu'il doit
+  /// répondre. Sans lui, changer de saison ne produisait RIEN à l'écran
+  /// jusqu'à ce que les chiffres changent tout seuls.
+  occupe?: boolean;
 }) {
   const pilule = useRef<View>(null);
   const [ancre, setAncre] = useState<Ancre | null>(null);
@@ -34,13 +40,17 @@ export default function SelecteurSaison({
         onPress={() => mesurer(pilule.current, (a) => a && setAncre(a))}
         accessibilityRole="button"
         accessibilityLabel={`Saison : ${courante}. Choisir la saison`}
-        accessibilityState={{ expanded: ancre != null }}
+        accessibilityState={{ expanded: ancre != null, busy: occupe }}
         style={({ pressed }) => [s.pilule, styleLueur(t), pressed && { opacity: 0.8 }]}
       >
         <Text style={[s.nom, { color: t.ink }]} numberOfLines={1}>
           {courante}
         </Text>
-        <Text style={[s.fleche, { color: jeton(t, "i2") }]}>▾</Text>
+        {occupe ? (
+          <ActivityIndicator size="small" color={jeton(t, "i2")} style={s.rond} />
+        ) : (
+          <Text style={[s.fleche, { color: jeton(t, "i2") }]}>▾</Text>
+        )}
       </Pressable>
 
       <PopoverVerre t={t} ancre={ancre} onClose={() => setAncre(null)} largeur={240} ecart={8}>
@@ -90,6 +100,10 @@ const s = StyleSheet.create({
   },
   nom: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
   fleche: { fontSize: 13 },
+  // La largeur de la flèche, pour que la pilule ne change pas de taille
+  // pendant le calcul : un bouton qui grandit sous le pouce, c'est un bouton
+  // qu'on rate au geste suivant.
+  rond: { width: 13, transform: [{ scale: 0.8 }] },
   defile: { flexGrow: 0, flexShrink: 1 },
   contenu: { padding: 8 },
   item: {

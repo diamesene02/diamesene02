@@ -1,12 +1,11 @@
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
-/// Les icônes de l'ancienne barre du bas, reprises trait pour trait de celles
-/// du site : même viewBox 24, même épaisseur 2,
-/// mêmes extrémités arrondies. La barre est partie avec la navigation du
-/// site (tout passe par la pilule) ; ne restent ici que celles qui servent
-/// encore ailleurs — le calendrier des en-têtes de soirée, le ballon, le
-/// plus. L'accueil et la courbe partaient dans la mise à jour sans être
-/// jamais dessinées : le menu de la pilule tire les siennes de CHEMINS.
+/// Les icônes d'usage général, reprises trait pour trait de celles du site :
+/// même viewBox 24, même épaisseur 2, mêmes extrémités arrondies. Ne restent
+/// ici que celles qui servent hors de la barre du bas — le calendrier des
+/// en-têtes de soirée, le ballon, le plus. Les cinq icônes de la barre
+/// revenue vivent dans composants/BarreOnglets.tsx, avec elle ; le menu de
+/// la pilule tire les siennes de CHEMINS.
 /// Une icône redessinée « à peu près » se remarque aussitôt qu'on a les deux
 /// sous les yeux : si l'une d'elles revient, on la reprend du site.
 ///

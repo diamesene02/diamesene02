@@ -8,7 +8,42 @@
 /// relire ces jetons pour les moteurs de dessin du téléphone, qui ne savent
 /// pas lire une chaîne CSS (le dégradé du verre, celui de l'écusson).
 
-import { mix, rgba } from "./noyau/theme";
+import { mix, rgba, themeTokens, type Theme } from "./noyau/theme";
+
+/// Un petit cache par clé, pour les calculs de couleur qui retombent toujours
+/// sur les deux mêmes chasubles.
+///
+/// **Pourquoi.** `themeTokens` fabrique une trentaine de jetons et quatre
+/// mélanges de couleur ; `fondDuClub` fabrique un tableau. Les écrans les
+/// appelaient DANS le corps du composant, donc à chaque rendu : non seulement
+/// le calcul repartait de zéro, mais l'objet rendu changeait d'identité — et
+/// un objet neuf traverse tous les `memo` posés en dessous, jusqu'à repousser
+/// vers les vues natives des dégradés qui n'ont pas bougé.
+///
+/// Un club a deux couleurs et deux thèmes : quatre entrées suffisent. La
+/// borne est là pour qu'un écran qui afficherait plusieurs clubs (la liste)
+/// ne fasse pas enfler la carte indéfiniment.
+function memoParCle<R>(calcul: (cle: string, ...a: string[]) => R, borne = 8) {
+  const carte = new Map<string, R>();
+  return (...args: string[]): R => {
+    const cle = args.join("\u0000");
+    const connu = carte.get(cle);
+    if (connu !== undefined) return connu;
+    const r = calcul(cle, ...args);
+    if (carte.size >= borne) carte.clear();
+    carte.set(cle, r);
+    return r;
+  };
+}
+
+/// Les jetons du club, calculés une fois par couple de chasubles.
+///
+/// À préférer à `themeTokens` dans un composant : le résultat garde la même
+/// identité d'un rendu à l'autre, ce qui rend utiles les `memo` des cartes,
+/// des avatars et des rangées qui le reçoivent en prop.
+export const jetonsDuClub = memoParCle(
+  (_c, a: string, b: string, theme: string) => themeTokens(a, b, theme as Theme) as Jetons,
+) as (couleurA: string, couleurB: string, theme: Theme) => Jetons;
 
 function composantes(c: string): [number, number, number] {
   const v = c.replace("#", "");
@@ -42,20 +77,30 @@ export function lisible(c: string): string {
 }
 
 /// Les quatre arrêts du dégradé de fond, dans l'ordre.
-export function fondDuClub(couleurA: string, couleurB: string): [string, string, string, string] {
-  return [
-    melange(couleurA, "#000000", 0.72),
-    melange(couleurA, "#000000", 0.85),
-    melange(couleurB, "#000000", 0.9),
-    melange(couleurB, "#000000", 0.95),
-  ];
-}
+///
+/// Mémoïsé : `Ecran` le rend à chaque rendu de l'écran qui l'enveloppe, et un
+/// tableau neuf est un tableau neuf pour `LinearGradient` — donc un dégradé
+/// repoussé vers la vue native pour rien.
+export const fondDuClub = memoParCle(
+  (_c, couleurA: string, couleurB: string) =>
+    [
+      melange(couleurA, "#000000", 0.72),
+      melange(couleurA, "#000000", 0.85),
+      melange(couleurB, "#000000", 0.9),
+      melange(couleurB, "#000000", 0.95),
+    ] as [string, string, string, string],
+) as (couleurA: string, couleurB: string) => [string, string, string, string];
 
 /// Le fond en thème clair : trois arrêts, aux positions 0, 0,44 et 1
 /// (lib/theme.ts du site).
-export function fondClairDuClub(couleurA: string, couleurB: string): [string, string, string] {
-  return [mix(couleurA, "#ffffff", 0.88), "#f2f2f7", mix(couleurB, "#ffffff", 0.92)];
-}
+export const fondClairDuClub = memoParCle(
+  (_c, couleurA: string, couleurB: string) =>
+    [mix(couleurA, "#ffffff", 0.88), "#f2f2f7", mix(couleurB, "#ffffff", 0.92)] as [
+      string,
+      string,
+      string,
+    ],
+) as (couleurA: string, couleurB: string) => [string, string, string];
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -65,10 +110,16 @@ const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 /// Ici on rend les trois couleurs, et c'est le composant qui les pose aux
 /// positions 0, 0,55 et 1. Une couleur qui n'est pas un hexadécimal (un club
 /// ancien, une valeur de test) donne un aplat plutôt qu'un dégradé cassé.
-export function arretsDeCrete(couleur: string): [string, string, string] {
-  if (!HEX.test(couleur)) return [couleur, couleur, couleur];
-  return [mix(couleur, "#ffffff", 0.32), couleur, mix(couleur, "#000000", 0.28)];
-}
+/// Mémoïsé : un écran de feuille de match dessine douze écussons de chasuble,
+/// pour deux couleurs en tout — et `Svg` reçoit un tableau neuf à chaque fois.
+export const arretsDeCrete = memoParCle((_c, couleur: string) => {
+  if (!HEX.test(couleur)) return [couleur, couleur, couleur] as [string, string, string];
+  return [mix(couleur, "#ffffff", 0.32), couleur, mix(couleur, "#000000", 0.28)] as [
+    string,
+    string,
+    string,
+  ];
+}) as (couleur: string) => [string, string, string];
 
 /// Une couleur de chasuble à une opacité donnée : les halos du fond de match.
 export function voile(couleur: string, opacite: number): string {
@@ -83,12 +134,19 @@ export type Jetons = Record<string, string>;
 /// en clair, un simple « rgba(255,255,255,.78) ». expo-linear-gradient veut
 /// deux couleurs : on prend la première et la dernière qu'on trouve, et une
 /// seule donne un aplat.
+/// Mémoïsé par jeu de jetons (une expression régulière sur une chaîne CSS,
+/// refaite pour chacune des huit cartes de verre d'un écran, à chaque rendu).
+const verres = new WeakMap<Jetons, [string, string]>();
 export function degradeDuVerre(t: Jetons): [string, string] {
+  const connu = verres.get(t);
+  if (connu) return connu;
   const couleurs = (t.cd ?? "").match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}\b/gi) ?? [];
   const haut = couleurs[0];
   const bas = couleurs[couleurs.length - 1];
-  if (!haut || !bas) return ["rgba(255,255,255,0.11)", "rgba(255,255,255,0.06)"];
-  return [haut, bas];
+  const r: [string, string] =
+    !haut || !bas ? ["rgba(255,255,255,0.11)", "rgba(255,255,255,0.06)"] : [haut, bas];
+  verres.set(t, r);
+  return r;
 }
 
 /// Les valeurs de repli, quand les jetons du club ne sont pas encore chargés.

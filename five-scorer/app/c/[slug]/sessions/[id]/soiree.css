@@ -90,9 +90,13 @@
   color: var(--i3);
 }
 .soiree-autres {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
-  padding: 6px 20px 16px;
+  /* « et 8 autres » déplie la liste : c'est une commande, elle se touche sur
+     44 pt comme les autres (elle en faisait 42). */
+  min-height: 44px;
+  padding: 8px 20px 16px;
   border: 0;
   background: none;
   color: var(--i3);

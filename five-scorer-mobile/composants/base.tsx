@@ -1,6 +1,9 @@
-import { useId, useState } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   Pressable,
   StyleSheet,
@@ -8,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  type PressableProps,
   type StyleProp,
   type TextInputProps,
   type TextStyle,
@@ -39,6 +43,174 @@ export function texte(taille: number, graisse: TextStyle["fontWeight"] = "400"):
     letterSpacing: Math.round(-0.01 * taille * 100) / 100,
     lineHeight: Math.round(taille * 1.3),
   };
+}
+
+// ══ LE BUDGET DE MOUVEMENT ════════════════════════════════════════════════
+//
+// Le site pose déjà la doctrine (app/globals.css, « BUDGET DE MOUVEMENT ») :
+// le wow est un événement, pas un état ; au repos, rien ne bouge. Ce qui
+// manquait, c'est qu'on l'applique. Treize durées et six courbes étaient
+// recopiées à la main dans neuf fichiers de l'app, sans qu'aucune ne dise à
+// quel geste elle appartenait — et rien ne garantissait qu'elles suivent
+// encore celles du site.
+//
+// Chaque entrée ci-dessous porte le nom d'un GESTE, pas d'une vitesse, et
+// cite le jeton du site dont elle est le miroir. Une valeur écrite ailleurs
+// qu'ici est un bug : l'app et le site se décaleraient sans qu'on le voie.
+
+/// La table, partagée par tous les écrans. Miroir de `--t-*` et de
+/// `--ease-natif` du site.
+export const MOUVEMENT = {
+  /// `--t-fast` — un fondu qui ne se rattache à aucun événement. C'est aussi
+  /// la durée de secours quand « Réduire les animations » est actif.
+  rapide: 120,
+  /// `--t-touch` — la réponse au doigt : le retrait d'un bouton, son voile.
+  toucher: 140,
+  /// `--t-mid` — une bascule : l'onglet qui change, l'indicateur qui suit.
+  bascule: 180,
+  /// `--t-enter` — l'arrivée d'un élément : une carte, une ligne, un menu.
+  entree: 200,
+  /// `fsFondu` de succes.css — un fond qui s'assombrit derrière une annonce.
+  voile: 240,
+  /// `.ecran` de globals.css — l'ouverture d'un écran.
+  ecran: 320,
+  /// `--t-scene`, `fsAnnonce` — une feuille, une annonce plein écran.
+  scene: 360,
+  /// `--t-but` — la cérémonie d'un but.
+  ceremonie: 400,
+  /// `fsBarre` de succes.css — une jauge qui se remplit.
+  jauge: 700,
+  /// `fsEclat` de succes.css — les éclats d'un succès qui se déclenche.
+  eclat: 900,
+  /// `--ease-natif` : la courbe du système « natif » (maquette tour 4), la
+  /// seule des deux côtés. `--ease` du site, plus sèche, appartient à la
+  /// cérémonie du match et ne se mélange pas à celle-ci.
+  courbe: Easing.bezier(0.2, 0.8, 0.2, 1),
+  /// `fsEclat` freine autrement : l'éclat reste plein les deux tiers du
+  /// trajet, sinon on l'éteint avant de l'avoir vu.
+  courbeEclat: Easing.bezier(0.15, 0.7, 0.3, 1),
+  /// Un ressort COURT : environ 320 ms pour se poser, 5 % de dépassement.
+  /// Ce qu'on veut pour un score ou un badge qui tombe — assez pour qu'on
+  /// le remarque, trop court pour qu'on l'attende.
+  ressort: { tension: 65, friction: 8 },
+  /// Le ressort de la médaille d'un succès, miroir de `fsMedaille` (620 ms,
+  /// dépassement à 1,08). Lui seul a le droit d'être long : il n'arrive que
+  /// quand on vient de débloquer quelque chose.
+  ressortMedaille: { tension: 90, friction: 5 },
+} as const;
+
+// « Réduire les animations » du téléphone, lu UNE fois pour toute l'app.
+//
+// Le même écran peut compter vingt boutons ; vingt abonnements à
+// AccessibilityInfo pour la même réponse, c'est vingt écoutes natives de
+// plus à chaque montage. On garde donc une valeur de module et un carnet
+// d'abonnés, branché à la première demande.
+let mouvementReduit = false;
+let brancheAuSysteme = false;
+const abonnesAuMouvement = new Set<(v: boolean) => void>();
+
+function poserMouvementReduit(v: boolean) {
+  mouvementReduit = v;
+  for (const f of abonnesAuMouvement) f(v);
+}
+
+function brancherAuSysteme() {
+  if (brancheAuSysteme) return;
+  brancheAuSysteme = true;
+  AccessibilityInfo.isReduceMotionEnabled().then(poserMouvementReduit).catch(() => {});
+  AccessibilityInfo.addEventListener("reduceMotionChanged", poserMouvementReduit);
+}
+
+/// « Réduire les animations », réglage du téléphone. Faux tant qu'on ne sait
+/// pas : la première animation d'une barre part peut-être pour rien, pas une
+/// annonce, qui redemande au moment de s'ouvrir.
+export function useMouvementReduit(): boolean {
+  const [reduit, setReduit] = useState(mouvementReduit);
+  useEffect(() => {
+    brancherAuSysteme();
+    abonnesAuMouvement.add(setReduit);
+    setReduit(mouvementReduit);
+    return () => {
+      abonnesAuMouvement.delete(setReduit);
+    };
+  }, []);
+  return reduit;
+}
+
+/// Une durée qui tient compte du réglage : 0 quand on réduit les animations.
+/// L'état d'arrivée est le même, il arrive tout de suite.
+export function duree(reduit: boolean, ms: number): number {
+  return reduit ? 0 : ms;
+}
+
+/// LE RETRAIT AU DOIGT, partagé par toutes les commandes.
+///
+/// Un bouton qui s'éteint d'un coup sec ne dit pas « je t'ai senti », il dit
+/// « quelque chose a clignoté ». On l'enfonce d'un point et on le voile, en
+/// `toucher` (140 ms), à l'aller comme au retour.
+///
+/// Tout passe par `useNativeDriver` : le geste ne dépend jamais de ce que le
+/// fil JS est en train de faire. Au bord du terrain, entre deux buts, c'est
+/// exactement le moment où il est occupé.
+export function useRetrait(opaciteBasse = 0.9) {
+  const reduit = useMouvementReduit();
+  const v = useRef(new Animated.Value(0)).current;
+  const vers = useCallback(
+    (cible: number) => {
+      Animated.timing(v, {
+        toValue: cible,
+        duration: duree(reduit, MOUVEMENT.toucher),
+        easing: MOUVEMENT.courbe,
+        useNativeDriver: true,
+      }).start();
+    },
+    [reduit, v],
+  );
+  const onPressIn = useCallback(() => vers(1), [vers]);
+  const onPressOut = useCallback(() => vers(0), [vers]);
+  const style = useMemo(
+    () => ({
+      opacity: v.interpolate({ inputRange: [0, 1], outputRange: [1, opaciteBasse] }),
+      // Le point de retrait disparaît quand on réduit les animations : le
+      // voile suffit à accuser réception, et il ne déplace rien.
+      transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, reduit ? 0 : 1] }) }],
+    }),
+    [opaciteBasse, reduit, v],
+  );
+  return { onPressIn, onPressOut, style };
+}
+
+/// Le `Pressable` des commandes : celui qui sait se retirer sous le doigt.
+export const PressableAnime = Animated.createAnimatedComponent(Pressable);
+
+/// Une zone touchable qui se retire sous le doigt. Tout ce qui se tape et
+/// n'est pas déjà un bouton de cette page passe par là : un onglet, une
+/// tuile de succès, une rangée de réglages. Une seule règle, partout.
+export function Touche({
+  voile = 0.9,
+  style,
+  onPressIn,
+  onPressOut,
+  children,
+  ...props
+}: PressableProps & { voile?: number; style?: StyleProp<ViewStyle> }) {
+  const retrait = useRetrait(voile);
+  return (
+    <PressableAnime
+      {...props}
+      onPressIn={(e) => {
+        retrait.onPressIn();
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        retrait.onPressOut();
+        onPressOut?.(e);
+      }}
+      style={[style, retrait.style]}
+    >
+      {children}
+    </PressableAnime>
+  );
 }
 
 /// Les deux moitiés du jeton `cs` : le reflet intérieur du bord haut et
@@ -106,15 +278,10 @@ export function CarteVerre({
   );
   if (onPress) {
     return (
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={etiquette}
-        style={({ pressed }) => [cadre, pressed && { opacity: 0.7 }]}
-      >
+      <CarteTouchable cadre={cadre} onPress={onPress} etiquette={etiquette}>
         {matiere}
         {children}
-      </Pressable>
+      </CarteTouchable>
     );
   }
   return (
@@ -122,6 +289,37 @@ export function CarteVerre({
       {matiere}
       {children}
     </View>
+  );
+}
+
+/// Une carte entière qui se touche. À part, pour que la carte immobile — le
+/// cas courant, il y en a huit sur un écran — ne paie ni valeur animée ni
+/// abonnement au réglage d'accessibilité.
+function CarteTouchable({
+  cadre,
+  onPress,
+  etiquette,
+  children,
+}: {
+  cadre: StyleProp<ViewStyle>;
+  onPress: () => void;
+  etiquette?: string;
+  children: React.ReactNode;
+}) {
+  // Une carte est large : elle se voile moins qu'un bouton, sinon tout
+  // l'écran clignote sous le pouce.
+  const retrait = useRetrait(0.85);
+  return (
+    <PressableAnime
+      onPress={onPress}
+      onPressIn={retrait.onPressIn}
+      onPressOut={retrait.onPressOut}
+      accessibilityRole="button"
+      accessibilityLabel={etiquette}
+      style={[cadre, retrait.style]}
+    >
+      {children}
+    </PressableAnime>
   );
 }
 
@@ -161,7 +359,10 @@ export function Carte({
 /// Dessiné en react-native-svg plutôt qu'en `experimental_backgroundImage` :
 /// le dégradé radial CSS de React Native est encore expérimental, et un
 /// écusson qui ne se peint pas est un rond vide sur toutes les pages.
-export function EcussonChasuble({
+/// Mémoïsé : un écran de matchs en pose deux par ligne, et chacun fabrique un
+/// dégradé radial SVG. Aucune de ses entrées ne change quand l'écran se
+/// redessine pour une autre raison.
+export const EcussonChasuble = memo(function EcussonChasuble({
   couleur,
   lettre,
   taille = 76,
@@ -236,7 +437,7 @@ export function EcussonChasuble({
       </Text>
     </View>
   );
-}
+});
 
 /// L'ancien écusson « plat » (liste des clubs, vitrine, saison). Le site n'en
 /// a qu'un : c'est désormais le même dessin, à 56 par défaut.
@@ -258,7 +459,14 @@ export function Ecusson({
 /// joueur quand on la connaît (`camp`, ou `anneau` pour une couleur donnée),
 /// sinon le trait de verre `gb`, très discret. Les initiales suivent
 /// `lib/ini.ts` du site : deux lettres, « BA » pour Bakary — pas « B ».
-export function Avatar({
+///
+/// **Mémoïsé, et ce n'est pas du zèle.** Une photo de joueur est une data-URL
+/// JPEG qui pèse jusqu'à 200 000 caractères (lib/photo/contrat.ts), gardée
+/// telle quelle dans SQLite. Il y en a douze sur une feuille de match, vingt
+/// sur l'effectif, vingt sur le classement. Sans `memo`, chaque rendu de
+/// l'écran refait l'objet `{ uri }` et repousse la chaîne entière vers la vue
+/// native — même quand ni le joueur ni sa photo n'ont bougé.
+export const Avatar = memo(function Avatar({
   nom,
   photo,
   t,
@@ -310,7 +518,7 @@ export function Avatar({
     >
       {photo ? (
         <>
-          <Image source={{ uri: photo }} style={s.avatarImage} />
+          <Image source={sourcePhoto(photo)} style={s.avatarImage} />
           {/* Le liseré sombre du site entre l'anneau et la photo : sans lui,
               une photo claire se fond dans un anneau clair. */}
           <View
@@ -328,6 +536,27 @@ export function Avatar({
       )}
     </View>
   );
+});
+
+/// L'objet `source` d'une photo, gardé d'un rendu à l'autre.
+///
+/// `<Image source={{ uri: photo }}>` fabrique un objet neuf à chaque rendu :
+/// React le voit changer et repousse vers la vue native une data-URL qui peut
+/// faire 200 000 caractères, pour une image qui n'a pas bougé. Une même photo
+/// rend donc toujours le même objet.
+///
+/// `WeakMap` plutôt qu'une carte bornée : la clé est la chaîne elle-même…
+/// qui n'est pas un objet. On garde donc une carte ordinaire, vidée quand
+/// elle dépasse la taille d'un effectif un peu large — les chaînes qui en
+/// sortent restent libérables.
+const sources = new Map<string, { uri: string }>();
+function sourcePhoto(uri: string): { uri: string } {
+  const connu = sources.get(uri);
+  if (connu) return connu;
+  if (sources.size >= 64) sources.clear();
+  const s = { uri };
+  sources.set(uri, s);
+  return s;
 }
 
 /// Le bouton plein du site (`.plein`) : 52 de haut, fond `bt`, ombre portée.
@@ -360,20 +589,25 @@ export function BoutonPlein({
 }) {
   const encre = danger ? jeton(t, "bad") : jeton(t, "bf");
   const inactif = disabled || occupe;
+  const retrait = useRetrait(0.9);
   return (
-    <Pressable
+    <PressableAnime
       onPress={onPress}
+      onPressIn={retrait.onPressIn}
+      onPressOut={retrait.onPressOut}
       disabled={inactif}
       accessibilityRole="button"
       accessibilityLabel={etiquette}
       accessibilityState={{ disabled: !!inactif, busy: !!occupe }}
-      style={({ pressed }) => [
+      style={[
         s.bouton,
         grand && s.boutonGrand,
         danger
           ? { backgroundColor: jeton(t, "cdSolid"), borderWidth: 1, borderColor: jeton(t, "cb") }
           : { backgroundColor: jeton(t, "bt"), boxShadow: "0 8px 24px rgba(0,0,0,0.25)" },
-        { opacity: disabled ? 0.5 : pressed ? 0.9 : 1 },
+        retrait.style,
+        // Un bouton éteint ne se retire pas : il n'a rien senti.
+        disabled ? { opacity: 0.5 } : null,
         style,
       ]}
     >
@@ -385,7 +619,7 @@ export function BoutonPlein({
       >
         {titre}
       </Text>
-    </Pressable>
+    </PressableAnime>
   );
 }
 
@@ -429,20 +663,24 @@ export function BoutonVerre({
   etiquette?: string;
 }) {
   const hauteur = taille === "normal" ? 44 : 52;
+  const retrait = useRetrait(0.8);
   return (
-    <Pressable
+    <PressableAnime
       onPress={onPress}
+      onPressIn={retrait.onPressIn}
+      onPressOut={retrait.onPressOut}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={etiquette}
       accessibilityState={{ disabled: !!disabled }}
-      style={({ pressed }) => [
+      style={[
         s.bouton,
         { height: hauteur, borderRadius: hauteur / 2, paddingHorizontal: 18 },
         lueur
           ? styleLueur(t)
           : { borderWidth: 1, borderColor: jeton(t, "gb"), backgroundColor: jeton(t, "gl") },
-        { opacity: disabled ? 0.5 : pressed ? 0.8 : 1 },
+        retrait.style,
+        disabled ? { opacity: 0.5 } : null,
         style,
       ]}
     >
@@ -450,7 +688,7 @@ export function BoutonVerre({
       <Text style={[s.boutonTexte, { color: t.ink }]} numberOfLines={1} adjustsFontSizeToFit>
         {titre}
       </Text>
-    </Pressable>
+    </PressableAnime>
   );
 }
 
@@ -501,11 +739,14 @@ export function Segment<V extends string>({
       {choix.map((c) => {
         const actif = c.valeur === valeur;
         return (
-          <Pressable
+          <Touche
             key={c.valeur}
             onPress={() => onChange(c.valeur)}
             accessibilityRole="tab"
             accessibilityState={{ selected: actif }}
+            // La pastille active ne se retire pas : elle est déjà choisie,
+            // et la voir bouger ferait croire qu'on vient de la changer.
+            voile={actif ? 1 : 0.7}
             style={[
               variante === "grand"
                 ? s.segmentPastilleGrand
@@ -528,7 +769,7 @@ export function Segment<V extends string>({
             >
               {c.libelle}
             </Text>
-          </Pressable>
+          </Touche>
         );
       })}
     </View>
@@ -560,6 +801,7 @@ export function BoutonRond({
   lueur?: boolean;
 }) {
   const encre = t.ink ?? "#ffffff";
+  const retrait = useRetrait(0.8);
   const dessin =
     icone ??
     (symbole === "‹" ? (
@@ -572,18 +814,20 @@ export function BoutonRond({
       <Text style={{ color: encre, fontSize: 17, fontWeight: "600" }}>{symbole}</Text>
     ));
   return (
-    <Pressable
+    <PressableAnime
       onPress={onPress}
+      onPressIn={retrait.onPressIn}
+      onPressOut={retrait.onPressOut}
       accessibilityLabel={etiquette}
       accessibilityRole="button"
-      style={({ pressed }) => [
+      style={[
         s.rond,
         lueur ? styleLueur(t) : { backgroundColor: jeton(t, "gl"), borderColor: jeton(t, "gb") },
-        pressed && { opacity: 0.8 },
+        retrait.style,
       ]}
     >
       {dessin}
-    </Pressable>
+    </PressableAnime>
   );
 }
 
@@ -694,17 +938,43 @@ export function Onglets<V extends string>({
   actif: V;
   onChange: (v: V) => void;
 }) {
+  const reduit = useMouvementReduit();
+  const [largeur, setLargeur] = useState(0);
+  const index = Math.max(
+    0,
+    onglets.findIndex((o) => o.valeur === actif),
+  );
+  // Le trait qui suit l'onglet choisi. Sans lui, changer d'onglet ne fait que
+  // changer la couleur de deux mots : on ne voit pas OÙ on est allé, et sur
+  // trois onglets serrés on se retrouve à relire les titres.
+  const glisse = useRef(new Animated.Value(index)).current;
+  useEffect(() => {
+    Animated.timing(glisse, {
+      toValue: index,
+      duration: duree(reduit, MOUVEMENT.bascule),
+      easing: MOUVEMENT.courbe,
+      useNativeDriver: true,
+    }).start();
+  }, [glisse, index, reduit]);
+
+  const colonne = onglets.length > 0 ? largeur / onglets.length : 0;
+  const trait = Math.round(colonne * 0.56);
   return (
     <View>
-      <View style={s.onglets} accessibilityRole="tablist">
+      <View
+        style={s.onglets}
+        accessibilityRole="tablist"
+        onLayout={(e) => setLargeur(e.nativeEvent.layout.width)}
+      >
         {onglets.map((o) => {
           const choisi = o.valeur === actif;
           return (
-            <Pressable
+            <Touche
               key={o.valeur}
               onPress={() => onChange(o.valeur)}
               accessibilityRole="tab"
               accessibilityState={{ selected: choisi }}
+              voile={choisi ? 1 : 0.6}
               style={s.onglet}
             >
               <Text
@@ -713,9 +983,31 @@ export function Onglets<V extends string>({
               >
                 {o.libelle}
               </Text>
-            </Pressable>
+            </Touche>
           );
         })}
+        {trait > 0 && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              s.ongletTrait,
+              {
+                width: trait,
+                backgroundColor: t.ink,
+                transform: [
+                  {
+                    // Une colonne d'écart par cran d'index ; au-delà de 1,
+                    // l'extrapolation linéaire d'Animated fait le reste.
+                    translateX: glisse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [(colonne - trait) / 2, (colonne - trait) / 2 + colonne],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
       </View>
       <Filet t={t} />
     </View>
@@ -832,5 +1124,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
   },
   ongletTexte: { fontSize: 20, fontWeight: "600", letterSpacing: -0.3 },
+  // Le trait de l'onglet choisi, posé sur le filet.
+  ongletTrait: { position: "absolute", left: 0, bottom: 0, height: 2, borderRadius: 1 },
   filet: { height: 1, marginHorizontal: 10 },
 });

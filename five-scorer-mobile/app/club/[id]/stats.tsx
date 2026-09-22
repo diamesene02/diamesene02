@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,8 @@ import EnTeteClub from "../../../composants/EnTeteClub";
 import ErreurChargement from "../../../composants/ErreurChargement";
 import SelecteurSaison from "../../../composants/SelecteurSaison";
 import { Avatar, CarteVerre, EcussonChasuble, Onglets } from "../../../composants/base";
+import { Bloc, CarteSquelette, Squelette } from "../../../composants/Squelette";
+import { useSommet } from "../../../composants/RetourEnHaut";
 import { IconeBallonFin, IconePasse, IconeTrophee } from "../../../composants/Icones";
 import SuccesDuClub, { type Visage } from "../../../composants/joueur/SuccesDuClub";
 import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
@@ -125,7 +127,8 @@ export default function Stats() {
 
   const couleurA = c?.couleurA ?? d?.chasubles.a ?? "#ffffff";
   const couleurB = c?.couleurB ?? d?.chasubles.b ?? "#111111";
-  const chasubles = { a: couleurA, b: couleurB };
+  // Stable : `Ecran` le redescend au fond de match, qui est mémoïsé.
+  const chasubles = useMemo(() => ({ a: couleurA, b: couleurB }), [couleurA, couleurB]);
   const vide = d != null && d.tableau.length === 0;
   /// Ma ligne ressort dans chaque liste, comme sur le site : le mardi, on
   /// ouvre les stats pour se trouver, pas pour lire le podium. Le filet
@@ -137,12 +140,19 @@ export default function Stats() {
 
   /// Le visage de chacun, pris dans ce que l'écran a déjà : la route des
   /// succès n'envoie pas de photo.
-  const visages = new Map<string, Visage>();
-  for (const l of [...(d?.tableau ?? []), ...(d?.gardiens ?? [])]) {
-    if (!visages.has(l.playerId)) {
-      visages.set(l.playerId, { photo: l.photo, camp: l.camp, initiales: l.initiales });
+  ///
+  /// Mémoïsé : deux tableaux concaténés et une carte reconstruite à chaque
+  /// rendu — donc à chaque changement d'onglet, de saison, de rafraîchissement
+  /// —, alors que rien ne bouge tant que `d` ne bouge pas.
+  const visages = useMemo(() => {
+    const m = new Map<string, Visage>();
+    for (const l of [...(d?.tableau ?? []), ...(d?.gardiens ?? [])]) {
+      if (!m.has(l.playerId)) {
+        m.set(l.playerId, { photo: l.photo, camp: l.camp, initiales: l.initiales });
+      }
     }
-  }
+    return m;
+  }, [d]);
 
   const ouvrirFiche = (playerId: string) =>
     router.push({ pathname: "/joueur/[id]", params: { id: playerId, clubId: id } });
@@ -179,6 +189,7 @@ export default function Stats() {
   return (
     <Ecran t={t} chasubles={chasubles}>
       <ScrollView
+        ref={useSommet("stats")}
         contentContainerStyle={s.contenu}
         refreshControl={
           <RefreshControl refreshing={rafraichit} onRefresh={rafraichir} tintColor={t.i2} />
@@ -194,6 +205,7 @@ export default function Stats() {
                 t={t}
                 choix={d.saisons.choix}
                 valeur={d.saisons.choisie}
+                occupe={occupe}
                 onChange={(saisonId) => {
                   setOccupe(true);
                   setSaison(saisonId);
@@ -203,12 +215,25 @@ export default function Stats() {
           }
         />
 
-        <View style={s.corps}>
+        {/* Changer de saison ne disait RIEN : le tableau de l'ancienne saison
+            restait à l'écran, intact, puis les chiffres changeaient tout seuls
+            quelques centaines de millisecondes plus tard (plusieurs secondes
+            au gymnase). On ne savait pas si le tap avait porté, et on le
+            refaisait. Le tableau s'efface à moitié le temps du calcul — il
+            reste lisible, mais il se déclare périmé. */}
+        <View style={[s.corps, occupe && d ? s.corpsEnAttente : null]}>
+          {/* Le squelette du tableau : les onglets, l'en-tête, huit lignes de
+              joueur. C'est exactement ce qui va s'afficher, et le pouce n'a
+              pas à retrouver sa ligne après un saut de page. */}
           {occupe && !d && (
-            <View style={s.centre}>
-              <ActivityIndicator color={t.ink} />
-              <Text style={[s.aide, { color: t.i2 }]}>On compte les points…</Text>
-            </View>
+            <Squelette etiquette="On compte les points">
+              <View style={s.sqOnglets}>
+                {[86, 74, 92].map((l, i) => (
+                  <Bloc key={i} t={t} l={l} h={34} r={17} />
+                ))}
+              </View>
+              <CarteSquelette t={t} rangees={8} hauteurRangee={46} entete style={s.sqCarte} />
+            </Squelette>
           )}
           {erreur != null && (
             <ErreurChargement t={t} erreur={erreur} onReessayer={charger} style={s.erreur} />
@@ -865,9 +890,12 @@ const colonneG = (i: number) => ({
 const s = StyleSheet.create({
   contenu: { paddingBottom: ESPACE_BARRE },
   corps: { paddingHorizontal: 14 },
+  // Assez effacé pour qu'on voie que ces chiffres ne sont plus les bons,
+  // assez lisible pour qu'on continue de les lire.
+  corpsEnAttente: { opacity: 0.45 },
 
-  centre: { paddingTop: 60, alignItems: "center", gap: 12 },
-  aide: { fontSize: 15 },
+  sqOnglets: { flexDirection: "row", gap: 8, paddingTop: 18 },
+  sqCarte: { marginTop: 14 },
   erreur: { marginTop: 24 },
   vide: { fontSize: 17, paddingTop: 12, paddingBottom: 14, lineHeight: 23 },
   lien: { fontWeight: "600", textDecorationLine: "underline" },

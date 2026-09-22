@@ -199,6 +199,14 @@
   height: 34px;
   font-size: 15px;
   padding: 0 14px;
+  /* Dessinée en 34 px pour rester secondaire sous la rangée du joueur, mais
+     touchée sur 44 : « Réactiver » se vise au pouce comme le reste. */
+  position: relative;
+}
+.roster-rangee .outils .verre::after {
+  content: "";
+  position: absolute;
+  inset: -5px 0;
 }
 .roster-rangee.archive .lien {
   min-height: 52px;
@@ -225,11 +233,12 @@
   flex-direction: column;
   gap: 6px;
 }
+/* « Nom », « Surnom », « Note » : des libellés de champ, pas des bannières.
+   Même règle que .kicker et .saison-mois — plus de capitales tracées de
+   13 px (voir le bloc en fin de globals.css). */
 .roster-champ > span:first-child {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
   color: var(--i2);
 }
 .roster-champ input {

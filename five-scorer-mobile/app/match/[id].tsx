@@ -23,13 +23,13 @@ import {
 import { useNoyau } from "../../composants/Noyau";
 import AnnonceSucces from "../../composants/succes/AnnonceSucces";
 import BandeRetrait from "../../composants/match/BandeRetrait";
+import Horloge from "../../composants/match/Horloge";
 import { PiedDeFin, TempsPlein, useMesDeblocagesDuMatch } from "../../composants/match/FinDeMatch";
 import { matchSuivant } from "../../composants/match/rejouer";
 import { phraseRetrait, quoiAnnuler } from "../../composants/match/textes";
 import { enregistrerPlantage } from "../../lib/plantages/fichier";
-import { JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
-import { themeTokens } from "../../lib/noyau/theme";
-import { fmt, nowElapsed } from "../../lib/noyau/clock";
+import { jetonsDuClub, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
+import { nowElapsed } from "../../lib/noyau/clock";
 import { estRetro } from "../../lib/noyau/retro";
 import type { LivePlayer } from "../../lib/match/local";
 import type { LocalClub } from "../../lib/outbox/types";
@@ -160,7 +160,6 @@ export default function Match() {
   // Le réglage vit dans le stockage local ; cet état n'est là que pour
   // redessiner le bouton « Son / Muet » de la chronologie.
   const [son, setSon] = useState(true);
-  const [, setTic] = useState(0);
   const minuteur = useRef<ReturnType<typeof setTimeout> | null>(null);
   const minuteurBouge = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ce qu'affiche la feuille pendant qu'elle redescend. Sans cette mémoire,
@@ -179,9 +178,10 @@ export default function Match() {
   // si la navigation garde l'instance, tout ce qui a été tenu pour l'ancien
   // (horloge amorcée, sifflet déjà donné, fin traitée) doit repartir de zéro.
   // Déclaré AVANT les effets qui lisent ces mémoires.
+  // Le sifflet déjà donné, lui, est tenu par `Horloge`, qu'une `key` sur
+  // l'identifiant du match remonte : sa mémoire repart de zéro avec lui.
   useEffect(() => {
     amorce.current = false;
-    etaitDepasse.current = null;
     finTraitee.current = false;
     setAbsent(false);
     setTempsPlein(false);
@@ -248,18 +248,6 @@ export default function Match() {
   const retro = match ? estRetro(match.playedAt) : false;
   const tourne = Boolean(match?.clockRunningSince);
 
-  // Le chrono, calculé avant le retour anticipé : le coup de sifflet de fin du
-  // temps réglementaire est un effet, et un effet ne se déclare pas après un
-  // `return`.
-  const ecoule = match
-    ? nowElapsed({
-        elapsedMs: match.clockElapsedMs ?? 0,
-        runningSince: match.clockRunningSince ?? null,
-      })
-    : 0;
-  const depasse =
-    !!match && club?.matchDurationMin != null && ecoule > club.matchDurationMin * 60_000;
-
   // L'écran reste allumé tant qu'on est sur la feuille. Il n'y a AUCUN Wake
   // Lock dans l'app web : elle s'éteint à la 20e minute pendant qu'on regarde
   // le jeu, et il faut la réveiller pour compter un but. Une ligne, et c'est
@@ -270,23 +258,26 @@ export default function Match() {
     setSon(sonActif());
   }, []);
 
-  // Le double coup de sifflet au franchissement du temps réglementaire, une
-  // seule fois. La garde `null` du premier passage est celle du site, et elle
-  // compte : sans elle, rouvrir un match déjà au-delà de la limite sifflerait
-  // la fin à chaque ouverture.
-  const etaitDepasse = useRef<boolean | null>(null);
-  useEffect(() => {
-    if (!vue) return;
-    if (etaitDepasse.current === null) {
-      etaitDepasse.current = depasse;
-      return;
-    }
-    if (depasse && !etaitDepasse.current) {
-      jouerSifflet();
+  // Le double coup de sifflet au franchissement du temps réglementaire. Le
+  // franchissement est repéré par `Horloge`, qui est le seul à connaître la
+  // seconde où il arrive ; ici on ne fait que siffler.
+  const surDepassement = useCallback(() => {
+    jouerSifflet();
+    toucheFranche();
+  }, []);
+
+  /// Le coup de sifflet de mi-temps, déclaré comme un rappel stable : la
+  /// pilule vit dans `Horloge`, qui est mémoïsé — une fonction refaite à
+  /// chaque rendu le réveillerait à chaque but.
+  const idDuMatch = match?.id;
+  const surMiTemps = useCallback(() => {
+    if (!idDuMatch) return;
+    void local.siffletMiTemps(idDuMatch).then(async (siffle) => {
+      if (!siffle) return;
       toucheFranche();
-    }
-    etaitDepasse.current = depasse;
-  }, [vue, depasse]);
+      await relire();
+    });
+  }, [idDuMatch, local, relire]);
 
   // Amorcer le chrono à la première ouverture, comme le site.
   //
@@ -301,14 +292,6 @@ export default function Match() {
       void local.demarrerHorloge(match.id, Date.now() - Date.parse(match.playedAt)).then(relire);
     }
   }, [match, retro, local, relire]);
-
-  // Rien ne tourne en base : le temps se dérive des deux colonnes du chrono.
-  // Un tic de 500 ms suffit, l'affichage est à la seconde.
-  useEffect(() => {
-    if (!tourne || retro) return;
-    const h = setInterval(() => setTic((n) => n + 1), 500);
-    return () => clearInterval(h);
-  }, [tourne, retro]);
 
   // Le vivier se relit à chaque ouverture du mode ET après chaque changement
   // de la feuille : celui qu'on vient de faire entrer doit quitter la liste
@@ -368,7 +351,7 @@ export default function Match() {
 
   const couleurA = club?.colorA ?? "#ffffff";
   const couleurB = club?.colorB ?? "#111111";
-  const t: Jetons = club ? themeTokens(couleurA, couleurB, "dark") : JETONS_NEUTRES;
+  const t: Jetons = club ? jetonsDuClub(couleurA, couleurB, "dark") : JETONS_NEUTRES;
   const enJeu = match.status === "LIVE";
   // Sur un match contre un adversaire extérieur, l'équipe B n'est pas une
   // équipe du club : il n'y a personne à y envoyer, et la couche locale refuse
@@ -584,13 +567,6 @@ export default function Match() {
     await relire();
   }
 
-  async function siffler() {
-    if (await local.siffletMiTemps(match!.id)) {
-      toucheFranche();
-      await relire();
-    }
-  }
-
   /// Le bouton « Terminer » ne termine pas tout de suite : il demande d'abord
   /// la confirmation, puis — si le club élit son homme du match à la main —
   /// le MVP. En mode `VOTE` ce sont les joueurs qui votent après coup, en
@@ -611,7 +587,14 @@ export default function Match() {
   /// suivant sans attendre personne.
   async function terminer(mvpId: string | null) {
     setMvpOuvert(false);
-    await local.finishMatch(match!.id, mvpId, Math.round(ecoule / 60_000) || null);
+    // Le temps joué se relit à l'instant du coup de sifflet final, et non
+    // dans une valeur dérivée au dernier rendu : depuis que l'horloge tient
+    // son propre tic, le rendu de la feuille peut dater de plusieurs minutes.
+    const jouees = nowElapsed({
+      elapsedMs: match!.clockElapsedMs ?? 0,
+      runningSince: match!.clockRunningSince ?? null,
+    });
+    await local.finishMatch(match!.id, mvpId, Math.round(jouees / 60_000) || null);
     // Après l'écriture, jamais avant : un « c'est fait » démenti par une
     // erreur est pire que rien.
     vibrerSucces();
@@ -705,37 +688,21 @@ export default function Match() {
         <Chiffre valeur={match.scoreA} perd={match.scoreB > match.scoreA} />
         <View style={s.milieu}>
           {enJeu && !retro ? (
-            <>
-              <View style={s.etatLigne}>
-                <View
-                  style={[
-                    s.point,
-                    { backgroundColor: tourne ? "#ff453a" : "rgba(255,255,255,0.5)" },
-                  ]}
-                />
-                <Text
-                  style={[s.etat, { color: tourne ? "#ff453a" : "rgba(255,255,255,0.7)" }]}
-                >
-                  {tourne ? "En direct" : "Pause"}
-                </Text>
-              </View>
-              <Text style={[s.horloge, depasse && { color: "#ff453a" }]}>{fmt(ecoule)}</Text>
-              {(match.period ?? 1) === 1 ? (
-                // Une pilule, pas un texte de 13 : c'est le coup de sifflet
-                // qu'on donne debout, en regardant le terrain.
-                <Pressable
-                  onPress={() => void siffler()}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel="Siffler la mi-temps"
-                  style={({ pressed }) => [s.miTemps, pressed && { opacity: 0.7 }]}
-                >
-                  <Text style={s.periode}>1re · mi-temps ›</Text>
-                </Pressable>
-              ) : (
-                <Text style={[s.periode, s.periodeSeule]}>2de</Text>
-              )}
-            </>
+            // Le chrono tient son propre tic (composants/match/Horloge.tsx) :
+            // il se redessine deux fois par seconde sans rien réveiller
+            // au-dessus de lui.
+            <Horloge
+              // « Match suivant » garde l'écran et change l'identifiant : la
+              // `key` remonte l'horloge, donc sa mémoire du sifflet déjà
+              // donné. Sans elle, le match suivant hériterait du précédent.
+              key={match.id}
+              elapsedMs={match.clockElapsedMs ?? 0}
+              runningSince={match.clockRunningSince ?? null}
+              limiteMs={club?.matchDurationMin != null ? club.matchDurationMin * 60_000 : null}
+              periode={match.period ?? 1}
+              onMiTemps={surMiTemps}
+              onDepassement={surDepassement}
+            />
           ) : (
             <Text style={[s.etat, { color: "rgba(255,255,255,0.7)" }]}>
               {match.status === "FINISHED" ? "Terminé" : "Saisie"}
@@ -1072,10 +1039,25 @@ export default function Match() {
             <Text style={[s.aide, { color: t.i2, textAlign: "center" }]}>
               {match.teamAName} {match.scoreA} — {match.scoreB} {match.teamBName}
             </Text>
+            {/* Ce que le bouton va faire, avant qu'il le fasse. Le club qui
+                élit son homme du match à la main voyait un « Terminer » qui
+                ne terminait pas : une seconde fenêtre s'ouvrait derrière,
+                avec vingt noms, alors qu'on rangeait déjà le téléphone. */}
+            <Text style={[s.boiteSuite, { color: t.i3 ?? t.i2 }]}>
+              {club?.motmMode === "ADMIN"
+                ? "Tu éliras l'homme du match juste après."
+                : "Le score part au club, et le récap s'ouvre."}
+            </Text>
             <View style={{ height: 16 }} />
             <BoutonPlein
               t={t}
-              titre={retro ? "Enregistrer" : "Terminer"}
+              titre={
+                club?.motmMode === "ADMIN"
+                  ? "Élire le MVP"
+                  : retro
+                    ? "Enregistrer"
+                    : "Terminer"
+              }
               onPress={demanderFin}
             />
             <View style={{ height: 10 }} />
@@ -1466,21 +1448,9 @@ const s = StyleSheet.create({
   },
   chiffrePerd: { color: "rgba(255,255,255,0.4)" },
   milieu: { alignItems: "center", gap: 4, paddingHorizontal: 8, minWidth: 116 },
-  etatLigne: { flexDirection: "row", alignItems: "center", gap: 7 },
-  point: { width: 8, height: 8, borderRadius: 4 },
+  // Le reste du milieu (le point, le chrono, la pilule de mi-temps) vit
+  // maintenant dans composants/match/Horloge.tsx, avec ses styles.
   etat: { fontSize: 17, fontWeight: "600" },
-  horloge: { fontSize: 17, fontWeight: "500", color: "rgba(255,255,255,0.7)" },
-  periode: { fontSize: 13, fontWeight: "600", color: "rgba(255,255,255,0.5)" },
-  // Le coup de sifflet de mi-temps : une pilule de 36 (48 avec la marge de
-  // toucher), plus un texte de 13 qu'on visait à l'aveugle.
-  miTemps: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  periodeSeule: { paddingVertical: 9 },
 
   equipes: { flexDirection: "row", paddingHorizontal: 24, paddingTop: 4 },
   equipe: { flex: 1, alignItems: "center", gap: 8, minWidth: 0 },
@@ -1608,6 +1578,9 @@ const s = StyleSheet.create({
   },
   boite: { width: "100%", maxWidth: 340, borderRadius: 26, borderWidth: 1, padding: 20 },
   boiteTitre: { fontSize: 20, fontWeight: "600", textAlign: "center", paddingBottom: 8 },
+  // La phrase qui dit la suite, sous le score : plus petite que lui, pour
+  // qu'on lise d'abord le score et ensuite ce qui va se passer.
+  boiteSuite: { fontSize: 13, lineHeight: 18, textAlign: "center", marginTop: 8 },
 
   // Les feuilles qui montent du bas. Elles s'arrêtent à 78 % de l'écran : on
   // doit toujours voir le score derrière, c'est lui qui dit où on en est.

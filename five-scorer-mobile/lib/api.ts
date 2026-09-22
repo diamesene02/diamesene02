@@ -1221,8 +1221,29 @@ export const appelAuthentifie = creerAppel({ api: API, cookie: lireCookie });
 /// CSV.
 export const appelTexte = creerAppelTexte({ api: API, cookie: lireCookie });
 
+/// L'appel `/api/me` en cours, s'il y en a un.
+///
+/// **Pourquoi.** Ouvrir un onglet du club lance DEUX `/api/me` dans la même
+/// image : le layout (`app/club/[id]/_layout.tsx`, qui vérifie qu'on est
+/// toujours membre) et l'écran (qui veut ses couleurs et ses droits). Deux
+/// fois la même requête, à chaque changement d'onglet — c'est-à-dire vingt
+/// fois dans une soirée, sur le réseau du gymnase.
+///
+/// Un appel déjà parti est donc partagé plutôt que doublé. Aucune mémoire au
+/// delà de l'aller-retour : dès qu'il retombe, la promesse est oubliée et le
+/// prochain appel repart pour de bon. Personne ne lit jamais une réponse plus
+/// vieille que sa propre demande — c'est ce qui rend ce partage sans risque,
+/// là où un cache daté afficherait les anciennes couleurs au retour des
+/// réglages.
+let moiEnVol: Promise<Moi> | null = null;
+
 export function chargerMoi(): Promise<Moi> {
-  return appelAuthentifie<Moi>("/api/me");
+  if (moiEnVol) return moiEnVol;
+  const p = appelAuthentifie<Moi>("/api/me").finally(() => {
+    if (moiEnVol === p) moiEnVol = null;
+  });
+  moiEnVol = p;
+  return p;
 }
 
 /// Une fiche de l'effectif telle que le serveur la rend.

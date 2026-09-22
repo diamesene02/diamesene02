@@ -7,6 +7,7 @@ import {
   useClubMemorise,
 } from "../../../composants/ClubCourant";
 import BarreOnglets from "../../../composants/BarreOnglets";
+import { remonterVers } from "../../../composants/RetourEnHaut";
 import FeuilleCreer from "../../../composants/FeuilleCreer";
 import { JETONS_NEUTRES } from "../../../lib/couleurs";
 
@@ -95,6 +96,9 @@ export default function DispositionClub() {
             actif={state.routes[state.index]?.name ?? "index"}
             onChoisir={(nom) => {
               if (nom === "creer") return setCreer(true);
+              // Retaper l'onglet où l'on est déjà remonte la page, au lieu de
+              // ne rien faire du tout (composants/RetourEnHaut.tsx).
+              if (nom === state.routes[state.index]?.name && remonterVers(nom)) return;
               navigation.navigate(nom);
             }}
           />

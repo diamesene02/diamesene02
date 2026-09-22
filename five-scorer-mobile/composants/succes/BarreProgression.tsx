@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { Jetons } from "../../lib/couleurs";
-import { couleursClub, useMouvementReduit } from "./commun";
+import { duree, MOUVEMENT, useMouvementReduit } from "../base";
+import { couleursClub } from "./commun";
 
 /// La barre fine d'un palier ou d'un niveau, aux couleurs du club — celle du
 /// site (components/succes/BarreProgression.tsx).
@@ -39,7 +40,14 @@ export default function BarreProgression({
       pousse.setValue(1);
       return;
     }
-    Animated.timing(pousse, { toValue: 1, duration: 700, useNativeDriver: true }).start();
+    // `jauge` : 700 ms, exactement `fsBarre` de succes.css. La jauge est le
+    // seul endroit où on a le droit d'être lent — c'est ce qu'on regarde.
+    Animated.timing(pousse, {
+      toValue: 1,
+      duration: duree(reduit, MOUVEMENT.jauge),
+      easing: MOUVEMENT.courbe,
+      useNativeDriver: true,
+    }).start();
   }, [pousse, reduit]);
 
   return (

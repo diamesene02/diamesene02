@@ -5,6 +5,7 @@ import Ecran from "../../composants/Ecran";
 import EnTeteClub, { TitreEcran } from "../../composants/EnTeteClub";
 import ErreurChargement from "../../composants/ErreurChargement";
 import { BoutonVerre, CarteVerre } from "../../composants/base";
+import { Bloc, Squelette } from "../../composants/Squelette";
 import { useNoyau } from "../../composants/Noyau";
 import { chargerMoiMemorise, useClubMemorise } from "../../composants/ClubCourant";
 import CarteReponse from "../../composants/soiree/CarteReponse";
@@ -20,8 +21,7 @@ import {
 import { useCompoSoiree } from "../../composants/soiree/useCompoSoiree";
 import { useGarderBrouillon } from "../../composants/soiree/useGarderBrouillon";
 import { quandRelatif, texteConvocation } from "../../composants/soiree/logique";
-import { jeton, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
-import { themeTokens } from "../../lib/noyau/theme";
+import { jeton, jetonsDuClub, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { joursEntre } from "../../lib/datesRelatives";
 import { avertissement, succes } from "../../lib/haptique";
 import { messageErreur } from "../../lib/erreurs";
@@ -103,7 +103,7 @@ export default function Soiree() {
   const couleurA = fiche?.chasubles.a.couleur ?? c?.couleurA ?? "#ffffff";
   const couleurB = fiche?.chasubles.b.couleur ?? c?.couleurB ?? "#111111";
   const t: Jetons = fiche
-    ? themeTokens(couleurA, couleurB, "dark")
+    ? jetonsDuClub(couleurA, couleurB, "dark")
     : (c?.theme.sombre ?? JETONS_NEUTRES);
   const fond = fiche || c ? { a: couleurA, b: couleurB } : undefined;
 
@@ -192,12 +192,19 @@ export default function Soiree() {
   // n'est pas le jour même ; les autres membres l'ont en tête de page.
   const envoyerEnTete = aVenir && (jourJ || !fiche?.peutScorer);
 
+  // « Coup d'envoi » ne veut dire qu'UNE chose, ici comme sur le site : le
+  // bouton qui ouvre VRAIMENT la feuille, chrono lancé — celui de l'accueil
+  // (compo prête, un tap) et celui du pied de l'écran de compo. Ce bouton-ci
+  // emmène sur la compo : il porte donc le mot du site, « Lancer un match ».
+  // Avant, on tapait « Coup d'envoi » sur la soirée, on arrivait sur un écran
+  // où il fallait retaper « Coup d'envoi » — deux boutons du même nom à la
+  // suite, et le doute au milieu sur ce qui avait déjà démarré.
   const suite = !fiche?.soireeFinie
     ? null
     : jourJ
       ? {
-          libelle: "Coup d'envoi",
-          etiquette: "Coup d'envoi, avec les équipes préparées",
+          libelle: "Lancer un match",
+          etiquette: "Lancer un match, avec les équipes préparées",
           onPress: () => ouvrirCompo("maintenant"),
         }
       : fiche?.passee
@@ -278,6 +285,8 @@ export default function Soiree() {
       >
         <EnTeteClub t={t} club={c} clubId={clubId} />
 
+        {!fiche && occupe && <SqueletteSoiree t={t} />}
+
         {fiche ? (
           <>
             <TitreEcran
@@ -336,15 +345,6 @@ export default function Soiree() {
             <ErreurChargement t={t} erreur={erreur} onReessayer={charger} />
           )}
 
-          {!fiche && occupe && (
-            // La forme des deux premières cartes, pour que l'écran ne saute
-            // pas quand elles arrivent.
-            <>
-              <CarteVerre t={t} style={[s.squelette, { height: 300 }]} />
-              <CarteVerre t={t} style={[s.squelette, { height: 420 }]} />
-            </>
-          )}
-
           {fiche &&
             (fiche.commencee ? (
               <>
@@ -360,6 +360,96 @@ export default function Soiree() {
   );
 }
 
+/// L'attente de la fiche d'une soirée, à la forme de la fiche.
+///
+/// C'est l'écran-pivot du lundi, et celui qu'on ouvre depuis une notification
+/// WhatsApp, donc souvent sur un réseau qui ne vaut rien. Mesuré le 22
+/// septembre 2026 sur le serveur de développement (machine chargée) :
+/// médiane 667 ms pour `/soirees/:id`, pointe à 2,9 s. C'est la durée pendant
+/// laquelle on ne voyait que deux rectangles gris.
+///
+/// Le titre d'abord, aux mesures exactes de `TitreEcran` (34 et 17) : sans
+/// lui, la page n'avait rien au-dessus des cartes et TOUT descendait de
+/// quatre-vingt-dix points quand la fiche arrivait — le pouce était déjà
+/// posé ailleurs. Puis les deux cartes : les réponses (« qui vient ») avec
+/// ses rangées de joueurs, et la composition avec sa pelouse.
+///
+/// Le tout dans UN seul `Squelette` : le titre et les cartes respirent
+/// ensemble. En deux, la moitié haute restait fixe pendant que la basse
+/// pulsait, et ça se lisait comme une panne.
+function SqueletteSoiree({ t }: { t: Jetons }) {
+  return (
+    <Squelette etiquette="On ouvre la soirée">
+      <View style={sq.tete}>
+        <Bloc t={t} l="62%" h={34} r={10} />
+        <Bloc t={t} l="38%" h={17} style={sq.sousTitre} />
+      </View>
+
+      <View style={sq.cadre}>
+        <CarteVerre t={t} style={sq.carte}>
+          <View style={sq.ligneTitre}>
+            <Bloc t={t} l="42%" h={19} />
+            <Bloc t={t} l={132} h={32} r={16} />
+          </View>
+          {/* Pas de filet ici : une ligne d'un point qui respire ne se lit pas,
+              elle scintille. Le vide entre les blocs suffit à dire la coupure. */}
+          <View style={sq.ligneTitre}>
+            <Bloc t={t} l="46%" h={14} />
+            <Bloc t={t} l={70} h={14} />
+          </View>
+          <Bloc t={t} l="100%" h={38} r={12} style={sq.pastille} />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <View key={i} style={sq.rangee}>
+              <Bloc t={t} l={32} h={32} r={16} />
+              <Bloc t={t} l={["58%", "44%", "66%", "50%", "60%"][i] as `${number}%`} h={15} />
+              <View style={sq.pousse} />
+              <Bloc t={t} l={62} h={15} />
+            </View>
+          ))}
+        </CarteVerre>
+
+        <CarteVerre t={t} style={sq.carte}>
+          <Bloc t={t} l="38%" h={19} />
+          <Bloc t={t} l="100%" h={40} r={14} style={sq.pastille} />
+          {/* La pelouse : deux colonnes de cinq, comme les deux équipes. */}
+          <View style={sq.pelouse}>
+            {[0, 1].map((camp) => (
+              <View key={camp} style={sq.camp}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <View key={i} style={sq.joueur}>
+                    <Bloc t={t} l={38} h={38} r={19} />
+                    <Bloc t={t} l={52} h={11} />
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+          <View style={sq.ligneTitre}>
+            <Bloc t={t} l="46%" h={44} r={22} />
+            <Bloc t={t} l="46%" h={44} r={22} />
+          </View>
+        </CarteVerre>
+      </View>
+    </Squelette>
+  );
+}
+
+const sq = StyleSheet.create({
+  // Les mêmes mesures que `TitreEcran` : 34 de haut de page, 18 de côté.
+  tete: { paddingTop: 34, paddingHorizontal: 18 },
+  sousTitre: { marginTop: 6 },
+  // Et celles de `s.cartes`, que ce squelette remplace le temps de l'attente.
+  cadre: { paddingHorizontal: 14, paddingTop: 18, gap: 18 },
+  carte: { paddingHorizontal: 18, paddingVertical: 18, gap: 14 },
+  ligneTitre: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  pastille: { alignSelf: "stretch" },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12 },
+  pousse: { flex: 1 },
+  pelouse: { flexDirection: "row", gap: 14 },
+  camp: { flex: 1, gap: 12, alignItems: "center" },
+  joueur: { alignItems: "center", gap: 6 },
+});
+
 const s = StyleSheet.create({
   contenu: { paddingBottom: 48 },
   tete: { paddingHorizontal: 18 },
@@ -368,5 +458,4 @@ const s = StyleSheet.create({
   annuleeTexte: { fontSize: 15, fontWeight: "600" },
   actions: { gap: 8, marginTop: 14 },
   cartes: { paddingHorizontal: 14, paddingTop: 18, gap: 18 },
-  squelette: { opacity: 0.6 },
 });

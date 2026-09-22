@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   Pressable,
@@ -19,6 +18,7 @@ import Ecran from "../../composants/Ecran";
 import { BoutonPlein, BoutonRond, BoutonVerre, CarteVerre, Poignee, Segment } from "../../composants/base";
 import { CHEMINS, IconeJeu, IconeTrait } from "../../composants/Icones";
 import ErreurChargement from "../../composants/ErreurChargement";
+import { Bloc, Squelette } from "../../composants/Squelette";
 import AnnonceSucces from "../../composants/succes/AnnonceSucces";
 import { chargerMoiMemorise, useClubMemorise } from "../../composants/ClubCourant";
 import { useNoyau } from "../../composants/Noyau";
@@ -40,8 +40,7 @@ import {
 } from "../../composants/match/VuesRecap";
 import { rejouerDepuisLeRecap } from "../../composants/match/rejouer";
 import { texteDuPartage } from "../../composants/match/textes";
-import { JETONS_NEUTRES, jeton, type Jetons } from "../../lib/couleurs";
-import { themeTokens } from "../../lib/noyau/theme";
+import { JETONS_NEUTRES, jeton, jetonsDuClub, type Jetons } from "../../lib/couleurs";
 import { messageErreur } from "../../lib/erreurs";
 import { leger, succes as vibrerSucces } from "../../lib/haptique";
 import { toucheFranche } from "../../lib/vibrer";
@@ -335,7 +334,7 @@ export default function Recap() {
   const couleurB = fiche?.chasubles.b ?? club?.couleurB ?? "#111111";
   const couleurs: [string, string] = [couleurA, couleurB];
   const t: Jetons = fiche
-    ? themeTokens(couleurA, couleurB, "dark")
+    ? jetonsDuClub(couleurA, couleurB, "dark")
     : (club?.theme.sombre ?? JETONS_NEUTRES);
   const a = fiche?.camps[0];
   const b = fiche?.camps[1];
@@ -412,12 +411,7 @@ export default function Recap() {
           <RefreshControl refreshing={rafraichit} onRefresh={() => void rafraichir()} tintColor={t.i2} />
         }
       >
-        {occupe && !fiche && (
-          <View style={s.centre}>
-            <ActivityIndicator color={t.ink} />
-            <Text style={[s.aide, { color: t.i2 }]}>Un instant…</Text>
-          </View>
-        )}
+        {occupe && !fiche && <SqueletteRecap t={t} />}
         {erreur != null && !fiche && (
           <View style={s.bas}>
             <ErreurChargement t={t} erreur={erreur} onReessayer={charger} />
@@ -647,6 +641,56 @@ export default function Recap() {
   );
 }
 
+/// L'attente du récap, à la forme du récap : les deux gros chiffres, l'état
+/// au milieu, les écussons de 76 et les deux colonnes de buteurs.
+///
+/// C'est l'écran le plus lent de l'app — la fiche du match ET les succès qu'il
+/// a débloqués, 292 ms médians sur la machine de développement, plusieurs
+/// secondes sur un téléphone au gymnase. Il affichait « Un instant… » au
+/// milieu du vide, puis basculait d'un coup sur une page entière.
+function SqueletteRecap({ t }: { t: Jetons }) {
+  return (
+    <Squelette etiquette="On ouvre le match" style={sq.cadre}>
+      <View style={sq.marque}>
+        <Bloc t={t} l={86} h={116} r={18} />
+        <View style={sq.milieu}>
+          <Bloc t={t} l={72} h={16} />
+          <Bloc t={t} l={54} h={13} />
+        </View>
+        <Bloc t={t} l={86} h={116} r={18} />
+      </View>
+      <View style={sq.equipes}>
+        {[0, 1].map((i) => (
+          <View key={i} style={sq.equipe}>
+            <Bloc t={t} l={76} h={76} r={22} />
+            <Bloc t={t} l={92} h={18} />
+            <Bloc t={t} l={64} h={13} />
+          </View>
+        ))}
+      </View>
+      <View style={sq.buteurs}>
+        {[0, 1].map((i) => (
+          <View key={i} style={sq.colonne}>
+            <Bloc t={t} l="80%" h={15} style={i === 1 ? sq.aDroite : undefined} />
+            <Bloc t={t} l="58%" h={15} style={i === 1 ? sq.aDroite : undefined} />
+          </View>
+        ))}
+      </View>
+    </Squelette>
+  );
+}
+
+const sq = StyleSheet.create({
+  cadre: { paddingTop: 18 },
+  marque: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24, gap: 12 },
+  milieu: { flex: 1, alignItems: "center", gap: 8 },
+  equipes: { flexDirection: "row", paddingTop: 16, paddingHorizontal: 24 },
+  equipe: { flex: 1, alignItems: "center", gap: 10 },
+  buteurs: { flexDirection: "row", gap: 16, paddingTop: 22, paddingHorizontal: 28 },
+  colonne: { flex: 1, gap: 10 },
+  aDroite: { alignSelf: "flex-end" },
+});
+
 const s = StyleSheet.create({
   barre: {
     flexDirection: "row",
@@ -665,8 +709,6 @@ const s = StyleSheet.create({
   },
   filetBarre: { height: 1, backgroundColor: "rgba(255,255,255,0.12)" },
   contenu: { paddingBottom: 40 },
-  centre: { paddingTop: 60, alignItems: "center", gap: 12 },
-  aide: { fontSize: 15 },
   corrige: {
     fontSize: 13,
     color: "rgba(255,255,255,0.75)",

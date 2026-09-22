@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { CarteVerre } from "../base";
 import { IconeJeu } from "../Icones";
@@ -81,7 +82,13 @@ export function CarteProgrammes({
 
 /// Une soirée jouée (ou un jour sans soirée) : son titre, le compte, puis
 /// une rangée par match — l'heure, le score, l'homme du match.
-export function CarteGroupe({
+///
+/// Mémoïsé : en juin, une saison compte une trentaine de ces cartes et près de
+/// deux cents rangées, toutes montées d'un bloc dans le défilement. Sans
+/// `memo`, un tirer-pour-rafraîchir, un match en direct qui bouge ou une
+/// pilule effleurée les redessinait TOUTES. Le groupe ne se refait plus que
+/// quand le filtre change — c'est le seul moment où il le doit.
+export const CarteGroupe = memo(function CarteGroupe({
   t,
   titre,
   sousTitre,
@@ -144,7 +151,7 @@ export function CarteGroupe({
       ))}
     </CarteVerre>
   );
-}
+});
 
 /// La pilule d'un filtre (`chip` du site) : verre éteinte, blanche allumée.
 export function Pilule({

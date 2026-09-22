@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Jetons } from "../../lib/couleurs";
-import { Carte, EcussonChasuble } from "../base";
+import { Carte, duree, EcussonChasuble, MOUVEMENT, Touche, useMouvementReduit } from "../base";
 import BarreProgression from "./BarreProgression";
 import { nombre } from "./textes";
 import type { NiveauAffiche } from "./types";
@@ -27,6 +27,19 @@ export default function CarteNiveau({
   style?: object;
 }) {
   const [ouvert, setOuvert] = useState(false);
+  // Le chevron tournait d'un coup, de zéro à cent quatre-vingts : on ne
+  // voyait pas qu'il avait tourné, seulement qu'il avait changé. Il pivote
+  // maintenant en `bascule` (180 ms), comme le détail du site.
+  const reduit = useMouvementReduit();
+  const pivot = useRef(new Animated.Value(ouvert ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(pivot, {
+      toValue: ouvert ? 1 : 0,
+      duration: duree(reduit, MOUVEMENT.bascule),
+      easing: MOUVEMENT.courbe,
+      useNativeDriver: true,
+    }).start();
+  }, [ouvert, pivot, reduit]);
   const suivant = niveau.niveau + 1;
   const reste = Math.max(0, niveau.xpSuivant - niveau.xp);
   const lignes = (detail ?? []).filter((d) => d.xp !== 0);
@@ -59,27 +72,40 @@ export default function CarteNiveau({
 
       {lignes.length > 0 && (
         <View style={[s.detail, { borderTopColor: t.sep }]}>
-          <Pressable
+          <Touche
             onPress={() => setOuvert((o) => !o)}
             accessibilityRole="button"
             accessibilityState={{ expanded: ouvert }}
-            style={({ pressed }) => [s.detailTete, pressed && { opacity: 0.6 }]}
+            voile={0.6}
+            style={s.detailTete}
           >
             <Text style={[s.detailTitre, { color: t.i2 }]}>D'où viennent les XP</Text>
-            <Svg
-              width={16}
-              height={16}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={t.i3}
-              strokeWidth={2.4}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ transform: [{ rotate: ouvert ? "180deg" : "0deg" }] }}
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: pivot.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "180deg"],
+                    }),
+                  },
+                ],
+              }}
             >
-              <Path d="M6 9l6 6 6-6" />
-            </Svg>
-          </Pressable>
+              <Svg
+                width={16}
+                height={16}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={t.i3}
+                strokeWidth={2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <Path d="M6 9l6 6 6-6" />
+              </Svg>
+            </Animated.View>
+          </Touche>
           {ouvert &&
             lignes.map((d) => (
               <View key={d.source} style={s.detailLigne}>

@@ -1,10 +1,11 @@
 import { memo, useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Defs, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 import { fondClairDuClub, fondDuClub, JETONS_NEUTRES, type Jetons } from "../lib/couleurs";
+import { duree, MOUVEMENT, useMouvementReduit } from "./base";
 
 /// Le cadre commun de tous les écrans : le fond aux couleurs du club, sa
 /// trame pointillée, les marges de sécurité de l'appareil, et l'entrée en
@@ -31,27 +32,35 @@ export default function Ecran({
   /// Le thème clair du site. L'app reste en sombre tant qu'aucun réglage ne
   /// le propose ; le fond sait déjà le peindre.
   clair?: boolean;
-  /// L'entrée en fondu et montée de 10 points (`.ecran` du site, 320 ms).
-  /// À couper pour un écran qui se remonte souvent.
+  /// L'entrée en fondu et montée de 10 points (`.ecran` du site,
+  /// `MOUVEMENT.ecran`). À couper pour un écran qui se remonte souvent.
   anime?: boolean;
 }) {
+  const reduit = useMouvementReduit();
   const apparition = useRef(new Animated.Value(anime ? 0 : 1)).current;
   useEffect(() => {
     if (!anime) return;
     Animated.timing(apparition, {
       toValue: 1,
-      duration: 320,
-      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      // « Réduire les animations » : l'écran est là tout de suite, au même
+      // endroit et à la même opacité. On ne montre pas un écran à moitié.
+      duration: duree(reduit, MOUVEMENT.ecran),
+      easing: MOUVEMENT.courbe,
       useNativeDriver: true,
     }).start();
-  }, [anime, apparition]);
+  }, [anime, apparition, reduit]);
 
   const match = fond === "match";
   return (
     <View style={[styles.racine, { backgroundColor: match ? "#0b0b12" : t.bgSolid }]}>
       <StatusBar style={clair && !match ? "dark" : "light"} />
       {match ? (
-        <FondMatch chasubles={chasubles} />
+        // Deux chaînes plutôt que l'objet : les écrans écrivent
+        // `chasubles={{ a, b }}` en littéral, donc un objet neuf à chaque
+        // rendu — et le `memo` de `FondMatch` ne tenait jamais. Deux dégradés
+        // radiaux SVG refaits à chaque but compté, pour deux couleurs qui ne
+        // changent pas de la soirée.
+        <FondMatch a={chasubles?.a} b={chasubles?.b} />
       ) : (
         chasubles &&
         (clair ? (
@@ -126,29 +135,28 @@ const Trame = memo(function Trame({ couleur }: { couleur: string }) {
 /// `.fond-match` : un dégradé bleu nuit, et deux halos elliptiques de
 /// 60 % × 50 % posés sur les bords à 32 % de la hauteur — la chasuble A à
 /// gauche (34 %), la B à droite (36 %), fondues à 70 %.
-const FondMatch = memo(function FondMatch({
-  chasubles,
-}: {
-  chasubles?: { a: string; b: string };
-}) {
+const NUIT: [string, string, string] = ["#0b0b12", "#14152a", "#1b1c36"];
+const ARRETS_NUIT: [number, number, number] = [0, 0.55, 1];
+
+const FondMatch = memo(function FondMatch({ a, b }: { a?: string; b?: string }) {
   return (
     <>
       <LinearGradient
-        colors={["#0b0b12", "#14152a", "#1b1c36"]}
-        locations={[0, 0.55, 1]}
+        colors={NUIT}
+        locations={ARRETS_NUIT}
         style={StyleSheet.absoluteFill}
       />
-      {chasubles && (
+      {a != null && b != null && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <Svg width="100%" height="100%">
             <Defs>
               <RadialGradient id="haloA" cx="0%" cy="32%" rx="60%" ry="50%" fx="0%" fy="32%">
-                <Stop offset="0" stopColor={chasubles.a} stopOpacity={0.34} />
-                <Stop offset="0.7" stopColor={chasubles.a} stopOpacity={0} />
+                <Stop offset="0" stopColor={a} stopOpacity={0.34} />
+                <Stop offset="0.7" stopColor={a} stopOpacity={0} />
               </RadialGradient>
               <RadialGradient id="haloB" cx="100%" cy="32%" rx="60%" ry="50%" fx="100%" fy="32%">
-                <Stop offset="0" stopColor={chasubles.b} stopOpacity={0.36} />
-                <Stop offset="0.7" stopColor={chasubles.b} stopOpacity={0} />
+                <Stop offset="0" stopColor={b} stopOpacity={0.36} />
+                <Stop offset="0.7" stopColor={b} stopOpacity={0} />
               </RadialGradient>
             </Defs>
             <Rect x="0" y="0" width="100%" height="100%" fill="url(#haloA)" />

@@ -55,6 +55,16 @@ export default async function MatchesPage({
     },
   });
 
+  // Une page vide ne dit pas la même chose selon la cause : un filtre qui
+  // cache tout, ou un club qui n'a encore rien joué. Le compte sans filtre
+  // ne part qu'en cas de page vide — il ne coûte rien le reste du temps.
+  const filtre =
+    matches.length === 0 && (saison !== "all" || type !== "all")
+      ? (await prisma.match.count({
+          where: { clubId, status: { in: ["LIVE", "SCHEDULED", "FINISHED"] } },
+        })) > 0
+      : false;
+
   const live = matches.filter((m) => m.status === "LIVE");
   // À venir : les plus proches d'abord.
   const scheduled = matches
@@ -140,36 +150,16 @@ export default async function MatchesPage({
         </span>
       </div>
 
-      {/* Filtres */}
-      <div className="mt-6 space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <Link href={href("all", type)} className={chip(saison === "all")}>
-            Toutes saisons
-          </Link>
-          {seasons.map((s) => (
-            <Link
-              key={s.id}
-              href={href(s.id, type)}
-              className={chip(saison === s.id)}
-            >
-              {s.name}
-              {s.isActive && " ●"}
-            </Link>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {TYPE_CHIPS.map(([t, label]) => (
-            <Link key={t} href={href(saison, t)} className={chip(type === t)}>
-              {label}
-            </Link>
-          ))}
-        </div>
-      </div>
-
       {/* En direct — le panneau commun. Le score s'écrivait ici une
-          cinquième fois, avec un « : » et une taille à lui. */}
+          cinquième fois, avec un « : » et une taille à lui.
+
+          IL PASSE AVANT LES FILTRES. Un match en cours, c'est la feuille
+          restée ouverte au bord du terrain : quand on ouvre cette page à ce
+          moment-là, on vient le reprendre, pas trier la saison. Il était à
+          270 px du haut, derrière deux rangées de filtres — un écran de
+          téléphone entier. */}
       {live.length > 0 && (
-        <section className="mt-8">
+        <section className="mt-6">
           {live.map((m) => (
             <div key={m.id} className="mt-4 first:mt-0">
               <div className="bande-titre">
@@ -197,6 +187,33 @@ export default async function MatchesPage({
           ))}
         </section>
       )}
+
+      {/* Filtres — sous le direct, au-dessus de l'historique : c'est lui
+          qu'ils trient. */}
+      <div className="mt-6 space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <Link href={href("all", type)} className={chip(saison === "all")}>
+            Toutes saisons
+          </Link>
+          {seasons.map((s) => (
+            <Link
+              key={s.id}
+              href={href(s.id, type)}
+              className={chip(saison === s.id)}
+            >
+              {s.name}
+              {s.isActive && " ●"}
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {TYPE_CHIPS.map(([t, label]) => (
+            <Link key={t} href={href(saison, t)} className={chip(type === t)}>
+              {label}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {/* Programmés */}
       {scheduled.length > 0 && (
@@ -265,8 +282,13 @@ export default async function MatchesPage({
               </div>
               <ul>
                 {g.matchs.map((m) => {
-                  const aGagne = m.scoreA > m.scoreB;
-                  const bGagne = m.scoreB > m.scoreA;
+                  // Un nul n'est pas un match éteint. En ne mettant en avant
+                  // que le vainqueur, un 0–0 sortait ses DEUX nombres en gris
+                  // de second plan : sur une soirée à quatre nuls, la liste
+                  // entière se lisait comme désactivée. On grise donc le
+                  // perdant, pas « celui qui ne gagne pas ».
+                  const aPerd = m.scoreA < m.scoreB;
+                  const bPerd = m.scoreB < m.scoreA;
                   return (
                     <li key={m.id}>
                       <Link
@@ -278,7 +300,7 @@ export default async function MatchesPage({
                         </span>
                         <span className="ticker-score">
                           <span
-                            className={aGagne ? "" : "text-[color:var(--ink-3)]"}
+                            className={aPerd ? "text-[color:var(--ink-3)]" : ""}
                           >
                             {m.scoreA}
                           </span>
@@ -286,7 +308,7 @@ export default async function MatchesPage({
                             —
                           </span>
                           <span
-                            className={bGagne ? "" : "text-[color:var(--ink-3)]"}
+                            className={bPerd ? "text-[color:var(--ink-3)]" : ""}
                           >
                             {m.scoreB}
                           </span>
@@ -318,10 +340,48 @@ export default async function MatchesPage({
         </section>
       )}
 
+      {/* VIDE À CAUSE DES FILTRES, OU VIDE TOUT COURT ?
+          « Aucun match pour ces filtres » laissait sans issue : il fallait
+          comprendre que c'était un filtre qui cachait tout, puis remonter
+          l'écran pour en retoucher deux. La page dit maintenant lequel des
+          deux vides c'est, et donne le geste qui va avec. */}
       {matches.length === 0 && (
-        <p className="mt-10 text-sm text-[color:var(--ink-1)]">
-          Aucun match pour ces filtres. Le terrain attend.
-        </p>
+        <div className="mt-10 rounded-3xl border border-[color:var(--rule)] bg-[color:var(--pitch-1)] p-8 text-center">
+          {filtre ? (
+            <>
+              <p className="text-lg font-black">Rien sous ces filtres.</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-[color:var(--ink-1)]">
+                Des matchs existent ailleurs dans l&apos;historique —{" "}
+                {saison !== "all" && type !== "all"
+                  ? "une autre saison, ou l'autre type de rencontre"
+                  : saison !== "all"
+                    ? "dans une autre saison"
+                    : "de l'autre type"}
+                .
+              </p>
+              <Link href={href("all", "all")} className="btn primary big mt-5">
+                Voir tous les matchs
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-black">Aucun match joué.</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-[color:var(--ink-1)]">
+                Un match se lance depuis la soirée du jour : le score, les
+                buteurs et le chrono se remplissent au bord du terrain, et
+                atterrissent ici.
+              </p>
+              {ctx.canScore && (
+                <Link
+                  href={`/c/${slug}/sessions`}
+                  className="btn primary big mt-5"
+                >
+                  Voir les soirées
+                </Link>
+              )}
+            </>
+          )}
+        </div>
       )}
     </main>
   );

@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -15,6 +13,9 @@ import Ecran from "../../../composants/Ecran";
 import EnTeteClub from "../../../composants/EnTeteClub";
 import ErreurChargement from "../../../composants/ErreurChargement";
 import FeuilleCreer from "../../../composants/FeuilleCreer";
+import { CarteVerre } from "../../../composants/base";
+import { Bloc, CarteSquelette, Squelette } from "../../../composants/Squelette";
+import { useSommet } from "../../../composants/RetourEnHaut";
 import { nomCourt } from "../../../composants/MenuClub";
 import { useNoyau } from "../../../composants/Noyau";
 import { useClubId, useClubMemorise } from "../../../composants/ClubCourant";
@@ -300,6 +301,7 @@ export default function ClubAccueil() {
   return (
     <Ecran t={t} chasubles={chasubles}>
       <ScrollView
+        ref={useSommet("index")}
         contentContainerStyle={s.defile}
         onScroll={surDefilement}
         scrollEventThrottle={16}
@@ -318,11 +320,28 @@ export default function ClubAccueil() {
             <ErreurChargement t={t} erreur={erreur} onReessayer={charger} />
           )}
 
+          {/* L'attente à la forme de l'accueil : la bannière de la soirée, la
+              carte des matchs, le tableau. Un rond qui tournait au milieu du
+              vide ne disait ni ce qui arrivait ni combien il en restait, et la
+              page tombait ensuite d'un coup — 262 ms sur la machine de
+              développement, plusieurs secondes au gymnase en 4G. */}
           {occupe && !donnees && erreur == null && (
-            <View style={s.attente}>
-              <ActivityIndicator color={t.ink} />
-              <Text style={[s.aide, { color: jeton(t, "i2") }]}>On va chercher le club…</Text>
-            </View>
+            <Squelette etiquette="On va chercher le club" style={s.attente}>
+              <CarteVerre t={t} rayon={24} style={s.sqBanniere}>
+                <Bloc t={t} l="46%" h={13} />
+                <Bloc t={t} l="78%" h={19} />
+              </CarteVerre>
+              <CarteVerre t={t} style={s.sqMatchs}>
+                <Bloc t={t} l="38%" h={13} />
+                <View style={s.sqScore}>
+                  <Bloc t={t} l={54} h={54} r={16} />
+                  <Bloc t={t} l={64} h={34} r={10} />
+                  <Bloc t={t} l={54} h={54} r={16} />
+                </View>
+                <Bloc t={t} l="62%" h={13} />
+              </CarteVerre>
+              <CarteSquelette t={t} rangees={4} entete />
+            </Squelette>
           )}
 
           {soiree && fermees != null && !fermees.includes(soiree.id) && (
@@ -531,6 +550,8 @@ const s = StyleSheet.create({
   // qui prend 64, la bannière tombe à 98 de la zone du statut, la mesure du
   // site. Puis 18 entre chaque bloc.
   blocs: { paddingHorizontal: 14, paddingTop: 34, gap: 18 },
-  attente: { paddingTop: 60, alignItems: "center", gap: 12 },
-  aide: { fontSize: 15 },
+  attente: { gap: 18 },
+  sqBanniere: { paddingHorizontal: 20, paddingVertical: 20, gap: 12 },
+  sqMatchs: { paddingHorizontal: 20, paddingVertical: 22, gap: 18 },
+  sqScore: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18 },
 });

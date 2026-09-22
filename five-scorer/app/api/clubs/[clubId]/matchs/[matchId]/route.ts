@@ -138,33 +138,24 @@ export async function GET(
   // noms d'équipe, pas tous les matchs internes de la saison — et rien tant
   // qu'il n'y a qu'un match : « 1-0-0 » sous le seul match joué ne dit rien
   // de plus que le score. C'est la règle du récap du site.
-  let bilanA: string | null = null;
-  let bilanB: string | null = null;
-  if (m.kind === "INTERNAL") {
-    const memesEquipes = await prisma.match.findMany({
-      where: {
-        clubId,
-        seasonId: m.seasonId,
-        kind: "INTERNAL",
-        status: "FINISHED",
-        teamAName: m.teamAName,
-        teamBName: m.teamBName,
-      },
-      select: { scoreA: true, scoreB: true },
-    });
-    let v = 0;
-    let n = 0;
-    let d = 0;
-    for (const x of memesEquipes) {
-      if (x.scoreA > x.scoreB) v++;
-      else if (x.scoreB > x.scoreA) d++;
-      else n++;
-    }
-    if (memesEquipes.length > 1) {
-      bilanA = `${v}-${n}-${d}`;
-      bilanB = `${d}-${n}-${v}`;
-    }
-  }
+  // La requête PART ici, mais on ne l'attend pas : elle voyage avec la vague
+  // d'en bas, qui ne dépend pas d'elle. Attendue sur place, elle ajoutait un
+  // aller-retour vers Francfort au milieu de la feuille de match — l'écran
+  // qu'on rouvre entre deux matchs, debout, le téléphone dans une main.
+  const memesEquipes =
+    m.kind === "INTERNAL"
+      ? prisma.match.findMany({
+          where: {
+            clubId,
+            seasonId: m.seasonId,
+            kind: "INTERNAL",
+            status: "FINISHED",
+            teamAName: m.teamAName,
+            teamBName: m.teamBName,
+          },
+          select: { scoreA: true, scoreB: true },
+        })
+      : Promise.resolve([]);
 
   const compte = (types: string[], camp: "A" | "B") =>
     m.events.filter((e) => types.includes(e.type) && e.team === camp).length;
@@ -250,70 +241,93 @@ export async function GET(
   for (const v of m.motmVotes) voix.set(v.playerId, (voix.get(v.playerId) ?? 0) + 1);
   const campDe = new Map(m.participants.map((p) => [p.player.id, p.team as "A" | "B"]));
 
-  const [freres, matchEnCours, saisonActive, soireeARanger, convocation] = await Promise.all([
-    // Le rang du match dans sa soirée : « Soirée du 7 sept. · Match 2 ».
-    m.matchDay
-      ? prisma.match.findMany({
-          where: { matchDayId: m.matchDay.id, status: { in: ["LIVE", "FINISHED"] } },
-          orderBy: { playedAt: "asc" },
-          select: { id: true },
-        })
-      : Promise.resolve([]),
-    // Pas de « on rejoue » tant qu'un match tourne : deux matchs LIVE, c'est
-    // deux tableaux pour un seul terrain.
-    m.status === "FINISHED"
-      ? prisma.match.findFirst({ where: { clubId, status: "LIVE" }, select: { id: true } })
-      : Promise.resolve(null),
-    m.status === "FINISHED"
-      ? prisma.season.findFirst({
-          where: { clubId, isActive: true },
-          orderBy: { startsAt: "desc" },
-          select: { id: true },
-        })
-      : Promise.resolve(null),
-    // Un match sans soirée, un jour où une soirée existe : on propose de le
-    // ranger. C'est là qu'atterrissent les écrans qui réclamaient une
-    // feuille (spec 0007). Même règle que le serveur à la création.
-    m.matchDayId === null && m.status !== "CANCELED"
-      ? soireeDuJour(prisma, clubId, m.playedAt).then((id) =>
-          id
-            ? prisma.matchDay.findUnique({ where: { id }, select: { id: true, date: true } })
-            : null,
-        )
-      : Promise.resolve(null),
-    // La convocation d'un match programmé : qui est là ? Le vivier sans les
-    // invités ni les archivés, comme la page du site.
-    m.status === "SCHEDULED"
-      ? prisma.player
-          .findMany({
-            where: { clubId, isArchived: false, isGuest: false },
-            orderBy: { name: "asc" },
-            select: { id: true, name: true, photo: true, userId: true },
+  const [freres, matchEnCours, saisonActive, soireeARanger, convocation, duels] =
+    await Promise.all([
+      // Le rang du match dans sa soirée : « Soirée du 7 sept. · Match 2 ».
+      m.matchDay
+        ? prisma.match.findMany({
+            where: { matchDayId: m.matchDay.id, status: { in: ["LIVE", "FINISHED"] } },
+            orderBy: { playedAt: "asc" },
+            select: { id: true },
           })
-          .then((vivier) => {
-          const statutDe = new Map(m.rsvps.map((r) => [r.playerId, r.status]));
-          const moi = vivier.find((p) => p.userId === ctx.user.id) ?? null;
-          const quand = m.scheduledAt ?? m.playedAt;
-          return {
-            quand: quand.toISOString(),
-            jourLong: jourLong(quand),
-            heure: heure(quand),
-            lieu: m.venue,
-            domicile: m.isHome,
-            presents: m.rsvps.filter((r) => r.status === "IN").length,
-            monPlayerId: moi?.id ?? null,
-            maReponse: moi ? (statutDe.get(moi.id) ?? null) : null,
-            lignes: vivier.map((p) => ({
-              playerId: p.id,
-              nom: p.name,
-              photo: p.photo,
-              moi: p.id === moi?.id,
-              statut: statutDe.get(p.id) ?? null,
-            })),
-          };
-        })
-      : Promise.resolve(null),
-  ]);
+        : Promise.resolve([]),
+      // Pas de « on rejoue » tant qu'un match tourne : deux matchs LIVE, c'est
+      // deux tableaux pour un seul terrain.
+      m.status === "FINISHED"
+        ? prisma.match.findFirst({ where: { clubId, status: "LIVE" }, select: { id: true } })
+        : Promise.resolve(null),
+      m.status === "FINISHED"
+        ? prisma.season.findFirst({
+            where: { clubId, isActive: true },
+            orderBy: { startsAt: "desc" },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+      // Un match sans soirée, un jour où une soirée existe : on propose de le
+      // ranger. C'est là qu'atterrissent les écrans qui réclamaient une
+      // feuille (spec 0007). Même règle que le serveur à la création.
+      m.matchDayId === null && m.status !== "CANCELED"
+        ? soireeDuJour(prisma, clubId, m.playedAt).then((id) =>
+            id
+              ? prisma.matchDay.findUnique({ where: { id }, select: { id: true, date: true } })
+              : null,
+          )
+        : Promise.resolve(null),
+      // La convocation d'un match programmé : qui est là ? Le vivier sans les
+      // invités ni les archivés, comme la page du site.
+      m.status === "SCHEDULED"
+        ? prisma.player
+            .findMany({
+              where: { clubId, isArchived: false, isGuest: false },
+              orderBy: { name: "asc" },
+              select: { id: true, name: true, photo: true, userId: true },
+            })
+            .then((vivier) => {
+            const statutDe = new Map(m.rsvps.map((r) => [r.playerId, r.status]));
+            const moi = vivier.find((p) => p.userId === ctx.user.id) ?? null;
+            const quand = m.scheduledAt ?? m.playedAt;
+            return {
+              quand: quand.toISOString(),
+              jourLong: jourLong(quand),
+              heure: heure(quand),
+              lieu: m.venue,
+              domicile: m.isHome,
+              presents: m.rsvps.filter((r) => r.status === "IN").length,
+              monPlayerId: moi?.id ?? null,
+              maReponse: moi ? (statutDe.get(moi.id) ?? null) : null,
+              lignes: vivier.map((p) => ({
+                playerId: p.id,
+                nom: p.name,
+                photo: p.photo,
+                moi: p.id === moi?.id,
+                statut: statutDe.get(p.id) ?? null,
+              })),
+            };
+          })
+        : Promise.resolve(null),
+      memesEquipes,
+    ]);
+
+  // Le bilan de la saison entre CES deux chasubles : « 9-2-3 ». Les mêmes
+  // noms d'équipe, pas tous les matchs internes de la saison — et rien tant
+  // qu'il n'y a qu'un match : « 1-0-0 » sous le seul match joué ne dit rien
+  // de plus que le score. C'est la règle du récap du site.
+  let bilanA: string | null = null;
+  let bilanB: string | null = null;
+  {
+    let v = 0;
+    let n = 0;
+    let d = 0;
+    for (const x of duels) {
+      if (x.scoreA > x.scoreB) v++;
+      else if (x.scoreB > x.scoreA) d++;
+      else n++;
+    }
+    if (duels.length > 1) {
+      bilanA = `${v}-${n}-${d}`;
+      bilanB = `${d}-${n}-${v}`;
+    }
+  }
 
   const rang = freres.findIndex((x) => x.id === m.id) + 1;
 

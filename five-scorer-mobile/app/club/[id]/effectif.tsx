@@ -15,6 +15,7 @@ import Ecran from "../../../composants/Ecran";
 import EnTeteClub from "../../../composants/EnTeteClub";
 import ErreurChargement from "../../../composants/ErreurChargement";
 import { Avatar, BoutonVerre, CarteVerre } from "../../../composants/base";
+import { CarteSquelette, Squelette } from "../../../composants/Squelette";
 import Etoiles from "../../../composants/Etoiles";
 import { IconeJeu } from "../../../composants/Icones";
 import PastilleNiveau from "../../../composants/joueur/PastilleNiveau";
@@ -178,11 +179,12 @@ export default function Effectif() {
         <EnTeteClub t={t} club={c} titre="Effectif" sousTitre={donnees?.sousTitre} />
 
         <View style={s.corps}>
+          {/* Le vestiaire fait une vingtaine de rangées : sa forme est celle
+              d'une liste de visages, et c'est elle qu'on attend. */}
           {occupe && !donnees && (
-            <View style={s.centre}>
-              <ActivityIndicator color={t.ink} />
-              <Text style={[s.aide, { color: t.i2 }]}>On va chercher le vestiaire…</Text>
-            </View>
+            <Squelette etiquette="On va chercher le vestiaire">
+              <CarteSquelette t={t} rangees={7} hauteurRangee={64} style={s.squelette} />
+            </Squelette>
           )}
           {erreur != null && (
             <ErreurChargement t={t} erreur={erreur} onReessayer={charger} style={s.erreur} />
@@ -411,8 +413,7 @@ function Rangee({
 const s = StyleSheet.create({
   contenu: { paddingBottom: ESPACE_BARRE },
   corps: { paddingHorizontal: 14 },
-  centre: { paddingTop: 60, alignItems: "center", gap: 12 },
-  aide: { fontSize: 15 },
+  squelette: { marginTop: 16 },
   erreur: { marginTop: 24 },
 
   ajouter: { marginTop: 16 },

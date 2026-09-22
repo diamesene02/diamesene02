@@ -84,11 +84,13 @@ export async function GET(
     monJoueur,
     suivante,
     programmes,
-    dernierFini,
+    derniersFinis,
     enDirect,
     derniereCompo,
     soireesSansResultat,
     orphelins,
+    abonnements,
+    adversaires,
   ] = await Promise.all([
     // La prochaine soirée, avec de quoi calculer les présences. Une soirée
     // annulée n'est pas la prochaine soirée — c'est la règle du site, et
@@ -133,7 +135,12 @@ export async function GET(
         scoreA: true,
         scoreB: true,
         durationMin: true,
-        opponent: { select: { name: true } },
+        // L'identifiant seul, pas la jointure : le nom se recolle avec la
+        // liste des adversaires du club, chargée une fois plus bas. Prisma
+        // résout un `include` par une requête SUPPLÉMENTAIRE, lancée une fois
+        // la première revenue — quatre listes de matchs, quatre trajets vers
+        // Francfort en plus, l'un après l'autre.
+        opponentId: true,
       },
     }),
     getLeaderboard({ clubId, seasonId: saison?.id ?? null }),
@@ -179,19 +186,36 @@ export async function GET(
         teamAName: true,
         teamBName: true,
         matchDayId: true,
-        opponent: { select: { name: true } },
+        opponentId: true,
         _count: { select: { rsvps: { where: { status: "IN" } } } },
       },
     }),
     // Le dernier match terminé avant aujourd'hui désigne la dernière soirée
     // jouée — l'onglet daté du site. Sans lui, du mardi au dimanche, l'accueil
     // de l'app ne montrait aucun match.
-    prisma.match.findFirst({
-      where: { clubId, status: "FINISHED", playedAt: { lt: debutDuJour } },
+    //
+    // Et avec lui, ses frères : la route demandait d'abord CE match, puis,
+    // dans un second voyage, les matchs de sa soirée. Deux allers-retours en
+    // file sur l'écran le plus ouvert de l'app. Les quarante derniers matchs
+    // terminés tiennent dans une requête — un club joue quatre à huit matchs
+    // par lundi, la dernière soirée y est toujours entière — et les deux
+    // réponses se lisent dedans.
+    prisma.match.findMany({
+      where: { clubId, status: "FINISHED" },
       orderBy: { playedAt: "desc" },
+      take: 40,
       select: {
-        matchDayId: true,
+        id: true,
         playedAt: true,
+        status: true,
+        kind: true,
+        teamAName: true,
+        teamBName: true,
+        scoreA: true,
+        scoreB: true,
+        durationMin: true,
+        matchDayId: true,
+        opponentId: true,
         matchDay: { select: { date: true } },
       },
     }),
@@ -212,7 +236,7 @@ export async function GET(
         teamBName: true,
         scoreA: true,
         scoreB: true,
-        opponent: { select: { name: true } },
+        opponentId: true,
       },
     }),
     // La dernière composition réellement jouée : à l'heure du match, si la
@@ -248,55 +272,63 @@ export async function GET(
       debut: new Date(debutDuJour.getTime() - SIX_SEMAINES_MS),
       fin: maintenant,
     }),
+    // Qui est abonné — deux colonnes, aucune photo. Cette liste ne sert qu'au
+    // calcul des présences de la prochaine soirée, et elle était demandée
+    // APRÈS avoir su qu'il y en avait une : un aller-retour de plus, en série,
+    // sur l'écran le plus ouvert de l'app. Elle ne dépend que du club, alors
+    // elle part avec les autres. Quand il n'y a pas de soirée au calendrier,
+    // on aura lu vingt lignes pour rien — moins cher qu'un trajet vers
+    // Francfort quand il y en a une, ce qui est le cas tous les lundis.
+    prisma.player.findMany({
+      where: { clubId, isArchived: false },
+      select: { id: true, abonne: true },
+    }),
+    // Les adversaires du club — quelques lignes pour un five du lundi. Les
+    // charger une fois remplace quatre jointures qui traversaient chacune
+    // Francfort → Paris derrière leur liste de matchs.
+    prisma.opponent.findMany({ where: { clubId }, select: { id: true, name: true } }),
   ]);
 
+  // Le dernier match terminé AVANT aujourd'hui : ceux de ce soir vivent dans
+  // « Ce soir », pas dans « la dernière soirée ».
+  const dernierFini = derniersFinis.find((m) => m.playedAt < debutDuJour) ?? null;
+
   // La dernière soirée : les matchs de sa soirée, sinon tous ceux de ce
-  // jour-là — un club sans calendrier a quand même joué.
+  // jour-là — un club sans calendrier a quand même joué. Tout est déjà là :
+  // on lit les quarante derniers matchs rapportés par la vague, on garde ceux
+  // de cette soirée, et on les remet dans l'ordre où ils ont été joués.
+  const fenetreDerniere = dernierFini ? fenetreDuJour(dernierFini.playedAt) : null;
   const matchsDerniere = dernierFini
-    ? await prisma.match.findMany({
-        where: dernierFini.matchDayId
-          ? { clubId, matchDayId: dernierFini.matchDayId, status: "FINISHED" }
-          : {
-              clubId,
-              status: "FINISHED",
-              playedAt: {
-                gte: fenetreDuJour(dernierFini.playedAt).debut,
-                lt: fenetreDuJour(dernierFini.playedAt).fin,
-              },
-            },
-        orderBy: { playedAt: "asc" },
-        take: 12,
-        select: {
-          id: true,
-          playedAt: true,
-          status: true,
-          kind: true,
-          teamAName: true,
-          teamBName: true,
-          scoreA: true,
-          scoreB: true,
-          durationMin: true,
-          opponent: { select: { name: true } },
-        },
-      })
+    ? derniersFinis
+        .filter((m) =>
+          dernierFini.matchDayId
+            ? m.matchDayId === dernierFini.matchDayId
+            : m.playedAt >= fenetreDerniere!.debut && m.playedAt < fenetreDerniere!.fin,
+        )
+        .sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime())
+        .slice(0, 12)
     : [];
 
   const nomsClub = nomsChasubles(ctx.club.colorA, ctx.club.colorB);
+  const nomAdversaire = new Map(adversaires.map((a) => [a.id, a.name]));
   /// Le camp B d'un match : l'adversaire quand il y en a un, la chasuble sinon.
   const adverse = (m: {
     kind: "INTERNAL" | "EXTERNAL";
     teamBName: string;
-    opponent: { name: string } | null;
-  }) => (m.kind === "EXTERNAL" && m.opponent ? m.opponent.name : m.teamBName);
+    opponentId: string | null;
+  }) => {
+    // `!= null` et pas la simple vérité : un adversaire dont le nom serait
+    // vide doit rester un adversaire, comme quand la jointure le rapportait.
+    const nom = m.opponentId ? nomAdversaire.get(m.opponentId) : undefined;
+    return m.kind === "EXTERNAL" && nom != null ? nom : m.teamBName;
+  };
 
   let soiree = null;
   if (prochaine) {
     // Les abonnés comptent présents sans avoir rien dit — c'est la règle du
-    // club, et elle vit dans `lib/presences.ts`, pas ici.
-    const joueurs = await prisma.player.findMany({
-      where: { clubId, isArchived: false },
-      select: { id: true, abonne: true },
-    });
+    // club, et elle vit dans `lib/presences.ts`, pas ici. La liste est déjà
+    // là : elle est partie avec la vague ci-dessus.
+    const joueurs = abonnements;
     const reponses = new Map(
       prochaine.rsvps.map((r) => [r.playerId, { statut: r.status, le: r.respondedAt }]),
     );
@@ -495,13 +527,14 @@ export async function GET(
           }
         : null,
       matchs: programmes.map((m) => {
-        const externe = m.kind === "EXTERNAL" && m.opponent != null;
+        const nomDeLAdversaire = m.opponentId ? nomAdversaire.get(m.opponentId) : undefined;
+        const externe = m.kind === "EXTERNAL" && nomDeLAdversaire != null;
         const q = m.scheduledAt ?? m.playedAt;
         return {
           id: m.id,
           quand: q.toISOString(),
           nomA: m.teamAName,
-          nomB: externe ? m.opponent!.name : m.teamBName,
+          nomB: externe ? nomDeLAdversaire! : m.teamBName,
           externe,
           lieu: m.venue,
           presents: m._count.rsvps,

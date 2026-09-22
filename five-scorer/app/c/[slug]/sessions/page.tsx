@@ -155,7 +155,11 @@ export default async function SessionsPage({
                 ),
               ]
                 .filter(Boolean)
-                .flatMap((el, i) => (i === 0 ? [el] : [" · ", el]))}
+                // La ligne passe sur deux lignes quand elle déborde : le
+                // point s'attache au mot qui le précède (espace insécable
+                // devant) pour qu'il finisse la ligne au lieu d'ouvrir la
+                // suivante.
+                .flatMap((el, i) => (i === 0 ? [el] : [" · ", el]))}
             </>
           ) : (
             <>
@@ -262,7 +266,7 @@ export default async function SessionsPage({
       {ctx.canManage && (
         <Link
           href={`/c/${slug}/saison`}
-          className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[color:var(--ink-2)] hover:text-[color:var(--ink-1)]"
+          className="mt-1 inline-flex min-h-[44px] items-center gap-2 text-sm font-bold text-[color:var(--ink-2)] hover:text-[color:var(--ink-1)]"
         >
           <Icon name="calendar" size={15} />
           Poser toute la saison

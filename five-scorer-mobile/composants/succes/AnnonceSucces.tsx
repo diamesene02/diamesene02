@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Animated, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from "react-native-svg";
 import type { Jetons } from "../../lib/couleurs";
 import { succes as vibrerSucces } from "../../lib/haptique";
 import { NOMS_MATIERES, TEINTES_MATIERES, type Matiere } from "../../lib/succes-icones";
 import { cleVu, marquerVus, nouveauxDeblocages } from "../../lib/succes-vus";
-import { BoutonPlein } from "../base";
+import { BoutonPlein, MOUVEMENT } from "../base";
 import { couleursClub } from "./commun";
 import Medaille from "./Medaille";
 import type { DeblocageAffiche } from "./types";
@@ -38,6 +38,11 @@ const ECLATS = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 const TAILLE_MEDAILLE = 112;
+
+/// La médaille part un peu après la carte : elle se pose DANS une carte déjà
+/// là, sinon les deux arrivent l'une sur l'autre et on ne voit ni l'une ni
+/// l'autre. Le retour haptique suit du temps d'un toucher.
+const DELAI_MEDAILLE = 80;
 
 function teinte(m: Matiere, clubA: string): string {
   return m === "legende" ? clubA : TEINTES_MATIERES[m].base;
@@ -134,31 +139,35 @@ function Scene({
           // Un fondu court, rien qui bouge.
           medaille.setValue(1);
           Animated.parallel([
-            Animated.timing(voile, { toValue: 1, duration: 160, useNativeDriver: true }),
-            Animated.timing(carte, { toValue: 1, duration: 160, useNativeDriver: true }),
+            Animated.timing(voile, { toValue: 1, duration: MOUVEMENT.rapide, useNativeDriver: true }),
+            Animated.timing(carte, { toValue: 1, duration: MOUVEMENT.rapide, useNativeDriver: true }),
           ]).start();
           vibrerSucces();
           return;
         }
         Animated.parallel([
-          Animated.timing(voile, { toValue: 1, duration: 240, useNativeDriver: true }),
+          Animated.timing(voile, { toValue: 1, duration: MOUVEMENT.voile, useNativeDriver: true }),
           Animated.timing(carte, {
             toValue: 1,
-            duration: 360,
-            easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+            duration: MOUVEMENT.scene,
+            easing: MOUVEMENT.courbe,
             useNativeDriver: true,
           }),
           Animated.sequence([
-            Animated.delay(80),
-            Animated.spring(medaille, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
+            Animated.delay(DELAI_MEDAILLE),
+            Animated.spring(medaille, {
+              toValue: 1,
+              ...MOUVEMENT.ressortMedaille,
+              useNativeDriver: true,
+            }),
           ]),
           ...eclats.map((v, i) =>
             Animated.sequence([
               Animated.delay(ECLATS[i].delai),
               Animated.timing(v, {
                 toValue: 1,
-                duration: 900,
-                easing: Easing.bezier(0.15, 0.7, 0.3, 1),
+                duration: MOUVEMENT.eclat,
+                easing: MOUVEMENT.courbeEclat,
                 useNativeDriver: true,
               }),
             ]),
@@ -168,7 +177,7 @@ function Scene({
         // l'ouverture : c'est elle qu'on doit sentir arriver.
         setTimeout(() => {
           if (vivant) vibrerSucces();
-        }, 220);
+        }, DELAI_MEDAILLE + MOUVEMENT.toucher);
       });
     return () => {
       vivant = false;

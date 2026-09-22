@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import type { Jetons } from "../../lib/couleurs";
 import { NOMS_MATIERES } from "../../lib/succes-icones";
+import { MOUVEMENT, Touche, useMouvementReduit } from "../base";
 import Medaille from "./Medaille";
 import { dateCourte, resteAvantPalier } from "./textes";
 import type { BadgeAffiche } from "./types";
@@ -29,9 +31,28 @@ export default function TuileBadge({
   const etat = badge.matiere ? NOMS_MATIERES[badge.matiere] : "à débloquer";
   const verrouillee = badge.palier === 0;
 
+  // Une médaille qu'on vient de gagner se pose en ressort COURT — 320 ms,
+  // cinq pour cent de dépassement. Les autres sont déjà là depuis des
+  // semaines : elles ne rejouent rien à chaque ouverture de la grille.
+  const reduit = useMouvementReduit();
+  const pose = useRef(new Animated.Value(nouveau && !reduit ? 0 : 1)).current;
+  useEffect(() => {
+    if (!nouveau || reduit) {
+      pose.setValue(1);
+      return;
+    }
+    Animated.spring(pose, { toValue: 1, ...MOUVEMENT.ressort, useNativeDriver: true }).start();
+  }, [nouveau, pose, reduit]);
+
   const contenu = (
     <>
-      <Medaille icone={badge.icone} matiere={badge.matiere} t={t} chasubles={chasubles} taille={56} />
+      <Animated.View
+        style={{
+          transform: [{ scale: pose.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
+        }}
+      >
+        <Medaille icone={badge.icone} matiere={badge.matiere} t={t} chasubles={chasubles} taille={56} />
+      </Animated.View>
       {nouveau && (
         <View style={[s.nouveau, { backgroundColor: t.bt ?? "#fff" }]}>
           <Text style={[s.nouveauTexte, { color: t.bf ?? "#111" }]}>Nouveau</Text>
@@ -49,14 +70,15 @@ export default function TuileBadge({
   const cadre = [s.tuile, { backgroundColor: t.seg, borderColor: t.gb ?? t.cb }, style];
   const etiquette = `${badge.nom}, ${etat}, ${sous}`;
   return onPress ? (
-    <Pressable
+    <Touche
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={etiquette}
-      style={({ pressed }) => [...cadre, pressed && { opacity: 0.7 }]}
+      voile={0.7}
+      style={cadre}
     >
       {contenu}
-    </Pressable>
+    </Touche>
   ) : (
     <View style={cadre} accessible accessibilityLabel={etiquette}>
       {contenu}

@@ -35,8 +35,7 @@ import {
   Interrupteur,
   Saisie,
 } from "../../../composants/base";
-import { jeton, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
-import { themeTokens } from "../../../lib/noyau/theme";
+import { jeton, jetonsDuClub, JETONS_NEUTRES, type Jetons } from "../../../lib/couleurs";
 import { lettre } from "../../../lib/ini";
 import { messageErreur } from "../../../lib/erreurs";
 import { avertissement, choix as retourChoix, succes as retourSucces } from "../../../lib/haptique";
@@ -86,7 +85,7 @@ export default function Reglages() {
   const deconnecter = useDeconnexion();
 
   const t: Jetons = d
-    ? themeTokens(d.club.couleurA, d.club.couleurB, "dark")
+    ? jetonsDuClub(d.club.couleurA, d.club.couleurB, "dark")
     : (memo?.theme.sombre ?? JETONS_NEUTRES);
 
   const charger = useCallback(async () => {
