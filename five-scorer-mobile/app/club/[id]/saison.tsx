@@ -213,6 +213,7 @@ export default function Saison() {
                             </Text>
                           </View>
                           <Text
+                            numberOfLines={1}
                             style={[
                               s.etiquette,
                               {
@@ -286,8 +287,10 @@ export default function Saison() {
                     <Text style={[s.vide, { color: t.i2 }]}>{d.adversaires.vide}</Text>
                   ) : (
                     <>
-                      <View style={[s.tabRangee, s.tabTete]}>
-                        <View style={{ width: 24 }} />
+                      <View
+                        style={[s.tabRangee, s.tabTete, { borderBottomColor: jeton(t, "sep") }]}
+                      >
+                        <View style={{ width: 22 }} />
                         <View style={{ width: 36 }} />
                         <Text style={[s.tabNom, s.tabTeteTexte, { color: t.i2 }]}>Équipe</Text>
                         <Text style={[s.tabMj, s.tabTeteTexte, { color: t.i2 }]}>MJ</Text>
@@ -372,59 +375,77 @@ const s = StyleSheet.create({
   mois: {
     paddingTop: 14,
     paddingBottom: 4,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     fontSize: 13,
     fontWeight: "600",
     letterSpacing: 0.4,
   },
+  // 16 de marge et un bloc de date de 58 (et non 20 et 64) : quatorze points
+  // rendus au milieu de la rangée, là où s'écrit « Urban Soccer Guyancourt ».
   rangee: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     minHeight: 64,
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
   },
-  date: { width: 64 },
+  date: { width: 58 },
   dateJour: { fontSize: 13, fontWeight: "600", letterSpacing: 0.3 },
-  dateNumero: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5, lineHeight: 28 },
-  rangeeTitre: { fontSize: 17, fontWeight: "600" },
+  dateNumero: {
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+    lineHeight: 30,
+    fontVariant: ["tabular-nums"],
+  },
+  rangeeTitre: { fontSize: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
   rangeeSous: { fontSize: 15 },
   barre: { textDecorationLine: "line-through" },
-  etiquette: { fontSize: 15, fontWeight: "600" },
-  actions: { gap: 10, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
-  actionsSaison: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
+  // Bornée : « Répondre » ne dispute pas la place au lieu, et un libellé plus
+  // long ne peut plus écraser le milieu de la rangée.
+  etiquette: { fontSize: 15, fontWeight: "600", maxWidth: "30%", textAlign: "right" },
+  actions: { gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  actionsSaison: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
 
-  // Les neuf colonnes du site : 24/36/1fr/30/26/26/26/36/40.
+  // Les neuf colonnes, resserrées comme celles du tableau des stats : la
+  // chasse tabulaire rend inutile la marge « au cas où » de chaque colonne de
+  // chiffres, et les quatorze points récupérés vont au nom de l'équipe.
   tabRangee: {
     flexDirection: "row",
     alignItems: "center",
-    height: 56,
-    paddingHorizontal: 14,
+    height: 52,
+    paddingHorizontal: 12,
   },
-  tabTete: { height: undefined, paddingTop: 12, paddingBottom: 8 },
-  tabTeteTexte: { fontSize: 15, fontWeight: "400" },
-  tabRang: { width: 24, fontSize: 17 },
-  tabNom: { flex: 1, minWidth: 0, fontSize: 17, paddingLeft: 8 },
-  tabMj: { width: 30, fontSize: 17, textAlign: "center" },
-  tabPetit: { width: 26, fontSize: 17, textAlign: "center" },
-  tabDb: { width: 36, fontSize: 17, textAlign: "center" },
-  tabPts: { width: 40, fontSize: 17, fontWeight: "700", textAlign: "center" },
+  tabTete: { height: undefined, paddingTop: 12, paddingBottom: 8, borderBottomWidth: 1 },
+  tabTeteTexte: { fontSize: 13, fontWeight: "600", letterSpacing: 0.3 },
+  tabRang: { width: 22, fontSize: 15, fontVariant: ["tabular-nums"] },
+  tabNom: { flex: 1, minWidth: 0, fontSize: 17, paddingLeft: 10 },
+  tabMj: { width: 28, fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
+  tabPetit: { width: 24, fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
+  tabDb: { width: 34, fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
+  tabPts: {
+    width: 38,
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
+  },
   gras: { fontWeight: "700" },
-  note: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6, fontSize: 13 },
+  note: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, fontSize: 13 },
 
-  chiffres: { flexDirection: "row", paddingTop: 18, paddingBottom: 6, paddingHorizontal: 8 },
-  chiffreN: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5 },
-  chiffreL: { fontSize: 13 },
+  chiffres: { flexDirection: "row", paddingTop: 18, paddingBottom: 8, paddingHorizontal: 8 },
+  chiffreN: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
+  chiffreL: { fontSize: 13, textAlign: "center" },
   ligneBilan: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    minHeight: 56,
-    marginHorizontal: 20,
+    minHeight: 52,
+    marginHorizontal: 16,
   },
   ligneLibelle: { fontSize: 17, flexShrink: 1 },
-  ligneValeur: { fontSize: 17, fontWeight: "600" },
+  ligneValeur: { fontSize: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
 });

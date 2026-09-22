@@ -339,13 +339,19 @@
 .stats-records .record:first-of-type {
   border-top: 0;
 }
+/* Le rond des records sans joueur. Il était vide : deux disques gris en tête
+   de carte, qu'on lisait comme des avatars qui n'ont pas chargé. Il porte
+   maintenant le signe de ce que le record mesure (un match, une soirée). */
 .stats-records .record .pastille {
+  display: grid;
+  place-items: center;
   width: 38px;
   height: 38px;
   flex: none;
   border-radius: 50%;
   background: var(--seg);
   box-shadow: inset 0 0 0 1px var(--gb);
+  color: var(--i2);
 }
 .stats-records .record .bloc {
   flex: 1;

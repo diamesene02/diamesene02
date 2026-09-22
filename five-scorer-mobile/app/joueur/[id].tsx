@@ -274,12 +274,19 @@ export default function Joueur() {
                     <Paliers t={t} paliers={fiche.paliers} couleurA={couleurA} />
                   )}
 
+                  {/* Deux cartes et non une : « Vient à chaque soirée » est un
+                      RÉGLAGE qu'on change, la forme et l'Élo sont des CHIFFRES
+                      qu'on lit. Mis bout à bout dans la même carte, avec le
+                      même filet entre eux, l'interrupteur se lisait comme une
+                      ligne de statistique de plus. C'est aussi ce que fait déjà
+                      la fiche d'un joueur qui n'a pas encore joué. */}
+                  {abonnement && <CarteFiche t={t}>{abonnement}</CarteFiche>}
+
                   <CarteFiche t={t}>
-                    {abonnement}
                     <Ligne
                       t={t}
                       l="Forme"
-                      premiere={!abonnement}
+                      premiere
                       milieu={<Forme t={t} resultats={bilan.forme} />}
                       v={
                         bilan.serie > 0
@@ -588,6 +595,10 @@ function Chiffre({ t, n, petit, l }: { t: Jetons; n: string; petit?: string; l: 
         {n}
         {petit && <Text style={s.chiffrePetit}>{petit}</Text>}
       </Text>
+      {/* Deux lignes réservées pour les quatre légendes : « Homme du match »
+          passe à la ligne, « Buts » non, et la rangée finissait en dents de
+          scie. Elles occupent maintenant la même hauteur, qu'elles la
+          remplissent ou pas. */}
       <Text style={[s.chiffreL, { color: t.i2 }]} numberOfLines={2}>
         {l}
       </Text>
@@ -738,10 +749,13 @@ const sq = StyleSheet.create({
 const s = StyleSheet.create({
   contenu: { paddingBottom: 40 },
   corps: { paddingHorizontal: 14 },
-  ligneModifier: { flexDirection: "row", justifyContent: "flex-end", paddingTop: 12 },
+  // La marge négative fait remonter le visage dans la bande de « Modifier » :
+  // le bouton est calé à droite, l'avatar au centre, ils ne se croisent pas, et
+  // l'écran gagne une vingtaine de points avant le premier chiffre.
+  ligneModifier: { flexDirection: "row", justifyContent: "flex-end", paddingTop: 10, marginBottom: -14 },
   erreur: { marginTop: 24 },
 
-  tete: { alignItems: "center", paddingTop: 10, paddingHorizontal: 18 },
+  tete: { alignItems: "center", paddingTop: 6, paddingHorizontal: 18 },
   // L'ombre du site sous le grand avatar (0 10px 30px), posée sur un cadre
   // rond : l'avatar coupe son contenu et rognerait la sienne.
   photo: { borderRadius: 64, boxShadow: "0 10px 30px rgba(0,0,0,0.3)" },
@@ -754,27 +768,27 @@ const s = StyleSheet.create({
 
   chiffres: {
     flexDirection: "row",
-    marginTop: 22,
-    paddingTop: 20,
-    paddingBottom: 18,
+    marginTop: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
     paddingHorizontal: 8,
   },
   chiffre: { flex: 1, alignItems: "center" },
-  chiffreN: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5 },
+  chiffreN: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
   chiffrePetit: { fontSize: 20 },
-  chiffreL: { fontSize: 13, marginTop: 2, textAlign: "center" },
+  chiffreL: { fontSize: 13, lineHeight: 16, minHeight: 32, marginTop: 4, textAlign: "center" },
 
   ligne: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    minHeight: 60,
+    minHeight: 56,
     paddingVertical: 10,
   },
   ligneL: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
-  ligneAide: { fontSize: 13, lineHeight: 18, marginTop: 2 },
-  ligneV: { fontSize: 17 },
+  ligneAide: { fontSize: 13, lineHeight: 18, marginTop: 3 },
+  ligneV: { fontSize: 17, fontVariant: ["tabular-nums"] },
   ligneVFort: { fontWeight: "600" },
   ligneErreur: { fontSize: 15, paddingBottom: 12 },
 
@@ -792,16 +806,18 @@ const s = StyleSheet.create({
   barrePleine: { height: 5, borderRadius: 3 },
 
   // La grille du site : 64 px pour la date, le score, les buts — sans écart.
+  // La date passe en 15 : c'est le repère, pas la nouvelle. Trois textes de la
+  // même taille sur une rangée, on ne sait pas lequel lire en premier.
   match: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 56,
+    minHeight: 54,
     borderTopWidth: 1,
   },
   saison: { justifyContent: "space-between", gap: 10 },
-  matchDate: { fontSize: 17, width: 64 },
-  matchScore: { fontSize: 17, flex: 1, minWidth: 0 },
-  matchButs: { fontSize: 17, fontWeight: "600", marginLeft: 8 },
+  matchDate: { fontSize: 15, width: 64, fontVariant: ["tabular-nums"] },
+  matchScore: { fontSize: 17, flex: 1, minWidth: 0, fontVariant: ["tabular-nums"] },
+  matchButs: { fontSize: 17, fontWeight: "600", marginLeft: 8, fontVariant: ["tabular-nums"] },
   gagne: { fontWeight: "600" },
 
   carteTrophees: { paddingHorizontal: 18, paddingBottom: 18 },
@@ -811,5 +827,5 @@ const s = StyleSheet.create({
   tropheeDetail: { fontSize: 13 },
   tropheeQuand: { fontSize: 13, marginTop: 2 },
 
-  vide: { fontSize: 15, paddingTop: 14, paddingBottom: 16 },
+  vide: { fontSize: 17, lineHeight: 23, paddingTop: 16, paddingBottom: 18 },
 });

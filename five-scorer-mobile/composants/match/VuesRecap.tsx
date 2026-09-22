@@ -145,7 +145,7 @@ export function CarteFeuille({
                     initiales={j.initiales}
                     t={t}
                     camp={ef.camp}
-                    taille={30}
+                    taille={28}
                   />
                   <Text style={s.nomJoueur} numberOfLines={1}>
                     {j.nom}
@@ -206,7 +206,11 @@ const s = StyleSheet.create({
   // `.recap-carte-corps` : 20 de côté, 8 en bas ; le titre garde ses 20 en
   // haut (16 de la carte + 4 du titre).
   carte: { paddingHorizontal: 20, paddingBottom: 8 },
-  carteFeuille: { paddingHorizontal: 20, paddingBottom: 14 },
+  // La feuille est la SEULE carte à deux colonnes : à 20 de côté et 16
+  // d'entre-deux, il restait 102 points par nom. « Mouhamadou » en fait 100 et
+  // « Abdoulaye Diallo » bien plus — on lisait « Mouhamad… ». Marge 16 et
+  // entre-deux 12 rendent six points par colonne, l'avatar deux de plus.
+  carteFeuille: { paddingHorizontal: 16, paddingBottom: 14 },
 
   duel: { paddingVertical: 10, gap: 8 },
   chiffres: { flexDirection: "row", alignItems: "center" },
@@ -251,20 +255,21 @@ const s = StyleSheet.create({
   note: { color: "rgba(255,255,255,0.5)" },
   courant: { fontSize: 17, fontWeight: "600", color: "#ffffff", fontVariant: ["tabular-nums"] },
 
-  effectifs: { flexDirection: "row", gap: 16 },
+  effectifs: { flexDirection: "row", gap: 12 },
   effectif: { flex: 1, minWidth: 0 },
   tete: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 8 },
-  nomColonne: { flex: 1, fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.62)" },
+  nomColonne: { flex: 1, minWidth: 0, fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.62)" },
   joueur: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     minHeight: 44,
     borderTopWidth: 1,
     borderTopColor: FILET,
   },
-  nomJoueur: { flex: 1, fontSize: 17, color: "#ffffff" },
-  butsJoueur: { fontSize: 17, fontWeight: "700", color: "#ffffff" },
+  nomJoueur: { flex: 1, minWidth: 0, fontSize: 17, color: "#ffffff" },
+  // Chasse tabulaire : les buts des deux colonnes s'alignent verticalement.
+  butsJoueur: { fontSize: 17, fontWeight: "700", color: "#ffffff", fontVariant: ["tabular-nums"] },
 
   homme: {
     flexDirection: "row",

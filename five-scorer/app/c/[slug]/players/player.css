@@ -40,6 +40,7 @@
   margin-top: 22px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  align-items: start;
   padding: 20px 8px 18px;
   text-align: center;
 }
@@ -53,10 +54,16 @@
 .fiche-chiffres .n small {
   font-size: 20px;
 }
+/* « Homme du match » passe sur deux lignes dans une colonne sur quatre : la
+   bande finissait en dents de scie. Chaque légende réserve donc ses deux
+   lignes, et `balance` les coupe au milieu du libellé plutôt qu'à la fin. */
 .fiche-chiffres .l {
   font-size: 13px;
+  line-height: 1.25;
+  min-height: 2.5em;
   color: var(--i2);
-  margin-top: 2px;
+  margin-top: 4px;
+  text-wrap: balance;
 }
 .fiche-carte {
   margin-top: 14px;

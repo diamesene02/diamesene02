@@ -207,9 +207,12 @@ export default function RosterClient({
             setShowAdd(true);
             setFormError(null);
           }}
-          className="verre grand w-full"
+          // L'action principale de l'effectif : pleine, comme « Programmer
+          // une soirée » et « Ajouter une soirée ». Elle était en verre, au
+          // même ton que les douze rangées de la liste sous elle.
+          className="plein w-full"
         >
-          <Icon name="plus" size={15} />
+          <Icon name="plus" size={16} />
           Ajouter un joueur
         </button>
       )}

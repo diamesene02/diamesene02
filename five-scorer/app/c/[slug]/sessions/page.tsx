@@ -3,6 +3,7 @@ import * as D from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { requireClub } from "@/lib/guard";
 import Icon from "@/components/Icon";
+import { cn } from "@/lib/cn";
 import { calculerPresences } from "@/lib/presences";
 import { quandRelatif } from "@/lib/quand";
 
@@ -134,32 +135,35 @@ export default async function SessionsPage({
             </>
           )}
         </span>
-        <span className="ticker-buteurs">
+        <span className={cn("ticker-buteurs", aVenir && "lignes")}>
           {aVenir ? (
-            // Le plus utile d'abord, le lieu en dernier : c'est toujours le
-            // même, et c'est lui que l'ellipse doit manger.
+            // Deux lignes NOMMÉES plutôt qu'une phrase qu'on laisse se
+            // couper où le mot tombe. Le point médian était collé au mot
+            // qui le précède : la première ligne finissait donc par un
+            // séparateur orphelin, « 8 présents · », et le terrain tombait
+            // seul en dessous. On le pose donc là exprès, sans séparateur :
+            // quand et combien tiennent ensemble, le lieu — toujours le plus
+            // long — prend la ligne du dessous.
             <>
-              {[
-                relatif && (
-                  <span key="q" style={{ color: "var(--ink-1)" }}>
-                    {relatif}
-                  </span>
-                ),
-                presents > 0 && (
-                  <span key="p" style={{ color: "var(--bib-a-ink)" }}>
-                    {presents} présent{presents > 1 ? "s" : ""}
-                  </span>
-                ),
-                (md.location ?? md.title) && (
-                  <span key="l">{md.location ?? md.title}</span>
-                ),
-              ]
-                .filter(Boolean)
-                // La ligne passe sur deux lignes quand elle déborde : le
-                // point s'attache au mot qui le précède (espace insécable
-                // devant) pour qu'il finisse la ligne au lieu d'ouvrir la
-                // suivante.
-                .flatMap((el, i) => (i === 0 ? [el] : [" · ", el]))}
+              <span className="l1">
+                {[
+                  relatif && (
+                    <span key="q" style={{ color: "var(--ink-1)" }}>
+                      {relatif}
+                    </span>
+                  ),
+                  presents > 0 && (
+                    <span key="p" style={{ color: "var(--bib-a-ink)" }}>
+                      {presents} présent{presents > 1 ? "s" : ""}
+                    </span>
+                  ),
+                ]
+                  .filter(Boolean)
+                  .flatMap((el, i) => (i === 0 ? [el] : [" · ", el]))}
+              </span>
+              {(md.location ?? md.title) && (
+                <span className="l2">{md.location ?? md.title}</span>
+              )}
             </>
           ) : (
             <>
@@ -218,11 +222,14 @@ export default async function SessionsPage({
     parMois(liste).map((g) => (
       <div key={g.cle} className="bande mt-5 first:mt-0">
         <div className="bande-titre">
-          <span className="capitalize text-[13px] font-semibold text-[color:var(--ink-1)]">
+          {/* « septembre 2026 », comme sur la saison : la page des soirées
+              écrivait « Septembre 2026 » et les deux écrans se contredisaient
+              sur le même objet. */}
+          <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
             {g.titre}
           </span>
           <span className="text-[13px] tabular-nums text-[color:var(--ink-3)]">
-            {g.jours.length}
+            {g.jours.length} soirée{g.jours.length > 1 ? "s" : ""}
           </span>
         </div>
         <ul>
@@ -237,41 +244,39 @@ export default async function SessionsPage({
 
   return (
     <main>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <span className="kicker">Le calendrier</span>
-          <h1 className="display-md mt-1">Les soirées</h1>
-          {/* La définition ne tient pas dans un kicker de 11 px : elle se lit
-              ici, à taille de texte courant, sous le titre qu'elle éclaire. */}
-          <p className="mt-1.5 max-w-sm text-sm text-[color:var(--ink-2)]">
-            Un créneau réservé : une date, un terrain, qui vient.{" "}
-            <span className="text-[color:var(--ink-1)]">
-              Les matchs se jouent dedans.
-            </span>
-          </p>
-        </div>
-        {ctx.canScore && (
-          <Link
-            href={`/c/${slug}/matches/new-session`}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-[2px] border border-[color:var(--rule-hi)] bg-[color:var(--pitch-2)] px-5 text-sm font-bold hover:border-[color:var(--ink-1)]"
-          >
-            <Icon name="plus" size={16} />
-            Programmer une soirée
-          </Link>
-        )}
+      <div>
+        <span className="kicker">Le calendrier</span>
+        <h1 className="display-md mt-1">Les soirées</h1>
+        {/* La définition ne tient pas dans un kicker de 11 px : elle se lit
+            ici, à taille de texte courant, sous le titre qu'elle éclaire. */}
+        <p className="entete-definition">
+          Un créneau réservé : une date, un terrain, qui vient.{" "}
+          <span className="text-[color:var(--ink-1)]">
+            Les matchs se jouent dedans.
+          </span>
+        </p>
       </div>
-      {/* Poser toute la saison d'un coup : la voie normale pour un club qui
-          joue toutes les semaines. Créer les soirées une par une reste
-          possible juste au-dessus, pour les dates hors calendrier. */}
-      {ctx.canManage && (
-        <Link
-          href={`/c/${slug}/saison`}
-          className="mt-1 inline-flex min-h-[44px] items-center gap-2 text-sm font-bold text-[color:var(--ink-2)] hover:text-[color:var(--ink-1)]"
-        >
-          <Icon name="calendar" size={15} />
-          Poser toute la saison
-          <Icon name="chevron" size={14} />
-        </Link>
+      {/* Les deux voies de création, dans une seule rangée d'actions.
+          « Programmer une soirée » flottait au bout d'un flex-wrap, en
+          pastille de verre, et « Poser toute la saison » — la voie NORMALE
+          d'un club qui joue toutes les semaines — n'était qu'un lien gris
+          en dessous. Une action principale se voit ; la seconde reste en
+          verre, à la même taille. */}
+      {(ctx.canScore || ctx.canManage) && (
+        <div className="entete-actions">
+          {ctx.canScore && (
+            <Link href={`/c/${slug}/matches/new-session`} className="plein">
+              <Icon name="plus" size={18} />
+              Programmer une soirée
+            </Link>
+          )}
+          {ctx.canManage && (
+            <Link href={`/c/${slug}/saison`} className="verre grand">
+              <Icon name="calendar" size={16} />
+              Poser toute la saison
+            </Link>
+          )}
+        </div>
       )}
 
       {matchDays.length === 0 ? (

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ecran from "../../composants/Ecran";
-import EnTeteClub from "../../composants/EnTeteClub";
+import EnTeteClub, { TitreEcran } from "../../composants/EnTeteClub";
 import { BoutonPlein, CarteVerre, Saisie } from "../../composants/base";
 import { chargerMoiMemorise, useClubMemorise } from "../../composants/ClubCourant";
 import ChampDate from "../../composants/soiree/ChampDate";
@@ -109,17 +109,18 @@ export default function NouvelleSoiree() {
       <ScrollView contentContainerStyle={s.defile} keyboardShouldPersistTaps="handled">
         <EnTeteClub t={t} club={c} clubId={clubId} />
 
-        <View style={s.contenu}>
-          <View style={s.tete}>
-            <Text style={[s.kicker, { color: jeton(t, "i2") }]}>Organisation</Text>
-            <Text style={[s.titre, { color: t.ink }]} accessibilityRole="header">
-              Programmer une soirée
-            </Text>
-            <Text style={[s.chapeau, { color: t.ink }]}>
-              La soirée five : une date, un lieu, et chacun répond présent.
-            </Text>
-          </View>
+        {/* Le titre d'écran du produit (34/700 + sous-titre), le même que la
+            soirée et la compo, ses deux voisins directs. Cet écran avait le
+            sien : surtitre « Organisation », titre en 28, chapeau en 14 —
+            trois tailles de plus pour dire la même chose, et une page qui ne
+            ressemblait à aucune autre. */}
+        <TitreEcran
+          t={t}
+          titre="Programmer une soirée"
+          sousTitre="Une date, un lieu, et chacun répond présent."
+        />
 
+        <View style={s.contenu}>
           <CarteVerre t={t} style={s.carte}>
             <Text style={[s.kicker, s.libelle, { color: jeton(t, "i2") }]}>Date &amp; heure</Text>
             <ChampDate
@@ -183,11 +184,11 @@ export default function NouvelleSoiree() {
 const s = StyleSheet.create({
   defile: { paddingBottom: 60 },
   contenu: { paddingHorizontal: 14 },
-  tete: { paddingHorizontal: 4, paddingTop: 16 },
-  kicker: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },
-  titre: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4, lineHeight: 31, marginTop: 4 },
-  chapeau: { fontSize: 14, lineHeight: 20, marginTop: 12 },
-  carte: { marginTop: 24, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20 },
+  // Les libellés de champ suivent ceux du produit (`Champ` de base.tsx) :
+  // 13 en 600, capitales espacées. En 15 semi-gras, ils avaient le même poids
+  // que la valeur saisie juste dessous — trois fois de suite.
+  kicker: { fontSize: 13, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase" },
+  carte: { marginTop: 18, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20 },
   libelle: { marginBottom: 8 },
   suivant: { marginTop: 20 },
   relatif: { fontSize: 13, marginTop: 6 },

@@ -11,6 +11,7 @@ import {
   Text,
   View,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
@@ -243,7 +244,7 @@ export default function Stats() {
               des chiffres : une feuille vierge doit se reconnaître vierge, elle
               ne se présente pas comme une erreur. */}
           {vide && (
-            <Carte t={t} bas={10}>
+            <Carte t={t} rembourrage={10} bas={10}>
               <Onglets t={t} onglets={ONGLETS} actif="tableau" onChange={() => {}} />
               <View style={s.sousOnglets}>
                 <EnTeteTableau t={t} />
@@ -279,7 +280,9 @@ export default function Stats() {
 
           {d && !vide && (
             <>
-              <Carte t={t} bas={10}>
+              {/* 10 de marge intérieure et non 12 : quatre points de plus pour
+                  le nom du joueur, la seule colonne qui puisse déborder. */}
+              <Carte t={t} rembourrage={10} bas={10}>
                 <Onglets t={t} onglets={ONGLETS} actif={vue} onChange={setVue} />
 
                 <View style={s.sousOnglets}>
@@ -790,8 +793,8 @@ function Carte({
 
 function EnTeteTableau({ t }: { t: Jetons }) {
   return (
-    <View style={[s.rangeeTableau, s.enTete]}>
-      <View style={{ width: 24 }} />
+    <View style={[s.rangeeTableau, s.enTete, { borderBottomColor: jeton(t, "sep") }]}>
+      <View style={{ width: 22 }} />
       <View style={{ width: 30 }} />
       <Text style={[s.tNom, s.enTeteTexte, { color: t.i2 }]}>Joueur</Text>
       <Text style={[s.tMj, s.enTeteTexte, { color: t.i2 }]}>MJ</Text>
@@ -881,10 +884,13 @@ function LigneDerby({
 /// Les cinq colonnes de chiffres des gardiens : 26/26/34/26/30, alignées à
 /// droite comme sur le site.
 const LARGEURS_G = [26, 26, 34, 26, 30];
-const colonneG = (i: number) => ({
+const colonneG = (i: number): TextStyle => ({
   width: LARGEURS_G[i],
   fontSize: 15,
-  textAlign: "right" as const,
+  textAlign: "right",
+  // La chasse tabulaire : « 1,8 » et « 0,4 » se posent l'un sous l'autre à la
+  // virgule près, sinon la colonne des moyennes ondule.
+  fontVariant: ["tabular-nums"],
 });
 
 const s = StyleSheet.create({
@@ -910,20 +916,38 @@ const s = StyleSheet.create({
   toi: { fontWeight: "400" },
   gras: { fontWeight: "700" },
 
-  // Les neuf colonnes du site : 24/30/1fr/30/26/26/26/30/40.
+  // Les neuf colonnes : 22/30/1fr/28/24/24/24/28/38.
+  //
+  // Resserrées de 18 points par rapport au portage d'origine, et ce n'est pas
+  // du grignotage : sur le téléphone d'Ibrahima, « Compte de dev » s'affichait
+  // « Compte d… » parce que les huit colonnes de chiffres prenaient tout. Les
+  // chiffres, eux, ne perdent rien — en CHASSE TABULAIRE (`tabular-nums`), un
+  // « 1 » occupe exactement la place d'un « 8 », donc « 12 » tient dans 24
+  // points là où la chasse proportionnelle demandait 26 « au cas où ».
+  //
+  // C'est aussi ce qui fait qu'une colonne se lit en descendant : sans elle,
+  // le jour où un joueur passe à 10 matchs, toute la colonne se décale.
   rangeeTableau: {
     flexDirection: "row",
     alignItems: "center",
-    height: 54,
+    height: 50,
     paddingHorizontal: 6,
   },
-  enTete: { height: undefined, paddingBottom: 8 },
-  enTeteTexte: { fontSize: 15, fontWeight: "400" },
-  tRang: { width: 24, fontSize: 17 },
-  tNom: { flex: 1, minWidth: 0, fontSize: 17, fontWeight: "500", paddingLeft: 8 },
-  tMj: { width: 30, fontSize: 17, textAlign: "center" },
-  tPetit: { width: 26, fontSize: 17, textAlign: "center" },
-  tPts: { width: 40, fontSize: 17, fontWeight: "600", textAlign: "center" },
+  // L'entête n'est pas une rangée de plus : 13/600, espacée, et posée sur un
+  // filet. On doit voir d'un coup d'œil où commencent les données.
+  enTete: { height: undefined, paddingBottom: 8, borderBottomWidth: 1 },
+  enTeteTexte: { fontSize: 13, fontWeight: "600", letterSpacing: 0.3 },
+  tRang: { width: 22, fontSize: 15, fontVariant: ["tabular-nums"] },
+  tNom: { flex: 1, minWidth: 0, fontSize: 17, fontWeight: "500", paddingLeft: 10 },
+  tMj: { width: 28, fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
+  tPetit: { width: 24, fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
+  tPts: {
+    width: 38,
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
+  },
   pied: {
     marginTop: 4,
     paddingTop: 14,
@@ -933,25 +957,33 @@ const s = StyleSheet.create({
     justifyContent: "center",
     borderTopWidth: 1,
   },
-  piedTexte: { fontSize: 17, fontWeight: "600" },
+  // Une action secondaire : elle s'efface (15/600) au lieu de peser autant
+  // qu'un nom de joueur.
+  piedTexte: { fontSize: 15, fontWeight: "600" },
 
-  rangee: { flexDirection: "row", alignItems: "center", height: 56, paddingHorizontal: 6 },
+  rangee: { flexDirection: "row", alignItems: "center", height: 54, paddingHorizontal: 6 },
   nom: { fontSize: 17, fontWeight: "500" },
-  bRang: { width: 24, fontSize: 17 },
-  bBloc: { flex: 1, minWidth: 0, paddingLeft: 8, paddingRight: 12, gap: 6 },
+  bRang: { width: 22, fontSize: 15, fontVariant: ["tabular-nums"] },
+  bBloc: { flex: 1, minWidth: 0, paddingLeft: 10, paddingRight: 12, gap: 6 },
   barreFond: { height: 4, borderRadius: 2, overflow: "hidden" },
   barrePleine: { height: 4, borderRadius: 2 },
-  bButs: { width: 44, fontSize: 22, fontWeight: "700", textAlign: "right" },
+  bButs: { width: 44, fontSize: 22, fontWeight: "700", textAlign: "right", fontVariant: ["tabular-nums"] },
 
   forme: { flexDirection: "row", gap: 5 },
   formeCase: { width: 26, height: 26, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   formeLettre: { fontSize: 12, fontWeight: "700" },
-  serie: { width: 44, fontSize: 17, fontWeight: "600", textAlign: "right" },
+  serie: { width: 44, fontSize: 17, fontWeight: "600", textAlign: "right", fontVariant: ["tabular-nums"] },
 
-  ligneTitre: { flexDirection: "row", alignItems: "center", gap: 14, height: 60 },
+  ligneTitre: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingVertical: 8 },
   icone: { width: 26, alignItems: "center", justifyContent: "center" },
   libelle: { flex: 1, minWidth: 0, fontSize: 17 },
-  laureat: { fontSize: 17, fontWeight: "600", maxWidth: "55%" },
+  // Pas de `maxWidth` fixe : « Meilleur buteur » et « Jean-Baptiste · 14 buts »
+  // se partagent la ligne au prorata de ce qu'ils demandent. Un plafond à 55 %
+  // coupait le lauréat alors que le libellé, plus court, laissait de la place.
+  // Le plafond reste (sinon un lauréat très long réduirait le libellé à rien,
+  // sa base de flex valant zéro), mais il passe de 55 % à 62 % : « Jean-
+  // Baptiste · 14 buts » tient, « Meilleur buteur » aussi.
+  laureat: { fontSize: 17, fontWeight: "600", flexShrink: 1, maxWidth: "62%", textAlign: "right" },
   unite: { fontWeight: "400" },
 
   saisonClose: { paddingVertical: 14, gap: 4 },
@@ -961,7 +993,7 @@ const s = StyleSheet.create({
   derbyCamps: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingTop: 2 },
   derbyCamp: { flex: 1, alignItems: "center", gap: 3, minWidth: 0 },
   derbyNom: { fontSize: 15, fontWeight: "600", maxWidth: "100%" },
-  derbyCompte: { fontSize: 40, fontWeight: "800", letterSpacing: -1.2 },
+  derbyCompte: { fontSize: 40, fontWeight: "800", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
   derbyUnite: { fontSize: 13 },
   derbyMilieu: { alignItems: "center", gap: 2, paddingTop: 46 },
   derbyNuls: { fontSize: 15, fontWeight: "600" },
@@ -975,9 +1007,9 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   derbyLigne: { flexDirection: "row", alignItems: "center", minHeight: 42 },
-  derbyG: { width: 44, fontSize: 15, fontWeight: "700" },
+  derbyG: { width: 44, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
   derbyL: { flex: 1, fontSize: 15, textAlign: "center" },
-  derbyD: { width: 44, fontSize: 15, fontWeight: "700", textAlign: "right" },
+  derbyD: { width: 44, fontSize: 15, fontWeight: "700", textAlign: "right", fontVariant: ["tabular-nums"] },
   derbySerie: { paddingTop: 12, textAlign: "center", fontSize: 13 },
 
   gTete: {
@@ -988,7 +1020,9 @@ const s = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 8,
   },
-  gTeteTexte: { fontSize: 13 },
+  // Même tier d'entête que le tableau : 13/600 espacé, pour qu'on lise « une
+  // légende de colonne » et pas « une donnée de plus ».
+  gTeteTexte: { fontSize: 13, fontWeight: "600", letterSpacing: 0.3 },
   gRangee: {
     flexDirection: "row",
     alignItems: "center",
@@ -996,7 +1030,7 @@ const s = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 4,
   },
-  gNomTete: { flex: 1, minWidth: 0, fontSize: 13 },
+  gNomTete: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: "600", letterSpacing: 0.3 },
   gNom: { flex: 1, minWidth: 0, fontSize: 15, fontWeight: "600" },
   legende: {
     paddingHorizontal: 4,
@@ -1010,7 +1044,7 @@ const s = StyleSheet.create({
   pastille: { width: 38, height: 38, borderRadius: 19, borderWidth: 1 },
   recordTitre: { fontSize: 15, fontWeight: "600" },
   recordContexte: { fontSize: 13 },
-  recordValeur: { fontSize: 19, fontWeight: "700" },
+  recordValeur: { fontSize: 19, fontWeight: "700", fontVariant: ["tabular-nums"] },
   recordJeune: {
     paddingTop: 10,
     paddingBottom: 12,
@@ -1019,9 +1053,9 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
   },
 
-  synthese: { fontSize: 17, textAlign: "center", paddingTop: 4, paddingBottom: 14 },
+  synthese: { fontSize: 17, textAlign: "center", paddingTop: 4, paddingBottom: 14, fontVariant: ["tabular-nums"] },
   syntheseForme: { alignItems: "center", paddingBottom: 14 },
-  duel: { flexDirection: "row", alignItems: "center", gap: 12, height: 56 },
-  duelBilan: { fontSize: 15 },
-  duelDiff: { width: 44, fontSize: 17, fontWeight: "600", textAlign: "right" },
+  duel: { flexDirection: "row", alignItems: "center", gap: 12, height: 54 },
+  duelBilan: { fontSize: 15, fontVariant: ["tabular-nums"] },
+  duelDiff: { width: 44, fontSize: 17, fontWeight: "600", textAlign: "right", fontVariant: ["tabular-nums"] },
 });

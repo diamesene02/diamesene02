@@ -93,38 +93,35 @@ export default function Soirees() {
           />
         }
       >
-        <EnTeteClub t={t} club={c} />
+        {/* Le titre d'écran du reste de l'app (34/700 sous la barre) et non un
+            28 fait maison : « Stats », « Effectif », « Saison » et « Réglages »
+            se présentaient tous pareil, « Les soirées » seul autrement. */}
+        <EnTeteClub t={t} club={c} titre="Soirées" sousTitre="Le calendrier du club" />
 
         <View style={s.contenu}>
-          <View style={s.tete}>
-            <Text style={[s.kicker, { color: jeton(t, "i2") }]}>Le calendrier</Text>
-            <Text style={[s.titre, { color: t.ink }]} accessibilityRole="header">
-              Les soirées
-            </Text>
-            <Text style={[s.chapeau, { color: jeton(t, "i2") }]}>
-              Un créneau réservé : une date, un terrain, qui vient.{" "}
-              <Text style={{ color: t.ink }}>Les matchs se jouent dedans.</Text>
-            </Text>
-          </View>
+          <Text style={[s.chapeau, { color: jeton(t, "i2") }]}>
+            Un créneau réservé : une date, un terrain, qui vient.{" "}
+            <Text style={{ color: t.ink }}>Les matchs se jouent dedans.</Text>
+          </Text>
 
+          {/* L'action principale de l'écran se voit : plein et contrasté. Elle
+              était peinte en `seg` sur un fond sombre, c'est-à-dire comme un
+              bouton éteint. Elle garde sa largeur de contenu — pleine largeur,
+              elle passerait devant le calendrier, qui est ce qu'on vient lire. */}
           {peutMarquer && !donnees?.vide && (
-            <Pressable
+            <BoutonPlein
+              t={t}
+              titre="Programmer une soirée"
+              icone={<IconePlus couleur={jeton(t, "bf")} taille={16} />}
               onPress={programmer}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                s.programmer,
-                { borderColor: jeton(t, "gb"), backgroundColor: jeton(t, "seg") },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <IconePlus couleur={t.ink} taille={16} />
-              <Text style={[s.programmerTexte, { color: t.ink }]}>Programmer une soirée</Text>
-            </Pressable>
+              style={s.programmer}
+            />
           )}
           {peutGerer && (
             // Poser toute la saison d'un coup : la voie normale pour un club
             // qui joue toutes les semaines. Créer les soirées une par une reste
-            // possible juste au-dessus, pour les dates hors calendrier.
+            // possible juste au-dessus, pour les dates hors calendrier. Action
+            // secondaire : elle s'efface.
             <Pressable
               onPress={() => router.push({ pathname: "/calendrier", params: { clubId: id } })}
               accessibilityRole="button"
@@ -145,11 +142,11 @@ export default function Soirees() {
             // dates — plutôt que deux pavés gris : les lignes sont là avant
             // les mots, rien ne saute quand la liste arrive.
             <Squelette etiquette="On ouvre le calendrier" style={s.section}>
-              <CarteSquelette t={t} rangees={3} hauteurRangee={56} entete avatar={false} />
+              <CarteSquelette t={t} rangees={3} hauteurRangee={64} entete avatar={false} />
               <CarteSquelette
                 t={t}
                 rangees={2}
-                hauteurRangee={56}
+                hauteurRangee={64}
                 entete
                 avatar={false}
                 style={s.squelette}
@@ -182,7 +179,9 @@ export default function Soirees() {
 
           {donnees && donnees.prochaines.length > 0 && (
             <View style={s.section}>
-              <Text style={[s.kicker, s.kickerSection, { color: jeton(t, "i2") }]}>À venir</Text>
+              <Text style={[s.sectionTitre, { color: t.ink }]} accessibilityRole="header">
+                À venir
+              </Text>
               {donnees.prochaines.map((g) => (
                 <CarteMois key={"p" + g.cle} g={g} t={t} clubId={id} />
               ))}
@@ -191,7 +190,7 @@ export default function Soirees() {
 
           {donnees && donnees.passees.length > 0 && (
             <View style={s.section}>
-              <Text style={[s.kicker, s.kickerSection, { color: jeton(t, "i2") }]}>
+              <Text style={[s.sectionTitre, { color: t.ink }]} accessibilityRole="header">
                 Déjà jouées
               </Text>
               {donnees.passees.map((g) => (
@@ -206,11 +205,19 @@ export default function Soirees() {
                 onPress={() => setResteOuvert((o) => !o)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: resteOuvert }}
-                style={s.deplier}
+                style={({ pressed }) => [s.deplier, pressed && { opacity: 0.6 }]}
               >
-                <Text style={[s.kicker, { color: jeton(t, "i2") }]}>
-                  {resteOuvert ? "▾" : "▸"} Le reste de la saison ({donnees.resteTotal})
+                <Text style={[s.sectionTitre, { color: t.ink }]}>
+                  Le reste de la saison{" "}
+                  <Text style={[s.compteSection, { color: jeton(t, "i3") }]}>
+                    {donnees.resteTotal}
+                  </Text>
                 </Text>
+                {/* Les caractères « ▸ » et « ▾ » faisaient six points de haut
+                    et ne suivaient pas le dessin des autres chevrons. */}
+                <View style={resteOuvert && s.chevronOuvert}>
+                  <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={16} />
+                </View>
               </Pressable>
               {resteOuvert &&
                 donnees.reste.map((g) => <CarteMois key={"r" + g.cle} g={g} t={t} clubId={id} />)}
@@ -225,163 +232,228 @@ export default function Soirees() {
 function CarteMois({ g, t, clubId }: { g: GroupeMois; t: Jetons; clubId: string }) {
   return (
     <CarteVerre t={t} style={s.carte}>
-      <View style={s.carteTete}>
-        <Text style={[s.mois, { color: t.ink }]}>{capitale(g.titre)}</Text>
-        <Text style={[s.petitCompte, { color: jeton(t, "i3") }]}>{g.compte}</Text>
+      <View style={[s.carteTete, { borderBottomColor: jeton(t, "sep") }]}>
+        <Text style={[s.mois, { color: jeton(t, "i2") }]}>{g.titre.toUpperCase()}</Text>
+        {/* « 1 » tout seul dans le coin ne disait pas de quoi. */}
+        <Text style={[s.petitCompte, { color: jeton(t, "i3") }]}>
+          {g.compte} soirée{g.compte > 1 ? "s" : ""}
+        </Text>
       </View>
-      {g.soirees.map((so) => (
-        <Rangee key={so.id} so={so} t={t} clubId={clubId} />
+      {g.soirees.map((so, i) => (
+        <Rangee key={so.id} so={so} t={t} clubId={clubId} premiere={i === 0} />
       ))}
     </CarteVerre>
   );
 }
 
-function Rangee({ so, t, clubId }: { so: LigneSoiree; t: Jetons; clubId: string }) {
+/// UNE RANGÉE DE SOIRÉE, EN DEUX LIGNES.
+///
+/// Elle tenait sur une seule, et c'est ce que montrait la capture d'Ibrahima :
+/// « jeu. 24 · 19:00 · Dans 2 jours · 8 présents ·… ». Tout ce qui répond à
+/// « est-ce que je viens ? » — combien on est, où — tombait dans l'ellipse,
+/// parce que le terrain du club s'appelle « Urban Soccer Guyancourt ».
+///
+/// Le dessin est celui du calendrier de l'écran « Saison », qui marchait déjà :
+/// un bloc de date à gauche (le jour en petites capitales, le quantième en
+/// gros), puis deux lignes — ce qui se passe, puis ce qu'il faut savoir. La
+/// même forme aux deux endroits, et plus rien à couper.
+function Rangee({
+  so,
+  t,
+  clubId,
+  premiere,
+}: {
+  so: LigneSoiree;
+  t: Jetons;
+  clubId: string;
+  premiere: boolean;
+}) {
   const ouvrir = () => router.push({ pathname: "/soiree/[id]", params: { id: so.id, clubId } });
   const i2 = jeton(t, "i2");
+  const i3 = jeton(t, "i3");
+  const date = coupeDate(so.jour);
 
-  // Une soirée annulée se présentait comme les autres, et le joueur passé
-  // par le menu venait pour rien.
+  let titre: React.ReactNode;
+  let sous: React.ReactNode = null;
+  let etiquette = so.jour;
+
   if (so.annulee) {
-    return (
-      <Pressable
-        onPress={ouvrir}
-        accessibilityRole="button"
-        accessibilityLabel={`${so.jour}, annulée${so.motifAnnulation ? ` : ${so.motifAnnulation}` : ""}`}
-        style={({ pressed }) => [s.rangee, { opacity: pressed ? 0.4 : 0.55 }]}
-      >
-        <Text style={[s.jour, { color: i2, textDecorationLine: "line-through" }]} numberOfLines={1}>
-          {so.jour}
+    // Une soirée annulée se présentait comme les autres, et le joueur passé
+    // par le menu venait pour rien.
+    titre = <Text style={[s.rangeeTitre, s.barre, { color: i2 }]}>Annulée</Text>;
+    const motif = so.motifAnnulation ?? so.lieu;
+    if (motif) {
+      sous = (
+        <Text style={[s.rangeeSous, { color: i3 }]} numberOfLines={1}>
+          {motif}
         </Text>
-        <Text style={[s.milieu, { color: i2 }]}>Annulée</Text>
-        <Text style={[s.reste, { color: i2 }]} numberOfLines={1}>
-          {so.motifAnnulation ?? so.lieu ?? ""}
-        </Text>
-      </Pressable>
-    );
-  }
-
-  if (so.aVenir) {
-    // Le plus utile d'abord, le lieu en dernier : c'est toujours le même, et
-    // c'est lui que l'ellipse doit manger.
+      );
+    }
+    etiquette = `${so.jour}, annulée${so.motifAnnulation ? ` : ${so.motifAnnulation}` : ""}`;
+  } else if (so.aVenir) {
     const relatif = quandRelatif(so.date);
     const lieu = so.lieu ?? so.libelle;
-    const morceaux = [
-      relatif ? (
-        <Text key="q" style={{ color: t.ink }}>
-          {relatif}
-        </Text>
-      ) : null,
-      so.presents > 0 ? (
-        <Text key="p" style={{ color: t.taInk ?? i2 }}>
-          {so.presents} présent{so.presents > 1 ? "s" : ""}
-        </Text>
-      ) : null,
-      lieu ? <Text key="l">{lieu}</Text> : null,
-    ].filter(Boolean);
-    return (
-      <Pressable
-        onPress={ouvrir}
-        accessibilityRole="button"
-        style={({ pressed }) => [s.rangee, pressed && { opacity: 0.7 }]}
-      >
-        <Text style={[s.jour, { color: i2 }]} numberOfLines={1}>
-          {so.jour}
-        </Text>
-        <Text style={[s.milieu, { color: t.ink }]}>{so.heure}</Text>
-        <Text style={[s.reste, { color: i2 }]} numberOfLines={1}>
-          {morceaux.flatMap((m, i) => (i === 0 ? [m] : [" · ", m]))}
-        </Text>
-      </Pressable>
+    titre = (
+      <Text style={[s.rangeeTitre, { color: t.ink }]} numberOfLines={1}>
+        {so.heure}
+        {lieu ? <Text style={s.maigre}> · {lieu}</Text> : null}
+      </Text>
     );
+    // La ligne qui répond à « est-ce que je viens ? » : elle ne partage plus
+    // sa place avec le lieu, donc elle ne se coupe plus.
+    if (relatif || so.presents > 0) {
+      sous = (
+        <Text style={[s.rangeeSous, { color: i2 }]} numberOfLines={1}>
+          {relatif}
+          {relatif && so.presents > 0 ? " · " : ""}
+          {so.presents > 0 ? (
+            <Text style={{ color: t.taInk ?? i2, fontWeight: "600" }}>
+              {so.presents} présent{so.presents > 1 ? "s" : ""}
+            </Text>
+          ) : null}
+        </Text>
+      );
+    }
+    etiquette = `${so.jour}, ${so.heure}${relatif ? `, ${relatif}` : ""}${so.presents > 0 ? `, ${so.presents} présents` : ""}${lieu ? `, ${lieu}` : ""}`;
+  } else {
+    titre = (
+      <Text style={[s.rangeeTitre, { color: t.ink }]} numberOfLines={1}>
+        {so.matchs}
+        <Text style={s.maigre}> match{so.matchs > 1 ? "s" : ""}</Text>
+      </Text>
+    );
+    if (so.buts > 0 || so.prix) {
+      sous = (
+        <Text style={[s.rangeeSous, { color: i2 }]} numberOfLines={1}>
+          {so.buts > 0 ? `${so.buts} but${so.buts > 1 ? "s" : ""}` : ""}
+          {so.buts > 0 && so.prix ? " · " : ""}
+          {so.prix ? (
+            // Ce qui reste à encaisser garde la couleur d'alerte : c'est la
+            // seule chose sur cet écran qui attend quelque chose de quelqu'un.
+            <Text
+              style={{
+                color: so.toutRegle ? i3 : jeton(t, "or"),
+                fontWeight: so.toutRegle ? "400" : "600",
+              }}
+            >
+              {so.prix} {so.toutRegle ? "réglé" : "à encaisser"}
+            </Text>
+          ) : null}
+        </Text>
+      );
+    }
+    etiquette = `${so.jour}, ${so.matchs} match${so.matchs > 1 ? "s" : ""}${so.buts > 0 ? `, ${so.buts} buts` : ""}`;
   }
 
   return (
     <Pressable
       onPress={ouvrir}
       accessibilityRole="button"
-      style={({ pressed }) => [s.rangee, pressed && { opacity: 0.7 }]}
+      accessibilityLabel={etiquette}
+      style={({ pressed }) => [
+        s.rangee,
+        !premiere && { borderTopWidth: 1, borderTopColor: jeton(t, "sep") },
+        so.annulee && { opacity: 0.55 },
+        pressed && { opacity: so.annulee ? 0.4 : 0.6 },
+      ]}
     >
-      <Text style={[s.jour, { color: i2 }]} numberOfLines={1}>
-        {so.jour}
-      </Text>
-      <Text style={[s.milieu, { color: t.ink }]}>
-        {so.matchs}
-        <Text style={[s.unite, { color: jeton(t, "i3") }]}> match{so.matchs > 1 ? "s" : ""}</Text>
-      </Text>
-      <Text style={[s.reste, { color: i2 }]} numberOfLines={1}>
-        {so.buts > 0 ? `${so.buts} but${so.buts > 1 ? "s" : ""}` : ""}
-        {so.buts > 0 && so.prix ? " · " : ""}
-        {so.prix ? (
-          <Text style={{ color: so.toutRegle ? jeton(t, "i3") : jeton(t, "or") }}>
-            {so.prix} {so.toutRegle ? "réglé" : "à encaisser"}
+      <View style={s.date}>
+        {date ? (
+          <>
+            <Text style={[s.dateJour, { color: i2 }]} numberOfLines={1}>
+              {date.jour}
+            </Text>
+            <Text style={[s.dateNumero, { color: t.ink }]}>{date.numero}</Text>
+          </>
+        ) : (
+          <Text style={[s.dateJour, { color: i2 }]} numberOfLines={2}>
+            {so.jour.toUpperCase()}
           </Text>
-        ) : null}
-      </Text>
+        )}
+      </View>
+      <View style={s.textes}>
+        {titre}
+        {sous}
+      </View>
+      <IconeJeu nom="chevron" couleur={i3} taille={14} />
     </Pressable>
   );
 }
 
-/// « septembre 2026 » → « Septembre 2026 ». Le serveur rend le mois en
-/// minuscule ; un titre de carte commence par une capitale.
-function capitale(x: string): string {
-  return x.charAt(0).toUpperCase() + x.slice(1);
+/// « jeu. 24 » → « JEU. » et « 24 ».
+///
+/// La route de la saison rend déjà le jour et le quantième séparément ; celle
+/// des soirées les rend collés. On coupe au dernier groupe de chiffres — et si
+/// ça ne tombe pas juste (un format de date qu'on ne connaît pas), on garde la
+/// chaîne entière plutôt que d'en inventer les morceaux.
+function coupeDate(x: string): { jour: string; numero: string } | null {
+  const m = x.trim().match(/^(.+)\s+(\d{1,2})\.?$/);
+  return m ? { jour: m[1].toUpperCase(), numero: m[2] } : null;
 }
 
 const s = StyleSheet.create({
   defile: { paddingBottom: ESPACE_BARRE },
   contenu: { paddingHorizontal: 14 },
-  tete: { paddingHorizontal: 4, paddingTop: 16 },
-  kicker: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },
-  kickerSection: { marginBottom: 0, paddingHorizontal: 4 },
-  titre: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4, lineHeight: 31, marginTop: 4 },
-  chapeau: { fontSize: 14, lineHeight: 20, marginTop: 6, maxWidth: 384 },
-  programmer: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 8,
-    minHeight: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    paddingHorizontal: 20,
-    marginTop: 14,
-    marginLeft: 4,
-  },
-  programmerTexte: { fontSize: 14, fontWeight: "700" },
+  chapeau: { fontSize: 15, lineHeight: 21, marginTop: 16, paddingHorizontal: 4, maxWidth: 384 },
+  programmer: { alignSelf: "flex-start", marginTop: 16, marginLeft: 4 },
   saison: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 8,
     minHeight: 44,
-    marginTop: 2,
+    marginTop: 4,
     marginLeft: 4,
   },
-  saisonTexte: { fontSize: 14, fontWeight: "700" },
+  saisonTexte: { fontSize: 15, fontWeight: "600" },
 
-  section: { marginTop: 32 },
+  section: { marginTop: 28 },
+  // Un vrai titre de section (20/700), pas un troisième gris de 15 : « À
+  // venir » et « Déjà jouées » découpent l'écran, le mois découpe la carte.
+  sectionTitre: { fontSize: 20, fontWeight: "700", letterSpacing: -0.3, paddingHorizontal: 4 },
+  compteSection: { fontSize: 17, fontWeight: "400", fontVariant: ["tabular-nums"] },
+  chevronOuvert: { transform: [{ rotate: "90deg" }] },
   squelette: { marginTop: 18 },
 
   vide: { padding: 32, alignItems: "center" },
-  videTitre: { fontSize: 18, fontWeight: "900", textAlign: "center" },
-  videTexte: { fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 8, maxWidth: 384 },
+  videTitre: { fontSize: 22, fontWeight: "700", letterSpacing: -0.3, textAlign: "center" },
+  videTexte: { fontSize: 15, lineHeight: 21, textAlign: "center", marginTop: 8, maxWidth: 384 },
 
-  carte: { marginTop: 18, paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20 },
+  carte: { marginTop: 12, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 8 },
   carteTete: {
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
   },
-  mois: { fontSize: 13, fontWeight: "600" },
+  mois: { fontSize: 13, fontWeight: "600", letterSpacing: 0.4 },
   petitCompte: { fontSize: 13, fontVariant: ["tabular-nums"] },
-  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
-  jour: { width: 64, fontSize: 15, fontVariant: ["tabular-nums"] },
-  milieu: { fontSize: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  unite: { fontSize: 13, fontWeight: "400" },
-  reste: { flex: 1, minWidth: 0, fontSize: 15 },
 
-  deplier: { minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
+  // Le bloc de date, à la mesure de celui de l'écran « Saison ».
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, paddingVertical: 10 },
+  date: { width: 58 },
+  dateJour: { fontSize: 13, fontWeight: "600", letterSpacing: 0.3 },
+  dateNumero: {
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+    lineHeight: 30,
+    fontVariant: ["tabular-nums"],
+  },
+  textes: { flex: 1, minWidth: 0, gap: 2 },
+  rangeeTitre: { fontSize: 17, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  maigre: { fontWeight: "400" },
+  rangeeSous: { fontSize: 15, fontVariant: ["tabular-nums"] },
+  barre: { textDecorationLine: "line-through" },
+
+  deplier: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 4,
+  },
 });

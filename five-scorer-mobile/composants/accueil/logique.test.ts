@@ -94,32 +94,33 @@ describe("les dates de la bannière", () => {
   it("compte en jours civils : samedi pour lundi, c'est dans 2 jours", () => {
     // `Math.ceil` sur 2,07 jours disait « Dans 3 jours ».
     expect(aideBanniere(soiree(), SAMEDI)).toContain("Dans 2 jours");
-    expect(titreBanniere(soiree(), SAMEDI)).toBe("Lundi 19:00.");
+    expect(titreBanniere(soiree(), SAMEDI)).toBe("Lundi 19:00");
   });
 
   it("dit « Ce soir » à partir de 17 h, « Aujourd'hui » avant", () => {
     const ceSoir = soiree({ date: iso(2026, 8, 19, 19, 0) });
-    expect(titreBanniere(ceSoir, SAMEDI)).toBe("Ce soir 19:00.");
+    expect(titreBanniere(ceSoir, SAMEDI)).toBe("Ce soir 19:00");
     const midi = soiree({ date: iso(2026, 8, 19, 12, 30) });
-    expect(titreBanniere(midi, new Date(2026, 8, 19, 10))).toBe("Aujourd'hui 12:30.");
+    expect(titreBanniere(midi, new Date(2026, 8, 19, 10))).toBe("Aujourd'hui 12:30");
   });
 
   it("dit « Demain », puis le jour, puis la date au-delà d'une semaine", () => {
-    expect(titreBanniere(soiree({ date: iso(2026, 8, 20, 19) }), SAMEDI)).toBe("Demain 19:00.");
+    expect(titreBanniere(soiree({ date: iso(2026, 8, 20, 19) }), SAMEDI)).toBe("Demain 19:00");
     expect(titreBanniere(soiree({ date: iso(2026, 8, 28, 19) }), SAMEDI)).toBe(
-      "Lun. 28 sept. 19:00.",
+      "Lun. 28 sept. 19:00",
     );
   });
 
-  it("met le lieu dans le titre quand la route le donne", () => {
-    expect(titreBanniere(soiree({ lieu: "Five Renault" }), SAMEDI)).toBe(
-      "Lundi 19:00 — Five Renault.",
-    );
+  // Le lieu a sa ligne à lui dans la bannière (`Banniere.tsx`) : le titre ne
+  // porte plus que le quand, et ne finit plus par un point — sur « Urban
+  // Soccer Guyancourt », la phrase passait sur deux lignes sous le ✕.
+  it("ne met plus le lieu dans le titre : il a sa ligne", () => {
+    expect(titreBanniere(soiree({ lieu: "Urban Soccer Guyancourt" }), SAMEDI)).toBe("Lundi 19:00");
   });
 
   it("suit le jour compté par le serveur, dans le fuseau du club", () => {
     const s = soiree({ joursAvant: 1, heure: "21:00", jourLong: "Dimanche 20 septembre" });
-    expect(titreBanniere(s, SAMEDI)).toBe("Demain 21:00.");
+    expect(titreBanniere(s, SAMEDI)).toBe("Demain 21:00");
   });
 
   it("n'écrit « Dans N jours » qu'entre deux et six", () => {
@@ -130,32 +131,32 @@ describe("les dates de la bannière", () => {
 
 describe("maPlace", () => {
   it("ne promet pas de répondre à qui n'a pas de profil joueur", () => {
-    expect(maPlace(soiree({ maPresence: null }))).toBe("Touche pour la soirée.");
+    expect(maPlace(soiree({ maPresence: null }))).toBe("Touche pour la soirée");
   });
 
   it("dit à l'abonné qu'il est déjà compté", () => {
     // « Touche pour répondre » sous « 8 présents » lui faisait croire qu'il
     // n'en faisait pas partie.
     const s = soiree({ maPresence: { statut: "IN", viaAbonnement: true } });
-    expect(maPlace(s)).toBe("Tu es compté présent.");
-    expect(aideBanniere(s, SAMEDI)).toBe("Dans 2 jours · 8 présents · 4 places · Tu es compté présent.");
+    expect(maPlace(s)).toBe("Tu es compté présent");
+    expect(aideBanniere(s, SAMEDI)).toBe("Dans 2 jours · 8 présents · 4 places · Tu es compté présent");
   });
 
   it("distingue inscrit, absent, peut-être", () => {
     expect(maPlace(soiree({ maPresence: { statut: "IN", viaAbonnement: false } }))).toBe(
-      "Tu es inscrit.",
+      "Tu es inscrit",
     );
     expect(maPlace(soiree({ maPresence: { statut: "OUT", viaAbonnement: false } }))).toBe(
-      "Tu as dit absent.",
+      "Tu as dit absent",
     );
     expect(maPlace(soiree({ maPresence: { statut: "MAYBE", viaAbonnement: false } }))).toBe(
-      "Tu as dit peut-être.",
+      "Tu as dit peut-être",
     );
   });
 
   it("retombe sur la réponse explicite avec un serveur qui ignore l'abonnement", () => {
-    expect(maPlace(soiree({ maReponse: "IN" }))).toBe("Tu es inscrit.");
-    expect(maPlace(soiree({ maReponse: null }))).toBe("Touche pour répondre.");
+    expect(maPlace(soiree({ maReponse: "IN" }))).toBe("Tu es inscrit");
+    expect(maPlace(soiree({ maReponse: null }))).toBe("Touche pour répondre");
   });
 });
 

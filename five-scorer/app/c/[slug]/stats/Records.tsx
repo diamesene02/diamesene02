@@ -1,5 +1,6 @@
 import Link from "next/link";
 import * as D from "@/lib/dates";
+import Icon, { type IconName } from "@/components/Icon";
 import AvatarAnneau from "@/components/ios/AvatarAnneau";
 import Carte from "@/components/ios/Carte";
 import type { ClubRecords } from "@/lib/stats";
@@ -22,6 +23,10 @@ type Ligne = {
   contexte?: React.ReactNode;
   href?: string;
   avatar?: { nom: string; photo: string | null };
+  /// Un record de match ou de soirée n'a pas de visage. Il avait donc un
+  /// rond gris vide — exactement le « tiret en attendant » que cette carte
+  /// s'interdit plus haut. Il porte maintenant le signe de ce qu'il mesure.
+  icone?: IconName;
 };
 
 export default function Records({
@@ -43,6 +48,7 @@ export default function Records({
       // L'écart n'a pas besoin d'être écrit : le score le dit.
       contexte: `${m.nomA} contre ${m.nomB} · ${D.jourCourt(m.date)}`,
       href: `/c/${slug}/matches/${m.matchId}`,
+      icone: "whistle",
     });
   }
   if (r.matchLePlusFou) {
@@ -53,6 +59,7 @@ export default function Records({
       valeur: `${m.total} buts`,
       contexte: `${m.nomA} ${m.scoreA} – ${m.scoreB} ${m.nomB} · ${D.jourCourt(m.date)}`,
       href: `/c/${slug}/matches/${m.matchId}`,
+      icone: "ball",
     });
   }
   if (r.soireeLaPlusFolle) {
@@ -63,6 +70,7 @@ export default function Records({
       valeur: `${s.buts} buts`,
       contexte: `${s.matchs} matchs · ${D.jourLong(s.date)}`,
       href: `/c/${slug}/sessions/${s.matchDayId}`,
+      icone: "calendar",
     });
   }
   if (r.leCarton) {
@@ -131,7 +139,9 @@ export default function Records({
             {l.avatar ? (
               <AvatarAnneau nom={l.avatar.nom} photo={l.avatar.photo} taille={38} />
             ) : (
-              <span className="pastille" aria-hidden />
+              <span className="pastille" aria-hidden>
+                <Icon name={l.icone ?? "trophy"} size={19} />
+              </span>
             )}
             <span className="bloc">
               <span className="titre">{l.titre}</span>

@@ -98,9 +98,14 @@ export function joursAvantSoiree(soiree: Soiree, maintenant: Date = new Date()):
 
 // ── La bannière ─────────────────────────────────────────────────────────────
 
-/// « Ce soir 19:00 — Five Renault. », « Demain 19:00. », « Lundi 19:00. »
-/// dans la semaine, « Lun. 28 sept. 19:00. » au-delà. Le samedi, « Lun. 21
-/// sept. » obligeait à compter.
+/// Le QUAND de la bannière, et lui seul : « Ce soir 19:00 », « Demain
+/// 19:00 », « Lundi 19:00 » dans la semaine, « Lun. 28 sept. 19:00 » au-delà.
+/// Le samedi, « Lun. 21 sept. » obligeait à compter.
+///
+/// Le lieu en sortait (`— Urban Soccer Guyancourt`), et le titre passait alors
+/// sur deux lignes sous le bouton de fermeture : deux informations de rang
+/// différent dans une seule phrase, qui finissait par un point comme si
+/// c'était une phrase. Le lieu a sa ligne à lui (`soiree.lieu`), en dessous.
 export function titreBanniere(soiree: Soiree, maintenant: Date = new Date()): string {
   const n = joursAvantSoiree(soiree, maintenant);
   const heure = soiree.heure ?? heureDe(soiree.date);
@@ -113,7 +118,7 @@ export function titreBanniere(soiree: Soiree, maintenant: Date = new Date()): st
           // du club.
           (soiree.jourLong?.split(" ")[0] ?? majuscule(nomDuJour(soiree.date)))
         : abrege;
-  return `${jour} ${heure}${soiree.lieu ? ` — ${soiree.lieu}` : ""}.`;
+  return `${jour} ${heure}`;
 }
 
 /// Ce que la bannière dit au joueur de SA place.
@@ -121,18 +126,21 @@ export function titreBanniere(soiree: Soiree, maintenant: Date = new Date()): st
 /// Un abonné est compté présent sans avoir répondu : « Touche pour répondre »
 /// sous « 8 présents » lui laissait croire qu'il n'en faisait pas partie. Sans
 /// profil joueur dans ce club (un dirigeant), il n'a rien à répondre.
+///
+/// Sans point final : c'est une étiquette dans une ligne de trois, pas une
+/// phrase.
 export function maPlace(soiree: Soiree): string {
   const p = soiree.maPresence;
-  if (p === null) return "Touche pour la soirée.";
+  if (p === null) return "Touche pour la soirée";
   // Serveur ancien : seule la réponse explicite est connue.
   const statut = p ? p.statut : soiree.maReponse;
-  if (!statut) return "Touche pour répondre.";
-  if (statut === "OUT") return "Tu as dit absent.";
-  if (statut === "MAYBE") return "Tu as dit peut-être.";
-  return p?.viaAbonnement ? "Tu es compté présent." : "Tu es inscrit.";
+  if (!statut) return "Touche pour répondre";
+  if (statut === "OUT") return "Tu as dit absent";
+  if (statut === "MAYBE") return "Tu as dit peut-être";
+  return p?.viaAbonnement ? "Tu es compté présent" : "Tu es inscrit";
 }
 
-/// « Dans 2 jours · 8 présents · 4 places · Touche pour répondre. »
+/// « Dans 2 jours · 8 présents · 4 places · Touche pour répondre »
 export function aideBanniere(soiree: Soiree, maintenant: Date = new Date()): string {
   const n = joursAvantSoiree(soiree, maintenant);
   return [n >= 2 && n <= 6 ? `Dans ${n} jours` : null, soiree.phrase, maPlace(soiree)]

@@ -131,23 +131,28 @@ export default async function MatchesPage({
 
   return (
     <main>
-      <div className="flex items-end justify-between gap-3">
-        <div>
+      {/* Le compteur était aligné sur le BAS du bloc de titre : dès que la
+          définition passait sur deux lignes, « 3 joués » venait se poser au
+          bout de la phrase, comme s'il en faisait partie. Il remonte sur la
+          ligne du kicker, où il se lit d'un coup d'œil — et la définition
+          récupère toute la largeur. */}
+      <div>
+        <div className="flex items-baseline justify-between gap-3">
           <span className="kicker">Historique</span>
-          <h1 className="display-md mt-1">Les matchs</h1>
-          {/* Pendant de la définition posée sur la page des soirées. Formulée
-              pour couvrir les trois cas que l'app produit : le match d'une
-              soirée, l'improvisé, et la rencontre contre un club adverse. */}
-          <p className="mt-1.5 max-w-sm text-sm text-[color:var(--ink-2)]">
-            Une rencontre jouée : un score, des buteurs, un chrono.{" "}
-            <span className="text-[color:var(--ink-1)]">
-              Dans une soirée, ou toute seule.
-            </span>
-          </p>
+          <span className="shrink-0 whitespace-nowrap text-[13px] font-semibold tabular-nums text-[color:var(--ink-3)]">
+            {finished.length} joué{finished.length > 1 ? "s" : ""}
+          </span>
         </div>
-        <span className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-[color:var(--ink-2)]">
-          {finished.length} joué{finished.length > 1 ? "s" : ""}
-        </span>
+        <h1 className="display-md mt-1">Les matchs</h1>
+        {/* Pendant de la définition posée sur la page des soirées. Formulée
+            pour couvrir les trois cas que l'app produit : le match d'une
+            soirée, l'improvisé, et la rencontre contre un club adverse. */}
+        <p className="entete-definition">
+          Une rencontre jouée : un score, des buteurs, un chrono.{" "}
+          <span className="text-[color:var(--ink-1)]">
+            Dans une soirée, ou toute seule.
+          </span>
+        </p>
       </div>
 
       {/* En direct — le panneau commun. Le score s'écrivait ici une
@@ -268,7 +273,10 @@ export default async function MatchesPage({
             <div key={g.cle} className="bande mt-5 first:mt-0">
               <div className="bande-titre">
                 <span className="text-[13px] font-semibold text-[color:var(--ink-1)]">
-                  <span className="capitalize">{fmtJour(g.date)}</span>
+                  {/* Pas de `capitalize` : `jourLong2` met déjà la seule
+                      majuscule que le français demande. La classe en ajoutait
+                      une à chaque mot — « Mardi 15 Septembre ». */}
+                  <span>{fmtJour(g.date)}</span>
                   {g.titre && (
                     <span className="text-[color:var(--ink-3)]">
                       {" · "}

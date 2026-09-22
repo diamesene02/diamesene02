@@ -36,6 +36,44 @@
 .reg-champ.nom {
   text-align: left;
 }
+/* Une rangée dont la valeur est trop longue pour la moitié droite : le
+   libellé prend sa ligne, la valeur prend la suivante, sur toute la largeur.
+   C'est le geste des réglages d'iOS quand un nom ne tient pas — et le seul
+   qui marche avec « Renault Five Urban Guy ». */
+.rangee-ios.empilee {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 8px;
+  padding: 12px 0;
+}
+.rangee-ios.empilee > .libelle {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--i2);
+}
+/* Une rangée dont l'aide est une PHRASE : elle passe sous la rangée, sur
+   toute la largeur, au lieu de se tasser sur trois lignes dans la moitié
+   gauche pendant que le champ flotte à droite. */
+.rangee-ios.avec-aide {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+  padding: 12px 0;
+}
+.rangee-ios.avec-aide > .libelle {
+  font-weight: 500;
+}
+.rangee-ios.avec-aide > .aide {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--i2);
+  text-wrap: pretty;
+}
 .reg-select {
   position: relative;
   display: inline-flex;

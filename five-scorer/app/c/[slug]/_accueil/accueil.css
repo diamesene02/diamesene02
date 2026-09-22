@@ -230,11 +230,14 @@
   background: var(--cd);
   box-shadow: var(--cs);
 }
+/* La dernière capitale tracée de l'accueil : « FEUILLE RESTÉE OUVERTE » se
+   lisait comme une étiquette d'inventaire au-dessus d'une carte. Le texte
+   source est déjà écrit en bas de casse ; la couleur d'alerte suffit à la
+   faire voir (même correction que .section-ios, .saison-mois, .saison-date). */
 .accueil-rattrapage .titre {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: var(--or);
 }
 .accueil-rattrapage .rangee {

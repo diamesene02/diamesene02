@@ -183,7 +183,7 @@ export default function Effectif() {
               d'une liste de visages, et c'est elle qu'on attend. */}
           {occupe && !donnees && (
             <Squelette etiquette="On va chercher le vestiaire">
-              <CarteSquelette t={t} rangees={7} hauteurRangee={64} style={s.squelette} />
+              <CarteSquelette t={t} rangees={8} hauteurRangee={58} style={s.squelette} />
             </Squelette>
           )}
           {erreur != null && (
@@ -248,6 +248,12 @@ export default function Effectif() {
                 style={({ pressed }) => [s.deplier, pressed && { opacity: 0.6 }]}
               >
                 <Text style={[s.deplierTexte, { color: t.i2 }]}>Archivés ({archives.length})</Text>
+                {/* Le chevron pivote vers le bas quand le repli est ouvert :
+                    le titre seul ne disait pas qu'il y avait quelque chose
+                    dessous, ni si on venait de l'ouvrir. */}
+                <View style={archivesOuverts && s.chevronOuvert}>
+                  <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={14} />
+                </View>
               </Pressable>
               {archivesOuverts && (
                 <CarteVerre t={t} style={[s.carte, s.carteArchives]}>
@@ -317,6 +323,8 @@ function Rangee({
           j.estMoi ? "toi" : null,
           niveau ? `niveau ${niveau.niveau}, ${niveau.titre}` : null,
           !petite && j.gardien ? "gardien" : null,
+          // Le point vert ne se voyait que des yeux : il se dit maintenant.
+          !petite && j.compteLie ? "a un compte" : null,
           chiffres,
         ]
           .filter(Boolean)
@@ -332,32 +340,43 @@ function Rangee({
           nom={j.nom}
           photo={j.photo}
           t={t}
-          taille={petite ? 34 : 44}
+          taille={petite ? 34 : 40}
           initiales={j.initiales}
         />
+        {/* LA LIGNE DU NOM N'APPARTIENT QU'AU NOM.
+            Elle portait jusqu'ici la pastille de niveau, le gant du gardien et
+            le point du compte lié : trois marques qui poussaient « Jean-
+            Baptiste » vers les points de suspension, et dont la position
+            changeait d'une rangée à l'autre selon ce que le joueur avait. Les
+            noms longs sont la règle au club — elles passent à droite, dans une
+            colonne qui s'aligne d'une rangée à l'autre. */}
         <View style={s.textes}>
-          <View style={s.ligneNom}>
-            <Text style={[s.nom, { color: encre }, j.estMoi && s.nomMoi]} numberOfLines={1}>
-              {j.nom}
-            </Text>
-            {/* Un archivé ne montre ni son poste, ni sa note, ni de
-                chevron : il ne joue plus. Ses chiffres restent — c'est ce
-                qu'on vient y chercher quand on le réactive. */}
-            {!petite && niveau && (
-              <PastilleNiveau niveau={niveau.niveau} titre={niveau.titre} couleur={couleurA} />
-            )}
-            {!petite && j.gardien && <IconeJeu nom="gant" couleur={jeton(t, "i3")} taille={13} />}
-            {!petite && j.compteLie && <View style={[s.pointLie, { backgroundColor: jeton(t, "ok") }]} />}
-          </View>
+          <Text style={[s.nom, { color: encre }, j.estMoi && s.nomMoi]} numberOfLines={1}>
+            {j.nom}
+          </Text>
           <View style={s.sousLigne}>
-            {!petite && <Etoiles note={j.niveau} couleur={t.i2} />}
+            {/* La note était peinte en encre secondaire : des étoiles grises
+                sur un fond gris, qu'on ne lisait qu'en s'arrêtant dessus. */}
+            {!petite && <Etoiles note={j.niveau} couleur={t.ink} taille={12} />}
             <Text style={[s.chiffres, { color: t.i2 }]} numberOfLines={1}>
               {chiffres}
               {!petite && j.invite ? " · invité" : ""}
             </Text>
           </View>
         </View>
-        {!petite && <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={15} />}
+        {/* Un archivé ne montre ni ses marques, ni de chevron : il ne joue
+            plus. Ses chiffres restent — c'est ce qu'on vient y chercher quand
+            on le réactive. */}
+        {!petite && (
+          <View style={s.marques}>
+            {j.gardien && <IconeJeu nom="gant" couleur={jeton(t, "i2")} taille={15} />}
+            {j.compteLie && <View style={[s.pointLie, { backgroundColor: jeton(t, "ok") }]} />}
+            {niveau && (
+              <PastilleNiveau niveau={niveau.niveau} titre={niveau.titre} couleur={couleurA} />
+            )}
+            <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={15} />
+          </View>
+        )}
       </Pressable>
 
       {/* Les outils sous la rangée, alignés sur le texte : ce sont des gestes
@@ -419,19 +438,23 @@ const s = StyleSheet.create({
   ajouter: { marginTop: 16 },
   carte: { paddingHorizontal: 16, marginTop: 16 },
   carteArchives: { marginTop: 12 },
-  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64 },
-  rangeePetite: { minHeight: 52 },
+  // 58 et non 64 : avec un avatar de 40, deux lignes de texte tiennent au
+  // large dans 58, et l'écran montre une rangée de plus sans rien serrer.
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 58 },
+  rangeePetite: { minHeight: 50 },
   // Ma ligne, surlignée comme dans les tableaux des stats : le verre des
   // pilules, débordant de 8 de chaque côté pour que le texte ne bouge pas.
   moi: { marginHorizontal: -8, paddingHorizontal: 8, borderRadius: 14 },
   textes: { flex: 1, minWidth: 0, gap: 3 },
-  ligneNom: { flexDirection: "row", alignItems: "center", gap: 6 },
-  nom: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
+  nom: { fontSize: 17, fontWeight: "600" },
   nomMoi: { fontWeight: "700" },
+  // La colonne de droite : gant, compte lié, niveau, chevron — toujours dans
+  // cet ordre, alignée à droite d'une rangée à l'autre.
+  marques: { flexDirection: "row", alignItems: "center", gap: 8 },
   pointLie: { width: 7, height: 7, borderRadius: 3.5 },
-  sousLigne: { flexDirection: "row", alignItems: "center", gap: 10 },
-  chiffres: { fontSize: 13, flexShrink: 1 },
-  outils: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingLeft: 56, paddingBottom: 12 },
+  sousLigne: { flexDirection: "row", alignItems: "center", gap: 8 },
+  chiffres: { fontSize: 13, flexShrink: 1, fontVariant: ["tabular-nums"] },
+  outils: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingLeft: 52, paddingBottom: 12 },
   outil: {
     height: 34,
     borderRadius: 17,
@@ -447,11 +470,14 @@ const s = StyleSheet.create({
 
   // « Archivés (36) » : le kicker du site, à gauche, 32 sous la carte.
   deplier: {
+    flexDirection: "row",
+    alignItems: "center",
     alignSelf: "flex-start",
-    justifyContent: "center",
+    gap: 6,
     minHeight: 44,
     marginTop: 20,
     paddingHorizontal: 4,
   },
   deplierTexte: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },
+  chevronOuvert: { transform: [{ rotate: "90deg" }] },
 });

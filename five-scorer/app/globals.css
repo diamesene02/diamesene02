@@ -2475,6 +2475,70 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* ── La marque et le nom du club ──────────────────────────────────────── */
+/* Mesuré à 402 px : « Five Scorer » en 26 gras prend 150 px, la pilule de
+   « Renault Five Urban Guy » en prend 242, et la barre n'en offre que 374.
+   L'un des deux doit céder. Ce ne peut pas être le club : c'est le sujet de
+   l'écran, et un nom de club coupé en « Renault F… » ne veut plus rien dire.
+   La marque garde donc son écusson — qui porte le lien et le nom accessible
+   — et ne déploie son mot qu'à partir de 500 px, la largeur à laquelle les
+   deux tiennent ensemble. */
+.barre-marque {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  text-decoration: none;
+}
+.barre-marque .mot {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+@media (max-width: 499px) {
+  .barre-marque .mot {
+    display: none;
+  }
+}
+.barre-club {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ── L'en-tête d'une page de liste ────────────────────────────────────── */
+/* Kicker, titre, définition, puis la rangée d'actions. Les trois listes du
+   club (soirées, matchs, effectif) avaient chacune leur mise en page ici :
+   un bouton en pastille jeté au bout d'un flex-wrap, un lien gris en
+   dessous, un bouton pleine largeur. Un seul dessin désormais — et une
+   seule des actions porte le plein. */
+.entete-definition {
+  margin-top: 6px;
+  max-width: 34rem;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--i2);
+  /* Sans elle, la définition laissait un mot seul en fin de ligne
+     (« … qui vient. Les / matchs se jouent dedans. »). */
+  text-wrap: pretty;
+}
+.entete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.entete-actions > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .titre-ecran {
   font-size: 34px;
   font-weight: 700;
@@ -2776,16 +2840,34 @@
 }
 
 /* ── Le tableau : 9 colonnes, chiffres tabulaires ─────────────────────── */
+/* Sept colonnes de chiffres et un nom sur 402 px : c'est le nom qui payait.
+   Il ne restait que 90 px pour « Compte de dev », qui sortait en « Compte
+   d… » — et les prénoms du club sont longs. Les colonnes rendent donc ce
+   qu'elles n'utilisaient pas : à deux chiffres en chasse tabulaire, 22 px
+   suffisent, et V/N/D/B descendent d'un cran de corps (voir plus bas) — ce
+   sont les colonnes qu'on ne lit pas en premier. Le nom passe de 90 à 124 px.
+   Les six colonnes restent ÉGALES entre elles : c'est ce qui fait qu'on lit
+   une ligne de chiffres en diagonale. */
 .tableau-tete,
 .tableau-rangee {
   display: grid;
-  grid-template-columns: 24px 30px 1fr 30px 26px 26px 26px 30px 40px;
+  grid-template-columns: 22px 28px minmax(0, 1fr) 26px 22px 22px 22px 26px 34px;
   align-items: center;
-  padding: 0 6px;
+  padding: 0 4px;
   font-variant-numeric: tabular-nums;
 }
 .tableau-tete {
   padding-bottom: 8px;
+  font-size: 13px;
+  color: var(--i3);
+}
+/* V · N · D · B : le détail du bilan, sous les deux chiffres qu'on vient
+   chercher (matchs joués, points). Un cran de corps en moins et l'encre
+   secondaire : la ligne se lit sans être relue. */
+.tableau-rangee > span:nth-child(5),
+.tableau-rangee > span:nth-child(6),
+.tableau-rangee > span:nth-child(7),
+.tableau-rangee > span:nth-child(8) {
   font-size: 15px;
   color: var(--i2);
 }
@@ -2825,8 +2907,8 @@
   text-align: left;
 }
 .tableau-rangee > .avatar-anneau {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   font-size: 11px;
 }
 .tableau-rangee > span:last-child {
@@ -2989,22 +3071,40 @@
   background: radial-gradient(130% 150% at 100% 0%, var(--taH), transparent 60%);
   pointer-events: none;
 }
+/* La réserve du ✕ est un rembourrage à droite, pas un plafond de 270 px sur
+   le titre : le plafond faisait casser « Jeudi 19:00 — Urban / Soccer
+   Guyancourt. » au milieu du nom du terrain, et laissait un tiers de la
+   bannière vide sur un grand écran. `balance` répartit les deux lignes du
+   titre, `pretty` empêche la ligne d'aide de finir sur un mot seul. */
 .banniere .texte {
   position: relative;
   padding: 22px 22px 0;
   pointer-events: none;
 }
 .banniere .texte .titre {
-  font-size: 21px;
-  font-weight: 600;
-  line-height: 1.22;
-  letter-spacing: -0.3px;
-  max-width: 270px;
+  /* Trois rangs, trois tailles : le quand (26), le lieu (17), l'état (13).
+     Tout tenait avant dans une phrase de 21 px qui passait sur deux lignes
+     sous le ✕ ; l'app a pris cette forme, le site la partage. */
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: -0.4px;
+  /* Seul le TITRE passe sous le ✕ : lui réserver la place, plutôt qu'au
+     bloc entier, rend ses 34 px aux lignes en dessous. */
+  padding-right: 34px;
+  text-wrap: balance;
+}
+.banniere .texte .lieu {
+  font-size: 17px;
+  color: var(--i2);
+  margin-top: 2px;
+  text-wrap: pretty;
 }
 .banniere .texte .aide {
-  font-size: 16px;
-  color: var(--i2);
+  font-size: 13px;
+  color: var(--i3);
   margin-top: 6px;
+  text-wrap: pretty;
 }
 
 /* ═══ REMAPS des anciens dessins sur le nouveau vocabulaire ══════════════ */
@@ -3440,6 +3540,25 @@ details > summary.kicker {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-height: 1.3;
+}
+/* Quand les deux lignes sont NOMMÉES (soirée à venir : « quand · présents »
+   puis le terrain), on ne compte plus sur le point de coupe du navigateur :
+   chaque ligne est une boîte, chacune s'élide pour son compte, et la
+   seconde recule d'un ton — c'est le renseignement le plus long et le moins
+   surprenant de la rangée. */
+[data-club-theme] .ticker-buteurs.lignes {
+  display: block;
+  -webkit-line-clamp: none;
+}
+[data-club-theme] .ticker-buteurs.lignes > .l1,
+[data-club-theme] .ticker-buteurs.lignes > .l2 {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-club-theme] .ticker-buteurs.lignes > .l2 {
+  color: var(--i3);
 }
 [data-club-theme] .ticker {
   /* Deux lignes de 15 px au lieu d'une : la rangée respire au lieu de

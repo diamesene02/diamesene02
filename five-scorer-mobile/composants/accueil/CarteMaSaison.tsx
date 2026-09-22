@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Avatar, CarteVerre, EcussonChasuble } from "../base";
+import EnTeteCarte from "./EnTeteCarte";
 import BarreProgression from "../succes/BarreProgression";
 import IconeSucces from "../succes/IconeSucces";
 import Medaille from "../succes/Medaille";
@@ -64,9 +65,13 @@ export default function CarteMaSaison({
 
   return (
     <CarteVerre t={t} style={s.carte}>
-      <Text style={[s.titreCarte, { color: t.ink }]} accessibilityRole="header">
-        Ma saison
-      </Text>
+      <EnTeteCarte
+        t={t}
+        titre="Ma saison"
+        action="Mes succès"
+        etiquette="Voir mes succès"
+        onAction={onVoir}
+      />
 
       <View
         style={s.tete}
@@ -147,14 +152,6 @@ export default function CarteMaSaison({
           </Ligne>
         )}
       </View>
-
-      <Pressable
-        onPress={onVoir}
-        accessibilityRole="button"
-        style={({ pressed }) => [s.pied, { borderTopColor: jeton(t, "sep") }, pressed && { opacity: 0.6 }]}
-      >
-        <Text style={[s.piedTexte, { color: jeton(t, "i2") }]}>Mes succès ›</Text>
-      </Pressable>
     </CarteVerre>
   );
 }
@@ -204,15 +201,7 @@ function Ligne({
 }
 
 const s = StyleSheet.create({
-  carte: { paddingHorizontal: 18 },
-  titreCarte: {
-    fontSize: 22,
-    fontWeight: "600",
-    letterSpacing: -0.3,
-    textAlign: "center",
-    paddingTop: 20,
-    paddingBottom: 12,
-  },
+  carte: { paddingHorizontal: 18, paddingBottom: 12 },
   tete: { flexDirection: "row", alignItems: "center", gap: 14 },
   niveau: { flex: 1, minWidth: 0 },
   titre: { fontSize: 22, fontWeight: "700", letterSpacing: -0.3, lineHeight: 25 },
@@ -251,6 +240,4 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   barrePalier: { marginTop: 7 },
-  pied: { paddingTop: 14, paddingBottom: 12, borderTopWidth: 1, alignItems: "center" },
-  piedTexte: { fontSize: 17, fontWeight: "600" },
 });

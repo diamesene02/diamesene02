@@ -44,9 +44,15 @@ export default function BarreClub(props: {
           que sur 34 de haut. Il en prend 44, sans bouger d'un pixel à
           l'écran — la barre fait déjà plus haut que ça. */}
       {accueil ? (
-        <Link href={base} className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2">
+        // Deux noms se disputaient cette barre, et c'est toujours le club qui
+        // perdait : « Renault Five Urban Guy » sortait en « Renault F… ».
+        // Le nom du club est l'identité de l'écran, la marque est un mot que
+        // l'utilisateur connaît par cœur — c'est donc elle qui s'efface quand
+        // les deux ne tiennent pas (voir .barre-marque, à partir de 500 px).
+        // Le lien vers l'accueil, lui, ne bouge pas : l'écusson le porte.
+        <Link href={base} aria-label="Five Scorer — accueil du club" className="barre-marque">
           <Ecusson camp="A" lettre="F" taille={34} style={{ borderRadius: 9 }} />
-          <span className="truncate text-[26px] font-bold leading-none tracking-[-.5px] text-[color:var(--ink)]">
+          <span className="mot" aria-hidden>
             Five Scorer
           </span>
         </Link>
@@ -68,7 +74,10 @@ export default function BarreClub(props: {
           </svg>
         </button>
       )}
-      <div className="flex flex-none items-center gap-3" style={{ maxWidth: "44%" }}>
+      {/* La pilule prend toute la place qui reste : elle était plafonnée à
+          44 % de la barre, soit huit caractères de nom de club sur un
+          téléphone. */}
+      <div className="barre-club">
         <SyncBadge compact />
         <MenuClub {...props} />
       </div>

@@ -27,6 +27,7 @@ import Horloge from "../../composants/match/Horloge";
 import { PiedDeFin, TempsPlein, useMesDeblocagesDuMatch } from "../../composants/match/FinDeMatch";
 import { matchSuivant } from "../../composants/match/rejouer";
 import { phraseRetrait, quoiAnnuler } from "../../composants/match/textes";
+import { tailleDuScore } from "../../composants/match/score";
 import { enregistrerPlantage } from "../../lib/plantages/fichier";
 import { jetonsDuClub, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { nowElapsed } from "../../lib/noyau/clock";
@@ -717,7 +718,10 @@ export default function Match() {
       <View style={s.equipes}>
         {equipes.map((e) => (
           <View key={e.camp} style={s.equipe}>
-            <EcussonChasuble couleur={e.couleur} lettre={e.nom[0] ?? "?"} />
+            {/* 64 et non 76 : sous un score de 132, l'écusson n'a pas à
+                rivaliser avec lui — et les douze points rendus descendent
+                d'autant la première tuile de joueur, qui est ce qu'on tape. */}
+            <EcussonChasuble couleur={e.couleur} lettre={e.nom[0] ?? "?"} taille={64} />
             <Text style={[s.nomEquipe, { color: t.ink }]} numberOfLines={1}>
               {e.nom}
             </Text>
@@ -830,7 +834,7 @@ export default function Match() {
                     photo={j.photo}
                     t={t}
                     anneau={e.camp === "A" ? (t.taR ?? couleurA) : (t.tbR ?? couleurB)}
-                    taille={34}
+                    taille={30}
                   />
                   <Text style={[s.nomJoueur, { color: t.ink }]} numberOfLines={1}>
                     {j.name}
@@ -1200,7 +1204,7 @@ export default function Match() {
                           i > 0 && { borderTopWidth: 1, borderTopColor: t.sep },
                         ]}
                       >
-                        <Text style={[s.minute, { color: t.i3 }]}>
+                        <Text style={[s.minute, { color: t.i2 }]}>
                           {e.minute != null ? `${e.minute}′` : "—"}
                         </Text>
                         {e.type === "HALF_TIME" ? (
@@ -1375,9 +1379,18 @@ function legende(iso: string): string {
   });
 }
 
+/// Le tableau de marque. La taille se calcule (`tailleDuScore`) : un score à
+/// deux chiffres tient dans sa colonne sans qu'on demande à UIKit de réduire
+/// le texte — au récap, cette réduction automatique a déjà peint un 2 à 1 en
+/// une dizaine de points. Le chiffre qu'on lit à deux mètres, entre deux
+/// actions, ne doit dépendre de rien.
 function Chiffre({ valeur, perd }: { valeur: number; perd: boolean }) {
   return (
-    <Text style={[s.chiffre, perd && s.chiffrePerd]} numberOfLines={1} adjustsFontSizeToFit>
+    <Text
+      allowFontScaling={false}
+      style={[s.chiffre, tailleDuScore(valeur, 132), perd && s.chiffrePerd]}
+      numberOfLines={1}
+    >
       {valeur}
     </Text>
   );
@@ -1401,7 +1414,7 @@ function Pastille({ etat }: { etat: EtatSynchro | null }) {
   const alerte = etat.reconnexionRequise || etat.bloquees > 0;
   return (
     <Text
-      style={[s.pastilleTexte, { color: alerte ? "#ff453a" : "rgba(255,255,255,0.5)" }]}
+      style={[s.pastilleTexte, { color: alerte ? ROUGE : "rgba(255,255,255,0.62)" }]}
       numberOfLines={1}
     >
       {texte}
@@ -1428,7 +1441,10 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.62)",
     textAlign: "center",
   },
-  pastilleTexte: { width: 92, fontSize: 13, textAlign: "right" },
+  // « À jour », « 2 à envoyer », « Hors ligne » : la réponse à « est-ce que
+  // mon but est parti ? ». À 13 points en 0,5 d'opacité, on ne la lisait pas
+  // au soleil — 600 et l'encre secondaire du produit.
+  pastilleTexte: { width: 92, fontSize: 13, fontWeight: "600", textAlign: "right" },
   droite: { flexDirection: "row", alignItems: "center", gap: 8 },
 
   marque: {
@@ -1439,12 +1455,12 @@ const s = StyleSheet.create({
   },
   chiffre: {
     flex: 1,
-    fontSize: 132,
     fontWeight: "800",
-    letterSpacing: -6.6,
-    lineHeight: 138,
     textAlign: "center",
     color: "#ffffff",
+    // Chasse tabulaire : le 1 occupe la place du 8, donc le score ne se
+    // décale plus d'un point à chaque but.
+    fontVariant: ["tabular-nums"],
   },
   chiffrePerd: { color: "rgba(255,255,255,0.4)" },
   milieu: { alignItems: "center", gap: 4, paddingHorizontal: 8, minWidth: 116 },
@@ -1467,18 +1483,36 @@ const s = StyleSheet.create({
     overflow: "hidden",
     minWidth: 0,
   },
+  // Deux colonnes sur un téléphone de 393 : une tuile fait 177 points, dont
+  // 157 utiles. Chaque point pris à la marge, à l'écart et à l'avatar est un
+  // point rendu au NOM — et les prénoms du club sont longs (« Abdoulaye »,
+  // « Mouhamadou »). Marge 12 → 10, écart 10 → 8, avatar 34 → 30 : le nom
+  // passe de 89 à 97 points, et le compteur de buts en gagne quatre au
+  // passage sans que le nom en perde.
   joueur: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     height: 58,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
   },
-  separe: { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.1)" },
-  nomJoueur: { flex: 1, fontSize: 17, fontWeight: "500" },
-  buts: { fontSize: 22, fontWeight: "700", minWidth: 14, textAlign: "right" },
+  separe: { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.12)" },
+  nomJoueur: { flex: 1, minWidth: 0, fontSize: 17, fontWeight: "500" },
+  // Le compteur de buts est le deuxième chiffre de l'écran, après le score :
+  // c'est lui qu'on relit entre deux actions. En 24/800 et en chasse
+  // tabulaire, avec sa colonne réservée — le nom ne recule plus d'un point
+  // quand le premier but tombe.
+  buts: {
+    fontSize: 24,
+    fontWeight: "800",
+    minWidth: 18,
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
   csc: { height: 46, alignItems: "center", justifyContent: "center" },
-  cscTexte: { fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.55)" },
+  // 0,66 et non 0,55 : c'est une cible qu'on vise en plein soleil, pas une
+  // légende.
+  cscTexte: { fontSize: 15, fontWeight: "600", color: "rgba(255,255,255,0.66)" },
 
   // Un carton se dessine : un rectangle de couleur aux proportions d'un
   // carton d'arbitre. Aucune icône à charger, aucune police à attendre.
@@ -1522,7 +1556,7 @@ const s = StyleSheet.create({
   },
   ajoutTitre: { fontSize: 15, fontWeight: "600", marginBottom: 8 },
   ajoutLigne: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  ajoutNom: { flex: 1, minWidth: 0, fontSize: 15 },
+  ajoutNom: { flex: 1, minWidth: 0, fontSize: 17 },
   ajoutBouton: {
     height: 44,
     maxWidth: 110,
@@ -1531,7 +1565,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  ajoutBoutonTexte: { fontSize: 13, fontWeight: "600" },
+  // Le nom de l'équipe est écrit SUR la chasuble : 15 en 700 pour qu'il tienne
+  // le contraste d'un orange vif comme d'un noir. À 13 en 600, on visait un
+  // bouton dont on ne lisait pas l'étiquette.
+  ajoutBoutonTexte: { fontSize: 15, fontWeight: "700" },
   entree: {
     alignSelf: "center",
     minHeight: 44,
@@ -1617,11 +1654,17 @@ const s = StyleSheet.create({
   },
   etoile: { fontSize: 20 },
 
+  // La chronologie est le panneau qu'on ouvre pour RATTRAPER une erreur : la
+  // minute est ce qui permet de reconnaître le bon événement. À 13 points
+  // dans l'encre tertiaire, on la cherchait. En 15, tabulaire, les minutes
+  // s'alignent en colonne et se lisent d'un coup.
   evenement: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52 },
-  minute: { width: 34, fontSize: 13 },
+  minute: { width: 38, fontSize: 15, fontVariant: ["tabular-nums"] },
   pastilleCamp: { width: 10, height: 10, borderRadius: 5 },
-  nomEvenement: { fontSize: 16, fontWeight: "500" },
-  passeur: { fontSize: 12 },
+  // 17 et 13 : le corps et la légende du produit. 16 et 12 n'appartenaient à
+  // aucune des deux échelles.
+  nomEvenement: { fontSize: 17, fontWeight: "500" },
+  passeur: { fontSize: 13 },
   annuler: { fontSize: 15, fontWeight: "600" },
   cibleAnnuler: { minHeight: 44, minWidth: 44, paddingHorizontal: 6, alignItems: "center", justifyContent: "center" },
   retraitFeuille: { paddingTop: 8, marginHorizontal: -14 },

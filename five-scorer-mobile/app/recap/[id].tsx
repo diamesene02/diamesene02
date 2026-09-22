@@ -440,10 +440,14 @@ export default function Recap() {
 
         {fiche && !programme && a && b && (
           <>
-            {fiche.corrige && <Text style={s.corrige}>{fiche.corrige}</Text>}
             <BlocScore scoreA={fiche.scoreA} scoreB={fiche.scoreB} etat={etat} date={fiche.dateCourte} />
             <Equipes camps={[a, b]} couleurs={couleurs} />
             <Buteurs a={a.buteurs} b={b.buteurs} />
+            {/* « Corrigé le 22 sept. par Untel » : une mention de registre, pas
+                un titre. Elle ouvrait l'affiche, au-dessus du score, et c'est
+                la première chose qu'on lisait d'un match. Elle passe SOUS les
+                buteurs, en légende — l'affiche commence par le score. */}
+            {fiche.corrige && <Text style={s.corrige}>{fiche.corrige}</Text>}
 
             <View style={s.bas}>
               {erreur != null && <ErreurChargement t={t} erreur={erreur} onReessayer={charger} />}
@@ -711,14 +715,14 @@ const s = StyleSheet.create({
   contenu: { paddingBottom: 40 },
   corrige: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(255,255,255,0.55)",
     textAlign: "center",
-    paddingTop: 4,
-    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingHorizontal: 28,
   },
-  // Sous les buteurs : les onglets à 24, puis les cartes à 14 l'une de
-  // l'autre et à 14 des bords (`.recap-suite`).
-  bas: { paddingHorizontal: 14, paddingTop: 24, gap: 14 },
+  // Sous les buteurs : les onglets à 28 (l'échelle d'espacement), puis les
+  // cartes à 14 l'une de l'autre et à 14 des bords (`.recap-suite`).
+  bas: { paddingHorizontal: 14, paddingTop: 28, gap: 14 },
   suivi: { fontSize: 15, lineHeight: 20, textAlign: "center", paddingHorizontal: 10 },
   pleins: { gap: 10, paddingTop: 4 },
   admin: {

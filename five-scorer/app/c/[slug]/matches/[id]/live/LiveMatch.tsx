@@ -841,7 +841,13 @@ export default function LiveMatch({
             <path d="M10 2L2 10l8 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <span className="legende">{dateLabel} · {external ? match.teamBName : "Match"}</span>
+        {/* Une seule majuscule, celle du français : la feuille titrait
+            « Mer. 9 Sept. · Match » — la classe mettait une capitale à chaque
+            mot (voir .live-barre .legende). */}
+        <span className="legende">
+          {dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)} ·{" "}
+          {external ? match.teamBName : "Match"}
+        </span>
         <div className="droite">
           <SyncBadge compact />
           <button

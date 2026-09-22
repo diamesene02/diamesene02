@@ -925,8 +925,14 @@ export function Interrupteur({
 }
 
 /// Les onglets texte en tête de carte (`.onglets` du site) : colonnes
-/// égales, 62 de haut, 20/600, l'inactif en `i3`, puis le filet.
+/// égales, 56 de haut, 19/600, l'inactif en `i2`, puis le filet.
 /// « Mardi 15 · Ce soir · À venir », « Tableau · Buteurs · Forme ».
+///
+/// L'inactif était en `i3`, le gris des chevrons : sur la capture d'Ibrahima,
+/// « Lundi 14 » à côté d'« À venir » ne se lisait plus comme un onglet mais
+/// comme une mention effacée. C'est pourtant la moitié de la navigation de la
+/// carte. `i2` le rend lisible sans lui disputer l'actif, que le trait qui
+/// glisse et l'encre pleine désignent déjà.
 export function Onglets<V extends string>({
   t,
   onglets,
@@ -978,8 +984,10 @@ export function Onglets<V extends string>({
               style={s.onglet}
             >
               <Text
-                style={[s.ongletTexte, { color: choisi ? t.ink : jeton(t, "i3") }]}
+                style={[s.ongletTexte, { color: choisi ? t.ink : jeton(t, "i2") }]}
                 numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
               >
                 {o.libelle}
               </Text>
@@ -1115,15 +1123,15 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
-  onglets: { flexDirection: "row", height: 62, alignItems: "center" },
+  onglets: { flexDirection: "row", height: 56, alignItems: "center" },
   onglet: {
     flex: 1,
-    height: 62,
+    height: 56,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
   },
-  ongletTexte: { fontSize: 20, fontWeight: "600", letterSpacing: -0.3 },
+  ongletTexte: { fontSize: 19, fontWeight: "600", letterSpacing: -0.3 },
   // Le trait de l'onglet choisi, posé sur le filet.
   ongletTrait: { position: "absolute", left: 0, bottom: 0, height: 2, borderRadius: 1 },
   filet: { height: 1, marginHorizontal: 10 },

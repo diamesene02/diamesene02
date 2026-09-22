@@ -11,7 +11,14 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ecran from "../../composants/Ecran";
-import { BoutonPlein, BoutonRond, BoutonVerre, Carte, Saisie } from "../../composants/base";
+import {
+  BoutonPlein,
+  BoutonRond,
+  BoutonVerre,
+  Carte,
+  Interrupteur,
+  Saisie,
+} from "../../composants/base";
 import { jeton, JETONS_NEUTRES, type Jetons } from "../../lib/couleurs";
 import { ini } from "../../lib/ini";
 import { messageErreur } from "../../lib/erreurs";
@@ -211,16 +218,21 @@ export default function FicheJoueur() {
                     </Text>
                   )}
                 </Pressable>
+                {/* Trois boutons pleine hauteur (52) empilés faisaient un mur
+                    de commandes plus haut que la photo qu'ils servent. En 44,
+                    ils tiennent à côté d'elle, et la photo reste le sujet. */}
                 <View style={s.photoActions}>
                   <BoutonVerre
                     t={t}
                     titre={photoEnCours ? "…" : photo ? "Changer" : "Photothèque"}
+                    taille="normal"
                     disabled={photoEnCours || envoi}
                     onPress={() => void prendrePhoto("photothèque")}
                   />
                   <BoutonVerre
                     t={t}
                     titre="Appareil photo"
+                    taille="normal"
                     disabled={photoEnCours || envoi}
                     onPress={() => void prendrePhoto("appareil")}
                   />
@@ -228,6 +240,7 @@ export default function FicheJoueur() {
                     <BoutonVerre
                       t={t}
                       titre="Retirer"
+                      taille="normal"
                       disabled={envoi}
                       onPress={() => setPhoto(null)}
                     />
@@ -308,7 +321,19 @@ export default function FicheJoueur() {
                     Le générateur d&apos;équipes les sépare en premier.
                   </Text>
                 </View>
-                <Text style={[s.valeur, { color: t.i2 }]}>{gardien ? "Oui" : "Non"}</Text>
+                {/* Un interrupteur, comme partout ailleurs dans l'app pour un
+                    oui/non. Le mot « Non » posé à droite de la rangée avait
+                    l'air d'une valeur à lire, pas d'une chose à changer — rien
+                    ne disait que la rangée se tapait. La rangée entière reste
+                    touchable : c'est la plus grande cible des deux. */}
+                <Interrupteur
+                  valeur={gardien}
+                  etiquette="Gardien"
+                  onChange={(v) => {
+                    retourChoix();
+                    setGardien(v);
+                  }}
+                />
               </Pressable>
             </Carte>
 
@@ -397,10 +422,9 @@ const s = StyleSheet.create({
   case_: { flex: 1, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   caseTexte: { fontSize: 17, fontWeight: "600" },
 
-  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54 },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52 },
   libelle: { fontSize: 17, fontWeight: "600" },
-  aide: { fontSize: 13, lineHeight: 18, marginTop: 2 },
-  valeur: { fontSize: 17 },
+  aide: { fontSize: 13, lineHeight: 18, marginTop: 3 },
 
   avertissement: { fontSize: 15, textAlign: "center", paddingTop: 16, lineHeight: 21 },
   erreur: { fontSize: 15, textAlign: "center", paddingTop: 16 },

@@ -48,12 +48,14 @@
   display: flex;
   flex-direction: column;
 }
+/* « dim. », pas « DIM. » : la seule majuscule tracée que ce produit s'autorise
+   est le bandeau de contexte (voir .contexte dans globals.css). Le mot source
+   est déjà en bas de casse — on enlève la transformation, pas le mot. */
 .saison-date .jour {
   font-size: 13px;
   font-weight: 600;
   color: var(--i2);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0;
 }
 .saison-date .numero {
   font-size: 28px;
@@ -107,13 +109,20 @@
 .saison-etiquette.muet {
   color: var(--i3);
 }
-.saison-ajout {
+/* Les trois commandes du bas de calendrier. « Poser toute la saison » vivait
+   dans un .saison-actions qui n'a jamais existé dans cette feuille : il
+   retombait sur l'inline-flex de .verre et sortait à la largeur de son texte,
+   sous deux boutons pleine largeur. Les deux classes partagent désormais le
+   même dessin, et une seule des trois porte le plein — la principale. */
+.saison-ajout,
+.saison-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 20px 4px;
+  padding: 12px 20px 0;
 }
-.saison-ajout > * {
+.saison-ajout > *,
+.saison-actions > * {
   width: 100%;
 }
 .saison-vide {
@@ -217,5 +226,10 @@
   cursor: pointer;
 }
 .saison-form {
-  padding: 8px 20px 12px;
+  padding: 10px 20px 12px;
+}
+/* Replié, le formulaire n'est qu'un bouton de plus dans la pile : il reprend
+   le pas de .saison-ajout (10 px) au lieu d'en ajouter un autre. */
+.saison-form:has(> .saison-actions) {
+  padding: 0 0 12px;
 }

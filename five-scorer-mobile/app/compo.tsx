@@ -500,11 +500,10 @@ export default function Compo() {
             <>
               <CarteVerre t={t} style={s.carte}>
                 <Text style={[s.carteTitre, { color: t.ink }]}>Quand ?</Text>
-                <Text style={[s.aide, { color: jeton(t, "i2") }]}>
-                  {quand === "maintenant"
-                    ? "La feuille s'ouvre en direct, chrono lancé."
-                    : "Feuille sans chrono : tu tapes les buts, tu enregistres."}
-                </Text>
+                {/* La phrase décrit le choix RETENU : elle se lit donc après
+                    lui. Au-dessus du segment, on expliquait une réponse avant
+                    d'avoir montré la question, et le segment se retrouvait à
+                    trente points du titre qu'il concerne. */}
                 <Segment
                   t={t}
                   valeur={quand}
@@ -518,6 +517,11 @@ export default function Compo() {
                   ]}
                   style={{ marginTop: 12 }}
                 />
+                <Text style={[s.aide, { color: jeton(t, "i2") }]}>
+                  {quand === "maintenant"
+                    ? "La feuille s'ouvre en direct, chrono lancé."
+                    : "Feuille sans chrono : tu tapes les buts, tu enregistres."}
+                </Text>
                 {quand === "deja" && (
                   <View style={{ marginTop: 10 }}>
                     <ChampDate
@@ -617,53 +621,81 @@ export default function Compo() {
                     etat="Effectif"
                     heure="par équipe"
                   />
+                  {/* Deux champs nus côte à côte ne disaient pas lequel
+                      renomme quelle chasuble : on lisait un formulaire. Une
+                      pastille à la couleur de l'équipe devant chacun suffit,
+                      et elle tient même quand le champ est vide. */}
                   <View style={s.noms}>
-                    <Saisie
-                      t={t}
-                      value={nomA}
-                      onChangeText={(v) => {
-                        nomsTouches.current = true;
-                        setNomA(v);
-                      }}
-                      maxLength={40}
-                      accessibilityLabel="Nom de la première équipe"
-                      style={{ flex: 1, minWidth: 0 }}
-                    />
-                    <Saisie
-                      t={t}
-                      value={nomB}
-                      onChangeText={(v) => {
-                        nomsTouches.current = true;
-                        setNomB(v);
-                      }}
-                      maxLength={40}
-                      accessibilityLabel="Nom de la seconde équipe"
-                      style={{ flex: 1, minWidth: 0 }}
-                    />
+                    <View style={s.champNom}>
+                      <View style={[s.pastilleNom, { backgroundColor: couleurA }]} />
+                      <Saisie
+                        t={t}
+                        value={nomA}
+                        onChangeText={(v) => {
+                          nomsTouches.current = true;
+                          setNomA(v);
+                        }}
+                        maxLength={40}
+                        accessibilityLabel="Nom de la première équipe"
+                        style={s.saisieNom}
+                      />
+                    </View>
+                    <View style={s.champNom}>
+                      <View style={[s.pastilleNom, { backgroundColor: couleurB }]} />
+                      <Saisie
+                        t={t}
+                        value={nomB}
+                        onChangeText={(v) => {
+                          nomsTouches.current = true;
+                          setNomB(v);
+                        }}
+                        maxLength={40}
+                        accessibilityLabel="Nom de la seconde équipe"
+                        style={s.saisieNom}
+                      />
+                    </View>
                   </View>
                 </CarteVerre>
               )}
 
               <CarteVerre t={t} style={s.carteListe}>
+                {/* Un titre de section, pas un mode d'emploi. « Qui joue ? —
+                    tape : aucun → A → B » mettait la consigne DANS le titre,
+                    en 15 points : on lisait une phrase de réglage là où on
+                    cherche une section. Le titre reprend l'échelle des cartes
+                    (22/600), le compte devient un chiffre qu'on lit d'un coup,
+                    et la consigne descend en légende. */}
                 <View style={s.enteteListe}>
-                  <Text style={[s.enteteTexte, { color: t.ink }]}>
-                    {externe ? "Qui joue ? — tape pour sélectionner" : "Qui joue ? — tape : aucun → A → B"}
+                  <Text style={[s.enteteTexte, { color: t.ink }]} accessibilityRole="header">
+                    Qui joue ?
                   </Text>
-                  <Text style={[s.compteur, { color: jeton(t, "i2") }]}>{retenus.length}</Text>
+                  <Text
+                    style={[s.compteur, { color: t.ink }]}
+                    accessibilityLabel={`${retenus.length} joueur${retenus.length > 1 ? "s" : ""} sélectionné${retenus.length > 1 ? "s" : ""}`}
+                  >
+                    {retenus.length}
+                  </Text>
                 </View>
-                <Pressable
-                  onPress={tousOuAucun}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [s.tous, pressed && { opacity: 0.6 }]}
-                >
-                  <Text style={[s.tousTexte, { color: jeton(t, "i2") }]}>
-                    {retenus.length === effectif.length
-                      ? "Personne"
-                      : externe
-                        ? "Tout le monde"
-                        : `Tout le monde en ${nomA || "A"}`}
+                <View style={s.sousEntete}>
+                  <Text style={[s.consigne, { color: jeton(t, "i2") }]} numberOfLines={2}>
+                    {externe
+                      ? "Tape un joueur pour le sélectionner."
+                      : `Tape : personne → ${nomA || "A"} → ${nomB || "B"}.`}
                   </Text>
-                </Pressable>
+                  <Pressable
+                    onPress={tousOuAucun}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [s.tous, pressed && { opacity: 0.6 }]}
+                  >
+                    <Text style={[s.tousTexte, { color: t.ink }]} numberOfLines={1}>
+                      {retenus.length === effectif.length
+                        ? "Personne"
+                        : externe
+                          ? "Tout le monde"
+                          : `Tous en ${nomA || "A"}`}
+                    </Text>
+                  </Pressable>
+                </View>
                 {/* La rangée vit dans composants/compo/Rangee.tsx, mémoïsée.
                     Écrite ici, en ligne, elle se refaisait vingt fois à
                     chaque tap et à chaque frappe. Compté au banc (20 joueurs,
@@ -691,6 +723,17 @@ export default function Compo() {
                       // « entre nous » joue quand même, et du bon côté.
                       choix={externe ? (pris ? "A" : "aucun") : cc}
                       valeur={!pris ? "—" : externe ? "Joue" : cc === "A" ? nomA : nomB}
+                      // La chasuble elle-même, pas son nom en blanc : c'est ce
+                      // qui fait que la liste se lit comme DEUX ÉQUIPES et non
+                      // comme vingt lignes de formulaire.
+                      couleur={!pris ? null : cc === "B" && !externe ? couleurB : couleurA}
+                      encre={
+                        !pris
+                          ? null
+                          : cc === "B" && !externe
+                            ? (t.tbF ?? "#ffffff")
+                            : (t.taF ?? "#ffffff")
+                      }
                       separateur={i > 0}
                       onTourner={tourner}
                     />
@@ -820,10 +863,16 @@ function BarreCoupDEnvoi({
   // d'accueil de l'appareil. L'ajouter une seconde fois laissait un vide.
   return (
     <View style={s.barreBas} pointerEvents="box-none">
+      {/* Le fond de la barre est OPAQUE (`bgSolid`, la couleur unie
+          équivalente au fond de l'écran), pas le verre `mn` de la barre
+          d'onglets. Celle-ci ne flotte pas au-dessus d'un fond sombre mais
+          au-dessus d'une carte claire pleine de noms : à 80 % d'opacité, on
+          lisait « Cédric · Note 3 » à travers « Coup d'envoi ». Le rayon, le
+          trait et l'ombre gardent l'objet flottant du produit. */}
       <View
         style={[
           s.barreVerre,
-          { backgroundColor: t.mn ?? "rgba(24,24,28,0.92)", borderColor: jeton(t, "cb") },
+          { backgroundColor: jeton(t, "bgSolid"), borderColor: jeton(t, "cb") },
         ]}
       >
         <Text
@@ -922,9 +971,14 @@ const s = StyleSheet.create({
   carte: { paddingVertical: 16, paddingHorizontal: 18 },
   carteScore: { paddingTop: 6, paddingBottom: 14 },
   carteListe: { paddingHorizontal: 18, paddingBottom: 6 },
-  carteTitre: { fontSize: 17, fontWeight: "600" },
-  kicker: { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 },
-  aide: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  // Le titre de carte du produit (`.carte-titre` du site, `Carte` de
+  // base.tsx) : 22 en 600. À 17, « Quand ? » et « Équipes équilibrées »
+  // avaient le même corps que le texte des boutons juste dessous, et la page
+  // n'avait plus que deux tailles : celle du titre d'écran et celle de tout
+  // le reste.
+  carteTitre: { fontSize: 22, fontWeight: "600", letterSpacing: -0.3 },
+  kicker: { fontSize: 13, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase" },
+  aide: { fontSize: 13, lineHeight: 18, marginTop: 8 },
 
   puces: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   puce: {
@@ -938,22 +992,36 @@ const s = StyleSheet.create({
   puceTexte: { fontSize: 17, fontWeight: "600" },
   ligneAjout: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 12 },
 
-  noms: { flexDirection: "row", gap: 10, paddingHorizontal: 14 },
+  noms: { flexDirection: "row", gap: 12, paddingHorizontal: 14 },
+  champNom: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
+  pastilleNom: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  saisieNom: { flex: 1, minWidth: 0 },
 
   enteteListe: {
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
     paddingTop: 16,
   },
-  enteteTexte: { flex: 1, fontSize: 15, fontWeight: "600" },
-  compteur: { fontSize: 15, fontVariant: ["tabular-nums"] },
+  // 22/600 : le titre de carte du produit. Le compte prend la même graisse et
+  // la chasse tabulaire — il monte d'une unité à chaque tap, et un chiffre qui
+  // fait sauter le titre d'un point se remarque vingt fois de suite.
+  enteteTexte: { flex: 1, minWidth: 0, fontSize: 22, fontWeight: "600", letterSpacing: -0.3 },
+  compteur: { fontSize: 22, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  sousEntete: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    minHeight: 44,
+  },
+  consigne: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 18 },
   // 44 : la cible tactile minimale, comme partout ailleurs dans l'app. À 36,
   // collée sous l'en-tête et juste au-dessus de la première rangée de joueur,
   // un pouce qui vise « Tout le monde » debout au bord du terrain tombait une
   // fois sur deux sur la rangée — et faisait changer ce joueur d'équipe.
-  tous: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
+  tous: { minHeight: 44, justifyContent: "center", flexShrink: 0 },
   tousTexte: { fontSize: 15, fontWeight: "600" },
   // Les styles de la rangée de joueur sont partis avec elle, dans
   // composants/compo/Rangee.tsx.

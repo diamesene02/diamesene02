@@ -29,7 +29,8 @@ import { jeton, type Jetons } from "../../lib/couleurs";
 /// D'où la forme des props : QUE des valeurs simples, plus un rappel stable.
 /// En particulier `valeur` — le texte de droite, déjà calculé par l'écran —
 /// et non `nomA`/`nomB` : taper le nom de l'équipe A ne réveille alors que
-/// les rangées qui l'affichent, pas les vingt.
+/// les rangées qui l'affichent, pas les vingt. `couleur` et `encre` suivent
+/// la même règle : deux chaînes déjà choisies par l'écran, pas les jetons.
 export type ChoixRangee = "aucun" | "A" | "B";
 
 export default memo(function Rangee({
@@ -42,6 +43,8 @@ export default memo(function Rangee({
   gardien,
   choix,
   valeur,
+  couleur,
+  encre,
   separateur,
   onTourner,
 }: {
@@ -56,6 +59,11 @@ export default memo(function Rangee({
   choix: ChoixRangee;
   /// Ce qui s'affiche à droite : « — », « Joue », ou le nom de l'équipe.
   valeur: string;
+  /// La couleur de la chasuble choisie, et l'encre qui se lit dessus. La
+  /// pastille de droite les porte : c'est ce qui fait qu'on LIT deux équipes
+  /// au lieu de relire vingt fois un nom d'équipe en blanc.
+  couleur: string | null;
+  encre: string | null;
   /// Le filet au-dessus : toutes les rangées sauf la première.
   separateur: boolean;
   /// Doit être stable (`useCallback`), sinon le `memo` ne sert à rien.
@@ -63,6 +71,13 @@ export default memo(function Rangee({
 }) {
   const pris = choix !== "aucun";
   const camp: "A" | "B" | null = choix === "aucun" ? null : choix;
+  // Tout ce qui qualifie le joueur sur une seule ligne, SOUS son nom. La
+  // note, « gardien » et « (inv.) » étaient accrochés au nom lui-même : sur
+  // une rangée de 240 points, « Mouhamadou · gardien » coupait le prénom au
+  // milieu. Le nom a maintenant sa ligne entière, les qualités la leur.
+  const qualites = [`Note ${note}`, gardien ? "gardien" : null, invite ? "invité" : null]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <Pressable
       onPress={() => onTourner(id)}
@@ -83,16 +98,26 @@ export default memo(function Rangee({
           numberOfLines={1}
         >
           {nom}
-          {invite ? <Text style={[s.suffixe, { color: jeton(t, "i3") }]}> (inv.)</Text> : null}
-          {gardien ? <Text style={[s.suffixe, { color: jeton(t, "i3") }]}> · gardien</Text> : null}
         </Text>
         {/* « Note », pas « niveau » : le niveau est celui qu'on gagne en
             jouant (les succès). Ici c'est la note d'équilibrage, de 1 à 5. */}
-        <Text style={[s.sousNom, { color: jeton(t, "i2") }]}>Note {note}</Text>
+        <Text style={[s.sousNom, { color: jeton(t, "i2") }]} numberOfLines={1}>
+          {qualites}
+        </Text>
       </View>
-      <Text style={[s.valeur, { color: pris ? t.ink : jeton(t, "i3") }]} numberOfLines={1}>
-        {valeur}
-      </Text>
+      {/* La chasuble, pas son nom écrit en blanc. Qui ne joue pas n'a qu'un
+          tiret : pas de pastille vide, sinon vingt capsules grises feraient
+          autant de bruit que les équipes. La colonne garde en revanche sa
+          largeur dans les deux cas — la liste ne tressaute pas sous le pouce
+          pendant qu'on répartit vingt joueurs. */}
+      <View style={[s.pastille, pris && couleur ? { backgroundColor: couleur } : null]}>
+        <Text
+          style={[s.valeur, { color: pris ? (encre ?? t.ink) : jeton(t, "i3") }]}
+          numberOfLines={1}
+        >
+          {valeur}
+        </Text>
+      </View>
     </Pressable>
   );
 });
@@ -107,7 +132,15 @@ const s = StyleSheet.create({
   },
   libelle: { flex: 1, minWidth: 0 },
   nom: { fontSize: 17 },
-  suffixe: { fontWeight: "400" },
   sousNom: { fontSize: 13 },
-  valeur: { fontSize: 17, fontWeight: "600", maxWidth: "40%" },
+  pastille: {
+    minWidth: 62,
+    maxWidth: "38%",
+    height: 30,
+    borderRadius: 15,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  valeur: { fontSize: 15, fontWeight: "700" },
 });

@@ -46,9 +46,9 @@ export function Rappel({
 /// capitales, puis une rangée par chose à rattraper — « Mercredi 9 septembre
 /// · 0–0 · Terminer › », « Lundi 7 septembre · Saisir la feuille › ».
 ///
-/// Pleine largeur, comme les autres cartes : le site la rentre de 14 points
-/// de chaque côté et la colle sous la bannière, un reste d'une mise en page
-/// où son conteneur n'avait pas de marge.
+/// Pleine largeur ET même rayon (28) que les autres cartes : le site la rentre
+/// de 14 points de chaque côté et la colle sous la bannière, un reste d'une
+/// mise en page où son conteneur n'avait pas de marge.
 export function CarteRattrapage({
   t,
   titre,
@@ -59,7 +59,7 @@ export function CarteRattrapage({
   rangees: { cle: string; quand: string; acte: string; onPress: () => void }[];
 }) {
   return (
-    <CarteVerre t={t} rayon={22} style={s.carte}>
+    <CarteVerre t={t} style={s.carte}>
       <Text style={[s.titreCarte, { color: jeton(t, "or") }]} accessibilityRole="header">
         {titre}
       </Text>
@@ -89,28 +89,34 @@ export function CarteRattrapage({
 }
 
 const s = StyleSheet.create({
+  // Rayon 18, et non 14 : un rappel n'est pas une carte (28), mais il en est
+  // voisin. Trois arrondis différents dans une même colonne se remarquent —
+  // c'est le genre de détail qui fait « bricolé » sans qu'on sache dire
+  // pourquoi.
   rappel: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 12,
-    minHeight: 52,
-    borderRadius: 14,
+    paddingVertical: 12,
+    paddingLeft: 14,
+    paddingRight: 12,
+    minHeight: 56,
+    borderRadius: 18,
     borderLeftWidth: 3,
     borderLeftColor: OR_RAPPEL,
   },
   corps: { flex: 1, minWidth: 0, gap: 2 },
-  titre: { fontSize: 16, fontWeight: "600", lineHeight: 21 },
-  aide: { fontSize: 13, lineHeight: 19 },
+  titre: { fontSize: 17, fontWeight: "600", lineHeight: 22 },
+  aide: { fontSize: 13, lineHeight: 18 },
 
-  carte: { paddingTop: 14, paddingHorizontal: 16, paddingBottom: 6 },
+  carte: { paddingTop: 16, paddingHorizontal: 16, paddingBottom: 8 },
   titreCarte: {
     fontSize: 13,
     fontWeight: "600",
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
-  rangee: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52 },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 56 },
   quand: { flex: 1, minWidth: 0, fontSize: 17, fontWeight: "600" },
-  acte: { fontSize: 15 },
+  acte: { fontSize: 15, fontWeight: "600" },
 });

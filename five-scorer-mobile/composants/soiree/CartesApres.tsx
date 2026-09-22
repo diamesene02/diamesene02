@@ -203,8 +203,8 @@ export function CarteCracks({
         Les cracks du soir
       </Text>
       <View style={[s.tabRangee, s.tabTete]}>
-        <View style={{ width: 24 }} />
-        <View style={{ width: 30 }} />
+        <View style={{ width: 22 }} />
+        <View style={{ width: 26 }} />
         {tete("Joueur", s.tabNom)}
         {tete("MJ", s.tabMj)}
         {tete("V", s.tabPetit)}
@@ -226,7 +226,7 @@ export function CarteCracks({
           ]}
         >
           <Text style={[s.tabRang, { color: t.ink }]}>{c.rang}</Text>
-          <Avatar nom={c.nom} photo={c.photo} t={t} taille={30} />
+          <Avatar nom={c.nom} photo={c.photo} t={t} taille={26} />
           <Text style={[s.tabNom, { color: t.ink }]} numberOfLines={1}>
             {c.nom}
             {c.invite ? <Text style={{ color: jeton(t, "i3") }}> (inv.)</Text> : null}
@@ -296,16 +296,22 @@ const s = StyleSheet.create({
 
   carteMatchs: { paddingBottom: 4 },
 
-  carteCracks: { paddingHorizontal: 10, paddingBottom: 8 },
-  tabRangee: { flexDirection: "row", alignItems: "center", height: 54, paddingHorizontal: 6 },
+  // NEUF COLONNES SUR UN TÉLÉPHONE : chaque point pris aux chiffres est un
+  // point rendu au nom. Les six colonnes de statistiques occupaient 158 points
+  // en 17, la même taille que le nom — il en restait 91 pour « Mouhamadou »,
+  // qui en fait 100. Elles passent en 13 (la légende du produit) et à leur
+  // largeur juste ; « PTS » garde le corps et la graisse, c'est la colonne
+  // qu'on lit. Le nom gagne trente-six points et ne se coupe plus.
+  carteCracks: { paddingHorizontal: 8, paddingBottom: 8 },
+  tabRangee: { flexDirection: "row", alignItems: "center", height: 54, paddingHorizontal: 4 },
   tabTete: { height: undefined, paddingBottom: 8, paddingTop: 4 },
-  tabTeteTexte: { fontSize: 15 },
-  tabRang: { width: 24, fontSize: 17, fontVariant: ["tabular-nums"] },
-  tabNom: { flex: 1, minWidth: 0, fontSize: 17, paddingLeft: 10 },
-  tabMj: { width: 30, fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
-  tabPetit: { width: 26, fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
+  tabTeteTexte: { fontSize: 13, fontWeight: "600" },
+  tabRang: { width: 22, fontSize: 15, fontVariant: ["tabular-nums"] },
+  tabNom: { flex: 1, minWidth: 0, fontSize: 17, paddingLeft: 8 },
+  tabMj: { width: 26, fontSize: 15, textAlign: "center", fontVariant: ["tabular-nums"] },
+  tabPetit: { width: 22, fontSize: 15, textAlign: "center", fontVariant: ["tabular-nums"] },
   tabPts: {
-    width: 40,
+    width: 36,
     fontSize: 17,
     fontWeight: "600",
     textAlign: "center",

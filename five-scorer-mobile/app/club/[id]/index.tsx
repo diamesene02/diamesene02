@@ -327,7 +327,7 @@ export default function ClubAccueil() {
               développement, plusieurs secondes au gymnase en 4G. */}
           {occupe && !donnees && erreur == null && (
             <Squelette etiquette="On va chercher le club" style={s.attente}>
-              <CarteVerre t={t} rayon={24} style={s.sqBanniere}>
+              <CarteVerre t={t} style={s.sqBanniere}>
                 <Bloc t={t} l="46%" h={13} />
                 <Bloc t={t} l="78%" h={19} />
               </CarteVerre>
@@ -349,6 +349,7 @@ export default function ClubAccueil() {
               t={t}
               couleurA={couleurA}
               titre={titreBanniere(soiree)}
+              lieu={soiree.lieu}
               aide={aideBanniere(soiree)}
               onPress={() => ouvrirSoiree(soiree.id)}
               onFermer={() => fermer(soiree.id)}
@@ -545,12 +546,15 @@ export default function ClubAccueil() {
 
 const s = StyleSheet.create({
   defile: { paddingBottom: ESPACE_BARRE },
-  // Les marges du site : 14 sur les côtés, comme la barre du haut. En
-  // hauteur, 16 de contenu puis 18 avant la première carte — sous une barre
-  // qui prend 64, la bannière tombe à 98 de la zone du statut, la mesure du
-  // site. Puis 18 entre chaque bloc.
-  blocs: { paddingHorizontal: 14, paddingTop: 34, gap: 18 },
-  attente: { gap: 18 },
+  // Les marges du site : 14 sur les côtés, comme la barre du haut et comme la
+  // barre du bas — les trois tombent sur la même verticale.
+  //
+  // En hauteur, tout est passé sur l'échelle 4 · 8 · 12 · 16 · 20 · 28 : 28
+  // avant la première carte, 16 entre les blocs. L'écran y gagne une carte de
+  // plus sous le pouce sans rien serrer — les cartes sont larges, c'est leur
+  // hauteur qui coûtait.
+  blocs: { paddingHorizontal: 14, paddingTop: 28, gap: 16 },
+  attente: { gap: 16 },
   sqBanniere: { paddingHorizontal: 20, paddingVertical: 20, gap: 12 },
   sqMatchs: { paddingHorizontal: 20, paddingVertical: 22, gap: 18 },
   sqScore: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18 },

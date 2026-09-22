@@ -756,7 +756,7 @@ function confirmer(
 function Section({
   t,
   titre,
-  haut = 22,
+  haut = 20,
   children,
 }: {
   t: Jetons;
@@ -810,7 +810,14 @@ function Rangee({
           {valeur}
         </Text>
       )}
-      {chevron && <Text style={[s.chevron, { color: t.i3 }]}>{ouvert ? "⌃" : "›"}</Text>}
+      {/* Les caractères « › » et « ⌃ » : deux dessins différents, l'un de six
+          points de haut, l'autre posé de travers sur la ligne de base. Le même
+          chevron que partout ailleurs, pivoté quand la rangée est dépliée. */}
+      {chevron && (
+        <View style={ouvert && s.chevronOuvert}>
+          <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={15} />
+        </View>
+      )}
     </>
   );
   const style: StyleProp<ViewStyle> = [
@@ -897,7 +904,7 @@ function ChampTexte({
       onBlur={() => onValider(v)}
       returnKeyType="done"
       accessibilityLabel={etiquette}
-      style={s.champNom}
+      style={[s.champ, s.champNom]}
     />
   );
 }
@@ -928,7 +935,7 @@ function ChampNombre({
       keyboardType="number-pad"
       returnKeyType="done"
       accessibilityLabel={etiquette}
-      style={s.champCourt}
+      style={[s.champ, s.champCourt]}
     />
   );
 }
@@ -991,26 +998,48 @@ const s = StyleSheet.create({
   centre: { paddingTop: 60, alignItems: "center" },
   erreur: { marginTop: 24 },
 
-  // `.section-ios` : 13/600, capitales espacées, 22 au-dessus et 6 dessous.
+  // `.section-ios` : 13/600, capitales espacées, 20 au-dessus et 8 dessous.
   section: {
     fontSize: 13,
     fontWeight: "600",
     letterSpacing: 0.4,
     paddingHorizontal: 16,
-    paddingBottom: 6,
+    paddingBottom: 8,
   },
-  carte: { paddingHorizontal: 18 },
-  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54 },
-  rangeeAide: { paddingVertical: 8 },
+  carte: { paddingHorizontal: 16 },
+  rangee: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52 },
+  rangeeAide: { paddingVertical: 10 },
   rangeeTextes: { flex: 1, minWidth: 0 },
   libelle: { fontSize: 17 },
-  aide: { fontSize: 13, lineHeight: 17, marginTop: 2 },
+  aide: { fontSize: 13, lineHeight: 18, marginTop: 3 },
   valeur: { fontSize: 17 },
-  valeurSouple: { flexShrink: 1 },
-  chevron: { fontSize: 17 },
+  valeurSouple: { flexShrink: 1, textAlign: "right" },
+  chevronOuvert: { transform: [{ rotate: "90deg" }] },
 
-  champNom: { flex: 2, minWidth: 0, textAlign: "left" },
-  champCourt: { width: 84, textAlign: "right", fontVariant: ["tabular-nums"] },
+  // LES CHAMPS NE SONT PLUS DES BOÎTES.
+  //
+  // Une liste groupée iOS ne met pas un formulaire dans une carte : la valeur
+  // s'écrit à droite de son libellé, du même côté que « Five » ou « Orange ·
+  // Bleu », et c'est le contour à la couleur du club qui apparaît quand on la
+  // touche. Le champ « Nom » était une boîte grise de 52 points qui coupait
+  // « Renault Five Urban Guy » en deux lignes, à côté d'un écusson, dans une
+  // carte de verre : trois cadres imbriqués pour un mot.
+  //
+  // La marge négative rattrape la marge intérieure du champ : sa valeur se
+  // pose exactement sur le bord droit des autres valeurs de la liste.
+  champ: {
+    backgroundColor: "transparent",
+    textAlign: "right",
+    paddingHorizontal: 8,
+    marginRight: -8,
+    borderRadius: 10,
+  },
+  // 3 contre 1 pour le libellé : « Nom » n'a besoin que de son mot, le nom du
+  // club peut en faire quatre (« Renault Five Urban Guy »).
+  champNom: { flex: 3, minWidth: 0 },
+  // 56 et non 84 : deux chiffres, et tout ce qu'on rend va à la phrase d'aide,
+  // qui tenait sur quatre lignes.
+  champCourt: { width: 56, fontVariant: ["tabular-nums"] },
 
   pastilles: { flexDirection: "row", gap: 6 },
   chasubles: { paddingTop: 4, paddingBottom: 16, borderTopWidth: 1 },
@@ -1026,7 +1055,8 @@ const s = StyleSheet.create({
   nuance: { width: 38, height: 38, borderRadius: 19 },
   apercu: { marginTop: 18, borderRadius: 18, paddingVertical: 4 },
 
-  etat: { fontSize: 13, textAlign: "right", paddingTop: 6, paddingHorizontal: 4, minHeight: 22 },
+  // Alignée sur les titres de section, pas sur le bord de l'écran.
+  etat: { fontSize: 13, textAlign: "right", paddingTop: 8, paddingHorizontal: 16, minHeight: 22 },
   code: {
     fontFamily: MONO,
     fontSize: 15,

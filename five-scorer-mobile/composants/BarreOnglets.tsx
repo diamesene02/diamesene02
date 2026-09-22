@@ -177,7 +177,10 @@ export default function BarreOnglets({
         {ONGLETS.map((o) => {
           const estActif = o.nom === actif;
           const central = o.icone === "plus";
-          const couleur = central ? encre : estActif ? t.ink : "rgba(255,255,255,0.45)";
+          // 0,60 et non 0,45 : sur le verre sombre de la barre, un onglet
+          // inactif à 45 % se devinait plus qu'il ne se lisait — et c'est en
+          // marchant, au bord du terrain, qu'on le vise.
+          const couleur = central ? encre : estActif ? t.ink : "rgba(255,255,255,0.6)";
           return (
             <Touche
               key={o.nom}

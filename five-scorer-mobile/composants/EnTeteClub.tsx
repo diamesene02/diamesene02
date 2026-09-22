@@ -1,7 +1,14 @@
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { router } from "expo-router";
 import { BoutonRond, EcussonChasuble } from "./base";
-import MenuClub from "./MenuClub";
+import MenuClub, { HAUTEUR_PILULE, largeurPilule, largeurTexte } from "./MenuClub";
 import PastilleSynchro from "./PastilleSynchro";
 import { useClubId, useClubMemorise } from "./ClubCourant";
 import { jeton, type Jetons } from "../lib/couleurs";
@@ -24,6 +31,11 @@ import type { ClubDeMoi } from "../lib/api";
 /// À placer en tête du contenu qui défile (le site la fait défiler avec la
 /// page), dans un conteneur SANS marge horizontale : elle porte ses 14
 /// points, et le titre ses 18.
+///
+/// La barre se partage entre deux objets de largeur variable. Quand le nom du
+/// club est long — « Renault Five Urban Guy » est la règle, pas l'exception —,
+/// la marque se réduit à son écusson plutôt que de couper son mot : voir
+/// `motTient`.
 export default function EnTeteClub({
   t,
   club,
@@ -62,6 +74,28 @@ export default function EnTeteClub({
   const c = club ?? memo;
   const idDuLayout = useClubId();
   const id = c?.id ?? clubId ?? idDuLayout;
+  const { width } = useWindowDimensions();
+
+  // LA BARRE NE PORTE PAS DEUX TITRES.
+  //
+  // Avec « Renault Five Urban Guy », la pilule prenait toute la barre et la
+  // marque se lisait « Fiv… ». C'est la MARQUE qui cède, et jamais à moitié :
+  // le nom du club dit OÙ l'on est, celui de l'app est déjà sur l'icône qu'on
+  // vient de toucher, et l'écusson « F » reste une marque à lui seul. Un mot
+  // coupé, lui, ne dit rien et se voit.
+  //
+  // On décide sur la place réelle de l'écran plutôt qu'avec un pourcentage :
+  // « Lundi Soir » garde son mot sur un iPhone ordinaire et le perd sur un
+  // écran de 320, ce qui est exactement ce qu'on veut. La pastille de synchro
+  // n'entre pas dans le calcul — elle est rare et passagère ; quand elle
+  // paraît, c'est la pilule qui se rétrécit, comme avant.
+  //
+  // Au tout premier lancement, le club n'est pas encore connu : la barre porte
+  // la marque entière et la place vide de la pilule, et le mot cède à l'instant
+  // où la pilule arrive. C'est le seul moment où la barre bouge, et elle bouge
+  // en même temps que le reste de l'écran, qui sort de son squelette.
+  const motTient =
+    width - 2 * MARGE_BARRE - ECART_BARRE - LARGEUR_MOT >= (c ? largeurPilule(c.nom) : 0);
 
   const revenir =
     onRetour ??
@@ -74,13 +108,13 @@ export default function EnTeteClub({
     <View style={style}>
       <View style={s.barre}>
         {marque ? (
-          <Marque couleur={c?.couleurA ?? "#ffffff"} t={t} />
+          <Marque couleur={c?.couleurA ?? "#ffffff"} t={t} mot={motTient} />
         ) : retour ? (
           <BoutonRond t={t} symbole="‹" etiquette="Retour" onPress={revenir} />
         ) : (
           <View />
         )}
-        <View style={[s.droite, marque ? s.droiteBornee : null]}>
+        <View style={s.droite}>
           <PastilleSynchro t={t} />
           {c ? (
             <MenuClub
@@ -132,55 +166,65 @@ export function TitreEcran({
   );
 }
 
-/// La marque de l'accueil : l'écusson carré « F » de la chasuble A (34, rayon
-/// 9, comme une icône d'app) et « Five Scorer » en 26/700.
-function Marque({ couleur, t }: { couleur: string; t: Jetons }) {
+/// La marque de l'accueil : l'écusson carré « F » de la chasuble A (32, rayon
+/// 9, comme une icône d'app) et, quand la barre a la place, « Five Scorer » en
+/// 22/700.
+///
+/// Le lecteur d'écran annonce « Five Scorer » dans les deux cas : c'est le même
+/// objet, dessiné plus ou moins court.
+function Marque({ couleur, t, mot }: { couleur: string; t: Jetons; mot: boolean }) {
   return (
-    <View style={s.marque} accessibilityRole="header">
-      <EcussonChasuble couleur={couleur} lettre="F" taille={34} rayon={9} />
-      <Text style={[s.marqueTexte, { color: t.ink }]} numberOfLines={1}>
-        Five Scorer
-      </Text>
+    <View style={s.marque} accessible accessibilityRole="header" accessibilityLabel="Five Scorer">
+      <EcussonChasuble couleur={couleur} lettre="F" taille={ECUSSON_MARQUE} rayon={9} />
+      {mot ? (
+        <Text style={[s.marqueTexte, { color: t.ink }]} numberOfLines={1}>
+          Five Scorer
+        </Text>
+      ) : null}
     </View>
   );
 }
+
+/// La marge de page, partagée par la barre du haut, le contenu et la barre du
+/// bas : les trois s'alignent sur la même verticale.
+const MARGE_BARRE = 14;
+/// Ce qui sépare la marque de la pilule.
+const ECART_BARRE = 8;
+const ECUSSON_MARQUE = 32;
+const CORPS_MARQUE = 22;
+/// L'écusson, son écart et le mot : la place que la marque demande EN ENTIER.
+const LARGEUR_MOT = ECUSSON_MARQUE + 8 + largeurTexte("Five Scorer", CORPS_MARQUE);
 
 const s = StyleSheet.create({
   barre: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
-    paddingTop: 14,
-    paddingHorizontal: 14,
+    gap: ECART_BARRE,
+    paddingTop: 12,
+    paddingHorizontal: MARGE_BARRE,
   },
-  // La pastille de synchro ne compte PAS dans la part de la pilule : elle est
-  // large de 44 et ne se rétrécit pas. Bornée à 44 % comme sur le site, la
-  // pilule tombait à 27 points de texte le soir où la pastille est là — hors
-  // ligne au gymnase, justement —, et le nom du club se lisait « Lu ». Sur
-  // les écrans à bouton retour (tous sauf l'accueil), rien ne dispute la
-  // place : la pilule prend ce qu'il lui faut et se rétrécit d'elle-même.
+  // La marque ne se rétrécit PAS : elle est déjà à sa taille juste, ou réduite
+  // à son écusson. C'est donc la droite — pastille de synchro et pilule — qui
+  // prend ce qui reste, et la pilule qui se rétrécit le soir où la pastille
+  // paraît. Sur les écrans à bouton retour (tous sauf l'accueil), rien ne
+  // dispute la place et la pilule s'étale.
   droite: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 12,
-    flexShrink: 1,
+    gap: 4,
+    flex: 1,
     minWidth: 0,
   },
-  // L'accueil : « Five Scorer » en 26/700 dispute la barre. La marque cède la
-  // première (elle se coupe proprement, `numberOfLines`), mais on lui garde
-  // plus du quart de la barre pour qu'il en reste quelque chose.
-  droiteBornee: { maxWidth: "72%" },
   piluleLibre: { maxWidth: "100%" },
-  placePilule: { height: 50, width: 1 },
-  marque: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 },
+  placePilule: { height: HAUTEUR_PILULE, width: 1 },
+  marque: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
   marqueTexte: {
-    fontSize: 26,
+    fontSize: CORPS_MARQUE,
     fontWeight: "700",
-    letterSpacing: -0.5,
-    lineHeight: 30,
-    flexShrink: 1,
+    letterSpacing: -0.4,
+    lineHeight: 26,
   },
   // 16 de marge de page + 18 de `.stats-tete` sur le site ; 14 + 4 de côté.
   tete: {
@@ -188,10 +232,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    paddingTop: 34,
+    paddingTop: 28,
     paddingHorizontal: 18,
   },
   teteTextes: { flex: 1, minWidth: 0 },
   titre: { fontSize: 34, fontWeight: "700", letterSpacing: -0.5, lineHeight: 37 },
-  sousTitre: { fontSize: 17, marginTop: 6 },
+  sousTitre: { fontSize: 17, marginTop: 4 },
 });

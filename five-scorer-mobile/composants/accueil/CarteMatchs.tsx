@@ -280,19 +280,24 @@ export default function CarteMatchs({
   );
 }
 
-/// « 📅 Soirée du 7 sept. › » en tête d'onglet : l'icône calendrier, le texte
-/// en blanc, le chevron collé au texte — pas repoussé au bord.
+/// « 📅 Soirée du 7 sept. › » en tête d'onglet : l'icône calendrier, le texte,
+/// le chevron collé au texte — pas repoussé au bord.
+///
+/// En retrait (15/600, `i2`) et non plus en blanc de 17 : elle redisait le
+/// jour que la bannière venait d'annoncer, dans la même graisse que l'heure du
+/// match juste dessous. Trois blancs qui se suivent, c'est trois titres. Elle
+/// reste une destination — chevron, cible de 44 — mais elle légende.
 function LigneSoiree({ t, texte, onPress }: { t: Jetons; texte: string; onPress?: () => void }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      hitSlop={4}
+      hitSlop={8}
       accessibilityRole={onPress ? "button" : undefined}
       style={({ pressed }) => [s.ligneSoiree, pressed && { opacity: 0.7 }]}
     >
-      <IconeCalendrier couleur={t.ink} taille={22} />
-      <Text style={[s.ligneSoireeTexte, { color: t.ink }]} numberOfLines={1}>
+      <IconeCalendrier couleur={jeton(t, "i2")} taille={18} />
+      <Text style={[s.ligneSoireeTexte, { color: jeton(t, "i2") }]} numberOfLines={1}>
         {texte}
       </Text>
       {onPress ? <Text style={[s.chevronTexte, { color: jeton(t, "i3") }]}>›</Text> : null}
@@ -423,8 +428,8 @@ function LigneProgramme({
       </View>
       {m.externe ? (
         <View style={s.camp}>
-          {/* `.ecusson.club` : radial #666 → #2a2a2e → #111, initiales en 20. */}
-          <EcussonChasuble couleur="#2a2a2e" lettre={ini(m.nomB)} taille={60} corps={20} encre="#fff" />
+          {/* `.ecusson.club` : radial #666 → #2a2a2e → #111, initiales en 19. */}
+          <EcussonChasuble couleur="#2a2a2e" lettre={ini(m.nomB)} taille={56} corps={19} encre="#fff" />
           <Text style={[s.nomCamp, { color: jeton(t, "i2") }]} numberOfLines={1}>
             {m.nomB}
           </Text>
@@ -487,7 +492,11 @@ function BlocSoiree({
             {heure}
           </Text>
           {lieu ? (
-            <Text style={[s.lieu, { color: jeton(t, "i2") }]} numberOfLines={1}>
+            // « Urban Soccer Guyancourt » se lisait « Urban Soccer Guyan… » :
+            // le lieu était en 15 dans une colonne serrée entre deux camps de
+            // 88. Camps ramenés à 76, lieu en légende, et deux lignes en
+            // dernier recours — un nom de salle ne se coupe pas.
+            <Text style={[s.lieu, { color: jeton(t, "i2") }]} numberOfLines={2}>
               {lieu}
             </Text>
           ) : null}
@@ -530,7 +539,7 @@ function Camp({
   return (
     <View style={s.camp}>
       <View style={efface && s.efface}>
-        <EcussonChasuble couleur={couleur} lettre={lettre(nom)} taille={60} />
+        <EcussonChasuble couleur={couleur} lettre={lettre(nom)} taille={56} />
       </View>
       <Text style={[s.nomCamp, { color: jeton(t, "i2") }]} numberOfLines={1}>
         {nom}
@@ -653,22 +662,25 @@ const s = StyleSheet.create({
   ligneSoiree: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingTop: 16,
+    gap: 8,
+    paddingTop: 12,
     paddingHorizontal: 16,
     paddingBottom: 4,
+    minHeight: 44,
     alignSelf: "flex-start",
     maxWidth: "100%",
   },
-  ligneSoireeTexte: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
+  ligneSoireeTexte: { fontSize: 15, fontWeight: "600", flexShrink: 1 },
   seule: { paddingBottom: 12 },
-  chevronTexte: { fontSize: 16 },
+  chevronTexte: { fontSize: 15 },
 
-  camp: { width: 88, alignItems: "center", gap: 8 },
+  // 76 et non 88 : ce sont douze points rendus au milieu, là où le lieu se
+  // coupait. L'écusson de 56 y reste au large.
+  camp: { width: 76, alignItems: "center", gap: 8 },
   efface: { opacity: 0.7 },
-  nomCamp: { fontSize: 16, fontWeight: "500", maxWidth: 88 },
+  nomCamp: { fontSize: 15, fontWeight: "500", maxWidth: 76 },
 
-  // La prochaine soirée : 88 · 1fr · 88, padding 12 12 8.
+  // La prochaine soirée : 76 · 1fr · 76, padding 12 12 8.
   prochaine: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -677,16 +689,24 @@ const s = StyleSheet.create({
     paddingBottom: 8,
   },
   programme: { paddingTop: 16, paddingBottom: 20 },
+  // `minHeight` et non `height` : le lieu qui passe à deux lignes pousse la
+  // rangée au lieu de déborder de sa boîte.
   milieuProchaine: {
     flex: 1,
     minWidth: 0,
-    height: 60,
+    minHeight: 64,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 6,
   },
-  heureProchaine: { fontSize: 28, fontWeight: "700", letterSpacing: -0.4 },
+  heureProchaine: {
+    fontSize: 30,
+    fontWeight: "700",
+    letterSpacing: -0.6,
+    fontVariant: ["tabular-nums"],
+  },
   quand: { fontSize: 17, fontWeight: "600" },
-  lieu: { fontSize: 15 },
+  lieu: { fontSize: 13, lineHeight: 17, textAlign: "center", marginTop: 2 },
 
   ligneAVenir: {
     flexDirection: "row",
@@ -697,23 +717,23 @@ const s = StyleSheet.create({
   },
   videChiffre: { flex: 1 },
   milieuAVenir: {
-    height: 60,
+    minHeight: 64,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
+    gap: 2,
     paddingHorizontal: 8,
   },
   etatAVenir: { fontSize: 17, fontWeight: "600" },
-  heureAVenir: { fontSize: 15, fontVariant: ["tabular-nums"] },
+  heureAVenir: { fontSize: 13, fontVariant: ["tabular-nums"] },
 
   reponses: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    paddingTop: 6,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingTop: 4,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   reponsesTexte: { fontSize: 15, flexShrink: 1, minWidth: 0 },
   statutCible: { minHeight: 44, justifyContent: "center", flexShrink: 0 },

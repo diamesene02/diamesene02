@@ -343,7 +343,10 @@ export default async function SessionDetailPage({
         <section className="carte soiree-carte">
           <div className="carte-titre">
             Le bilan de la soirée
-            {!soireeFinie && <span className="soiree-encours"> · en cours</span>}
+            {/* Une légende sous le titre, pas un bout de phrase collé à sa
+                droite : « · en cours » décentrait le titre de la carte et se
+                lisait comme un mot qui aurait débordé. */}
+            {!soireeFinie && <span className="soiree-encours">en cours</span>}
           </div>
           <div className="soiree-bilan">
             <div className="camp">

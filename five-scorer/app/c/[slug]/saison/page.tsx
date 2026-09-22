@@ -290,7 +290,10 @@ export default async function SaisonPage({
       ))}
       {ctx.canScore && (
         <div className="saison-ajout">
-          <Link href={`/c/${slug}/matches/new-session`} className="verre grand">
+          {/* Trois boutons en verre empilés ne disaient pas lequel on vient
+              chercher. Celui-ci est l'action du calendrier : il porte le
+              plein, les deux autres restent en verre. */}
+          <Link href={`/c/${slug}/matches/new-session`} className="plein">
             Ajouter une soirée
           </Link>
           <Link href={`/c/${slug}/matches/schedule`} className="verre grand">
@@ -388,14 +391,19 @@ export default async function SaisonPage({
 
   return (
     <main className="ecran">
-      <div className="saison-tete flex items-start justify-between gap-3">
-        <div>
+      {/* Le sous-titre était dans la colonne du titre, à côté du sélecteur de
+          saison : « 1 soirée jouée · 2 au calendrier » se coupait sur deux
+          lignes et laissait « calendrier » tout seul, avec la moitié droite
+          de l'écran vide sous la pilule. Le titre et la pilule partagent la
+          ligne du haut ; le sous-titre prend la largeur entière. */}
+      <div className="saison-tete">
+        <div className="flex items-center justify-between gap-3">
           <div className="titre-ecran">Saison</div>
-          <div className="sous-titre">{sousTitre}</div>
+          {saisons.length > 0 && saison && (
+            <ChoixSaison saisons={saisons} actuelle={saison.id} />
+          )}
         </div>
-        {saisons.length > 0 && saison && (
-          <ChoixSaison saisons={saisons} actuelle={saison.id} />
-        )}
+        <div className="sous-titre">{sousTitre}</div>
       </div>
 
       <section className="carte saison-carte">

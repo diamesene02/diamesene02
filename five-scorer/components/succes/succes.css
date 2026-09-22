@@ -255,10 +255,14 @@ a.ligne-exploit:active {
   white-space: nowrap;
 }
 /* Plafonné aux deux tiers : un exploit au nom long (« Premier match aux
-   cages ») rétrécit à son tour plutôt que d'effacer tous les joueurs. */
+   cages ») rétrécit à son tour plutôt que d'effacer tous les joueurs.
+   L'espace avant le point médian est une MARGE, pas un blanc de texte : le
+   morceau est une boîte à lui (overflow caché), et une espace en tête de
+   boîte est supprimée par le navigateur — on lisait « Cédric· Passeur ». */
 .exploit-l1 .quoi {
   flex: none;
   max-width: 66%;
+  margin-left: 0.34em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -267,12 +271,17 @@ a.ligne-exploit:active {
   color: var(--ink);
   font-weight: 600;
 }
+/* Deux lignes, coupées proprement : « Premier titre d'homme du match ·
+   2 sept. » ne tient pas sur la largeur d'un téléphone, et une ligne tronquée
+   au milieu d'un nom de succès ne dit plus de quoi il s'agit. */
 .exploit-l2 {
   font-size: 13px;
   color: var(--i3);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* ── L'annonce ────────────────────────────────────────────────────────── */

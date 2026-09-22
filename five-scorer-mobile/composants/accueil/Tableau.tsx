@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, CarteVerre } from "../base";
+import EnTeteCarte from "./EnTeteCarte";
 import { jeton, type Jetons } from "../../lib/couleurs";
 import type { Accueil } from "../../lib/api";
 import { evolutionPhrase, evolutionTexte, rangTexte } from "./logique";
@@ -9,8 +10,8 @@ type Ligne = Accueil["classement"][number];
 const compte = (n: number, mot: string) => `${n} ${mot}${n > 1 ? "s" : ""}`;
 
 /// Le tableau de l'accueil (`.tableau` du site) : les six premiers, aux
-/// points du club, chaque rangée vers la fiche du joueur, et « Tableau
-/// complet › » vers les stats. Il était une impasse : rien ne se touchait.
+/// points du club, chaque rangée vers la fiche du joueur, et « Voir tout »
+/// vers les stats, dans l'en-tête. Il était une impasse : rien ne se touchait.
 ///
 /// Et, pour le mardi matin, comme le site : sous le rang, les places gagnées
 /// (▲2) ou perdues (▼1) depuis la dernière soirée (`SuccesClub.evolutions`) ;
@@ -70,9 +71,15 @@ export default function Tableau({
           ) : null}
         </View>
         <Avatar nom={r.nom} photo={r.photo} t={t} camp={r.camp ?? null} taille={30} />
+        {/* Un prénom long rétrécit d'un point ou deux plutôt que de perdre ses
+            lettres : « Compte de démo » se lisait « Compte de… ». Les colonnes
+            de chiffres, elles, ne bougent pas — c'est ce qui tient le tableau
+            aligné. */}
         <Text
           style={[s.colNom, s.nom, { color: t.ink }]}
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
         >
           {r.nom}
         </Text>
@@ -90,13 +97,21 @@ export default function Tableau({
 
   return (
     <CarteVerre t={t} style={s.carte}>
-      <Text style={[s.titre, { color: t.ink }]} accessibilityRole="header">
-        Tableau
-      </Text>
+      <EnTeteCarte
+        t={t}
+        titre="Tableau"
+        action="Voir tout"
+        etiquette="Voir le tableau complet"
+        onAction={ouvrirStats}
+        style={s.enTete}
+      />
       <View style={s.tete} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         <View style={s.colRang} />
         <View style={s.colAvatar} />
-        <Text style={[s.colNom, s.teteTexte, { color: jeton(t, "i2") }]}>Joueur</Text>
+        {/* `colNom` APRÈS `teteTexte` : son `textAlign: left` doit gagner, sinon
+            « JOUEUR » se centrait au-dessus d'une colonne de noms calés à
+            gauche — deux points de départ pour une même colonne. */}
+        <Text style={[s.teteTexte, s.colNom, { color: jeton(t, "i2") }]}>Joueur</Text>
         <Text style={[s.teteTexte, s.l30, { color: jeton(t, "i2") }]}>MJ</Text>
         <Text style={[s.teteTexte, s.l26, { color: jeton(t, "i2") }]}>V</Text>
         <Text style={[s.teteTexte, s.l26, { color: jeton(t, "i2") }]}>N</Text>
@@ -119,36 +134,33 @@ export default function Tableau({
           {rangee(moiEnPlus, false)}
         </>
       )}
-      <Pressable
-        onPress={ouvrirStats}
-        accessibilityRole="button"
-        style={({ pressed }) => [s.pied, { borderTopColor: sep }, pressed && { opacity: 0.6 }]}
-      >
-        <Text style={[s.piedTexte, { color: jeton(t, "i2") }]}>Tableau complet ›</Text>
-      </Pressable>
     </CarteVerre>
   );
 }
 
 const s = StyleSheet.create({
   // `padding: 0 12px 10px` : les filets s'arrêtent à 12 des bords.
-  carte: { paddingHorizontal: 12, paddingBottom: 10 },
-  titre: {
-    fontSize: 22,
+  carte: { paddingHorizontal: 12, paddingBottom: 8 },
+  // Les rangées portent 6 de plus que la carte : le titre les rejoint.
+  enTete: { paddingHorizontal: 6 },
+  // La grille, resserrée : 24 30 1fr 28 24 24 24 28 36 au lieu de
+  // 24 30 1fr 30 26 26 26 30 40. Quatorze points rendus à la colonne des
+  // noms, qui est la seule à en manquer — « Jean-Baptiste » y tient enfin.
+  tete: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingBottom: 6 },
+  // 13 en capitales : un en-tête de colonne se lit une fois, pas à chaque
+  // rangée. Il ne pèse plus le même poids que les chiffres qu'il annonce.
+  teteTexte: {
+    fontSize: 13,
     fontWeight: "600",
-    letterSpacing: -0.3,
+    letterSpacing: 0.3,
     textAlign: "center",
-    paddingTop: 20,
-    paddingBottom: 12,
+    textTransform: "uppercase",
   },
-  // La grille du site : 24 30 1fr 30 26 26 26 30 40.
-  tete: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingBottom: 8 },
-  teteTexte: { fontSize: 15, textAlign: "center" },
-  rangee: { flexDirection: "row", alignItems: "center", height: 54, paddingHorizontal: 6 },
+  rangee: { flexDirection: "row", alignItems: "center", height: 48, paddingHorizontal: 6 },
   colRang: { width: 24, alignItems: "flex-start", justifyContent: "center" },
   colAvatar: { width: 30 },
   colNom: { flex: 1, minWidth: 0, paddingLeft: 8, textAlign: "left" },
-  rang: { fontSize: 17, fontVariant: ["tabular-nums"], lineHeight: 19 },
+  rang: { fontSize: 15, fontVariant: ["tabular-nums"], lineHeight: 17 },
   evo: {
     fontSize: 10,
     fontWeight: "700",
@@ -157,11 +169,13 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   nom: { fontSize: 17, fontWeight: "500" },
-  chiffre: { fontSize: 17, textAlign: "center", fontVariant: ["tabular-nums"] },
-  points: { fontWeight: "600" },
-  l26: { width: 26 },
-  l30: { width: 30 },
-  l40: { width: 40 },
+  // Les chiffres de détail descendent à 15 et les points restent à 17, en
+  // gras : sur une rangée de six nombres, c'est le seul qu'on cherche.
+  chiffre: { fontSize: 15, textAlign: "center", fontVariant: ["tabular-nums"] },
+  points: { fontSize: 17, fontWeight: "700" },
+  l26: { width: 24 },
+  l30: { width: 28 },
+  l40: { width: 36 },
   // Le joueur au-delà du sixième : sa ligne vient après une coupure.
   saut: {
     paddingTop: 2,
@@ -172,12 +186,4 @@ const s = StyleSheet.create({
     letterSpacing: 2,
     textAlign: "center",
   },
-  pied: {
-    marginTop: 0,
-    paddingTop: 14,
-    paddingBottom: 12,
-    borderTopWidth: 1,
-    alignItems: "center",
-  },
-  piedTexte: { fontSize: 17, fontWeight: "600" },
 });

@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { EcussonChasuble } from "../base";
 import { IconeBallon } from "../Icones";
 import { minutesDuButeur } from "./textes";
+import { tailleDuScore } from "./score";
 
 // Le haut du récap, repris de RecapView.tsx et recap.css du site : le score
 // en 148, l'état au milieu, les écussons de 76, puis les buteurs sur deux
@@ -61,9 +62,8 @@ function Chiffre({ valeur, perd }: { valeur: number; perd: boolean }) {
     <View style={s.colonne}>
       <Text
         allowFontScaling={false}
-        adjustsFontSizeToFit
         numberOfLines={1}
-        style={[s.chiffre, perd && { color: PERDANT }]}
+        style={[s.chiffre, tailleDuScore(valeur, 148), perd && { color: PERDANT }]}
       >
         {valeur}
       </Text>
@@ -181,21 +181,21 @@ export function MiniScore({
 }
 
 const s = StyleSheet.create({
+  // Le rythme de l'affiche suit l'échelle d'espacement du produit
+  // (4/8/12/16/20/28) : 20 au-dessus du score, 8 entre le score et les
+  // écussons — ils forment un bloc —, 20 avant les buteurs.
   marque: {
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 18,
+    paddingTop: 20,
     paddingHorizontal: 24,
   },
   colonne: { flex: 1, alignItems: "center", minWidth: 0 },
-  // 148 en 800 à −0,05 em, compressé par transformation : c'est le « score
-  // lourd » du site. L'interligne garde un peu d'air — à 148 pile, iOS rogne
-  // le haut des chiffres.
+  // Le « score lourd » du site : 800, −0,05 em, compressé à 86 %. La taille,
+  // l'interligne et la chasse viennent de `tailleDuScore` — ils dépendent du
+  // nombre de chiffres, pas de ce qu'UIKit croit pouvoir faire tenir.
   chiffre: {
-    fontSize: 148,
     fontWeight: "800",
-    letterSpacing: -7.4,
-    lineHeight: 154,
     color: "#ffffff",
     fontVariant: ["tabular-nums"],
     transform: [{ scaleX: 0.86 }],
@@ -211,7 +211,7 @@ const s = StyleSheet.create({
   nomEquipe: { fontSize: 22, fontWeight: "600", letterSpacing: -0.3, color: "#ffffff" },
   bilan: { fontSize: 15, color: "rgba(255,255,255,0.55)", marginTop: -6 },
 
-  buteurs: { flexDirection: "row", gap: 16, paddingTop: 16, paddingHorizontal: 28 },
+  buteurs: { flexDirection: "row", gap: 16, paddingTop: 20, paddingHorizontal: 28 },
   colonneButeurs: { flex: 1, flexDirection: "row", gap: 8, minWidth: 0 },
   colonneB: { justifyContent: "flex-end" },
   // Le ballon s'aligne sur la première ligne de noms (interligne 27).

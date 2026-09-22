@@ -93,7 +93,7 @@ export default function MenuClub({
     leger();
     mesurer(pilule.current, (a) =>
       // Repli sans mesure : la place de la pilule dans la barre du site.
-      setAncre(a ?? { x: 0, y: haut + 14, largeur: 0, hauteur: 50 }),
+      setAncre(a ?? { x: 0, y: haut + 12, largeur: 0, hauteur: HAUTEUR_PILULE }),
     );
   };
   const fermer = () => setAncre(null);
@@ -218,8 +218,47 @@ export function nomCourt(nom: string): string {
   return nom.replace(/^(FC|AS|US|SC|Five)\s+/i, "");
 }
 
-/// La pilule seule (`.verre.lueur` du site) : 50 de haut, lueur de la
-/// couleur A, écusson de 28 en dégradé, le nom court du club.
+// ── La géométrie de la pilule ───────────────────────────────────────────────
+// Elle est publique parce que la barre du haut en a besoin : c'est la largeur
+// que la pilule DEMANDERAIT pour montrer le nom du club en entier qui décide
+// si la marque « Five Scorer » tient encore à côté (composants/EnTeteClub).
+
+/// 46 et non 50 : la barre porte deux objets, la pilule est une commande, pas
+/// un titre. On reste très au-dessus des 44 points de cible.
+export const HAUTEUR_PILULE = 46;
+const ECUSSON_PILULE = 26;
+const CORPS_PILULE = 16;
+const GAUCHE_PILULE = 10;
+const DROITE_PILULE = 16;
+const ECART_PILULE = 8;
+
+/// La chasse approchée d'un texte en police système : ~0,55 × le corps pour
+/// une minuscule, ~0,68 pour une capitale, ~0,3 pour une espace.
+///
+/// Approchée, et volontairement un peu large : elle sert à décider si un mot
+/// TIENT. Mieux vaut cacher la marque une fois de trop que la couper une fois
+/// — c'est précisément le défaut qu'on répare.
+export function largeurTexte(texte: string, corps: number): number {
+  let n = 0;
+  for (const c of texte) {
+    n += c === " " ? 0.3 : c !== c.toLowerCase() ? 0.68 : 0.55;
+  }
+  return n * corps;
+}
+
+/// Ce que la pilule demande pour montrer le nom du club sans le couper.
+export function largeurPilule(nom: string): number {
+  return (
+    GAUCHE_PILULE +
+    ECUSSON_PILULE +
+    ECART_PILULE +
+    largeurTexte(nomCourt(nom), CORPS_PILULE) +
+    DROITE_PILULE
+  );
+}
+
+/// La pilule seule (`.verre.lueur` du site) : 46 de haut, lueur de la
+/// couleur A, écusson de 26 en dégradé, le nom court du club.
 export const PiluleClub = forwardRef<
   View,
   {
@@ -240,7 +279,7 @@ export const PiluleClub = forwardRef<
       accessibilityState={{ expanded: !!ouvert }}
       style={({ pressed }) => [s.pilule, styleLueur(t), style, pressed && { opacity: 0.8 }]}
     >
-      <EcussonChasuble couleur={club.couleurA} lettre={court[0] ?? "?"} taille={28} />
+      <EcussonChasuble couleur={club.couleurA} lettre={court[0] ?? "?"} taille={ECUSSON_PILULE} />
       <Text style={[s.piluleTexte, { color: t.ink }]} numberOfLines={1}>
         {court}
       </Text>
@@ -386,15 +425,15 @@ const s = StyleSheet.create({
   pilule: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    height: 50,
-    borderRadius: 25,
-    paddingLeft: 11,
-    paddingRight: 18,
+    gap: ECART_PILULE,
+    height: HAUTEUR_PILULE,
+    borderRadius: HAUTEUR_PILULE / 2,
+    paddingLeft: GAUCHE_PILULE,
+    paddingRight: DROITE_PILULE,
     flexShrink: 1,
   },
   piluleBornee: { maxWidth: "56%" },
-  piluleTexte: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
+  piluleTexte: { fontSize: CORPS_PILULE, fontWeight: "600", flexShrink: 1 },
 
   defile: { flexGrow: 0, flexShrink: 1 },
   contenu: { paddingTop: 18, paddingHorizontal: 12, paddingBottom: 12 },

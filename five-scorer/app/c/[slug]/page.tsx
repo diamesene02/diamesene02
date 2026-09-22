@@ -461,14 +461,16 @@ export default async function ClubHomePage({
   // Ce que la bannière dit au joueur de SA place. Un abonné est compté
   // présent sans avoir répondu : « Touchez pour répondre » sous « 8
   // présents » lui laissait croire qu'il n'en faisait pas partie.
+  // Sans point final : ces morceaux sont assemblés avec « · » en une ligne de
+  // légende (« Dans 2 jours · 8 présents · Tu es inscrit »), pas en phrases.
   const maPlace = (p: Presences) => {
-    if (!myPlayer) return "Touche pour la soirée.";
+    if (!myPlayer) return "Touche pour la soirée";
     const l = p.lignes.get(myPlayer.id);
-    if (!l?.statut) return "Touche pour répondre.";
-    if (l.statut === "OUT") return "Tu as dit absent.";
-    if (l.statut === "MAYBE") return "Tu as dit peut-être.";
-    if (l.enAttente) return "Tu es sur la liste d'attente.";
-    return l.source === "abonnement" ? "Tu es compté présent." : "Tu es inscrit.";
+    if (!l?.statut) return "Touche pour répondre";
+    if (l.statut === "OUT") return "Tu as dit absent";
+    if (l.statut === "MAYBE") return "Tu as dit peut-être";
+    if (l.enAttente) return "Tu es sur la liste d'attente";
+    return l.source === "abonnement" ? "Tu es compté présent" : "Tu es inscrit";
   };
 
   // « Ce soir 19:00 », « Demain 19:00 », « Lundi 19:00 » dans la semaine, la
@@ -872,7 +874,8 @@ export default async function ClubHomePage({
         <Banniere
           cle={soireeBanniere.id}
           href={`/c/${slug}/sessions/${soireeBanniere.id}`}
-          titre={`${quandSoiree(soireeBanniere.date)}${soireeBanniere.location ? ` — ${soireeBanniere.location}` : ""}.`}
+          titre={quandSoiree(soireeBanniere.date)}
+          lieu={soireeBanniere.location}
           aide={[
             joursBanniere >= 2 && joursBanniere <= 6 ? `Dans ${joursBanniere} jours` : null,
             phraseEtat(presencesBanniere.etat),

@@ -151,7 +151,11 @@ export default function ClubSettingsForm({
     <div className="reg-groupe">
       <div className="section-ios">Club</div>
       <section className="carte">
-        <label className="rangee-ios">
+        {/* Le nom du club a droit à toute la largeur : partagée avec son
+            libellé, « Renault Five Urban Guy » se coupait en plein mot au
+            bord du champ — et un champ de saisie n'a pas d'ellipse pour
+            prévenir qu'il manque quelque chose. */}
+        <label className="rangee-ios empilee">
           <span className="libelle">Nom</span>
           <Ecusson camp="A" lettre={lettre(values.name)} taille={30} style={{ borderRadius: 8 }} />
           <input
@@ -232,13 +236,12 @@ export default function ClubSettingsForm({
           WhatsApp chaque semaine. */}
       <div className="section-ios">La soirée</div>
       <section className="carte">
-        <label className="rangee-ios">
-          <span className="libelle">
-            Il faut au moins
-            <span className="aide">
-              En dessous, la soirée s&apos;annonce comme menacée.
-            </span>
-          </span>
+        {/* Les deux aides de cette section sont des PHRASES, pas des
+            légendes de trois mots : coincées dans la moitié gauche de la
+            rangée, elles partaient sur trois lignes et les deux réglages se
+            touchaient. Elles passent sous la rangée, sur toute la largeur. */}
+        <label className="rangee-ios avec-aide">
+          <span className="libelle">Il faut au moins</span>
           <input
             className="reg-champ court"
             type="number"
@@ -250,15 +253,12 @@ export default function ClubSettingsForm({
             aria-label="Nombre minimum de joueurs pour que la soirée ait lieu"
           />
           <span className="valeur">joueurs</span>
-        </label>
-        <label className="rangee-ios">
-          <span className="libelle">
-            Le terrain tient
-            <span className="aide">
-              Au-delà, les suivants passent en liste d&apos;attente. 0 pour ne
-              jamais limiter.
-            </span>
+          <span className="aide">
+            En dessous, la soirée s&apos;annonce comme menacée.
           </span>
+        </label>
+        <label className="rangee-ios avec-aide">
+          <span className="libelle">Le terrain tient</span>
           <input
             className="reg-champ court"
             type="number"
@@ -270,6 +270,10 @@ export default function ClubSettingsForm({
             aria-label="Capacité de la soirée"
           />
           <span className="valeur">joueurs</span>
+          <span className="aide">
+            Au-delà, les suivants passent en liste d&apos;attente. 0 pour ne
+            jamais limiter.
+          </span>
         </label>
       </section>
 

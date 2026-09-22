@@ -21,6 +21,11 @@ import { jeton, type Jetons } from "../../lib/couleurs";
 /// depuis son retour ; cette ligne reste parce qu'on la LIT — le « + » se
 /// devine, la phrase se lit, et c'est elle qui apprend que ces deux gestes
 /// existent.
+///
+/// Elle était centrée, grise, et finissait par « … » : on la lisait comme une
+/// phrase coupée, pas comme une porte. C'est maintenant une rangée — texte à
+/// gauche, chevron à droite, 48 de haut —, la forme que prennent toutes les
+/// autres destinations de l'écran.
 export default function BlocLancement({
   t,
   indice,
@@ -54,12 +59,16 @@ export default function BlocLancement({
             etiquette={`Coup d'envoi. ${indice}`}
           />
           <Text style={[s.indice, { color: jeton(t, "i2") }]}>{indice}</Text>
-          <BoutonVerre t={t} titre="Composer les équipes ›" onPress={onComposer} style={s.composer} />
+          <BoutonVerre t={t} titre="Composer les équipes" onPress={onComposer} style={s.composer} />
         </>
       ) : jourDeJeu ? (
-        <BoutonPlein t={t} titre="Lancer un match ›" onPress={onComposer} />
+        <BoutonPlein t={t} titre="Lancer un match" onPress={onComposer} />
       ) : (
-        <BoutonVerre t={t} titre="Lancer un match ›" onPress={onComposer} />
+        // Les jours sans match, ce n'est pas LE geste du jour — mais c'en est
+        // un. En verre nu, au milieu du fond du club, il se lisait comme un
+        // bouton éteint ; la lueur de la chasuble le rend actif sans lui
+        // donner le plein, que garde le coup d'envoi.
+        <BoutonVerre t={t} titre="Lancer un match" lueur onPress={onComposer} />
       )}
       <Pressable
         onPress={onAutres}
@@ -67,17 +76,26 @@ export default function BlocLancement({
         accessibilityHint="Saisir un match déjà joué, programmer une soirée"
         style={({ pressed }) => [s.autres, pressed && { opacity: 0.6 }]}
       >
-        <Text style={[s.autresTexte, { color: jeton(t, "i2") }]}>
-          Match déjà joué, soirée à programmer…
+        <Text style={[s.autresTexte, { color: jeton(t, "i2") }]} numberOfLines={1}>
+          Match déjà joué, soirée à programmer
         </Text>
+        <IconeJeu nom="chevron" couleur={jeton(t, "i3")} taille={14} />
       </Pressable>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  indice: { fontSize: 14, textAlign: "center", marginTop: 8, lineHeight: 19 },
+  indice: { fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 18 },
   composer: { marginTop: 12 },
-  autres: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 6 },
-  autresTexte: { fontSize: 15, fontWeight: "600" },
+  autres: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    minHeight: 48,
+    marginTop: 4,
+    paddingHorizontal: 6,
+  },
+  autresTexte: { fontSize: 15, fontWeight: "600", flexShrink: 1 },
 });
