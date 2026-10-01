@@ -73,6 +73,24 @@ export function minutesDuButeur(minutes: readonly (number | null)[]): string {
     .join(", ");
 }
 
+/// Ce qu'on écrit après le nom d'un buteur sur l'affiche du récap.
+///
+/// Jusqu'à QUATRE buts, les minutes (« Seb 5′, 7′, 49′, 57′ ») : c'est ce
+/// qu'on lit au bord du terrain pour se rappeler le match. Au-delà, le nombre
+/// de buts, « ×9 » : à six par équipe et dix-huit buts, une ligne de neuf
+/// minutes passait sur trois lignes et finissait en « 37′,… » — la liste des
+/// buteurs prenait plus de place que le score (vu le 28 septembre 2026). Les
+/// minutes complètes restent dans la chronologie, un onglet plus loin.
+///
+/// Un but sans minute (saisie après coup) : le nombre seul, dès le deuxième.
+export function butsDuButeur(minutes: readonly (number | null)[]): string {
+  const total = minutes.length;
+  const minutees = minutes.filter((m): m is number => m != null);
+  if (total >= 5) return `×${total}`;
+  if (minutees.length === total) return minutesDuButeur(minutes);
+  return total > 1 ? `×${total}` : "";
+}
+
 type CampPartage = {
   nom: string;
   buteurs: { nom: string; minutes: (number | null)[] }[];

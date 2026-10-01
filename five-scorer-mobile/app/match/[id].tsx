@@ -1385,14 +1385,19 @@ function legende(iso: string): string {
 /// une dizaine de points. Le chiffre qu'on lit à deux mètres, entre deux
 /// actions, ne doit dépendre de rien.
 function Chiffre({ valeur, perd }: { valeur: number; perd: boolean }) {
+  // Même règle qu'au récap : la taille se plafonne par la largeur MESURÉE de
+  // la colonne (un 18–17 à 132 points se lisait « 1… » des deux côtés).
+  const [largeur, setLargeur] = useState<number | undefined>(undefined);
   return (
-    <Text
-      allowFontScaling={false}
-      style={[s.chiffre, tailleDuScore(valeur, 132), perd && s.chiffrePerd]}
-      numberOfLines={1}
-    >
-      {valeur}
-    </Text>
+    <View style={s.colonneChiffre} onLayout={(e) => setLargeur(e.nativeEvent.layout.width)}>
+      <Text
+        allowFontScaling={false}
+        style={[s.chiffre, tailleDuScore(valeur, 132, largeur), perd && s.chiffrePerd]}
+        numberOfLines={1}
+      >
+        {valeur}
+      </Text>
+    </View>
   );
 }
 
@@ -1453,8 +1458,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 6,
   },
+  // La colonne se mesure (onLayout) : c'est sa largeur qui plafonne la taille
+  // du chiffre. `minWidth: 0` pour qu'elle puisse rétrécir sous son contenu.
+  colonneChiffre: { flex: 1, minWidth: 0 },
   chiffre: {
-    flex: 1,
     fontWeight: "800",
     textAlign: "center",
     color: "#ffffff",

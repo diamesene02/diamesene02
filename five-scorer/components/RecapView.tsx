@@ -136,6 +136,15 @@ export default function RecapView({
     }
     return out;
   };
+  // Jusqu'à quatre buts, les minutes ; au-delà, « ×9 ». À six par équipe, une
+  // ligne de neuf minutes prenait trois lignes et la liste des buteurs
+  // dépassait le score (Ibrahima, lundi 28 septembre 2026). Le détail reste
+  // dans la chronologie. Même règle que l'app (`butsDuButeur`).
+  const butsDe = (mins: string[]) => {
+    if (mins.length >= 5) return `×${mins.length}`;
+    const m = mins.filter(Boolean);
+    return m.length === mins.length ? m.join(", ") : mins.length > 1 ? `×${mins.length}` : "";
+  };
   const buteursA = buteurs("A");
   const buteursB = buteurs("B");
 
@@ -225,7 +234,10 @@ export default function RecapView({
       {match.corrige && <div className="recap-corrige">{match.corrige}</div>}
 
       <div className="recap-marque">
-        <div className={cn("recap-chiffre", winB && "perd")}>
+        <div
+          className={cn("recap-chiffre", winB && "perd")}
+          style={{ "--n": String(match.scoreA).length } as React.CSSProperties}
+        >
           <span className="score-lourd">{match.scoreA}</span>
         </div>
         <div className="recap-etat">
@@ -243,7 +255,10 @@ export default function RecapView({
             <span className="etat direct">En direct</span>
           )}
         </div>
-        <div className={cn("recap-chiffre", winA && "perd")}>
+        <div
+          className={cn("recap-chiffre", winA && "perd")}
+          style={{ "--n": String(match.scoreB).length } as React.CSSProperties}
+        >
           <span className="score-lourd">{match.scoreB}</span>
         </div>
       </div>
@@ -268,7 +283,7 @@ export default function RecapView({
             <div>
               {buteursA.map((s) => (
                 <div key={s.name}>
-                  {s.name} <span className="mins">{s.mins.filter(Boolean).join(", ")}</span>
+                  {s.name}{butsDe(s.mins).startsWith("×") ? "\u00A0" : " "}<span className="mins">{butsDe(s.mins)}</span>
                 </div>
               ))}
             </div>
@@ -277,7 +292,7 @@ export default function RecapView({
             <div>
               {buteursB.map((s) => (
                 <div key={s.name}>
-                  {s.name} <span className="mins">{s.mins.filter(Boolean).join(", ")}</span>
+                  {s.name}{butsDe(s.mins).startsWith("×") ? "\u00A0" : " "}<span className="mins">{butsDe(s.mins)}</span>
                 </div>
               ))}
             </div>

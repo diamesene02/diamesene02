@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { EcussonChasuble } from "../base";
 import { IconeBallon } from "../Icones";
-import { minutesDuButeur } from "./textes";
+import { butsDuButeur } from "./textes";
 import { tailleDuScore } from "./score";
 
 // Le haut du récap, repris de RecapView.tsx et recap.css du site : le score
@@ -58,12 +59,16 @@ export function BlocScore({
 }
 
 function Chiffre({ valeur, perd }: { valeur: number; perd: boolean }) {
+  // La colonne se mesure : un 18 à 104 points ne tient pas dans ~124, et
+  // `numberOfLines` peignait « 1… ». La taille se plafonne par ce qu'on
+  // mesure, pas par ce qu'on suppose.
+  const [largeur, setLargeur] = useState<number | undefined>(undefined);
   return (
-    <View style={s.colonne}>
+    <View style={s.colonne} onLayout={(e) => setLargeur(e.nativeEvent.layout.width)}>
       <Text
         allowFontScaling={false}
         numberOfLines={1}
-        style={[s.chiffre, tailleDuScore(valeur, 148), perd && { color: PERDANT }]}
+        style={[s.chiffre, tailleDuScore(valeur, 148, largeur), perd && { color: PERDANT }]}
       >
         {valeur}
       </Text>
@@ -103,11 +108,13 @@ export function Buteurs({ a, b }: { a: Buteur[]; b: Buteur[] }) {
   const liste = (l: Buteur[], droite: boolean) => (
     <View style={s.liste}>
       {l.map((bt) => {
-        const mins = minutesDuButeur(bt.minutes);
+        const mins = butsDuButeur(bt.minutes);
         return (
           <Text key={bt.nom} style={[s.buteur, droite && s.aDroite]} numberOfLines={2}>
             {bt.nom}
-            {mins ? <Text style={s.minutes}> {mins}</Text> : null}
+            {/* « ×9 » reste collé au dernier mot du nom (espace insécable) :
+                sinon un nom long le laissait seul sur la ligne dessous. */}
+            {mins ? <Text style={s.minutes}>{mins.startsWith("×") ? "\u00A0" : " "}{mins}</Text> : null}
           </Text>
         );
       })}
@@ -200,7 +207,7 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     transform: [{ scaleX: 0.86 }],
   },
-  milieu: { alignItems: "center", gap: 2, paddingHorizontal: 12 },
+  milieu: { alignItems: "center", gap: 2, paddingHorizontal: 8 },
   etat: { fontSize: 17, fontWeight: "600", color: "#ffffff" },
   date: { fontSize: 15, color: "rgba(255,255,255,0.55)" },
   direct: { flexDirection: "row", alignItems: "center", gap: 6 },

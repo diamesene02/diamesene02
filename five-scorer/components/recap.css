@@ -97,6 +97,14 @@
   line-height: 1;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  /* La colonne est un conteneur : c'est sa largeur qui plafonne le chiffre.
+     Un 18–17 à 148 px débordait de l'écran (le « 7 » coupé au bord droit) et
+     l'app, elle, peignait « 1… ». 0,68 em par chiffre : mieux vaut un chiffre
+     un peu petit qu'un chiffre coupé. `--n` : le nombre de chiffres. */
+  container-type: inline-size;
+}
+.recap-chiffre > .score-lourd {
+  font-size: min(148px, calc(100cqw / (var(--n, 1) * 0.68)));
 }
 .recap-chiffre.perd {
   color: rgba(255, 255, 255, 0.35);

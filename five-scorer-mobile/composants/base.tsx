@@ -766,6 +766,14 @@ export function Segment<V extends string>({
                 { color: actif ? encreActive : encreInactive },
               ]}
               numberOfLines={1}
+              // « Statistiques », « Chronologie » à 20 points ne tiennent pas
+              // dans un tiers de l'écran : on les coupait en « Statistiqu… »
+              // (vu sur le téléphone, le 28 septembre 2026). Un onglet dont
+              // on ne lit plus le nom ne se choisit plus : le texte rétrécit
+              // d'un point ou deux, jamais plus de 20 %, plutôt que de
+              // perdre ses lettres.
+              adjustsFontSizeToFit={variante === "grand"}
+              minimumFontScale={0.8}
             >
               {c.libelle}
             </Text>
@@ -1091,9 +1099,9 @@ const s = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 6,
+    paddingHorizontal: 3,
   },
-  segmentTexteGrand: { fontSize: 20, fontWeight: "600", letterSpacing: -0.3 },
+  segmentTexteGrand: { fontSize: 19, fontWeight: "600", letterSpacing: -0.3 },
   rond: {
     width: 44,
     height: 44,

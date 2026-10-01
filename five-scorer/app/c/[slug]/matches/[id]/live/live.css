@@ -79,6 +79,13 @@
   line-height: 1;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  /* Même règle que le récap (recap.css) : la colonne plafonne le chiffre.
+     Un 18–17 à 132 px débordait de l'écran, et c'est ici qu'on lit le score
+     pendant le match. `--n` : le nombre de chiffres. */
+  container-type: inline-size;
+}
+.live-chiffre > .score-lourd {
+  font-size: min(132px, calc(100cqw / (var(--n, 1) * 0.68)));
 }
 .live-chiffre.perd {
   color: rgba(255, 255, 255, 0.4);

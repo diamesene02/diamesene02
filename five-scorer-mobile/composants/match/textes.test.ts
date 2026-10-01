@@ -8,8 +8,7 @@ import {
   quoiAnnuler,
   texteDuPartage,
   trierCandidats,
-  verdict,
-} from "./textes";
+  verdict, butsDuButeur } from "./textes";
 
 describe("quoiAnnuler", () => {
   it("dit ce que retire le bouton", () => {
@@ -151,5 +150,25 @@ describe("deplacerMaVoix", () => {
       { nom: "Zoé", voix: 3 },
     ]);
     expect(t.map((x) => x.nom)).toEqual(["Zoé", "Bakary", "Hugo"]);
+  });
+});
+
+describe("butsDuButeur — ce qu'on lit après un nom sur l'affiche", () => {
+  it("garde les minutes jusqu'à quatre buts", () => {
+    expect(butsDuButeur([5, 7, 49, 57])).toBe("5′, 7′, 49′, 57′");
+    expect(butsDuButeur([12])).toBe("12′");
+  });
+
+  it("passe au nombre de buts dès le cinquième", () => {
+    // Soirée du 28 septembre 2026, six contre six : Hicham en avait neuf, et
+    // sa ligne de minutes finissait en « 37′,… » sur trois lignes.
+    expect(butsDuButeur([9, 17, 19, 28, 29, 37, 40, 41, 50])).toBe("×9");
+    expect(butsDuButeur([1, 2, 3, 4, 5])).toBe("×5");
+  });
+
+  it("écrit le nombre dès le deuxième but quand une minute manque", () => {
+    expect(butsDuButeur([null])).toBe("");
+    expect(butsDuButeur([null, null])).toBe("×2");
+    expect(butsDuButeur([5, null, 20])).toBe("×3");
   });
 });

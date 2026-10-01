@@ -865,7 +865,7 @@ export default function LiveMatch({
       <div className="live-tete">
         {eclair && <div key={eclair.n} className={cn("live-flash joue", eclair.team)} aria-hidden />}
         <div className="live-marque">
-          <div className={cn("live-chiffre", bLead && "perd")}>
+          <div className={cn("live-chiffre", bLead && "perd")} style={{ "--n": String(match.scoreA).length } as React.CSSProperties}>
             <span className="score-lourd">{match.scoreA}</span>
           </div>
           <div className="live-milieu">
@@ -895,7 +895,7 @@ export default function LiveMatch({
               </>
             )}
           </div>
-          <div className={cn("live-chiffre", aLead && "perd")}>
+          <div className={cn("live-chiffre", aLead && "perd")} style={{ "--n": String(match.scoreB).length } as React.CSSProperties}>
             <span className="score-lourd">{match.scoreB}</span>
           </div>
         </div>
@@ -1253,9 +1253,9 @@ export default function LiveMatch({
           <div style={{ textAlign: "center", padding: 24 }}>
             <div style={{ fontSize: 17, fontWeight: 600, color: "rgba(255,255,255,.62)" }}>Temps plein</div>
             <div className="live-marque" style={{ padding: "8px 0 0" }}>
-              <div className={cn("live-chiffre", bLead && "perd")}><span className="score-lourd">{match.scoreA}</span></div>
+              <div className={cn("live-chiffre", bLead && "perd")} style={{ "--n": String(match.scoreA).length } as React.CSSProperties}><span className="score-lourd">{match.scoreA}</span></div>
               <div style={{ width: 2, height: 70, background: "rgba(255,255,255,.35)", alignSelf: "center" }} />
-              <div className={cn("live-chiffre", aLead && "perd")}><span className="score-lourd">{match.scoreB}</span></div>
+              <div className={cn("live-chiffre", aLead && "perd")} style={{ "--n": String(match.scoreB).length } as React.CSSProperties}><span className="score-lourd">{match.scoreB}</span></div>
             </div>
             <div style={{ fontSize: 22, fontWeight: 600, marginTop: 18 }}>
               {aLead ? `${match.teamAName} l'emporte` : bLead ? `${match.teamBName} l'emporte` : "Match nul"}
