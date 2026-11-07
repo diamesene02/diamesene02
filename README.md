@@ -1,47 +1,25 @@
-<div align="center">
+# Diame Sene
 
-# Hey, I'm Diame Sene 👋
+**Technical co-founder and CTO at [Gunóor](https://gunoor.sn)**, a car rental marketplace in Senegal.
+**Software & EE Project Leader / Domain Lead Data at Ampere (Renault Group).**
+Based in France.
 
-**Software & EE Project Leader @Ampere (Renault Group)**
-**AI Builder & Freelance Developer — Dakar ↔ Paris**
+[LinkedIn](https://www.linkedin.com/in/diame-sene-988b2b173/) · [gunoor.sn](https://gunoor.sn) · [App Store](https://apps.apple.com/app/id6760973626) · [Google Play](https://play.google.com/store/apps/details?id=sn.gunoor.app)
 
-[![Portfolio](https://img.shields.io/badge/Portfolio-dsene.dev-F59E0B?style=for-the-badge&logo=vercel&logoColor=white)](https://dsene.dev)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Diame_Sene-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/diame-sene)
-[![Gumroad](https://img.shields.io/badge/Gumroad-3_AI_Products-FF90E8?style=for-the-badge&logo=gumroad&logoColor=white)](https://diamesene.gumroad.com)
+## What I do
 
-</div>
+I put AI agents to work on real systems and spend a good part of that time finding where they fail: evaluation on the live model, prompt injection, agents designed to fail safely. I do not write most of the code by hand. I set up the harness, choose the tools, make the product and security calls, and supervise what ships.
 
----
+## Selected work
 
-### 🛠 What I Build
+| Project | What it is |
+|---------|------------|
+| [**Gunóor**](https://gunoor.sn) | Peer-to-peer car rental marketplace in Senegal: web platform plus iOS and Android app, first commit to the App Store in 19 weeks (Feb to Jun 2026), live in production. Includes a Claude Haiku 4.5 support agent on WhatsApp with read-only tools, a live-model evaluation suite, and guardrails around what the agent can say and do. About 96% of the code lines come from commits co-authored with Claude through Claude Code. |
+| [**NLS221**](https://nls221.sn) | Platform for a Senegalese EA Sports FC Pro Clubs league, built with two league members (Next.js, Prisma). |
+| **fl-studio-mcp** | MCP server (Python, FastMCP) with 26 tools that let Claude drive FL Studio through a MIDI bridge. Private, demo on request. |
 
-| Area | Stack |
-|------|-------|
-| **Embedded Systems** | C, AUTOSAR, DoIP, UDS, CAN |
-| **AI Automation** | n8n, Claude API, LangChain |
-| **Full-Stack Web** | Next.js 15, React, Prisma, PostgreSQL |
-| **Mobile** | Flutter, React Native, Expo |
-| **DevOps** | Docker, GitHub Actions, Vercel |
+At Ampere I built a multi-agent system with an orchestrator for my team's engineering work, used by 6 of the 10 people on the team. Details stay inside the company.
 
-### 🚀 Projects
+## Stack
 
-| Project | Description | Stack |
-|---------|-------------|-------|
-| [**Gunoor**](https://apps.apple.com/app/id6760973626) ([Android](https://play.google.com/store/apps/details?id=sn.gunoor.app)) | P2P car rental marketplace, live in Senegal on both stores | Next.js 15, Prisma/Postgres, Expo, Naboopay (Wave & Orange Money), Stripe |
-| [**Samacours**](https://dsene.dev) | Education platform for Senegalese students | Flutter, Firebase |
-| [**ClubStats Pro**](https://dsene.dev) | E-sport club management with Discord integration | Next.js, Supabase |
-| [**AI Workflows**](https://diamesene.gumroad.com) | 3 n8n automation workflows (Prospection, Content, Cold Email) | n8n, Claude API |
-
-### 📦 Digital Products (Gumroad)
-
-- 🔍 **LinkedIn AI Prospector** — Automated LinkedIn prospection with Claude IA
-- ✍️ **AI Content Factory** — 1 LinkedIn post → 5 content pieces
-- 📧 **AI Cold Email Outreach** — Personalized cold emails with web scraping + AI
-
----
-
-<div align="center">
-
-*Building for francophone Africa & Europe 🌍*
-
-</div>
+Anthropic API (messages, tool use, vision) · MCP · Claude Code (harness, sub-agents, multi-agent workflows) · OpenAI Codex · TypeScript · Python · SQL · Next.js · React · Prisma · PostgreSQL · Expo · Vercel
